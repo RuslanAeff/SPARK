@@ -1,30 +1,62 @@
 {
   "expo": {
     "name": "S.P.A.R.K",
-    "slug": "S.P.A.R.K",
-    "version": "1.0.0",
+    "slug": "spark-finance",
+    "version": "2.1.0",
     "orientation": "portrait",
-    "icon": "./assets/icon.png",
-    "userInterfaceStyle": "light",
+    "icon": "./assets/spark-icon.png",
+    "userInterfaceStyle": "dark",
+    "scheme": "spark",
     "splash": {
-      "image": "./assets/splash-icon.png",
+      "image": "./assets/spark-icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#ffffff"
+      "backgroundColor": "#0D0D0F"
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.spark.finance"
     },
     "android": {
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
-        "foregroundImage": "./assets/android-icon-foreground.png",
-        "backgroundImage": "./assets/android-icon-background.png",
-        "monochromeImage": "./assets/android-icon-monochrome.png"
+        "backgroundColor": "#0D0D0F",
+        "foregroundImage": "./assets/spark-icon.png"
       },
-      "predictiveBackGestureEnabled": false
+      "package": "com.spark.finance",
+      "versionCode": 3,
+      "permissions": [
+        "android.permission.CAMERA",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.POST_NOTIFICATIONS"
+      ]
     },
     "web": {
-      "favicon": "./assets/favicon.png"
-    }
+      "favicon": "./assets/spark-icon.png",
+      "bundler": "metro"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-font",
+      "expo-sqlite",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "S.P.A.R.K. fiş taramak için kameranıza erişmek istiyor."
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "S.P.A.R.K. logo ve fiş yüklemek için galerinize erişmek istiyor."
+        }
+      ],
+      "expo-secure-store",
+      "expo-notifications",
+      "expo-sharing"
+    ],
+    "extra": {
+      "router": {},
+      "eas": {}
+    },
+    "owner": "ruslanaeff0"
   }
 }
