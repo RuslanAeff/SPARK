@@ -19,6 +19,7 @@ import {
   Modal,
   Animated,
   Pressable,
+  View,
   StyleSheet,
   ViewStyle,
   StyleProp,
@@ -132,9 +133,17 @@ export default function BottomSheetModal({
         pointerEvents="box-none"
         style={[styles.sheetWrapper, { transform: [{ translateY }] }]}
       >
-        <Pressable onPress={(e) => e.stopPropagation()} style={sheetStyle}>
+        {/*
+          ÖNEMLİ: Burada bir `Pressable` SARMALAMA kullanmıyoruz. Pressable,
+          Android'de dikey pan hareketlerini kendi yakalayıp `ScrollView`'a
+          iletmediği için içerideki liste (örn. ItemAnalyticsModal'daki
+          ALIM GEÇMİŞİ) uzun olduğunda kaydırılamıyordu. Overlay ve sheet
+          zaten ayrı kardeş katmanlar — sheet üstte durduğu için basit bir
+          `View` alttaki overlay'e tap sızmasını doğal olarak engeller.
+        */}
+        <View style={sheetStyle}>
           {children}
-        </Pressable>
+        </View>
       </Animated.View>
     </Modal>
   );

@@ -22,28 +22,48 @@ export const VendorDao = {
     );
   },
 
-  async create(vendor: { name: string; logo_uri?: string | null }): Promise<number> {
+  async create(vendor: {
+    name: string;
+    logo_uri?: string | null;
+    default_category_id?: number | null;
+  }): Promise<number> {
     const db = await getDatabase();
     const safeName = sanitizeText(vendor.name, 200);
     if (!safeName) throw new Error('Vendor name cannot be empty');
     const result = await db.runAsync(
-      'INSERT INTO vendors (name, logo_uri) VALUES (?, ?)',
-      [safeName, vendor.logo_uri || null]
+      'INSERT INTO vendors (name, logo_uri, default_category_id) VALUES (?, ?, ?)',
+      [safeName, vendor.logo_uri || null, vendor.default_category_id ?? null]
     );
     return result.lastInsertRowId;
   },
 
-  async findOrCreate(name: string): Promise<number> {
+  async findOrCreate(
+    name: string,
+    opts?: { defaultCategoryId?: number | null }
+  ): Promise<number> {
     const safeName = sanitizeText(name, 200);
     if (!safeName) throw new Error('Vendor name cannot be empty');
     const existing = await VendorDao.findByName(safeName);
     if (existing) return existing.id;
-    return VendorDao.create({ name: safeName });
+    return VendorDao.create({
+      name: safeName,
+      default_category_id: opts?.defaultCategoryId ?? null,
+    });
   },
 
   async updateLogo(id: number, logoUri: string): Promise<void> {
     const db = await getDatabase();
     await db.runAsync('UPDATE vendors SET logo_uri = ? WHERE id = ?', [logoUri, id]);
+  },
+
+  /** Satıcı için varsayılan kategoriyi günceller. `null` geçilirse varsayılan
+   *  temizlenir. Kategori silinirse FK ON DELETE SET NULL otomatik temizler. */
+  async setDefaultCategory(id: number, categoryId: number | null): Promise<void> {
+    const db = await getDatabase();
+    await db.runAsync('UPDATE vendors SET default_category_id = ? WHERE id = ?', [
+      categoryId,
+      id,
+    ]);
   },
 
   async countExpenses(vendorId: number): Promise<number> {

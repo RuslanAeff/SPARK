@@ -3,10 +3,13 @@ import { ExpenseDao } from '../db/expenseDao';
 import { GoalDao } from '../db/goalDao';
 import { CategoryLimitDao } from '../db/categoryLimitDao';
 import { CategoryDao } from '../db/categoryDao';
+import { SubscriptionDao } from '../db/subscriptionDao';
 import { hasApiKey } from '../services/geminiService';
 import { peekPendingReceiptDraft } from '../services/pendingReceiptDraft';
 import { getScanSessionError } from '../services/scanSession';
 import { getStartOfMonth, getEndOfMonth } from '../utils/dateUtils';
+import { loadBackupMeta, isBackupOverdue } from '../services/backupMeta';
+import { syncSubscriptions } from '../services/subscriptionDetector';
 import type { InAppNotification, RulesState, NotificationSeverity } from './types';
 import {
   loadFeed,
@@ -32,9 +35,34 @@ function daysToDate(isoDate: string): number {
 
 function muted(
   mutes: Partial<Record<string, boolean>>,
-  ch: 'budget' | 'category_limit' | 'goal' | 'receipt' | 'system'
+  ch:
+    | 'budget'
+    | 'category_limit'
+    | 'goal'
+    | 'receipt'
+    | 'system'
+    | 'subscription'
+    | 'backup'
 ): boolean {
   return !!mutes[ch];
+}
+
+function previousMonthKey(): string {
+  const d = new Date();
+  d.setDate(1);
+  d.setMonth(d.getMonth() - 1);
+  return d.toISOString().slice(0, 7);
+}
+
+function previousMonthRange(): { start: string; end: string } {
+  const ym = previousMonthKey();
+  const [y, m] = ym.split('-').map(Number);
+  const lastDay = new Date(y, m, 0).getDate();
+  return { start: `${ym}-01`, end: `${ym}-${String(lastDay).padStart(2, '0')}` };
+}
+
+function todayIso(): string {
+  return new Date().toISOString().slice(0, 10);
 }
 
 function push(
@@ -193,6 +221,128 @@ export async function runNotificationSync(
     if (!explicit && !rules.monthBudgetHint[ym]) {
       feed = push(feed, `month-budget-hint-${ym}`, 'info', 'notif_month_budget_t', 'notif_month_budget_b', {});
       rules.monthBudgetHint[ym] = true;
+    }
+  }
+
+  // —— 7) Yedekleme hatırlatması ——
+  // Kullanıcı haftalık veya aylık hatırlatıcıyı açtıysa ve son yedekten itibaren
+  // bu süre geçtiyse tek seferlik bir bildirim gönderilir. Sonraki tetiklenme
+  // bir sonraki "interval" geçtiğinde olur (rules.backupRemindedAt ile takip).
+  if (!muted(mutes, 'backup')) {
+    try {
+      const meta = await loadBackupMeta();
+      if (isBackupOverdue(meta)) {
+        const intervalMs =
+          meta.reminderInterval === 'weekly' ? 7 * 86400000 : 30 * 86400000;
+        const lastReminded = rules.backupRemindedAt ?? 0;
+        if (Date.now() - lastReminded >= intervalMs * 0.9) {
+          const dayCount = meta.lastAt
+            ? Math.max(1, Math.round((Date.now() - meta.lastAt) / 86400000))
+            : 0;
+          const id = `backup-due-${Math.floor(Date.now() / (86400000 * 7))}`;
+          feed = push(feed, id, 'info', 'notif_backup_due_t', 'notif_backup_due_b', {
+            days: String(dayCount),
+            interval: meta.reminderInterval,
+          });
+          rules.backupRemindedAt = Date.now();
+        }
+      }
+    } catch (e) {
+      if (__DEV__) console.warn('[notif] backup_due', e);
+    }
+  }
+
+  // —— 8) Tekrar eden ödemeler (abonelikler) ——
+  // Önce tespiti güncel tut (ucuz, lookback penceresinde indeksli sorgu).
+  // Ardından 3 gün veya daha az kala next_expected_date'i olan aktif aboneliği
+  // bildir. Aynı satıcı için aynı tarih bandında tekrar bildirim üretmeyiz.
+  if (!muted(mutes, 'subscription')) {
+    try {
+      await syncSubscriptions();
+      const subs = await SubscriptionDao.getActive();
+      rules.subscriptionDueLast = rules.subscriptionDueLast || {};
+      const today = todayIso();
+      for (const s of subs) {
+        const days = daysToDate(s.next_expected_date);
+        if (days < 0 || days > 3) continue;
+        const key = String(s.vendor_id);
+        const lastSent = rules.subscriptionDueLast[key];
+        if (lastSent === s.next_expected_date) continue;
+        const id = `sub-due-${s.vendor_id}-${s.next_expected_date}`;
+        feed = push(
+          feed,
+          id,
+          days <= 0 ? 'warning' : 'info',
+          'notif_sub_due_t',
+          days <= 0 ? 'notif_sub_due_today_b' : 'notif_sub_due_b',
+          {
+            vendor: s.vendor_name,
+            days: String(Math.max(0, days)),
+            date: s.next_expected_date,
+          }
+        );
+        rules.subscriptionDueLast[key] = s.next_expected_date;
+      }
+      // Eski tarihli kayıtları temizle (sonsuz büyümesin)
+      for (const k of Object.keys(rules.subscriptionDueLast)) {
+        if (rules.subscriptionDueLast[k] < today) delete rules.subscriptionDueLast[k];
+      }
+    } catch (e) {
+      if (__DEV__) console.warn('[notif] sub_due', e);
+    }
+  }
+
+  // —— 9) Aylık otomatik özet (önceki ay) ——
+  // Her ayın başında (ilk 7 gün içinde) bir kez gönderilir. Önceki ayın toplam
+  // harcama, bütçeye göre yüzde ve en yüksek harcanan kategori bilgisi içerir.
+  if (!muted(mutes, 'budget')) {
+    try {
+      const dayOfMonth = new Date().getDate();
+      if (dayOfMonth <= 7) {
+        const prevYm = previousMonthKey();
+        rules.monthSummary = rules.monthSummary || {};
+        if (!rules.monthSummary[prevYm]) {
+          const { start: ps, end: pe } = previousMonthRange();
+          const totalPrev = await ExpenseDao.getTotalByDateRange(ps, pe);
+          if (totalPrev > 0) {
+            const prevBudgetRow =
+              (await BudgetDao.getForMonth(prevYm)) ?? (await BudgetDao.getLatestActive());
+            const budgetAmount = prevBudgetRow ? prevBudgetRow.monthly_amount : 0;
+            const pct = budgetAmount > 0
+              ? Math.min(999, Math.round((totalPrev / budgetAmount) * 100))
+              : 0;
+            const cats = (await ExpenseDao.getCategorySpending(ps, pe)) as Array<{
+              category_name: string;
+              total: number;
+            }>;
+            const top = cats?.[0];
+            const topName = top?.category_name ?? '—';
+            const topShare = totalPrev > 0 && top
+              ? Math.round((Number(top.total) / totalPrev) * 100)
+              : 0;
+            const totalStr = totalPrev.toLocaleString('tr-TR', {
+              maximumFractionDigits: 0,
+            });
+            feed = push(
+              feed,
+              `month-summary-${prevYm}`,
+              'info',
+              'notif_month_summary_t',
+              budgetAmount > 0 ? 'notif_month_summary_b' : 'notif_month_summary_no_budget_b',
+              {
+                month: prevYm,
+                total: totalStr,
+                pct: String(pct),
+                top: topName,
+                top_pct: String(topShare),
+              }
+            );
+            rules.monthSummary[prevYm] = true;
+          }
+        }
+      }
+    } catch (e) {
+      if (__DEV__) console.warn('[notif] month_summary', e);
     }
   }
 

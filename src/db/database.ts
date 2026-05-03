@@ -61,6 +61,39 @@ export async function getDatabase(): Promise<SQLite.SQLiteDatabase> {
     } catch (_) {
       // Column already exists
     }
+    // vendors.default_category_id: satıcı bazlı varsayılan kategori. Eklendiğinde
+    // hem manuel harcama girişi hem fiş tarama bu kategoriyi otomatik seçer.
+    try {
+      await instance.execAsync(
+        'ALTER TABLE vendors ADD COLUMN default_category_id INTEGER REFERENCES categories(id) ON DELETE SET NULL;'
+      );
+    } catch (_) {
+      // Column already exists
+    }
+    // subscriptions: tekrar eden ödeme tespitinin sonuçları. CREATE_TABLES_SQL
+    // tarafından üretilir ama eski kurulumlar için ayrıca burada da garanti
+    // ediyoruz (bütçe / hedef tabloları gibi).
+    try {
+      await instance.execAsync(`
+        CREATE TABLE IF NOT EXISTS subscriptions (
+          id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+          vendor_id           INTEGER NOT NULL REFERENCES vendors(id) ON DELETE CASCADE,
+          amount              REAL NOT NULL,
+          currency            TEXT NOT NULL,
+          period_days         INTEGER NOT NULL,
+          last_seen_date      TEXT NOT NULL,
+          next_expected_date  TEXT NOT NULL,
+          occurrences         INTEGER NOT NULL DEFAULT 0,
+          status              TEXT NOT NULL DEFAULT 'active',
+          updated_at          TEXT NOT NULL,
+          UNIQUE(vendor_id)
+        );
+        CREATE INDEX IF NOT EXISTS idx_subscriptions_vendor ON subscriptions(vendor_id);
+        CREATE INDEX IF NOT EXISTS idx_subscriptions_next ON subscriptions(next_expected_date);
+      `);
+    } catch (_) {
+      // Already applied
+    }
     db = instance;
     return instance;
   })();

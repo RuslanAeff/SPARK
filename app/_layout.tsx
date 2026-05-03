@@ -69,6 +69,26 @@ export default function RootLayout() {
             name="notifications"
             options={{ presentation: 'card', animation: 'slide_from_right', contentStyle: { backgroundColor: theme.background } }}
           />
+          <Stack.Screen
+            name="subscriptions"
+            options={{ presentation: 'card', animation: 'slide_from_right', contentStyle: { backgroundColor: theme.background } }}
+          />
+          <Stack.Screen
+            name="settings-general"
+            options={{ presentation: 'card', animation: 'slide_from_right', contentStyle: { backgroundColor: theme.background } }}
+          />
+          <Stack.Screen
+            name="settings-budget"
+            options={{ presentation: 'card', animation: 'slide_from_right', contentStyle: { backgroundColor: theme.background } }}
+          />
+          <Stack.Screen
+            name="settings-data"
+            options={{ presentation: 'card', animation: 'slide_from_right', contentStyle: { backgroundColor: theme.background } }}
+          />
+          <Stack.Screen
+            name="settings-ai"
+            options={{ presentation: 'card', animation: 'slide_from_right', contentStyle: { backgroundColor: theme.background } }}
+          />
         </Stack>
         <SparkToastContainer />
       </View>

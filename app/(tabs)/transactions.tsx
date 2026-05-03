@@ -275,7 +275,7 @@ export default function TransactionsScreen() {
         data={rows}
         keyExtractor={keyExtractor}
         renderItem={renderItem}
-        removeClippedSubviews={!selectionMode}
+        removeClippedSubviews={false}
         initialNumToRender={18}
         maxToRenderPerBatch={16}
         windowSize={9}

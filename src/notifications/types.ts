@@ -15,7 +15,9 @@ export type NotificationMuteChannel =
   | 'category_limit'
   | 'goal'
   | 'receipt'
-  | 'system';
+  | 'system'
+  | 'subscription'
+  | 'backup';
 
 export interface RulesState {
   budget?: Record<string, { b80?: boolean; b100?: boolean; over?: boolean }>;
@@ -24,4 +26,10 @@ export interface RulesState {
   monthBudgetHint?: Record<string, boolean>;
   apiDismissed?: boolean;
   scanErrorDismissed?: boolean;
+  /** Aylık özet bildiriminin (önceki ay için) gönderilip gönderilmediğini takip eder. */
+  monthSummary?: Record<string, boolean>;
+  /** Yedek hatırlatması için: en son ne zaman gösterildi (timestamp ms). */
+  backupRemindedAt?: number;
+  /** Abonelik yaklaşan ödeme bildirimi: vendor_id'ye göre son tetikleme tarihi (YYYY-MM-DD). */
+  subscriptionDueLast?: Record<string, string>;
 }

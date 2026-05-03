@@ -29,6 +29,7 @@ import { ErrorBoundary } from '../../src/components/ErrorBoundary';
 import { useLanguage } from '../../src/i18n/LanguageContext';
 import { intlLocaleForLanguage } from '../../src/i18n/languageOptions';
 import ItemAnalyticsModal from '../../src/components/ItemAnalyticsModal';
+import StreakDetailsSheet from '../../src/components/StreakDetailsSheet';
 import { useBudget } from '../../src/hooks/useBudget';
 import { useRefresh, useExpenseDataRefresh } from '../../src/context/RefreshContext';
 import { useCurrency } from '../../src/context/CurrencyContext';
@@ -413,6 +414,7 @@ export default function AnalyticsScreen() {
   const [selectedVendor, setSelectedVendor] = useState<number | null>(null);
   const [vendorItems, setVendorItems] = useState<any[]>([]);
   const [selectedItemName, setSelectedItemName] = useState<string | null>(null);
+  const [streakDetailVariant, setStreakDetailVariant] = useState<'zero' | 'streak' | 'under' | null>(null);
   const [selectedDonutIdx, setSelectedDonutIdx] = useState<number | null>(null);
   const [selectedNWIdx, setSelectedNWIdx] = useState<number | null>(null);
   const [selectedWWIdx, setSelectedWWIdx] = useState<number | null>(null);
@@ -521,7 +523,15 @@ export default function AnalyticsScreen() {
     // Bitiş ≤ bugün (geleceği saymayız)
     const rangeEnd = rawEnd > today ? today : rawEnd;
     if (rangeEnd < rawStart) {
-      return { zeroSpendDays: 0, currentStreak: 0, underBudgetDays: 0, totalDays: 0 };
+      return {
+        zeroSpendDays: 0,
+        currentStreak: 0,
+        underBudgetDays: 0,
+        totalDays: 0,
+        zeroSpendDates: [] as string[],
+        currentStreakDates: [] as string[],
+        underBudgetEntries: [] as { date: string; total: number }[],
+      };
     }
 
     // Maks 365 güne kırp — "Tüm zamanlar" senaryosu için makul değerler.
@@ -540,28 +550,43 @@ export default function AnalyticsScreen() {
       days.push({ date: key, total: totalsMap.get(key) ?? 0 });
     }
 
-    const zeroSpendDays = days.reduce((n, d) => n + (d.total === 0 ? 1 : 0), 0);
+    const zeroSpendDates: string[] = [];
+    for (const d of days) if (d.total === 0) zeroSpendDates.push(d.date);
+    const zeroSpendDays = zeroSpendDates.length;
 
     // Güncel seri: bugünden geriye, art arda kaç sıfır harcama günü?
-    let currentStreak = 0;
+    const currentStreakDates: string[] = [];
     for (let i = days.length - 1; i >= 0; i--) {
       if (days[i].date > todayStr) continue;
-      if (days[i].total === 0) currentStreak++;
+      if (days[i].total === 0) currentStreakDates.push(days[i].date);
       else break;
     }
+    // En eski → en yeni sırayla göstermek için tersine çevir
+    currentStreakDates.reverse();
+    const currentStreak = currentStreakDates.length;
 
     const dailyBudgetTarget = budget.dailyBudget > 0 ? budget.dailyBudget : 0;
-    const underBudgetDays =
-      dailyBudgetTarget > 0
-        ? days.reduce(
-            (n, d) => n + (d.total > 0 && d.total <= dailyBudgetTarget ? 1 : 0),
-            0
-          )
-        : 0;
+    const underBudgetEntries: { date: string; total: number }[] = [];
+    if (dailyBudgetTarget > 0) {
+      for (const d of days) {
+        if (d.total > 0 && d.total <= dailyBudgetTarget) {
+          underBudgetEntries.push({ date: d.date, total: d.total });
+        }
+      }
+    }
+    const underBudgetDays = underBudgetEntries.length;
 
     const totalDays = days.length;
 
-    return { zeroSpendDays, currentStreak, underBudgetDays, totalDays };
+    return {
+      zeroSpendDays,
+      currentStreak,
+      underBudgetDays,
+      totalDays,
+      zeroSpendDates,
+      currentStreakDates,
+      underBudgetEntries,
+    };
   }, [dailyData, budget.dailyBudget, dateRange.start, dateRange.end]);
 
   const heatmapInfo = useMemo(() => {
@@ -950,7 +975,14 @@ export default function AnalyticsScreen() {
                 : null;
               return (
               <Animated.View key={v.vendor_id} entering={FadeInDown.delay(i * 60).duration(400)}>
-                <Pressable onPress={() => handleVendorPress(v.vendor_id)} style={[styles.vendorRow, selectedVendor === v.vendor_id && styles.vendorRowActive]}>
+                <Pressable
+                  onPress={() => handleVendorPress(v.vendor_id)}
+                  style={[
+                    styles.vendorRow,
+                    selectedVendor === v.vendor_id && styles.vendorRowActive,
+                    selectedVendor === v.vendor_id && styles.vendorRowActiveNoDivider,
+                  ]}
+                >
                   <View>
                     <VendorAvatar name={v.vendor_name} logoUri={v.vendor_logo} size={44} />
                     {isNewVendor && (
@@ -1275,40 +1307,83 @@ export default function AnalyticsScreen() {
     }
 
     // ──── A6: Price Watch ────
+    // Kompakt 2 sütunlu grid: Her ürün mini bir kart. Ürün sayısı arttıkça
+    // dikey uzama yarı yarıya azalır (örn. 6 ürün → 3 satır yerine 3 sütunsal
+    // çift); başlıkta toplam ürün sayısı küçük bir rozet gösterir.
     if (id === 'price_watch') {
       if (priceChanges.length === 0) return null;
+      const upCount = priceChanges.filter(p => p.changePct > 0).length;
+      const downCount = priceChanges.length - upCount;
       content = (
         <AnimatedCard delay={380} style={styles.section}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, marginBottom: Spacing.md }}>
-            <MaterialCommunityIcons name="tag-multiple-outline" size={18} color={Colors.warning} />
-            <Text style={styles.sectionTitle}>{t('price_watch')}</Text>
-          </View>
-          {priceChanges.map((pc, i) => {
-            const isUp = pc.changePct > 0;
-            const displayName = pc.turkishName || pc.name;
-            return (
-              <Animated.View key={i} entering={FadeInDown.delay(i * 60).duration(300)}>
-                <View style={styles.priceRow}>
-                  <View style={styles.priceInfo}>
-                    <Text style={styles.priceName} numberOfLines={1}>{displayName}</Text>
-                    <Text style={styles.priceSub}>
-                      {formatCurrency(pc.firstPrice, currency, false)} → {formatCurrency(pc.lastPrice, currency, false)}
-                    </Text>
-                  </View>
-                  <View style={[styles.priceBadge, { backgroundColor: isUp ? Colors.danger + '15' : Colors.success + '15' }]}>
-                    <MaterialCommunityIcons
-                      name={isUp ? 'arrow-up' : 'arrow-down'}
-                      size={14}
-                      color={isUp ? Colors.danger : Colors.success}
-                    />
-                    <Text style={[styles.pricePct, { color: isUp ? Colors.danger : Colors.success }]}>
-                      {isUp ? '+' : ''}{pc.changePct}%
-                    </Text>
-                  </View>
+          <View style={styles.priceHeader}>
+            <View style={styles.priceHeaderLeft}>
+              <MaterialCommunityIcons name="tag-multiple-outline" size={18} color={Colors.warning} />
+              <Text style={styles.sectionTitle}>{t('price_watch')}</Text>
+            </View>
+            <View style={styles.priceHeaderStats}>
+              {upCount > 0 && (
+                <View style={styles.priceStatChip}>
+                  <MaterialCommunityIcons name="arrow-up" size={12} color={Colors.danger} />
+                  <Text style={[styles.priceStatChipText, { color: Colors.danger }]}>{upCount}</Text>
                 </View>
-              </Animated.View>
-            );
-          })}
+              )}
+              {downCount > 0 && (
+                <View style={styles.priceStatChip}>
+                  <MaterialCommunityIcons name="arrow-down" size={12} color={Colors.success} />
+                  <Text style={[styles.priceStatChipText, { color: Colors.success }]}>{downCount}</Text>
+                </View>
+              )}
+            </View>
+          </View>
+          <View style={styles.priceGrid}>
+            {priceChanges.map((pc, i) => {
+              const isUp = pc.changePct > 0;
+              const displayName = pc.turkishName || pc.name;
+              return (
+                <Animated.View
+                  key={i}
+                  entering={FadeInDown.delay(i * 40).duration(260)}
+                  style={styles.priceTile}
+                >
+                  <Pressable
+                    onPress={() => setSelectedItemName(pc.name)}
+                    style={({ pressed }) => [styles.priceTileInner, pressed && { opacity: 0.88 }]}
+                  >
+                    <View
+                      style={[
+                        styles.priceTileBadge,
+                        { backgroundColor: isUp ? Colors.danger + '18' : Colors.success + '18' },
+                      ]}
+                    >
+                      <MaterialCommunityIcons
+                        name={isUp ? 'arrow-up' : 'arrow-down'}
+                        size={12}
+                        color={isUp ? Colors.danger : Colors.success}
+                      />
+                      <Text
+                        style={[
+                          styles.priceTilePct,
+                          { color: isUp ? Colors.danger : Colors.success },
+                        ]}
+                      >
+                        {isUp ? '+' : ''}
+                        {pc.changePct}%
+                      </Text>
+                    </View>
+                    <Text style={styles.priceTileName} numberOfLines={2}>
+                      {displayName}
+                    </Text>
+                    <Text style={styles.priceTileSub} numberOfLines={1}>
+                      {formatCurrency(pc.firstPrice, currency, false)}
+                      <Text style={styles.priceTileArrow}> → </Text>
+                      {formatCurrency(pc.lastPrice, currency, false)}
+                    </Text>
+                  </Pressable>
+                </Animated.View>
+              );
+            })}
+          </View>
           <Text style={styles.priceHint}>{t('since_first')}</Text>
         </AnimatedCard>
       );
@@ -1325,28 +1400,43 @@ export default function AnalyticsScreen() {
         <AnimatedCard delay={250} style={styles.section}>
           <Text style={styles.sectionTitle}>{t('spending_streak')}</Text>
           <View style={styles.streakGrid}>
-            <View style={styles.streakCard}>
+            <Pressable
+              style={({ pressed }) => [styles.streakCard, pressed && styles.streakCardPressed]}
+              onPress={() => setStreakDetailVariant('zero')}
+              accessibilityRole="button"
+              accessibilityLabel={t('zero_spend_days')}
+            >
               <View style={[styles.streakIconBg, { backgroundColor: Colors.success + '18' }]}>
                 <MaterialCommunityIcons name="calendar-check" size={22} color={Colors.success} />
               </View>
               <CountUpText value={zeroSpendDays} style={styles.streakNumber} duration={900} />
               <Text style={styles.streakLabel}>{t('zero_spend_days')}</Text>
-            </View>
-            <View style={styles.streakCard}>
+            </Pressable>
+            <Pressable
+              style={({ pressed }) => [styles.streakCard, pressed && styles.streakCardPressed]}
+              onPress={() => setStreakDetailVariant('streak')}
+              accessibilityRole="button"
+              accessibilityLabel={t('current_streak')}
+            >
               <View style={[styles.streakIconBg, { backgroundColor: Colors.warning + '18' }]}>
                 <MaterialCommunityIcons name="fire" size={22} color={Colors.warning} />
               </View>
               <CountUpText value={currentStreak} style={styles.streakNumber} duration={900} />
               <Text style={styles.streakLabel}>{t('current_streak')}</Text>
-            </View>
+            </Pressable>
             {budget.dailyBudget > 0 && (
-              <View style={styles.streakCard}>
+              <Pressable
+                style={({ pressed }) => [styles.streakCard, pressed && styles.streakCardPressed]}
+                onPress={() => setStreakDetailVariant('under')}
+                accessibilityRole="button"
+                accessibilityLabel={t('under_budget_days')}
+              >
                 <View style={[styles.streakIconBg, { backgroundColor: Colors.primary + '18' }]}>
                   <MaterialCommunityIcons name="shield-check" size={22} color={Colors.primary} />
                 </View>
                 <CountUpText value={underBudgetDays} style={styles.streakNumber} duration={900} />
                 <Text style={styles.streakLabel}>{t('under_budget_days')}</Text>
-              </View>
+              </Pressable>
             )}
           </View>
           <View style={styles.streakMsg}>
@@ -1439,7 +1529,13 @@ export default function AnalyticsScreen() {
                       {tab.icon ? (
                         <MaterialCommunityIcons name={tab.icon} size={16} color={isActive ? Colors.primary : Colors.textSecondary} />
                       ) : (
-                        <Text style={[styles.tabText, isActive && styles.tabTextActive]} numberOfLines={1} adjustsFontSizeToFit={true}>
+                        <Text
+                          style={[styles.tabText, isActive && styles.tabTextActive]}
+                          numberOfLines={1}
+                          adjustsFontSizeToFit
+                          minimumFontScale={0.72}
+                          allowFontScaling
+                        >
                           {tab.label}
                         </Text>
                       )}
@@ -1549,6 +1645,22 @@ export default function AnalyticsScreen() {
       itemName={selectedItemName || ''}
       onClose={() => setSelectedItemName(null)}
     />
+    <StreakDetailsSheet
+      visible={streakDetailVariant !== null}
+      onClose={() => setStreakDetailVariant(null)}
+      variant={streakDetailVariant ?? 'zero'}
+      dates={
+        streakDetailVariant === 'streak'
+          ? streakData.currentStreakDates
+          : streakData.zeroSpendDates
+      }
+      entries={streakData.underBudgetEntries}
+      dailyBudget={budget.dailyBudget}
+      totalDays={streakData.totalDays}
+      language={language}
+      currency={currency}
+      t={t}
+    />
     <CustomDatePicker
       visible={showStartPicker}
       onClose={() => setShowStartPicker(false)}
@@ -1600,8 +1712,11 @@ const getStyles = () => StyleSheet.create({
   },
   tab: {
     flex: 1,
+    minWidth: 0,
     paddingVertical: Spacing.sm,
+    paddingHorizontal: 2,
     alignItems: 'center',
+    justifyContent: 'center',
     borderRadius: BorderRadius.round,
   },
   tabActive: {
@@ -1609,6 +1724,10 @@ const getStyles = () => StyleSheet.create({
   },
   tabText: {
     ...Typography.labelMedium,
+    letterSpacing: 0,
+    textAlign: 'center',
+    width: '100%',
+    ...(Platform.OS === 'android' ? { includeFontPadding: false } : null),
     color: Colors.textSecondary,
   },
   tabTextActive: {
@@ -1908,7 +2027,13 @@ const getStyles = () => StyleSheet.create({
     backgroundColor: Colors.surfaceLight,
     marginHorizontal: -Spacing.lg,
     paddingHorizontal: Spacing.lg,
-    borderRadius: BorderRadius.md,
+    // Pressable + Android: borderRadius tek başına bazen kare zemin çizer;
+    // overflow: 'hidden' ile arka plan köşeleri kart estetiğiyle uyumlu kırpılır.
+    borderRadius: BorderRadius.xl,
+    overflow: 'hidden',
+  },
+  vendorRowActiveNoDivider: {
+    borderBottomWidth: 0,
   },
   vendorInfo: {
     flex: 1,
@@ -2246,40 +2371,82 @@ const getStyles = () => StyleSheet.create({
     ...Typography.bodySmall,
     color: Colors.textMuted,
   },
-  // ── A6: Price Watch ──
-  priceRow: {
+  // ── A6: Price Watch (kompakt grid) ──
+  priceHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingVertical: Spacing.sm,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.divider,
+    marginBottom: Spacing.md,
   },
-  priceInfo: {
+  priceHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
     flex: 1,
-    marginRight: Spacing.md,
   },
-  priceName: {
-    ...Typography.bodyMedium,
-    fontFamily: FontFamily.medium,
-    color: Colors.textPrimary,
+  priceHeaderStats: {
+    flexDirection: 'row',
+    gap: Spacing.xs,
   },
-  priceSub: {
-    ...Typography.labelSmall,
-    color: Colors.textMuted,
-    marginTop: 2,
-  },
-  priceBadge: {
+  priceStatChip: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 2,
     paddingHorizontal: Spacing.sm,
-    paddingVertical: 4,
+    paddingVertical: 2,
     borderRadius: BorderRadius.round,
+    backgroundColor: Colors.surfaceLight,
   },
-  pricePct: {
+  priceStatChipText: {
+    ...Typography.labelSmall,
+    fontFamily: FontFamily.extraBold,
+    fontSize: 11,
+  },
+  priceGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: Spacing.sm,
+  },
+  priceTile: {
+    // 2 sütun (gap: Spacing.sm) — küçük ekranlarda % hesabı kırpılmaz.
+    width: '48.5%',
+  },
+  priceTileInner: {
+    backgroundColor: Colors.surface,
+    borderRadius: BorderRadius.lg,
+    padding: Spacing.md,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    gap: 6,
+    minHeight: 88,
+  },
+  priceTileBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 3,
+    borderRadius: BorderRadius.round,
+    alignSelf: 'flex-start',
+  },
+  priceTilePct: {
     ...Typography.labelMedium,
-    fontFamily: FontFamily.bold,
+    fontFamily: FontFamily.extraBold,
+    fontSize: 12,
+  },
+  priceTileName: {
+    ...Typography.bodyMedium,
+    fontFamily: FontFamily.semiBold,
+    color: Colors.textPrimary,
+    lineHeight: 18,
+  },
+  priceTileSub: {
+    ...Typography.labelSmall,
+    color: Colors.textMuted,
+    fontFamily: FontFamily.medium,
+  },
+  priceTileArrow: {
+    color: Colors.textMuted,
   },
   priceHint: {
     ...Typography.labelSmall,
@@ -2301,6 +2468,11 @@ const getStyles = () => StyleSheet.create({
     gap: 6,
     borderWidth: 1,
     borderColor: Colors.border,
+  },
+  streakCardPressed: {
+    backgroundColor: Colors.surfaceLight,
+    borderColor: Colors.cardBorder,
+    transform: [{ scale: 0.98 }],
   },
   streakIconBg: {
     width: 40,

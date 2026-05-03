@@ -8,8 +8,16 @@
 // dışarı aktarılmaz (sadece metaveri/URI korunur — farklı cihazda çözümsüz
 // kalabileceği için import sırasında görsel eksikse sessizce atlanır).
 import { File, Paths } from 'expo-file-system';
+// `expo-file-system/legacy` içinden sadece SAF helper'larını kullanıyoruz.
+// Paket `StorageAccessFramework`'ı bir TS namespace olarak `export declare` etse de,
+// tsc'nin `moduleResolution: bundler` akışında bazı ortamlarda `types` alt yolu
+// yakalanmıyor. Güvenli tarafta kalmak için lokal bir `any` tip referansı
+// kullanıyoruz — çağrılan metotlar Expo tarafından belgelenmiş kamusal API'dir.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const FileSystemLegacy: any = require('expo-file-system/legacy');
 import * as Sharing from 'expo-sharing';
 import * as DocumentPicker from 'expo-document-picker';
+import { Platform } from 'react-native';
 import { getDatabase } from '../db/database';
 import { Category, Expense, ExpenseItem, Vendor } from '../db/schema';
 import {
@@ -21,7 +29,12 @@ import {
   stripDangerousKeys,
 } from '../utils/inputValidation';
 
-export const BACKUP_FORMAT_VERSION = 1;
+/** Mevcut yedek formatı sürümü.
+ *  v1 → ilk sürüm
+ *  v2 → vendors.default_category_name + dismissed subscriptions eklendi.
+ *       Eski v1 yedekleri hâlâ içe alınabilir; v2 yedekleri eski uygulamaya
+ *       yüklenirse UNSUPPORTED_VERSION ile reddedilir. */
+export const BACKUP_FORMAT_VERSION = 2;
 
 /** Aralık dışı tarihler import edildiğinde de kabul edilir; aralık sadece EXPORT kapsamı. */
 export interface BackupDateRange {
@@ -57,12 +70,21 @@ interface ExportedCategory {
 interface ExportedVendor {
   name: string;
   logo_uri: string | null;
+  /** v2+: bu satıcı için ayarlanmış varsayılan kategori adı (yaprak ya da kök). */
+  default_category_name?: string | null;
 }
 
 interface ExportedBudget {
   monthly_amount: number;
   currency: string;
   start_date: string;
+}
+
+/** v2+: kullanıcının "abonelik değil" tepkisi vermiş satıcılar.
+ *  Aktif abonelikler import sonrası yerel veriden tespit edilir; dismissed
+ *  kayıtlar ise tekrar uyarı çıkmaması için listede tutulur. */
+interface ExportedDismissedSubscription {
+  vendor_name: string;
 }
 
 export interface BackupPayload {
@@ -75,15 +97,30 @@ export interface BackupPayload {
     categories: ExportedCategory[];
     vendors: ExportedVendor[];
     budgets: ExportedBudget[];
+    /** v2+: opsiyonel — eski sürüm yedeklerinde bulunmayabilir. */
+    dismissed_subscriptions?: ExportedDismissedSubscription[];
   };
 }
 
+export type ExportDestination =
+  /** Kullanıcı Android SAF diyaloğunda bir klasör seçti ve dosya oraya yazıldı. */
+  | 'saved'
+  /** Sistem paylaş ekranı açıldı (iOS veya SAF'tan geri düşüş). */
+  | 'shared'
+  /** Kullanıcı SAF klasör seçimi diyaloğunu iptal etti, dosya paylaş veya SAF ile
+   *  cihaza yerleşmedi; sadece uygulama önbelleğinde tutuluyor. */
+  | 'cancelled';
+
 export interface ExportResult {
+  /** Her durumda üretilen önbellek kopyasının yolu. */
   fileUri: string;
+  /** Kullanıcının seçtiği klasöre yazılan dosyanın SAF URI'si (yalnızca Android, başarılıysa). */
+  savedUri?: string;
   fileName: string;
   expenseCount: number;
   itemCount: number;
   sizeBytes: number;
+  destination: ExportDestination;
 }
 
 export interface ImportSummary {
@@ -217,14 +254,35 @@ export async function buildBackupPayload(range: BackupDateRange): Promise<Backup
   if (vendorNames.size > 0) {
     const names = Array.from(vendorNames);
     const ph = names.map(() => '?').join(',');
-    const rows = await db.getAllAsync<Vendor>(
-      `SELECT * FROM vendors WHERE name IN (${ph})`,
+    const rows = await db.getAllAsync<
+      Vendor & { default_category_name: string | null }
+    >(
+      `SELECT v.id, v.name, v.logo_uri, v.default_category_id, v.created_at,
+              c.name AS default_category_name
+         FROM vendors v
+         LEFT JOIN categories c ON v.default_category_id = c.id
+        WHERE v.name IN (${ph})`,
       names
     );
     for (const v of rows) {
-      vendorsOut.push({ name: v.name, logo_uri: v.logo_uri });
+      vendorsOut.push({
+        name: v.name,
+        logo_uri: v.logo_uri,
+        default_category_name: v.default_category_name ?? null,
+      });
     }
   }
+
+  // Dismissed abonelik kayıtları — vendor adı üzerinden taşınır
+  const dismissedSubsRows = await db.getAllAsync<{ vendor_name: string }>(
+    `SELECT v.name AS vendor_name
+       FROM subscriptions s
+       JOIN vendors v ON s.vendor_id = v.id
+      WHERE s.status = 'dismissed'`
+  );
+  const dismissedSubsOut: ExportedDismissedSubscription[] = dismissedSubsRows.map((r) => ({
+    vendor_name: r.vendor_name,
+  }));
 
   // Bütçeler: aralıkta kalan YYYY-MM ayları
   const months = monthsInRange(range);
@@ -253,19 +311,40 @@ export async function buildBackupPayload(range: BackupDateRange): Promise<Backup
       categories: categoriesOut,
       vendors: vendorsOut,
       budgets: budgetsOut,
+      dismissed_subscriptions: dismissedSubsOut,
     },
   };
 }
 
-/** JSON dosyası olarak cache'e yazar ve sistem paylaş menüsünü açar. */
+/**
+ * Yedeği cihaza kaydeder.
+ *
+ *  • Android: SAF (Storage Access Framework) ile kullanıcıya klasör seçtirir,
+ *    seçilen klasöre dosyayı doğrudan yazar → cihazın "Dosyalar" uygulamasında
+ *    anında görünür. Kullanıcı klasör seçimini iptal ederse paylaş ekranına
+ *    geri düşer (Samsung/One UI gibi cihazlarda paylaş listesinde "Dosyalara
+ *    Kaydet" seçeneği her zaman görünmediği için bu fallback önemli).
+ *
+ *  • iOS: `Sharing.shareAsync` çağrılır — iOS paylaş ekranında "Files'a Kaydet"
+ *    seçeneği her zaman yerleşik olarak bulunur.
+ *
+ * Her durumda JSON, uygulama önbelleğine de yazılır; bu kopya çağıran taraf
+ * için referans (paylaşım, hata ayıklama, önizleme) amacıyla kullanılır.
+ */
 export async function exportBackupToFile(range: BackupDateRange): Promise<ExportResult> {
   const payload = await buildBackupPayload(range);
   const json = JSON.stringify(payload, null, 2);
 
   const fileName = `spark-backup_${payload.range.start}_${payload.range.end}.json`;
+  const fileNameNoExt = fileName.replace(/\.json$/i, '');
+
   const file = new File(Paths.cache, fileName);
   if (file.exists) {
-    try { file.delete(); } catch { /* aynı dosya üzerine yazacağız */ }
+    try {
+      file.delete();
+    } catch {
+      /* aynı dosya üzerine yazacağız */
+    }
   }
   file.create({ overwrite: true });
   file.write(json);
@@ -278,7 +357,29 @@ export async function exportBackupToFile(range: BackupDateRange): Promise<Export
     expenseCount: payload.data.expenses.length,
     itemCount,
     sizeBytes: file.size ?? json.length,
+    destination: 'cancelled',
   };
+
+  // Android — SAF ile doğrudan klasöre yaz. Kullanıcı iptal ederse paylaşıma düş.
+  if (Platform.OS === 'android') {
+    try {
+      const SAF = FileSystemLegacy.StorageAccessFramework;
+      const perm = await SAF.requestDirectoryPermissionsAsync();
+      if (perm.granted) {
+        const savedUri = await SAF.createFileAsync(
+          perm.directoryUri,
+          fileNameNoExt,
+          'application/json',
+        );
+        await SAF.writeAsStringAsync(savedUri, json);
+        result.savedUri = savedUri;
+        result.destination = 'saved';
+        return result;
+      }
+    } catch (e) {
+      if (__DEV__) console.warn('SAF save failed, falling back to share', e);
+    }
+  }
 
   if (await Sharing.isAvailableAsync()) {
     await Sharing.shareAsync(file.uri, {
@@ -286,6 +387,7 @@ export async function exportBackupToFile(range: BackupDateRange): Promise<Export
       dialogTitle: 'S.P.A.R.K. backup',
       UTI: 'public.json',
     });
+    result.destination = 'shared';
   }
 
   return result;
@@ -428,9 +530,11 @@ export async function importBackupPayload(payload: BackupPayload): Promise<Impor
       }
     }
 
-    // Vendors
+    // Vendors — default_category_name v2+ için
     const vendorIdByName = new Map<string, number>();
-    const existingVendors = await db.getAllAsync<Vendor>('SELECT id, name, logo_uri, created_at FROM vendors');
+    const existingVendors = await db.getAllAsync<Vendor>(
+      'SELECT id, name, logo_uri, default_category_id, created_at FROM vendors'
+    );
     for (const v of existingVendors) {
       vendorIdByName.set(v.name.trim().toLowerCase(), v.id);
     }
@@ -438,13 +542,49 @@ export async function importBackupPayload(payload: BackupPayload): Promise<Impor
       const name = sanitizeText(v.name, 200);
       if (!name) continue;
       const key = name.toLowerCase();
-      if (vendorIdByName.has(key)) continue;
+      const defaultCatId = v.default_category_name
+        ? nameToId.get(v.default_category_name.trim().toLowerCase()) ?? null
+        : null;
+      if (vendorIdByName.has(key)) {
+        // Mevcut satıcının default'u boşsa import'tan değer al — değilse dokunma
+        if (defaultCatId != null) {
+          const existingId = vendorIdByName.get(key)!;
+          await db.runAsync(
+            'UPDATE vendors SET default_category_id = COALESCE(default_category_id, ?) WHERE id = ?',
+            [defaultCatId, existingId]
+          );
+        }
+        continue;
+      }
       const r = await db.runAsync(
-        'INSERT INTO vendors (name, logo_uri) VALUES (?, ?)',
-        [name, v.logo_uri ?? null]
+        'INSERT INTO vendors (name, logo_uri, default_category_id) VALUES (?, ?, ?)',
+        [name, v.logo_uri ?? null, defaultCatId]
       );
       vendorIdByName.set(key, Number(r.lastInsertRowId));
       summary.vendorsAdded += 1;
+    }
+
+    // v2+: Dismissed abonelikler — yerel tabloya işle (aktif kayıtlar
+    // detection tarafından yeniden üretilecek, sadece status='dismissed'
+    // olan kayıtların tekrarını engellemek için).
+    const dismissed = payload.data.dismissed_subscriptions ?? [];
+    if (dismissed.length > 0) {
+      const nowIso = new Date().toISOString();
+      for (const d of dismissed) {
+        const vname = (d.vendor_name || '').trim().toLowerCase();
+        if (!vname) continue;
+        const vid = vendorIdByName.get(vname);
+        if (!vid) continue;
+        await db.runAsync(
+          `INSERT INTO subscriptions
+             (vendor_id, amount, currency, period_days, last_seen_date,
+              next_expected_date, occurrences, status, updated_at)
+           VALUES (?, 0, '', 30, ?, ?, 0, 'dismissed', ?)
+           ON CONFLICT(vendor_id) DO UPDATE SET
+             status = 'dismissed', updated_at = excluded.updated_at`,
+          [vid, nowIso.slice(0, 10), nowIso.slice(0, 10), nowIso]
+        );
+      }
     }
 
     // Expenses + items

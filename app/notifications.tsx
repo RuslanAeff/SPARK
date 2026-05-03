@@ -31,10 +31,20 @@ const MUTE_CHANNELS: { key: NotificationMuteChannel; labelKey: string }[] = [
   { key: 'category_limit', labelKey: 'notif_mute_category' },
   { key: 'goal', labelKey: 'notif_mute_goal' },
   { key: 'receipt', labelKey: 'notif_mute_receipt' },
+  { key: 'subscription', labelKey: 'notif_mute_subscription' },
+  { key: 'backup', labelKey: 'notif_mute_backup' },
   { key: 'system', labelKey: 'notif_mute_system' },
 ];
 
-type FilterKey = 'all' | 'budget' | 'category' | 'goal' | 'receipt' | 'system';
+type FilterKey =
+  | 'all'
+  | 'budget'
+  | 'category'
+  | 'goal'
+  | 'receipt'
+  | 'subscription'
+  | 'backup'
+  | 'system';
 
 const FILTER_DEF: { key: FilterKey; labelKey: string }[] = [
   { key: 'all', labelKey: 'notif_filter_all' },
@@ -42,6 +52,8 @@ const FILTER_DEF: { key: FilterKey; labelKey: string }[] = [
   { key: 'category', labelKey: 'notif_filter_category' },
   { key: 'goal', labelKey: 'notif_filter_goal' },
   { key: 'receipt', labelKey: 'notif_filter_receipt' },
+  { key: 'subscription', labelKey: 'notif_filter_subscription' },
+  { key: 'backup', labelKey: 'notif_filter_backup' },
   { key: 'system', labelKey: 'notif_filter_system' },
 ];
 
@@ -50,6 +62,8 @@ function channelFromId(id: string): Exclude<FilterKey, 'all'> {
   if (id.startsWith('catlim-')) return 'category';
   if (id.startsWith('goal-')) return 'goal';
   if (id.startsWith('receipt-')) return 'receipt';
+  if (id.startsWith('sub-')) return 'subscription';
+  if (id.startsWith('backup-')) return 'backup';
   return 'system';
 }
 
@@ -66,6 +80,10 @@ function notificationIconName(id: string): MciName {
       return 'flag-checkered';
     case 'receipt':
       return 'receipt-text-outline';
+    case 'subscription':
+      return 'autorenew';
+    case 'backup':
+      return 'cloud-upload-outline';
     case 'system':
     default:
       return 'cog-outline';

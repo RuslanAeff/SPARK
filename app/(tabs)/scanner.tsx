@@ -210,7 +210,7 @@ export default function ScannerScreen() {
                 <Text style={styles.actionText}>{t('cancel')}</Text>
               </Pressable>
               <Pressable
-                onPress={() => router.push('/settings')}
+                onPress={() => router.push('/settings-ai')}
                 style={[styles.actionButton, { backgroundColor: Colors.primary, flex: 2 }]}
               >
                 <MaterialCommunityIcons name="cog-outline" size={20} color={Colors.textPrimary} />

@@ -10,10 +10,11 @@ export const CREATE_TABLES_SQL = `
   );
 
   CREATE TABLE IF NOT EXISTS vendors (
-    id          INTEGER PRIMARY KEY AUTOINCREMENT,
-    name        TEXT NOT NULL,
-    logo_uri    TEXT,
-    created_at  TEXT DEFAULT (datetime('now'))
+    id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+    name                TEXT NOT NULL,
+    logo_uri            TEXT,
+    default_category_id INTEGER REFERENCES categories(id) ON DELETE SET NULL,
+    created_at          TEXT DEFAULT (datetime('now'))
   );
 
   CREATE TABLE IF NOT EXISTS expenses (
@@ -77,6 +78,26 @@ export const CREATE_TABLES_SQL = `
   );
 
   CREATE INDEX IF NOT EXISTS idx_category_limits_month ON category_limits(month);
+
+  -- Tekrar eden ödeme (abonelik) tespitinin sonuçları. Kayıtlar
+  -- syncSubscriptions() tarafından expenses tablosundan üretilir; kullanıcının
+  -- "abonelik değil" tepkisi (status='dismissed') burada saklanır ve aynı
+  -- vendor_id için bir daha aktif öneri çıkarılmaz.
+  CREATE TABLE IF NOT EXISTS subscriptions (
+    id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+    vendor_id           INTEGER NOT NULL REFERENCES vendors(id) ON DELETE CASCADE,
+    amount              REAL NOT NULL,
+    currency            TEXT NOT NULL,
+    period_days         INTEGER NOT NULL,
+    last_seen_date      TEXT NOT NULL,
+    next_expected_date  TEXT NOT NULL,
+    occurrences         INTEGER NOT NULL DEFAULT 0,
+    status              TEXT NOT NULL DEFAULT 'active',
+    updated_at          TEXT NOT NULL,
+    UNIQUE(vendor_id)
+  );
+  CREATE INDEX IF NOT EXISTS idx_subscriptions_vendor ON subscriptions(vendor_id);
+  CREATE INDEX IF NOT EXISTS idx_subscriptions_next ON subscriptions(next_expected_date);
 `;
 
 export const DEFAULT_CATEGORIES = [
@@ -160,7 +181,34 @@ export interface Vendor {
   id: number;
   name: string;
   logo_uri: string | null;
+  /** Bu satıcı için harcama eklenirken otomatik seçilen kategori (yaprak ya da kök).
+   *  null ise kullanıcı her seferinde manuel seçer / fiş tarama Gemini önerisini kullanır. */
+  default_category_id: number | null;
   created_at: string;
+}
+
+/** Tekrar eden ödeme (abonelik) tespiti — `subscriptions` tablosu satırı. */
+export interface SubscriptionRow {
+  id: number;
+  vendor_id: number;
+  amount: number;
+  currency: string;
+  period_days: number;
+  last_seen_date: string;
+  next_expected_date: string;
+  occurrences: number;
+  status: 'active' | 'dismissed';
+  updated_at: string;
+}
+
+/** UI için zenginleştirilmiş abonelik satırı. */
+export interface SubscriptionWithDetails extends SubscriptionRow {
+  vendor_name: string;
+  vendor_logo: string | null;
+  category_id: number | null;
+  category_name: string | null;
+  category_icon: string | null;
+  category_color: string | null;
 }
 
 export interface Expense {

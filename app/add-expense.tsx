@@ -57,11 +57,61 @@ export default function AddExpenseScreen() {
   const [datePickerVisible, setDatePickerVisible] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [categorySearch, setCategorySearch] = useState('');
+  /** Satıcının varsayılan kategorisi otomatik atandığında küçük bir bilgi
+   *  satırı göstermek için tutulur (kullanıcı seçimi değiştirirse silinir). */
+  const [autoCategoryFromVendor, setAutoCategoryFromVendor] = useState<{
+    vendorName: string;
+    categoryId: number;
+  } | null>(null);
+  const vendorAutofillTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const navTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
-    return () => { if (navTimerRef.current) clearTimeout(navTimerRef.current); };
+    return () => {
+      if (navTimerRef.current) clearTimeout(navTimerRef.current);
+      if (vendorAutofillTimer.current) clearTimeout(vendorAutofillTimer.current);
+    };
   }, []);
+
+  /**
+   * Satıcı adı yazılırken (250ms debounce) bu satıcı için kayıtlı bir
+   * varsayılan kategori varsa kategoriyi otomatik seç. Kullanıcı zaten bir
+   * kategori seçtiyse override etmeyiz.
+   * Düzenleme modunda devre dışı (mevcut kayıttaki kategori dokunulmaz kalsın).
+   */
+  useEffect(() => {
+    if (isEditing) return;
+    if (vendorAutofillTimer.current) clearTimeout(vendorAutofillTimer.current);
+    const trimmed = vendorName.trim();
+    if (!trimmed) {
+      setAutoCategoryFromVendor(null);
+      return;
+    }
+    vendorAutofillTimer.current = setTimeout(async () => {
+      try {
+        const v = await VendorDao.findByName(trimmed);
+        if (!v?.default_category_id) {
+          // Daha önce auto-doldurduğumuz bilgi varsa temizle (satıcı değişti)
+          setAutoCategoryFromVendor(null);
+          return;
+        }
+        const def = v.default_category_id;
+        const cat = categories.find((c) => c.id === def);
+        if (!cat) return;
+        setParentCategoryId((prev) => {
+          if (prev != null && prev !== def && (subCategoryId ?? prev) !== def) {
+            // Kullanıcı zaten farklı bir kategori seçmiş; karışmıyoruz.
+            return prev;
+          }
+          return cat.parent_id ?? cat.id;
+        });
+        setSubCategoryId(cat.parent_id != null ? cat.id : null);
+        setAutoCategoryFromVendor({ vendorName: trimmed, categoryId: def });
+      } catch {
+        /* sessizce yut — autofill kritik değil */
+      }
+    }, 250);
+  }, [vendorName, categories, isEditing, subCategoryId]);
 
   useEffect(() => {
     if (fromScan !== '1') {
@@ -161,7 +211,11 @@ export default function AddExpenseScreen() {
     try {
       let vendorId: number | null = null;
       if (vendorName.trim()) {
-        vendorId = await VendorDao.findOrCreate(vendorName.trim());
+        // Yeni satıcı ilk defa oluşurken kullanıcının seçtiği kategoriyi
+        // varsayılan olarak işaretle — bir sonraki harcamada otomatik dolar.
+        vendorId = await VendorDao.findOrCreate(vendorName.trim(), {
+          defaultCategoryId: effectiveCategoryId,
+        });
       }
 
       if (isEditing && id) {
@@ -210,7 +264,9 @@ export default function AddExpenseScreen() {
     try {
       let vendorId: number | null = null;
       if (vendorName.trim()) {
-        vendorId = await VendorDao.findOrCreate(vendorName.trim());
+        vendorId = await VendorDao.findOrCreate(vendorName.trim(), {
+          defaultCategoryId: effectiveCategoryId,
+        });
       }
       
       const newId = await ExpenseDao.create({
@@ -316,6 +372,22 @@ export default function AddExpenseScreen() {
               })}
               placeholderTextColor={Colors.textMuted}
             />
+            {autoCategoryFromVendor != null && (() => {
+              const cat = categories.find(c => c.id === autoCategoryFromVendor.categoryId);
+              if (!cat) return null;
+              return (
+                <View style={styles.vendorAutoHint}>
+                  <MaterialCommunityIcons
+                    name="auto-fix"
+                    size={13}
+                    color={Colors.primary}
+                  />
+                  <Text style={styles.vendorAutoHintText} numberOfLines={2}>
+                    {t('vendor_default_applied', { category: tc(cat.name) })}
+                  </Text>
+                </View>
+              );
+            })()}
           </View>
 
           {/* Date */}
@@ -579,6 +651,26 @@ const getStyles = () => StyleSheet.create({
     paddingVertical: Spacing.md,
     borderWidth: 1,
     borderColor: Colors.border,
+  },
+  /** Vendor input altında küçük "otomatik kategori uygulandı" rozeti */
+  vendorAutoHint: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: Spacing.xs,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 4,
+    backgroundColor: Colors.primary + '14',
+    borderRadius: BorderRadius.round,
+    alignSelf: 'flex-start',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: Colors.primary + '44',
+  },
+  vendorAutoHintText: {
+    ...Typography.labelSmall,
+    color: Colors.primary,
+    fontFamily: FontFamily.semiBold,
+    flexShrink: 1,
   },
   categorySearchInput: {
     ...Typography.bodyMedium,

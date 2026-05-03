@@ -1,6 +1,7 @@
 // S.P.A.R.K. — Yedek al / geri yükle bölümü (Ayarlar)
-// Tarih aralığı seçimi + preset kısayollar + onay modali.
-import React, { useMemo, useState } from 'react';
+// Tarih aralığı seçimi + preset kısayollar + onay modali + son yedek bilgisi
+// + opsiyonel haftalık/aylık hatırlatıcı.
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -18,7 +19,7 @@ import { Spacing, BorderRadius } from '../theme/spacing';
 import { useLanguage } from '../i18n/LanguageContext';
 import { useRefresh } from '../context/RefreshContext';
 import { SparkToast } from './SparkToast';
-import GlassDeleteModal from './GlassDeleteModal';
+import ConfirmModal from './ConfirmModal';
 import CustomDatePicker from './CustomDatePicker';
 import { SettingsInfoHintModal, SettingsInfoIconButton } from './SettingsInfoHint';
 import {
@@ -26,6 +27,14 @@ import {
   pickAndImportBackup,
   type ImportSummary,
 } from '../services/backupService';
+import {
+  loadBackupMeta,
+  recordBackupSuccess,
+  setBackupReminderInterval,
+  type BackupMeta,
+  type BackupReminderInterval,
+} from '../services/backupMeta';
+import { intlLocaleForLanguage } from '../i18n/languageOptions';
 
 function ymd(d: Date): string {
   const y = d.getFullYear();
@@ -55,7 +64,7 @@ function startOfYear(): string {
 type PresetId = 'this_month' | 'last_month' | 'last_3_months' | 'this_year' | 'custom';
 
 export default function BackupSection() {
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const scheme = useAppTheme();
   const styles = useMemo(() => getStyles(), [scheme]);
   const { triggerRefresh } = useRefresh();
@@ -67,8 +76,39 @@ export default function BackupSection() {
   const [endPickerOpen, setEndPickerOpen] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [importing, setImporting] = useState(false);
+  const [exportConfirm, setExportConfirm] = useState(false);
   const [importConfirm, setImportConfirm] = useState(false);
   const [infoOpen, setInfoOpen] = useState(false);
+  const [meta, setMeta] = useState<BackupMeta | null>(null);
+
+  useEffect(() => {
+    void (async () => setMeta(await loadBackupMeta()))();
+  }, []);
+
+  async function handleReminderChange(next: BackupReminderInterval) {
+    Haptics.selectionAsync();
+    await setBackupReminderInterval(next);
+    setMeta((prev) => (prev ? { ...prev, reminderInterval: next } : prev));
+    SparkToast.show(
+      t('backup_reminder_updated'),
+      'success',
+      t(`backup_reminder_${next}`)
+    );
+  }
+
+  function formatLastBackup(ts: number): string {
+    try {
+      return new Intl.DateTimeFormat(intlLocaleForLanguage(language), {
+        day: '2-digit',
+        month: 'short',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+      }).format(new Date(ts));
+    } catch {
+      return new Date(ts).toLocaleString();
+    }
+  }
 
   function applyPreset(p: PresetId) {
     setPreset(p);
@@ -95,7 +135,18 @@ export default function BackupSection() {
     }
   }
 
+  function requestExport() {
+    if (exporting || importing) return;
+    if (startDate > endDate) {
+      SparkToast.show(t('backup_range_invalid'), 'error');
+      return;
+    }
+    Haptics.selectionAsync();
+    setExportConfirm(true);
+  }
+
   async function handleExport() {
+    setExportConfirm(false);
     if (exporting || importing) return;
     if (startDate > endDate) {
       SparkToast.show(t('backup_range_invalid'), 'error');
@@ -105,16 +156,42 @@ export default function BackupSection() {
       setExporting(true);
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       const res = await exportBackupToFile({ start: startDate, end: endDate });
+      // Boş aralıkta dahi metaveriyi kaydetmiyoruz; "son yedek" gerçek bir
+      // veri içeren ve cihazda kalıcı olan kaydı temsil etmeli.
+      if (res.expenseCount > 0 && (res.destination === 'saved' || res.destination === 'shared')) {
+        await recordBackupSuccess({
+          expenseCount: res.expenseCount,
+          itemCount: res.itemCount,
+          rangeStart: startDate,
+          rangeEnd: endDate,
+        });
+        setMeta(await loadBackupMeta());
+      }
       if (res.expenseCount === 0) {
         SparkToast.show(t('backup_export_empty_title'), 'warning', t('backup_export_empty_desc'));
-      } else {
+      } else if (res.destination === 'saved') {
         SparkToast.show(
-          t('backup_export_success_title'),
+          t('backup_export_saved_title'),
           'success',
-          t('backup_export_success_desc', {
+          t('backup_export_saved_desc', {
             count: res.expenseCount.toString(),
             items: res.itemCount.toString(),
           })
+        );
+      } else if (res.destination === 'shared') {
+        SparkToast.show(
+          t('backup_export_success_title'),
+          'success',
+          t('backup_export_save_hint', {
+            count: res.expenseCount.toString(),
+            items: res.itemCount.toString(),
+          })
+        );
+      } else {
+        SparkToast.show(
+          t('backup_export_cancelled_title'),
+          'info',
+          t('backup_export_cancelled_desc')
         );
       }
     } catch (e: any) {
@@ -183,6 +260,32 @@ export default function BackupSection() {
         />
       </View>
 
+      {meta?.lastAt != null && (
+        <View style={styles.lastBackupCard}>
+          <View style={styles.lastBackupIcon}>
+            <MaterialCommunityIcons
+              name="cloud-check-outline"
+              size={18}
+              color={Colors.success}
+            />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.lastBackupTitle}>{t('backup_last_label')}</Text>
+            <Text style={styles.lastBackupValue} numberOfLines={1}>
+              {formatLastBackup(meta.lastAt)}
+            </Text>
+            {meta.lastCount != null && (
+              <Text style={styles.lastBackupMeta} numberOfLines={1}>
+                {t('backup_last_summary', {
+                  count: String(meta.lastCount),
+                  items: String(meta.lastItemCount ?? 0),
+                })}
+              </Text>
+            )}
+          </View>
+        </View>
+      )}
+
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
@@ -235,7 +338,7 @@ export default function BackupSection() {
 
       <View style={styles.actionsRow}>
         <Pressable
-          onPress={handleExport}
+          onPress={requestExport}
           disabled={exporting || importing}
           style={[styles.actionBtn, styles.exportBtn, (exporting || importing) && styles.btnDisabled]}
         >
@@ -268,6 +371,35 @@ export default function BackupSection() {
         </Pressable>
       </View>
 
+      {/* Yedek hatırlatıcı seçimi (off / weekly / monthly) */}
+      <View style={styles.reminderRow}>
+        <View style={styles.reminderHeader}>
+          <MaterialCommunityIcons name="bell-ring-outline" size={16} color={Colors.textSecondary} />
+          <Text style={styles.reminderLabel}>{t('backup_reminder_label')}</Text>
+        </View>
+        <View style={styles.reminderChips}>
+          {(['off', 'weekly', 'monthly'] as BackupReminderInterval[]).map((opt) => {
+            const active = (meta?.reminderInterval ?? 'off') === opt;
+            return (
+              <Pressable
+                key={opt}
+                onPress={() => handleReminderChange(opt)}
+                style={[styles.reminderChip, active && styles.reminderChipActive]}
+              >
+                <Text
+                  style={[
+                    styles.reminderChipText,
+                    active && styles.reminderChipTextActive,
+                  ]}
+                >
+                  {t(`backup_reminder_${opt}`)}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
+      </View>
+
       <SettingsInfoHintModal
         visible={infoOpen}
         onClose={() => setInfoOpen(false)}
@@ -288,12 +420,31 @@ export default function BackupSection() {
         onSelectDate={(d) => setEndDate(d)}
       />
 
-      <GlassDeleteModal
+      <ConfirmModal
         visible={importConfirm}
         title={t('backup_import_confirm_title')}
         message={t('backup_import_confirm_desc')}
+        icon="tray-arrow-down"
+        confirmIcon="check"
+        confirmLabel={t('backup_import_confirm_btn')}
+        cancelLabel={t('cancel')}
         onCancel={() => setImportConfirm(false)}
-        onDelete={handleImport}
+        onConfirm={handleImport}
+      />
+
+      <ConfirmModal
+        visible={exportConfirm}
+        title={t('backup_export_confirm_title')}
+        message={t('backup_export_confirm_desc', {
+          start: startDate,
+          end: endDate,
+        })}
+        icon="tray-arrow-up"
+        confirmIcon="check"
+        confirmLabel={t('backup_export_confirm_btn')}
+        cancelLabel={t('cancel')}
+        onCancel={() => setExportConfirm(false)}
+        onConfirm={handleExport}
       />
     </View>
   );
@@ -409,5 +560,87 @@ const getStyles = () =>
     },
     btnDisabled: {
       opacity: 0.55,
+    },
+    lastBackupCard: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: Spacing.sm,
+      backgroundColor: Colors.success + '14',
+      borderRadius: BorderRadius.md,
+      paddingVertical: Spacing.sm,
+      paddingHorizontal: Spacing.md,
+      marginBottom: Spacing.md,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: Colors.success + '55',
+    },
+    lastBackupIcon: {
+      width: 32,
+      height: 32,
+      borderRadius: 16,
+      backgroundColor: Colors.success + '24',
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    lastBackupTitle: {
+      ...Typography.labelSmall,
+      color: Colors.success,
+      letterSpacing: 0.4,
+      textTransform: 'uppercase',
+      fontFamily: FontFamily.bold,
+    },
+    lastBackupValue: {
+      ...Typography.bodyMedium,
+      color: Colors.textPrimary,
+      fontFamily: FontFamily.semiBold,
+      marginTop: 1,
+    },
+    lastBackupMeta: {
+      ...Typography.labelSmall,
+      color: Colors.textSecondary,
+      marginTop: 1,
+    },
+    reminderRow: {
+      marginTop: Spacing.lg,
+      paddingTop: Spacing.md,
+      borderTopWidth: StyleSheet.hairlineWidth,
+      borderTopColor: Colors.divider,
+    },
+    reminderHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      marginBottom: Spacing.sm,
+    },
+    reminderLabel: {
+      ...Typography.labelMedium,
+      color: Colors.textSecondary,
+      fontFamily: FontFamily.semiBold,
+    },
+    reminderChips: {
+      flexDirection: 'row',
+      gap: Spacing.xs,
+    },
+    reminderChip: {
+      flex: 1,
+      paddingVertical: Spacing.sm,
+      paddingHorizontal: Spacing.sm,
+      borderRadius: BorderRadius.md,
+      backgroundColor: Colors.surfaceLight,
+      borderWidth: 1,
+      borderColor: Colors.cardBorder,
+      alignItems: 'center',
+    },
+    reminderChipActive: {
+      backgroundColor: Colors.primary + '1C',
+      borderColor: Colors.primary,
+    },
+    reminderChipText: {
+      ...Typography.labelSmall,
+      color: Colors.textSecondary,
+      fontFamily: FontFamily.medium,
+    },
+    reminderChipTextActive: {
+      color: Colors.primary,
+      fontFamily: FontFamily.bold,
     },
   });

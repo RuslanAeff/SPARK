@@ -65,14 +65,23 @@ export async function getPrefillFromParsedReceipt(receipt: ParsedReceipt): Promi
   categoryId: number;
 }> {
   const vendorName = String(receipt.vendor_name || '').trim() || 'Bilinmeyen';
-  const categoryCounts: Record<string, number> = {};
-  for (const item of receipt.items || []) {
-    const cat = item.suggested_category || 'Diğer';
-    categoryCounts[cat] = (categoryCounts[cat] || 0) + 1;
+
+  // Önce satıcının önceden belirlenmiş varsayılan kategorisi var mı diye bak;
+  // varsa Gemini'nin önerisini geç ve kullanıcı tercihini uygula.
+  const existingVendor = await VendorDao.findByName(vendorName);
+  let primaryCategoryId: number | null =
+    existingVendor?.default_category_id != null ? existingVendor.default_category_id : null;
+
+  if (primaryCategoryId == null) {
+    const categoryCounts: Record<string, number> = {};
+    for (const item of receipt.items || []) {
+      const cat = item.suggested_category || 'Diğer';
+      categoryCounts[cat] = (categoryCounts[cat] || 0) + 1;
+    }
+    const primaryCategory = Object.entries(categoryCounts)
+      .sort(([, a], [, b]) => b - a)[0]?.[0] || 'Diğer';
+    primaryCategoryId = await resolveCategory(primaryCategory);
   }
-  const primaryCategory = Object.entries(categoryCounts)
-    .sort(([, a], [, b]) => b - a)[0]?.[0] || 'Diğer';
-  const primaryCategoryId = await resolveCategory(primaryCategory);
   const itemsSum = (receipt.items || []).reduce(
     (s, i) => s + (Number.isFinite(Number(i.total_price)) ? Number(i.total_price) : 0),
     0
@@ -92,17 +101,24 @@ export async function getPrefillFromParsedReceipt(receipt: ParsedReceipt): Promi
 
 export async function processReceipt(receipt: ParsedReceipt): Promise<number> {
   const vendorName = String(receipt.vendor_name || '').trim() || 'Bilinmeyen';
-  const vendorId = await VendorDao.findOrCreate(vendorName);
-  
-  // 2. Determine primary category from majority of items
-  const categoryCounts: Record<string, number> = {};
-  for (const item of receipt.items) {
-    const cat = item.suggested_category || 'Diğer';
-    categoryCounts[cat] = (categoryCounts[cat] || 0) + 1;
+  const existingVendor = await VendorDao.findByName(vendorName);
+  const vendorId = existingVendor?.id ?? (await VendorDao.findOrCreate(vendorName));
+
+  // 2. Kategori: satıcı için kullanıcı tarafından belirlenmiş varsayılan varsa onu
+  // kullan, yoksa Gemini'nin item başına önerilerinden çoğunluğu hesapla.
+  let primaryCategoryId: number;
+  if (existingVendor?.default_category_id != null) {
+    primaryCategoryId = existingVendor.default_category_id;
+  } else {
+    const categoryCounts: Record<string, number> = {};
+    for (const item of receipt.items) {
+      const cat = item.suggested_category || 'Diğer';
+      categoryCounts[cat] = (categoryCounts[cat] || 0) + 1;
+    }
+    const primaryCategory = Object.entries(categoryCounts)
+      .sort(([, a], [, b]) => b - a)[0]?.[0] || 'Diğer';
+    primaryCategoryId = await resolveCategory(primaryCategory);
   }
-  const primaryCategory = Object.entries(categoryCounts)
-    .sort(([, a], [, b]) => b - a)[0]?.[0] || 'Diğer';
-  const primaryCategoryId = await resolveCategory(primaryCategory);
   const normalizedDate = normalizeToYYYYMMDD(receipt.date);
 
   const itemsSum = (receipt.items || []).reduce(

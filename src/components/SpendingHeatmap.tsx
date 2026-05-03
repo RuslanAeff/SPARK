@@ -58,12 +58,16 @@ export default function SpendingHeatmap({ data, year, month }: HeatmapProps) {
     return Math.min(4, Math.ceil((total / maxTotal) * 4));
   };
 
+  // Ton skalası — doğrusal alpha artışı ile hem aydınlık hem karanlık modda
+  // dengeli okunur: 20% → 40% → 60% → 90%. Eski skalada son iki seviye arası
+  // 50pp sıçrıyordu; bu hem 3→4 geçişini ani gösteriyor hem de 1. seviyeyi
+  // koyu arkaplan üstünde silikleştiriyordu.
   const intensityColors = [
     Colors.surfaceLight,
-    Colors.primary + '25',
-    Colors.primary + '50',
-    Colors.primary + '80',
-    Colors.primary,
+    Colors.primary + '33',
+    Colors.primary + '66',
+    Colors.primary + '99',
+    Colors.primary + 'E6',
   ];
 
   const dayLabels = [
@@ -104,8 +108,8 @@ export default function SpendingHeatmap({ data, year, month }: HeatmapProps) {
                 <Text style={[
                   styles.cellDay,
                   intensity >= 3 && { color: '#fff' },
-                  isToday && { fontFamily: FontFamily.bold, color: Colors.primary },
-                  isSelected && intensity >= 3 && { color: '#fff' },
+                  isToday && { fontFamily: FontFamily.bold },
+                  isToday && intensity < 3 && { color: Colors.primary },
                 ]}>
                   {cell.day}
                 </Text>
@@ -164,8 +168,8 @@ const getStyles = () => StyleSheet.create({
     aspectRatio: 1,
   },
   todayCell: {
-    borderWidth: 1.5,
-    borderColor: Colors.cardBorder,
+    borderWidth: 2,
+    borderColor: Colors.primary,
   },
   selectedCell: {
     borderWidth: 2,
