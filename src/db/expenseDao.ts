@@ -526,7 +526,7 @@ export const ExpenseDao = {
   async getTopTransactions(startDate: string, endDate: string, limit: number = 3) {
     const db = await getDatabase();
     return db.getAllAsync<ExpenseWithDetails>(
-      `SELECT e.*, 
+      `SELECT e.*,
               v.name as vendor_name, v.logo_uri as vendor_logo,
               c.name as category_name, c.icon as category_icon, c.color as category_color
        FROM expenses e
@@ -537,5 +537,190 @@ export const ExpenseDao = {
        LIMIT ?`,
       [startDate, endDate, limit]
     );
+  },
+
+  /**
+   * Saat dilimi × hafta günü matrisi.
+   *
+   * `expenses.date` sadece YYYY-MM-DD tutar (saat bilgisi yok). Bu yüzden
+   * harcamanın **kayda alındığı** anı (`created_at`) kullanırız. Kullanıcının
+   * uygulamayı en çok hangi gün/saatte kullandığını ve hangi saatlerde işlem
+   * eklediğini gösterir — gerçek "alışveriş saati" yaklaşığı olarak da
+   * okunabilir, ama kart UI'ı bunu açıkça belirtir.
+   *
+   * `created_at` UTC datetime('now') ile dolar; kullanıcının yerel timezone'una
+   * çevirmek için strftime'ı 'localtime' modifier'ı ile çağırırız.
+   *
+   * Dönüş: 7 (gün, 0=Pazar) × 4 (zaman dilimi) flat array — her hücre toplam
+   * harcama tutarı. Zaman dilimleri: 0=sabah(06-12), 1=öğle(12-17),
+   * 2=akşam(17-22), 3=gece(22-06).
+   */
+  async getTimeOfDayMatrix(startDate: string, endDate: string) {
+    const db = await getDatabase();
+    const rows = await db.getAllAsync<{ dow: string; hour: string; total: number }>(
+      `SELECT
+         strftime('%w', e.created_at, 'localtime') as dow,
+         strftime('%H', e.created_at, 'localtime') as hour,
+         COALESCE(SUM(e.total_amount), 0) as total
+       FROM expenses e
+       WHERE date(e.created_at, 'localtime') BETWEEN ? AND ?
+       GROUP BY dow, hour`,
+      [startDate, endDate]
+    );
+
+    // 7 × 4 matris (gün × dilim). Aynı zamanda toplam, peak ve count tutarız.
+    const matrix: number[][] = Array.from({ length: 7 }, () => [0, 0, 0, 0]);
+    let total = 0;
+    let peakValue = 0;
+    let peakDow = 0;
+    let peakSlot = 0;
+
+    for (const r of rows) {
+      const dow = parseInt(r.dow, 10);
+      const hour = parseInt(r.hour, 10);
+      const value = Number(r.total) || 0;
+      let slot: number;
+      if (hour >= 6 && hour < 12) slot = 0;
+      else if (hour >= 12 && hour < 17) slot = 1;
+      else if (hour >= 17 && hour < 22) slot = 2;
+      else slot = 3;
+      if (Number.isFinite(dow) && dow >= 0 && dow < 7) {
+        matrix[dow][slot] += value;
+        total += value;
+        if (matrix[dow][slot] > peakValue) {
+          peakValue = matrix[dow][slot];
+          peakDow = dow;
+          peakSlot = slot;
+        }
+      }
+    }
+    return { matrix, total, peakValue, peakDow, peakSlot };
+  },
+
+  /**
+   * Sessiz harcamalar — küçük birim fiyatlı ama sık tekrarlayan kalemler.
+   *
+   * Yaklaşım: Verilen aralıkta tüm `expense_items`'ı çek, JS'te
+   * `normalizeItemKey` ile grupla. Şu kriterleri sağlayan kalemleri dön:
+   *   - `purchase_count >= minOccurrences`
+   *   - `avg_price <= maxAvgPrice`
+   *
+   * "Latte effect" — tek tek bakınca masum, toplam çarpıcı.
+   */
+  async getSilentSpendItems(
+    startDate: string,
+    endDate: string,
+    opts?: { minOccurrences?: number; maxAvgPrice?: number; limit?: number }
+  ) {
+    const minOccurrences = opts?.minOccurrences ?? 3;
+    const maxAvgPrice = opts?.maxAvgPrice ?? 30;
+    const limit = opts?.limit ?? 5;
+
+    const db = await getDatabase();
+    const rows = await db.getAllAsync<{
+      name: string;
+      turkish_name: string | null;
+      unit_price: number;
+      total_price: number;
+      quantity: number;
+      category_id: number | null;
+      category_name: string | null;
+      category_icon: string | null;
+      category_color: string | null;
+    }>(
+      `SELECT i.name, i.turkish_name, i.unit_price, i.total_price, i.quantity,
+              c.id as category_id, c.name as category_name,
+              c.icon as category_icon, c.color as category_color
+       FROM expense_items i
+       JOIN expenses e ON i.expense_id = e.id
+       LEFT JOIN categories c ON i.category_id = c.id
+       WHERE e.date BETWEEN ? AND ?
+         AND i.unit_price > 0`,
+      [startDate, endDate]
+    );
+
+    interface Group {
+      key: string;
+      nameCounts: Map<string, number>;
+      latestName: string;
+      turkish_name: string | null;
+      purchase_count: number;
+      total_spent: number;
+      total_quantity: number;
+      unit_price_sum: number;
+      category_name: string | null;
+      category_icon: string | null;
+      category_color: string | null;
+    }
+
+    const groups = new Map<string, Group>();
+    for (const r of rows) {
+      const key = normalizeItemKey(r.name);
+      if (!key) continue;
+      let g = groups.get(key);
+      if (!g) {
+        g = {
+          key,
+          nameCounts: new Map(),
+          latestName: r.name,
+          turkish_name: r.turkish_name,
+          purchase_count: 0,
+          total_spent: 0,
+          total_quantity: 0,
+          unit_price_sum: 0,
+          category_name: r.category_name,
+          category_icon: r.category_icon,
+          category_color: r.category_color,
+        };
+        groups.set(key, g);
+      }
+      g.nameCounts.set(r.name, (g.nameCounts.get(r.name) || 0) + 1);
+      g.purchase_count += 1;
+      g.total_spent += Number(r.total_price) || 0;
+      g.total_quantity += Number(r.quantity) || 0;
+      g.unit_price_sum += Number(r.unit_price) || 0;
+      // En son görülen kategori bilgisini koru — gruptaki tüm satırlarda
+      // tutarlı olduğu varsayılır (aynı normalize anahtara sahip kalemler
+      // tipik olarak aynı kategoride yer alır).
+      if (!g.category_icon && r.category_icon) {
+        g.category_name = r.category_name;
+        g.category_icon = r.category_icon;
+        g.category_color = r.category_color;
+      }
+    }
+
+    function pickMostCommon(map: Map<string, number>, fallback: string): string {
+      let best = fallback;
+      let bestCount = -1;
+      map.forEach((count, name) => {
+        if (count > bestCount) {
+          bestCount = count;
+          best = name;
+        }
+      });
+      return best;
+    }
+
+    const aggregated = Array.from(groups.values())
+      .map((g) => ({
+        name: pickMostCommon(g.nameCounts, g.latestName),
+        turkish_name: g.turkish_name,
+        purchase_count: g.purchase_count,
+        total_spent: g.total_spent,
+        avg_price: g.purchase_count > 0 ? g.unit_price_sum / g.purchase_count : 0,
+        category_name: g.category_name,
+        category_icon: g.category_icon,
+        category_color: g.category_color,
+        normalized_key: g.key,
+      }))
+      .filter((it) => it.purchase_count >= minOccurrences && it.avg_price <= maxAvgPrice);
+
+    // En fazla "sızdıran" → toplam harcama × satın alma sayısı kombosu
+    aggregated.sort((a, b) => b.total_spent - a.total_spent);
+
+    const top = aggregated.slice(0, limit);
+    const overallTotal = aggregated.reduce((s, it) => s + it.total_spent, 0);
+    const overallCount = aggregated.reduce((s, it) => s + it.purchase_count, 0);
+    return { items: top, totalAmount: overallTotal, totalCount: overallCount, distinctItems: aggregated.length };
   },
 };

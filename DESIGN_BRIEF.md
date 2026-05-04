@@ -4,7 +4,7 @@
 |------|--------|
 | **Belge amacı** | Tasarımcı, geliştirici ve yapay zekâ asistanlarının projeyi tek kaynaktan anlaması; performans, güvenlik ve tutarlı UX için yol haritası |
 | **Uygulama adı** | **S.P.A.R.K.** (kişisel finans / harcama takibi) |
-| **Son güncelleme** | Mayıs 2026 (kod tabanıyla uyumlu — Ayarlar grup menüsüne dönüştürüldü §5.7, yedek geri yükleme onayı `ConfirmModal`'a taşındı §5.3, transactions toplu seçim Android `removeClippedSubviews` bug'ı kapatıldı P13) |
+| **Son güncelleme** | Mayıs 2026 — **sürüm 2.2.0** (`app.json` / `package.json`); Analiz sekmesi modüler kart kataloğu ve `analytics_card_order` ayarı §5.8; Ayarlar grup menüsü §5.7; yedek import onayı `ConfirmModal` §5.3; işlemler listesi P13 (`removeClippedSubviews`) |
 | **Platform** | React Native / Expo — iOS & Android |
 | **Desteklenen diller** | **TR** (Türkçe — varsayılan), **EN** (İngilizce), **AZ** (Azərbaycan), **RU** (Русский) |
 
@@ -72,6 +72,7 @@ app/                    # Ekranlar ve navigasyon (expo-router)
   _layout.tsx           # Kök Stack; SafeArea, LanguageProvider, CurrencyProvider, RefreshProvider,
                         # NotificationsProvider, ThemeScheduler, AndroidNotificationBootstrap
   (tabs)/               # Alt sekme (MaterialTopTab, altta): Dashboard, İşlemler, Tarayıcı, Analiz, Ayarlar
+                        # `analytics.tsx` — modüler analiz kartları + sıra/görünürlük (`analytics_card_order`) §5.8
                         # `(tabs)/settings.tsx` artık sadece grup menüsü — detay §5.7
   add-expense.tsx       # Harcama ekle / düzenle
   edit-items.tsx        # Harcama kalemleri (ürün satırları, şüşevar CTA)
@@ -307,6 +308,73 @@ app/(tabs)/settings.tsx        # Sadece grup kartları + About
 3. Bilgi-modal'ları (`SettingsInfoHintModal`) ait olduğu alt sayfada tanımlanmalıdır; ana grup menüsüne eklenmemelidir.
 4. Modal seçimi semantik: yıkıcı aksiyon (sil) → `GlassDeleteModal`; yapıcı/nötr onay (kaydet, içe aktar, dışa aktar, dil değiştir) → `ConfirmModal` (`tone="primary"`). Bu kurala §5.3 import onayında uyulmamış olduğu Mayıs 2026'da düzeltildi.
 
+### 5.8 Analiz kartları sistemi (Mayıs 2026 — v2.2)
+
+Tüm Analiz ekranı tek bir `analytics.tsx` içinde **modüler kart kataloğu** olarak organize edilir. Kartlar kullanıcı tarafından eklenebilir/kaldırılabilir/sıralanabilir; düzen `settings.analytics_card_order` anahtarında JSON olarak saklanır.
+
+**Katalog (`ALL_CARDS`):**
+
+| id | Kart | İkon | Cam? | Veri kaynağı |
+|---|---|---|---|---|
+| `chart` | Günlük/yıllık çubuk grafik | `chart-bar` | ✓ | `useDailySpending` / `getYearlyTotals` |
+| `projection` | Ay sonu projeksiyonu | `crystal-ball` | ✓ | `currentTotal` + `useBudget` |
+| `monthly_compare` | Dönem karşılaştırması | `swap-horizontal` | — | `loadPrevTotal()` |
+| `budget` | Bütçe durumu | `wallet-outline` | ✓ | `useBudget` |
+| `goal` | Birikim hedefi | `flag-checkered` | ✓ | `GoalDao.get()` |
+| `limits_health` | Kategori limit sağlığı | `gauge` | — | `CategoryLimitDao` + kategori harcaması |
+| `subscriptions` | Aktif abonelikler özeti | `sync-circle` | — | `SubscriptionDao.getActive()` |
+| `silent_spend` | Sessiz harcamalar | `water-outline` | — | `ExpenseDao.getSilentSpendItems()` |
+| `categories` | Yatay kategori chip'leri | `shape-outline` | — | `useCategorySpending` |
+| `time_of_day` | 7×4 saat dilimi heatmap | `clock-time-eight-outline` | — | `ExpenseDao.getTimeOfDayMatrix()` |
+| `streak` | Harcama istatistikleri | `fire` | — | `streakData` (dailyData + budget) |
+| `donut` | Davranışsal donut (needs/wants + week/weekend) | `chart-donut` | ✓ | `useBehavioralAnalytics` |
+| `heatmap` | Aylık takvim heatmap | `calendar-month` | — | `dailyData` |
+| `top_tx` | En yüksek 8 işlem | `podium-gold` | — | `useTopTransactions` |
+| `price_watch` | Ürün bazlı fiyat değişimleri | `tag-arrow-up` | — | `ExpenseDao.getPriceHistory()` |
+| `vendors` | Satıcılar / alt-kategoriler | `store-outline` | — | `useVendorSpending` |
+
+**Tasarım kalıbı (her kart):**
+
+- `<AnimatedCard delay={N} style={styles.section[, primaryCard]}>`
+- Kompakt header: ikon kapsülü (`28×28`, `BorderRadius round`, accent rengi `+ '1F'` arka plan) + UPPERCASE `sectionTitle` + sağ rozet (`days`, `count`, `peak` vb.).
+- Hero rakam (varsa): `36px / bold / -0.5 letter-spacing`, `numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}`.
+- Görsel öğe (track / donut / liste / grid).
+- Outcome paneli (varsa): tam genişlik 2-satır blok (icon + title + sub) — yüzde değil **somut tutar**.
+- Boş durumlar: 36px outline ikon + `*EmptyTitle` + `*EmptyHint`.
+
+**Renk semantik:**
+
+- Safe / başarılı → `Colors.success`
+- Yaklaşıyor → `Colors.warning`
+- Aşıldı / gecikmiş → `Colors.danger`
+- No-budget / nötr / abonelik özeti → `Colors.primary` veya `Colors.info`
+- Sessiz harcama → `Colors.warning`
+
+**Veri yükleme:**
+
+- Her kartın bir `loadX()` async fonksiyonu (`onRefresh` ve `runAnalyticsRefresh` ikisinde de çağrılır) **veya** mevcut `useExpenses` hook'u.
+- Türetilmiş özetler `useMemo` ile (`projectionInfo`, `subscriptionInfo`, `limitsHealthInfo`, `goalInfo`, `timeOfDayInfo`, `silentSpendInfo`).
+
+**Yeni kart ekleme adımları:**
+
+1. Veri katmanı: ya yeni DAO metodu (`ExpenseDao.*`) ya `loadXxx()` async + `useState`.
+2. `useMemo` ile özet → `{ available: false } | { available: true, ...stats }` patern'i.
+3. `ALL_CARDS` listesine `{ id, icon, labelKey: 'card_<id>' }` kaydı.
+4. Varsayılan açık olacaksa `DEFAULT_ACTIVE` array'ine ekle.
+5. `renderCard` içinde yeni `if (id === '<id>')` bloğu — boş durum + dolu durum.
+6. Stil bloğu: `// ── A<n>: <Name> ──` yorumu altında küçük ön ekli (`projX`, `subsX`, `goalX`...) keylerle.
+7. i18n: `card_<id>` etiketi + alanlar; **TR + EN** `translations.ts` inline, **AZ + RU** `locales/*.json`. Çakışan generic anahtardan kaçın → `<feature>_card_*` öneki tercih edilir (mevcut `subscriptions_*` çakışması bu nedenle `subs_card_*` olarak ayrıldı).
+
+**Migration kuralı (`loadCardConfig`):**
+
+Kayıtlı `active+hidden` setine **`ALL_CARDS`'da olup ikisinde de bulunmayan** her kart eklenir; `DEFAULT_ACTIVE`'daysa aktife sondan, değilse gizliye. Sonuç DB'ye geri yazılır → kullanıcı eski sürümden geldikten sonra yeni kartlar otomatik görünür. Geçersiz/eski ID'ler de filtrelenir.
+
+**`time_of_day` özel notu:** SQLite `expenses.date` saat tutmadığından, kart `created_at`'i `strftime('%w'/%H', ..., 'localtime')` ile gruplar. Kart altında **disclaimer** zorunlu (`timeofday_disclaimer` — "Harcamanın kayıt anına göre"); aksi halde kullanıcı bunu gerçek harcama saati sanır.
+
+**`silent_spend` özel notu:** Filtre: `purchase_count ≥ 3` ve `avg_price ≤ 30`. JS'te `normalizeItemKey` ile gruplama (SQL `LOWER()` Türkçe/Lehçe karakterleri bozar). Satıra tıklayınca mevcut `ItemAnalyticsModal` açılır.
+
+**`projection` özel notu:** Sadece `timeframe === 'month'` modunda anlamlı; diğer timeframe'lerde `projection_only_month` boş durumu. `dayOfMonth < 2` ise `projection_too_early`. Outcome metni daima **mutlak tutar** (`formatCurrency` / görüntüleme para birimi); yüzdeyle özetlenmez.
+
 ---
 
 ## 6. Tasarım sistemi
@@ -476,7 +544,7 @@ Yeni bir DAO yazarken önce `normalizeXxxPatch` yardımcısı tanımlanıp hem `
 
 ## 8. Performans — tamamlanan iyileştirmeler ve kalan yol haritası
 
-> Bu bölüm Nisan 2026 performans denetimine dayanır. Tespit edilen 11 performans sorununun tamamı düzeltilmiştir (P1–P6 ilk dalga, P7–P11 ikinci dalga).
+> Bu bölüm Nisan–Mayıs 2026 performans denetimine dayanır. **P1–P13** kapatıldı (P1–P6 ilk dalga, P7–P11 ikinci dalga, P12 tema mağazası + ilk render senkronu, P13 işlemler listesi Android clip).
 
 ### 8.1 Tamamlanan performans iyileştirmeleri (P1–P13)
 
@@ -515,7 +583,7 @@ Yeni bir DAO yazarken önce `normalizeXxxPatch` yardımcısı tanımlanıp hem `
 
 ### 8.3 Kalan yol haritası
 
-P1–P11 denetim bulguları tamamlandıktan sonra orta öncelikli olarak takip edilmesi önerilen maddeler:
+P1–P13 denetim bulguları tamamlandıktan sonra orta öncelikli olarak takip edilmesi önerilen maddeler:
 
 | Alan | Gözlem | Öneri |
 |------|--------|-------|
@@ -584,7 +652,7 @@ P1–P11 denetim bulguları tamamlandıktan sonra orta öncelikli olarak takip e
 
 1. Bu belgeyi, `package.json`, `app.json` ve `app.config.js` ile hizala (§2.1 versiyon tablosu).
 2. **Güvenlik (büyük ölçüde TAMAMLANDI):** Kritik (S1–S3) ve yüksek (S4–S11) açıklar kapatıldı; orta/kalan maddeler §7.7 boru hattının yayılmasıyla ilgili — §7’yi oku.
-3. **Performans (P1–P12 TAMAMLANDI):** Context memoization (§8.4), liste düzleştirme + pagination (§8.5), Reanimated bar/donut, `useMemo(getStyles, [scheme])` kalıbı ve **merkezi tema mağazası** (§6.1.2 / P12) — §8.1 tabloya bak. Yol haritasında kalanlar orta öncelikli (§8.3).
+3. **Performans (P1–P13 TAMAMLANDI):** Context memoization (§8.4), liste düzleştirme + pagination (§8.5), Reanimated bar/donut, `useMemo(getStyles, [scheme])` kalıbı ve **merkezi tema mağazası** (§6.1.2 / P12), işlemler `removeClippedSubviews` (P13) — §8.1 tabloya bak. Yol haritasında kalanlar orta öncelikli (§8.3).
 4. **UX tutarlılığı:** Yeni birincil butonlarda **`susevar`** kullanımı — §6.3’ü oku.
 5. **Fiş pipeline:** `geminiService.ts`, `receiptJsonRepair.ts`, `receiptLineMerge.ts` — değişikliklerden önce geriye dönük uyumluluğu kontrol et; `stripDangerousKeys` ve `items` kapsaması §7.2 / §7.7.
 6. **Girdi/çıktı güvenliği:** Tüm DAO mutasyonları `inputValidation.ts` üzerinden — §7.3 + §7.7.
@@ -615,6 +683,7 @@ P1–P11 denetim bulguları tamamlandıktan sonra orta öncelikli olarak takip e
 - Yeni bir grafik animasyonu eklenirse §8.1 P8 deseni (`SharedValue` + `useAnimatedProps`) kullanılıp burada referans gösterilmelidir.
 - Yeni bir uzun liste ekranı eklenirse `usePaginatedExpenses` gibi bir sayfalı hook’a (veya eşdeğerine) bağlanmalı ve §8.5 listesine eklenmelidir.
 - **Yedek formatı (§5.3) değişirse:** `BACKUP_FORMAT_VERSION` artırılmalı, eski sürümü **geriye dönük okuyabilecek** importer dalları korunmalı; DB şemasına yeni tablo/kolon eklenirse hem `buildBackupPayload` hem `importBackupPayload` ve DESIGN_BRIEF §5.3 JSON şeması tek commit’te güncellenmelidir. Yeni bağımlılık (`expo-sharing` / `expo-document-picker`) sürümü §2.1 tablosuna yazılmalıdır.
+- **Analiz kartları (§5.8) değişirse:** `app/(tabs)/analytics.tsx` içindeki `ALL_CARDS`, `DEFAULT_ACTIVE`, `loadCardConfig` migrasyonu, `renderCard` dalları ve ilgili DAO/i18n bu bölümle aynı commit’te güncellenmelidir; mağaza sürümü için `app.json` `expo.version` + Android `versionCode` artışı unutulmamalıdır.
 
 ---
 

@@ -17,7 +17,12 @@ import { Spacing, ScreenPadding, BorderRadius } from '../../src/theme/spacing';
 import { formatCurrency } from '../../src/utils/formatCurrency';
 import { useCategorySpending, useVendorSpending, useDailySpending, useTopTransactions, useSubcategorySpending, useBehavioralAnalytics } from '../../src/hooks/useExpenses';
 import { ExpenseDao } from '../../src/db/expenseDao';
-import { getStartOfMonth, getEndOfMonth, formatMonthYear } from '../../src/utils/dateUtils';
+import { SubscriptionDao } from '../../src/db/subscriptionDao';
+import { CategoryLimitDao } from '../../src/db/categoryLimitDao';
+import { CategoryDao } from '../../src/db/categoryDao';
+import { GoalDao, type SavingsGoalRow } from '../../src/db/goalDao';
+import type { SubscriptionWithDetails, Category } from '../../src/db/schema';
+import { getStartOfMonth, getEndOfMonth, formatMonthYear, getDaysInMonth, getDayOfMonth } from '../../src/utils/dateUtils';
 
 import DonutChart from '../../src/components/DonutChart';
 import AnimatedCard from '../../src/components/AnimatedCard';
@@ -74,9 +79,15 @@ const editDragHandleStyles = StyleSheet.create({
 
 const ALL_CARDS: { id: string; icon: string; labelKey: string }[] = [
   { id: 'chart',           icon: 'chart-bar',          labelKey: 'card_chart' },
+  { id: 'projection',      icon: 'crystal-ball',       labelKey: 'card_projection' },
   { id: 'monthly_compare', icon: 'swap-horizontal',    labelKey: 'card_monthly_compare' },
   { id: 'budget',          icon: 'wallet-outline',     labelKey: 'card_budget' },
+  { id: 'goal',            icon: 'flag-checkered',     labelKey: 'card_goal' },
+  { id: 'limits_health',   icon: 'gauge',              labelKey: 'card_limits_health' },
+  { id: 'subscriptions',   icon: 'sync-circle',        labelKey: 'card_subscriptions' },
+  { id: 'silent_spend',    icon: 'water-outline',      labelKey: 'card_silent_spend' },
   { id: 'categories',      icon: 'shape-outline',      labelKey: 'card_categories' },
+  { id: 'time_of_day',     icon: 'clock-time-eight-outline', labelKey: 'card_time_of_day' },
   { id: 'streak',          icon: 'fire',               labelKey: 'card_streak' },
   { id: 'donut',           icon: 'chart-donut',        labelKey: 'card_donut' },
   { id: 'heatmap',         icon: 'calendar-month',     labelKey: 'card_heatmap' },
@@ -85,7 +96,7 @@ const ALL_CARDS: { id: string; icon: string; labelKey: string }[] = [
   { id: 'vendors',         icon: 'store-outline',      labelKey: 'card_vendors' },
 ];
 
-const DEFAULT_ACTIVE = ['chart', 'monthly_compare', 'budget', 'categories', 'vendors'];
+const DEFAULT_ACTIVE = ['chart', 'projection', 'monthly_compare', 'budget', 'goal', 'limits_health', 'subscriptions', 'silent_spend', 'time_of_day', 'categories', 'vendors'];
 
 interface DragInfo {
   id: string;
@@ -419,6 +430,39 @@ export default function AnalyticsScreen() {
   const [selectedNWIdx, setSelectedNWIdx] = useState<number | null>(null);
   const [selectedWWIdx, setSelectedWWIdx] = useState<number | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [activeSubs, setActiveSubs] = useState<SubscriptionWithDetails[]>([]);
+  const [categoryLimits, setCategoryLimits] = useState<{
+    category_id: number;
+    category_name: string;
+    category_icon: string;
+    category_color: string;
+    limit: number;
+    spent: number;
+  }[]>([]);
+  const [savingsGoal, setSavingsGoal] = useState<SavingsGoalRow | null>(null);
+  const [timeOfDayData, setTimeOfDayData] = useState<{
+    matrix: number[][];
+    total: number;
+    peakValue: number;
+    peakDow: number;
+    peakSlot: number;
+  } | null>(null);
+  const [silentSpendData, setSilentSpendData] = useState<{
+    items: {
+      name: string;
+      turkish_name: string | null;
+      purchase_count: number;
+      total_spent: number;
+      avg_price: number;
+      category_name: string | null;
+      category_icon: string | null;
+      category_color: string | null;
+      normalized_key: string;
+    }[];
+    totalAmount: number;
+    totalCount: number;
+    distinctItems: number;
+  } | null>(null);
   const { refreshKey } = useRefresh();
 
   const currentTotal = useMemo(() => dailyData.reduce((s, d) => s + d.total, 0), [dailyData]);
@@ -490,6 +534,77 @@ export default function AnalyticsScreen() {
       changes.sort((a, b) => Math.abs(b.changePct) - Math.abs(a.changePct));
       setPriceChanges(changes.slice(0, 6));
     } catch { setPriceChanges([]); }
+  }
+
+  async function loadActiveSubscriptions() {
+    try {
+      const rows = await SubscriptionDao.getActive();
+      setActiveSubs(rows);
+    } catch { setActiveSubs([]); }
+  }
+
+  async function loadSavingsGoal() {
+    try {
+      const row = await GoalDao.get();
+      setSavingsGoal(row);
+    } catch { setSavingsGoal(null); }
+  }
+
+  async function loadTimeOfDay() {
+    try {
+      const data = await ExpenseDao.getTimeOfDayMatrix(dateRange.start, dateRange.end);
+      setTimeOfDayData(data);
+    } catch { setTimeOfDayData(null); }
+  }
+
+  async function loadSilentSpend() {
+    try {
+      const data = await ExpenseDao.getSilentSpendItems(dateRange.start, dateRange.end, {
+        minOccurrences: 3,
+        maxAvgPrice: 30,
+        limit: 5,
+      });
+      setSilentSpendData(data);
+    } catch { setSilentSpendData(null); }
+  }
+
+  async function loadCategoryLimits() {
+    try {
+      const monthKey = getStartOfMonth().substring(0, 7);
+      const monthStart = getStartOfMonth();
+      const monthEnd = getEndOfMonth();
+      const [limits, allCats] = await Promise.all([
+        CategoryLimitDao.getForMonth(monthKey),
+        CategoryDao.getAll() as Promise<Category[]>,
+      ]);
+      if (limits.length === 0) {
+        setCategoryLimits([]);
+        return;
+      }
+      const catMap = new Map<number, Category>();
+      allCats.forEach(c => catMap.set(c.id, c));
+      const enriched = await Promise.all(
+        limits.map(async (l) => {
+          const cat = catMap.get(l.category_id);
+          const spent = await ExpenseDao.getSpentForCategoryInRange(l.category_id, monthStart, monthEnd);
+          return {
+            category_id: l.category_id,
+            category_name: cat?.name ?? '',
+            category_icon: cat?.icon ?? 'tag-outline',
+            category_color: cat?.color ?? Colors.primary,
+            limit: l.limit_amount,
+            spent,
+          };
+        })
+      );
+      // Aşılanları en üste, sonra doluluk oranına göre azalan
+      enriched.sort((a, b) => {
+        const ra = a.limit > 0 ? a.spent / a.limit : 0;
+        const rb = b.limit > 0 ? b.spent / b.limit : 0;
+        return rb - ra;
+      });
+      setCategoryLimits(enriched);
+    } catch { setCategoryLimits([]); }
   }
 
   // Harcama İstatistikleri (streak) — dailyData yalnızca harcaması olan
@@ -601,12 +716,157 @@ export default function AnalyticsScreen() {
     return Math.round(pct * 10) / 10;
   }, [currentTotal, prevTotal]);
 
+  // ── Ay sonu projeksiyonu ─────────────────────────────────────────
+  // currentTotal aktif dönemde harcanmışı verir; `month` modunda bu = ay başından
+  // bugüne kadar harcanan. Günlük ortalama × ayın toplam günü = projeksiyon.
+  // Yeterli geçmiş yoksa (ayın 1. günü vs.) 'too_early' duruma düşeriz.
+  const projectionInfo = useMemo(() => {
+    if (timeframe !== 'month') {
+      return { available: false as const, reason: 'only_month' as const };
+    }
+    const dayOfMonth = getDayOfMonth();
+    const totalDaysInMonth = getDaysInMonth();
+    if (dayOfMonth < 2) {
+      return { available: false as const, reason: 'too_early' as const };
+    }
+    const dailyPace = currentTotal / dayOfMonth;
+    const projected = dailyPace * totalDaysInMonth;
+    const daysLeft = Math.max(0, totalDaysInMonth - dayOfMonth);
+    const monthlyBudget = budget.monthlyBudget;
+    let status: 'safe' | 'warn' | 'over' | 'no_budget' = 'no_budget';
+    let deltaPct: number | null = null;
+    if (monthlyBudget > 0) {
+      const pct = ((projected - monthlyBudget) / monthlyBudget) * 100;
+      deltaPct = Math.round(pct * 10) / 10;
+      if (projected > monthlyBudget * 1.02) status = 'over';
+      else if (projected < monthlyBudget * 0.98) status = 'safe';
+      else status = 'warn';
+    }
+    return {
+      available: true as const,
+      projected,
+      currentSpent: currentTotal,
+      dailyPace,
+      daysLeft,
+      monthlyBudget,
+      status,
+      deltaPct,
+    };
+  }, [timeframe, currentTotal, budget.monthlyBudget]);
+
+  // ── Abonelik özeti ───────────────────────────────────────────────
+  // Her abonelik period_days'a göre 30 günlük döneme normalize edilir.
+  const subscriptionInfo = useMemo(() => {
+    if (activeSubs.length === 0) {
+      return { count: 0, monthlyTotal: 0, upcoming: [] as (SubscriptionWithDetails & { daysUntil: number })[] };
+    }
+    const monthlyTotal = activeSubs.reduce((sum, s) => {
+      const period = s.period_days || 30;
+      return sum + s.amount * (30 / period);
+    }, 0);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const withDays = activeSubs.map(s => {
+      const next = new Date(s.next_expected_date);
+      next.setHours(0, 0, 0, 0);
+      const diffMs = next.getTime() - today.getTime();
+      const daysUntil = Math.round(diffMs / 86400000);
+      return { ...s, daysUntil };
+    });
+    withDays.sort((a, b) => a.daysUntil - b.daysUntil);
+    return {
+      count: activeSubs.length,
+      monthlyTotal,
+      upcoming: withDays.slice(0, 3),
+    };
+  }, [activeSubs]);
+
+  // ── Limit sağlığı özeti ──────────────────────────────────────────
+  const limitsHealthInfo = useMemo(() => {
+    if (categoryLimits.length === 0) {
+      return { count: 0, overCount: 0, warnCount: 0, safeCount: 0, items: [] };
+    }
+    let overCount = 0, warnCount = 0, safeCount = 0;
+    for (const l of categoryLimits) {
+      const ratio = l.limit > 0 ? l.spent / l.limit : 0;
+      if (ratio >= 1) overCount++;
+      else if (ratio >= 0.7) warnCount++;
+      else safeCount++;
+    }
+    return { count: categoryLimits.length, overCount, warnCount, safeCount, items: categoryLimits };
+  }, [categoryLimits]);
+
+  // ── Birikim hedefi özeti ─────────────────────────────────────────
+  const goalInfo = useMemo(() => {
+    if (!savingsGoal || savingsGoal.target_amount <= 0) {
+      return { available: false as const };
+    }
+    const target = savingsGoal.target_amount;
+    const current = Math.max(0, savingsGoal.current_amount);
+    const remaining = Math.max(0, target - current);
+    const ratio = Math.min(1, current / target);
+    const pctNum = Math.round(ratio * 100);
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    const targetDate = new Date(savingsGoal.target_date);
+    targetDate.setHours(0, 0, 0, 0);
+    const daysToTarget = Math.round((targetDate.getTime() - today.getTime()) / 86400000);
+    const monthsToTarget = daysToTarget > 0 ? Math.max(1, daysToTarget / 30) : 0;
+    const monthlyNeed = monthsToTarget > 0 ? remaining / monthsToTarget : 0;
+    let status: 'complete' | 'overdue' | 'on_track' | 'tight';
+    if (current >= target) status = 'complete';
+    else if (daysToTarget < 0) status = 'overdue';
+    else if (monthlyNeed > 0 && monthlyNeed > target * 0.25) status = 'tight';
+    else status = 'on_track';
+    return {
+      available: true as const,
+      title: savingsGoal.title,
+      target,
+      current,
+      remaining,
+      ratio,
+      pctNum,
+      daysToTarget,
+      monthlyNeed,
+      status,
+    };
+  }, [savingsGoal]);
+
+  // ── Time-of-day özeti ────────────────────────────────────────────
+  // 7×4 matristen: peak gün/dilim, toplam, hücre normalize değerleri
+  const timeOfDayInfo = useMemo(() => {
+    if (!timeOfDayData || timeOfDayData.total === 0) {
+      return { available: false as const };
+    }
+    const { matrix, peakDow, peakSlot, peakValue, total } = timeOfDayData;
+    return {
+      available: true as const,
+      matrix,
+      peakDow,
+      peakSlot,
+      peakValue,
+      total,
+    };
+  }, [timeOfDayData]);
+
+  // ── Sessiz harcama özeti ─────────────────────────────────────────
+  const silentSpendInfo = useMemo(() => {
+    if (!silentSpendData || silentSpendData.items.length === 0) {
+      return { available: false as const };
+    }
+    return {
+      available: true as const,
+      ...silentSpendData,
+    };
+  }, [silentSpendData]);
+
   const onRefresh = async () => {
     setRefreshing(true);
     await Promise.all([
       refreshCats(), refreshVendors(), refreshDaily(),
       refreshTop(), refreshSubcats(), refreshBehavior(),
       refreshBudget(), loadPrevTotal(), loadPriceChanges(),
+      loadActiveSubscriptions(), loadCategoryLimits(),
+      loadSavingsGoal(), loadTimeOfDay(), loadSilentSpend(),
       timeframe === 'year' ? loadYearlyData() : Promise.resolve(),
     ]);
     setRefreshing(false);
@@ -622,8 +882,31 @@ export default function AnalyticsScreen() {
       if (row) {
         const parsed = JSON.parse(row.value);
         if (parsed.active?.length) {
-          setCardOrder(parsed.active);
-          setHiddenCards(parsed.hidden || []);
+          // Migration: Kayıtlı konfig eski sürümden geliyor olabilir; ALL_CARDS'a
+          // sonradan eklenmiş kartlar ne aktif ne de gizli listede görünmüyor.
+          // Bilinmeyenleri tara: DEFAULT_ACTIVE'daysa aktife sondan ekle, değilse
+          // gizli "kullanılabilir" listesine ekle. Geçerli/güncel kartları DB'ye
+          // yaz ki bir sonraki açılışta migration tekrar çalışmasın.
+          const validIds = new Set(ALL_CARDS.map(c => c.id));
+          const savedActive: string[] = parsed.active.filter((id: string) => validIds.has(id));
+          const savedHidden: string[] = (parsed.hidden || []).filter((id: string) => validIds.has(id));
+          const known = new Set([...savedActive, ...savedHidden]);
+          const missing = ALL_CARDS.map(c => c.id).filter(id => !known.has(id));
+          const newActive = [...savedActive];
+          const newHidden = [...savedHidden];
+          for (const id of missing) {
+            if (DEFAULT_ACTIVE.includes(id)) newActive.push(id);
+            else newHidden.push(id);
+          }
+          setCardOrder(newActive);
+          setHiddenCards(newHidden);
+          if (
+            missing.length > 0 ||
+            newActive.length !== parsed.active.length ||
+            newHidden.length !== (parsed.hidden?.length ?? 0)
+          ) {
+            saveCardConfig(newActive, newHidden);
+          }
         }
       }
       configLoaded.current = true;
@@ -651,6 +934,11 @@ export default function AnalyticsScreen() {
     refreshBudget();
     loadPrevTotal();
     loadPriceChanges();
+    loadActiveSubscriptions();
+    loadCategoryLimits();
+    loadSavingsGoal();
+    loadTimeOfDay();
+    loadSilentSpend();
     if (timeframe === 'year') loadYearlyData();
   }, [dateRange.start, dateRange.end, timeframe, selectedCategory]);
 
@@ -1462,6 +1750,636 @@ export default function AnalyticsScreen() {
       );
     }
 
+    // ──── A8: Month-end Projection ────
+    // Cam (primary) kart. Büyük projeksiyon rakamı + bütçeye göre yatay
+    // konum izleyici (current → projection işaretleri ile). Bütçesi olmasa
+    // bile günlük tempo + kalan gün gösterilir.
+    if (id === 'projection') {
+      if (!projectionInfo.available) {
+        const reasonKey = projectionInfo.reason === 'only_month' ? 'projection_only_month' : 'projection_too_early';
+        const icon = projectionInfo.reason === 'only_month' ? 'calendar-month-outline' : 'progress-clock';
+        content = (
+          <AnimatedCard delay={120} style={styles.section}>
+            <View style={styles.projHeader}>
+              <View style={styles.projHeaderLeft}>
+                <MaterialCommunityIcons name="crystal-ball" size={18} color={Colors.textSecondary} />
+                <Text style={styles.sectionTitle}>{t('projection_title')}</Text>
+              </View>
+            </View>
+            <View style={styles.projEmptyWrap}>
+              <MaterialCommunityIcons name={icon} size={36} color={Colors.textMuted} />
+              <Text style={styles.projEmptyText}>{t(reasonKey)}</Text>
+            </View>
+          </AnimatedCard>
+        );
+      } else {
+        const { projected, currentSpent, dailyPace, daysLeft, monthlyBudget, status } = projectionInfo;
+        const accent =
+          status === 'over' ? Colors.danger :
+          status === 'warn' ? Colors.warning :
+          status === 'safe' ? Colors.success :
+          Colors.primary;
+
+        // Pist üzerinde işaretler — bütçe varsa bütçe = %100 gibi normalize edilir.
+        const refValue = Math.max(monthlyBudget, projected, currentSpent, 1);
+        const currentPct = Math.min(100, (currentSpent / refValue) * 100);
+        const projectedPct = Math.min(100, (projected / refValue) * 100);
+        const budgetPct = monthlyBudget > 0 ? Math.min(100, (monthlyBudget / refValue) * 100) : null;
+
+        // Outcome metni: yüzde yerine somut TL — kullanıcı için çok daha net.
+        const outcomeIcon =
+          status === 'over' ? 'alert-circle-outline' :
+          status === 'safe' ? 'shield-check-outline' :
+          status === 'warn' ? 'target' :
+          'wallet-plus-outline';
+        let outcomeTitle: string;
+        let outcomeSub: string;
+        if (status === 'safe') {
+          const remaining = monthlyBudget - projected;
+          outcomeTitle = t('projection_outcome_save_title');
+          outcomeSub = t('projection_outcome_save_sub', { amount: formatCurrency(remaining, currency, false) });
+        } else if (status === 'over') {
+          const overBy = projected - monthlyBudget;
+          outcomeTitle = t('projection_outcome_over_title');
+          outcomeSub = t('projection_outcome_over_sub', { amount: formatCurrency(overBy, currency, false) });
+        } else if (status === 'warn') {
+          outcomeTitle = t('projection_outcome_warn_title');
+          outcomeSub = t('projection_outcome_warn_sub');
+        } else {
+          outcomeTitle = t('projection_outcome_nobudget_title');
+          outcomeSub = t('projection_outcome_nobudget_sub');
+        }
+
+        content = (
+          <AnimatedCard delay={120} style={{ ...styles.section, ...styles.primaryCard }}>
+            <View style={styles.projHeader}>
+              <View style={styles.projHeaderLeft}>
+                <View style={[styles.projHeaderIcon, { backgroundColor: accent + '1F' }]}>
+                  <MaterialCommunityIcons name="crystal-ball" size={16} color={accent} />
+                </View>
+                <Text style={styles.sectionTitle}>{t('projection_title')}</Text>
+              </View>
+              <View style={[styles.projDaysChip, { backgroundColor: Colors.surfaceLight }]}>
+                <MaterialCommunityIcons name="calendar-blank-outline" size={12} color={Colors.textSecondary} />
+                <Text style={styles.projDaysChipText}>{t('projection_days_left', { days: daysLeft.toString() })}</Text>
+              </View>
+            </View>
+
+            {/* Hero: tahmini ay sonu */}
+            <Text style={styles.projHeroLabel}>{t('projection_estimated')}</Text>
+            <Text style={[styles.projHeroValue, { color: accent }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>
+              {formatCurrency(projected, currency)}
+            </Text>
+            <Text style={styles.projPaceHint}>{t('projection_pace_hint')}</Text>
+
+            {/* Track — current ↔ projected ↔ budget */}
+            <View style={styles.projTrackWrap}>
+              <View style={styles.projTrack}>
+                {/* Current spent fill (solid, accent) */}
+                <View style={[styles.projTrackCurrent, { width: `${currentPct}%`, backgroundColor: accent }]} />
+                {/* Projected fill (translucent extension) */}
+                <View
+                  style={[
+                    styles.projTrackProjected,
+                    {
+                      left: `${currentPct}%`,
+                      width: `${Math.max(0, projectedPct - currentPct)}%`,
+                      backgroundColor: accent + '4D',
+                    },
+                  ]}
+                />
+                {/* Budget marker */}
+                {budgetPct !== null && (
+                  <View style={[styles.projTrackBudgetMarker, { left: `${budgetPct}%` }]} />
+                )}
+              </View>
+              <View style={styles.projTrackLegend}>
+                <View style={styles.projLegendItem}>
+                  <View style={[styles.projLegendDot, { backgroundColor: accent }]} />
+                  <Text style={styles.projLegendText}>{t('projection_so_far')}</Text>
+                </View>
+                <View style={styles.projLegendItem}>
+                  <View style={[styles.projLegendDot, { backgroundColor: accent + '4D' }]} />
+                  <Text style={styles.projLegendText}>{t('projection_estimated')}</Text>
+                </View>
+                {budgetPct !== null && (
+                  <View style={styles.projLegendItem}>
+                    <View style={[styles.projLegendDot, styles.projLegendDotBudget]} />
+                    <Text style={styles.projLegendText}>{t('budget_overview').toLowerCase()}</Text>
+                  </View>
+                )}
+              </View>
+            </View>
+
+            {/* Outcome panel — tam genişlik, 2 satır, somut tutar */}
+            <View style={[styles.projOutcomePanel, { backgroundColor: accent + '14', borderColor: accent + '33' }]}>
+              <View style={[styles.projOutcomeIconWrap, { backgroundColor: accent + '22' }]}>
+                <MaterialCommunityIcons name={outcomeIcon as any} size={18} color={accent} />
+              </View>
+              <View style={styles.projOutcomeTextWrap}>
+                <Text style={[styles.projOutcomeTitle, { color: accent }]} numberOfLines={1}>
+                  {outcomeTitle}
+                </Text>
+                <Text style={styles.projOutcomeSub} numberOfLines={2}>
+                  {outcomeSub}
+                </Text>
+              </View>
+            </View>
+
+            {/* Pace satırı */}
+            <View style={styles.projPaceRow}>
+              <View style={styles.projPaceRowLeft}>
+                <MaterialCommunityIcons name="speedometer" size={13} color={Colors.textSecondary} />
+                <Text style={styles.projPaceLabel}>{t('projection_daily_pace')}</Text>
+              </View>
+              <Text style={styles.projPaceValue}>{formatCurrency(dailyPace, currency, false)}</Text>
+            </View>
+          </AnimatedCard>
+        );
+      }
+    }
+
+    // ──── A9: Active Subscriptions ────
+    // Aylık yük rakamı + ilk 3 yaklaşan abonelik. Ek bir sayfa açmak yerine
+    // kart içinde yoğun bilgi sunuyor — küçük vendor avatarı, gün rozeti, tutar.
+    if (id === 'subscriptions') {
+      const { count, monthlyTotal, upcoming } = subscriptionInfo;
+
+      if (count === 0) {
+        content = (
+          <AnimatedCard delay={160} style={styles.section}>
+            <View style={styles.subsHeader}>
+              <View style={styles.subsHeaderLeft}>
+                <MaterialCommunityIcons name="sync-circle" size={18} color={Colors.textSecondary} />
+                <Text style={styles.sectionTitle}>{t('subs_card_title')}</Text>
+              </View>
+            </View>
+            <View style={styles.subsEmptyWrap}>
+              <MaterialCommunityIcons name="autorenew-off" size={36} color={Colors.textMuted} />
+              <Text style={styles.subsEmptyTitle}>{t('subs_card_empty_title')}</Text>
+              <Text style={styles.subsEmptyHint}>{t('subs_card_empty_hint')}</Text>
+            </View>
+          </AnimatedCard>
+        );
+      } else {
+        content = (
+          <AnimatedCard delay={160} style={styles.section}>
+            <View style={styles.subsHeader}>
+              <View style={styles.subsHeaderLeft}>
+                <View style={[styles.subsHeaderIcon, { backgroundColor: Colors.info + '1F' }]}>
+                  <MaterialCommunityIcons name="sync-circle" size={16} color={Colors.info} />
+                </View>
+                <Text style={styles.sectionTitle}>{t('subs_card_title')}</Text>
+              </View>
+              <View style={[styles.subsCountBadge, { backgroundColor: Colors.surfaceLight }]}>
+                <Text style={styles.subsCountText}>{count}</Text>
+              </View>
+            </View>
+
+            {/* Hero: aylık toplam yük */}
+            <View style={styles.subsHeroBlock}>
+              <Text style={styles.subsHeroLabel}>{t('subs_card_monthly_load')}</Text>
+              <Text style={styles.subsHeroValue} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>
+                {formatCurrency(monthlyTotal, currency)}
+              </Text>
+            </View>
+
+            {/* Yaklaşanlar */}
+            <View style={styles.subsUpcomingHeader}>
+              <Text style={styles.subsUpcomingLabel}>{t('subs_card_upcoming')}</Text>
+              <View style={styles.subsDividerLine} />
+            </View>
+            <View style={styles.subsList}>
+              {upcoming.map((s, i) => {
+                const dayLabel =
+                  s.daysUntil < 0 ? t('subs_card_overdue') :
+                  s.daysUntil === 0 ? t('subs_card_today') :
+                  s.daysUntil === 1 ? t('subs_card_tomorrow') :
+                  t('subs_card_in_days', { days: s.daysUntil.toString() });
+                const dayAccent = s.daysUntil < 0 ? Colors.danger : s.daysUntil <= 3 ? Colors.warning : Colors.textSecondary;
+                const catColor = s.category_color || Colors.primary;
+                return (
+                  <Animated.View key={s.id} entering={FadeInDown.delay(i * 60).duration(280)} style={styles.subsRow}>
+                    <View style={[styles.subsAvatar, { backgroundColor: catColor + '22' }]}>
+                      <MaterialCommunityIcons
+                        name={(s.category_icon as any) || 'tag-outline'}
+                        size={18}
+                        color={catColor}
+                      />
+                    </View>
+                    <View style={styles.subsRowMain}>
+                      <Text style={styles.subsRowName} numberOfLines={1}>{s.vendor_name}</Text>
+                      <View style={styles.subsRowMeta}>
+                        <MaterialCommunityIcons name="clock-outline" size={11} color={dayAccent} />
+                        <Text style={[styles.subsRowDays, { color: dayAccent }]} numberOfLines={1}>{dayLabel}</Text>
+                      </View>
+                    </View>
+                    <Text style={styles.subsRowAmount}>{formatCurrency(s.amount, currency)}</Text>
+                  </Animated.View>
+                );
+              })}
+            </View>
+          </AnimatedCard>
+        );
+      }
+    }
+
+    // ──── A10: Category Limits Health ────
+    // Limit konulan her kategori için ince bar + ratio rozeti. Aşılmış olanlar
+    // doğal olarak en üste sıralandı (loadCategoryLimits).
+    if (id === 'limits_health') {
+      const { count, overCount, warnCount, items } = limitsHealthInfo;
+
+      if (count === 0) {
+        content = (
+          <AnimatedCard delay={200} style={styles.section}>
+            <View style={styles.limitsHeader}>
+              <View style={styles.limitsHeaderLeft}>
+                <MaterialCommunityIcons name="gauge" size={18} color={Colors.textSecondary} />
+                <Text style={styles.sectionTitle}>{t('limits_health_title')}</Text>
+              </View>
+            </View>
+            <View style={styles.limitsEmptyWrap}>
+              <MaterialCommunityIcons name="gauge-empty" size={36} color={Colors.textMuted} />
+              <Text style={styles.limitsEmptyTitle}>{t('limits_health_empty_title')}</Text>
+              <Text style={styles.limitsEmptyHint}>{t('limits_health_empty_hint')}</Text>
+            </View>
+          </AnimatedCard>
+        );
+      } else {
+        content = (
+          <AnimatedCard delay={200} style={styles.section}>
+            <View style={styles.limitsHeader}>
+              <View style={styles.limitsHeaderLeft}>
+                <View style={[styles.limitsHeaderIcon, { backgroundColor: Colors.primary + '1F' }]}>
+                  <MaterialCommunityIcons name="gauge" size={16} color={Colors.primary} />
+                </View>
+                <Text style={styles.sectionTitle}>{t('limits_health_title')}</Text>
+              </View>
+              <View style={styles.limitsHeaderStats}>
+                {overCount > 0 && (
+                  <View style={[styles.limitsStatChip, { backgroundColor: Colors.danger + '1F' }]}>
+                    <Text style={[styles.limitsStatChipText, { color: Colors.danger }]}>{overCount}</Text>
+                    <MaterialCommunityIcons name="alert-circle" size={11} color={Colors.danger} />
+                  </View>
+                )}
+                {warnCount > 0 && (
+                  <View style={[styles.limitsStatChip, { backgroundColor: Colors.warning + '1F' }]}>
+                    <Text style={[styles.limitsStatChipText, { color: Colors.warning }]}>{warnCount}</Text>
+                    <MaterialCommunityIcons name="alert" size={11} color={Colors.warning} />
+                  </View>
+                )}
+              </View>
+            </View>
+
+            <View style={styles.limitsList}>
+              {items.map((l, i) => {
+                const ratio = l.limit > 0 ? l.spent / l.limit : 0;
+                const pctNum = Math.round(ratio * 100);
+                const accent =
+                  ratio >= 1 ? Colors.danger :
+                  ratio >= 0.7 ? Colors.warning :
+                  Colors.success;
+                const fillPct = Math.min(100, ratio * 100);
+                const remaining = l.limit - l.spent;
+                const overBy = l.spent - l.limit;
+                return (
+                  <Animated.View key={l.category_id} entering={FadeInDown.delay(i * 50).duration(280)} style={styles.limitRow}>
+                    <View style={styles.limitRowTop}>
+                      <View style={[styles.limitIcon, { backgroundColor: l.category_color + '22' }]}>
+                        <MaterialCommunityIcons
+                          name={(l.category_icon as any) || 'tag-outline'}
+                          size={16}
+                          color={l.category_color}
+                        />
+                      </View>
+                      <Text style={styles.limitName} numberOfLines={1}>{tc(l.category_name)}</Text>
+                      <Text style={[styles.limitPct, { color: accent }]}>{pctNum}%</Text>
+                    </View>
+                    <View style={styles.limitTrack}>
+                      <View style={[styles.limitTrackFill, { width: `${fillPct}%`, backgroundColor: accent }]} />
+                    </View>
+                    <View style={styles.limitRowBottom}>
+                      <Text style={styles.limitAmounts}>
+                        <Text style={styles.limitSpent}>{formatCurrency(l.spent, currency, false)}</Text>
+                        <Text style={styles.limitDiv}> / </Text>
+                        <Text style={styles.limitMax}>{formatCurrency(l.limit, currency, false)}</Text>
+                      </Text>
+                      {ratio >= 1 ? (
+                        <Text style={[styles.limitRemaining, { color: Colors.danger }]}>
+                          +{formatCurrency(overBy, currency, false)} {t('limits_health_over_by')}
+                        </Text>
+                      ) : (
+                        <Text style={styles.limitRemaining}>
+                          {formatCurrency(remaining, currency, false)} {t('limits_health_remaining')}
+                        </Text>
+                      )}
+                    </View>
+                  </Animated.View>
+                );
+              })}
+            </View>
+          </AnimatedCard>
+        );
+      }
+    }
+
+    // ──── A11: Savings Goal Progress ────
+    // Cam (primary) kart. Sol tarafta DonutChart ile progress halkası, sağ
+    // tarafta hedef tutarı + monthly need + tarih bilgisi. Hedef yoksa boş
+    // durum gösterilir (kullanıcıyı ayarlara yönlendirir).
+    if (id === 'goal') {
+      if (!goalInfo.available) {
+        content = (
+          <AnimatedCard delay={140} style={styles.section}>
+            <View style={styles.goalHeader}>
+              <View style={styles.goalHeaderLeft}>
+                <MaterialCommunityIcons name="flag-checkered" size={18} color={Colors.textSecondary} />
+                <Text style={styles.sectionTitle}>{t('goal_card_title')}</Text>
+              </View>
+            </View>
+            <View style={styles.goalEmptyWrap}>
+              <MaterialCommunityIcons name="flag-outline" size={36} color={Colors.textMuted} />
+              <Text style={styles.goalEmptyTitle}>{t('goal_card_empty_title')}</Text>
+              <Text style={styles.goalEmptyHint}>{t('goal_card_empty_hint')}</Text>
+            </View>
+          </AnimatedCard>
+        );
+      } else {
+        const { title, target, current, remaining, ratio, pctNum, daysToTarget, monthlyNeed, status } = goalInfo;
+        const accent =
+          status === 'complete' ? Colors.success :
+          status === 'overdue' ? Colors.danger :
+          status === 'tight' ? Colors.warning :
+          Colors.primary;
+        const goalSegments = [
+          { value: ratio, label: 'progress', color: accent },
+          { value: 1 - ratio, label: 'remaining', color: Colors.surfaceLight },
+        ];
+        const dateText =
+          status === 'complete' ? '' :
+          daysToTarget < 0 ? t('goal_card_days_overdue', { days: Math.abs(daysToTarget).toString() }) :
+          daysToTarget === 0 ? t('goal_card_due_today') :
+          t('goal_card_days_left', { days: daysToTarget.toString() });
+        const subText =
+          status === 'complete'
+            ? t('goal_card_complete_sub', { amount: formatCurrency(current, currency, false) })
+            : status === 'overdue'
+            ? t('goal_card_overdue_sub', { amount: formatCurrency(remaining, currency, false) })
+            : status === 'tight'
+            ? t('goal_card_monthly_need', { amount: formatCurrency(monthlyNeed, currency, false) })
+            : t('goal_card_monthly_safe', { amount: formatCurrency(monthlyNeed, currency, false) });
+        const subIcon =
+          status === 'complete' ? 'trophy-outline' :
+          status === 'overdue' ? 'alert-circle-outline' :
+          status === 'tight' ? 'rocket-launch-outline' :
+          'piggy-bank-outline';
+
+        content = (
+          <AnimatedCard delay={140} style={{ ...styles.section, ...styles.primaryCard }}>
+            <View style={styles.goalHeader}>
+              <View style={styles.goalHeaderLeft}>
+                <View style={[styles.goalHeaderIcon, { backgroundColor: accent + '1F' }]}>
+                  <MaterialCommunityIcons name="flag-checkered" size={16} color={accent} />
+                </View>
+                <Text style={styles.sectionTitle}>{t('goal_card_title')}</Text>
+              </View>
+              {!!dateText && (
+                <View style={[styles.goalDateChip, { backgroundColor: Colors.surfaceLight }]}>
+                  <MaterialCommunityIcons name="calendar-blank-outline" size={12} color={Colors.textSecondary} />
+                  <Text style={styles.goalDateChipText}>{dateText}</Text>
+                </View>
+              )}
+            </View>
+
+            {!!title && <Text style={styles.goalTitle} numberOfLines={1}>{title}</Text>}
+
+            <View style={styles.goalBody}>
+              <View style={styles.goalDonutWrap}>
+                <DonutChart
+                  segments={goalSegments}
+                  size={140}
+                  strokeWidth={14}
+                  innerContent={
+                    <View style={styles.goalDonutCenter}>
+                      <Text style={[styles.goalDonutPct, { color: accent }]}>{pctNum}%</Text>
+                      <Text style={styles.goalDonutLabel}>{t('goal_card_saved_label').toLowerCase()}</Text>
+                    </View>
+                  }
+                />
+              </View>
+              <View style={styles.goalStats}>
+                <View style={styles.goalStatRow}>
+                  <View style={[styles.goalStatDot, { backgroundColor: accent }]} />
+                  <Text style={styles.goalStatLabel}>{t('goal_card_saved_label')}</Text>
+                  <Text style={styles.goalStatValue}>{formatCurrency(current, currency, false)}</Text>
+                </View>
+                <View style={styles.goalStatRow}>
+                  <View style={[styles.goalStatDot, { backgroundColor: Colors.surfaceLight, borderColor: Colors.border, borderWidth: 1 }]} />
+                  <Text style={styles.goalStatLabel}>{t('goal_card_remaining_label')}</Text>
+                  <Text style={styles.goalStatValue}>{formatCurrency(remaining, currency, false)}</Text>
+                </View>
+                <View style={styles.goalStatRow}>
+                  <MaterialCommunityIcons name="target" size={10} color={Colors.textMuted} style={{ marginHorizontal: 1 }} />
+                  <Text style={styles.goalStatLabel}>{t('goal_card_target_label')}</Text>
+                  <Text style={styles.goalStatValue}>{formatCurrency(target, currency, false)}</Text>
+                </View>
+              </View>
+            </View>
+
+            {/* Outcome panel */}
+            <View style={[styles.goalOutcome, { backgroundColor: accent + '14', borderColor: accent + '33' }]}>
+              <View style={[styles.goalOutcomeIcon, { backgroundColor: accent + '22' }]}>
+                <MaterialCommunityIcons name={subIcon as any} size={16} color={accent} />
+              </View>
+              <Text style={[styles.goalOutcomeText, { color: status === 'complete' || status === 'overdue' ? accent : Colors.textPrimary }]} numberOfLines={2}>
+                {status === 'complete' ? t('goal_card_complete_title') + ' — ' : ''}{subText}
+              </Text>
+            </View>
+          </AnimatedCard>
+        );
+      }
+    }
+
+    // ──── A12: Time-of-day Heatmap ────
+    // 7 gün × 4 zaman dilimi grid; her hücre o slot'taki harcama yoğunluğuna
+    // göre opaklık alır. Peak hücre vurgulanır. Veriler `created_at` (yerel)
+    // üzerinden gelir → footer'da "kayıt anına göre" disclaimer gösterilir.
+    if (id === 'time_of_day') {
+      if (!timeOfDayInfo.available) {
+        content = (
+          <AnimatedCard delay={170} style={styles.section}>
+            <View style={styles.todHeader}>
+              <View style={styles.todHeaderLeft}>
+                <MaterialCommunityIcons name="clock-time-eight-outline" size={18} color={Colors.textSecondary} />
+                <Text style={styles.sectionTitle}>{t('timeofday_title')}</Text>
+              </View>
+            </View>
+            <View style={styles.todEmptyWrap}>
+              <MaterialCommunityIcons name="clock-outline" size={36} color={Colors.textMuted} />
+              <Text style={styles.todEmptyTitle}>{t('timeofday_empty_title')}</Text>
+              <Text style={styles.todEmptyHint}>{t('timeofday_empty_hint')}</Text>
+            </View>
+          </AnimatedCard>
+        );
+      } else {
+        const { matrix, peakDow, peakSlot, peakValue } = timeOfDayInfo;
+        // Pazartesi başlat: schema'da 0=Pazar; biz UI'da Pazartesi'den başlatıyoruz.
+        const dowOrder = [1, 2, 3, 4, 5, 6, 0]; // Mon..Sun
+        const dowLabelKeys = ['weekday_mon', 'weekday_tue', 'weekday_wed', 'weekday_thu', 'weekday_fri', 'weekday_sat', 'weekday_sun'];
+        const slotKeys = ['timeofday_morning_short', 'timeofday_noon_short', 'timeofday_evening_short', 'timeofday_night_short'];
+        const slotFullKeys = ['timeofday_morning', 'timeofday_noon', 'timeofday_evening', 'timeofday_night'];
+        const peakDayLabel = t(dowLabelKeys[dowOrder.indexOf(peakDow)]);
+        const peakSlotLabel = t(slotFullKeys[peakSlot]);
+
+        content = (
+          <AnimatedCard delay={170} style={styles.section}>
+            <View style={styles.todHeader}>
+              <View style={styles.todHeaderLeft}>
+                <View style={[styles.todHeaderIcon, { backgroundColor: Colors.primary + '1F' }]}>
+                  <MaterialCommunityIcons name="clock-time-eight-outline" size={16} color={Colors.primary} />
+                </View>
+                <Text style={styles.sectionTitle}>{t('timeofday_title')}</Text>
+              </View>
+              {peakValue > 0 && (
+                <View style={[styles.todPeakChip, { backgroundColor: Colors.primary + '14' }]}>
+                  <MaterialCommunityIcons name="fire" size={11} color={Colors.primary} />
+                  <Text style={styles.todPeakChipText}>{t('timeofday_peak_value', { day: peakDayLabel, slot: peakSlotLabel.toLowerCase() })}</Text>
+                </View>
+              )}
+            </View>
+
+            {/* Grid: ilk satır slot başlıkları, sonra her satır = bir gün */}
+            <View style={styles.todGridWrap}>
+              {/* Üst etiket satırı (slot'lar) */}
+              <View style={styles.todGridHeader}>
+                <View style={styles.todDayLabelCell} />
+                {slotKeys.map((sk, i) => (
+                  <View key={i} style={styles.todSlotHeaderCell}>
+                    <Text style={styles.todSlotHeaderText}>{t(sk)}</Text>
+                  </View>
+                ))}
+              </View>
+
+              {/* Her gün için bir satır */}
+              {dowOrder.map((dow, rowIdx) => (
+                <View key={dow} style={styles.todGridRow}>
+                  <View style={styles.todDayLabelCell}>
+                    <Text style={styles.todDayLabelText}>{t(dowLabelKeys[rowIdx])}</Text>
+                  </View>
+                  {[0, 1, 2, 3].map((slot) => {
+                    const value = matrix[dow][slot];
+                    // Opaklık: ilgili hücrenin peak'a göre oranı (min 0.06 zemin)
+                    const intensity = peakValue > 0 ? value / peakValue : 0;
+                    const isPeak = dow === peakDow && slot === peakSlot && value > 0;
+                    const opacity = value === 0 ? 0 : Math.max(0.18, intensity);
+                    // Hex alfa: 0..255 → 2 hane. Peak'i her zaman tam opak ve border'lı çizeriz.
+                    const alphaHex = Math.round(opacity * 255).toString(16).padStart(2, '0');
+                    const bg = value === 0 ? Colors.surfaceLight : Colors.primary + alphaHex;
+                    return (
+                      <View
+                        key={slot}
+                        style={[
+                          styles.todCell,
+                          { backgroundColor: bg },
+                          isPeak && styles.todCellPeak,
+                        ]}
+                      />
+                    );
+                  })}
+                </View>
+              ))}
+            </View>
+
+            <Text style={styles.todDisclaimer}>{t('timeofday_disclaimer')}</Text>
+          </AnimatedCard>
+        );
+      }
+    }
+
+    // ──── A13: Silent Spend ────
+    // Küçük tutarlı ama tekrarlayan kalemler — tek tek bakınca masum, toplamı
+    // şaşırtıcı. Hero rakamı + 5 kalem listesi (kategori avatarı, sayı, ortalama).
+    if (id === 'silent_spend') {
+      if (!silentSpendInfo.available) {
+        content = (
+          <AnimatedCard delay={220} style={styles.section}>
+            <View style={styles.silentHeader}>
+              <View style={styles.silentHeaderLeft}>
+                <MaterialCommunityIcons name="water-outline" size={18} color={Colors.textSecondary} />
+                <Text style={styles.sectionTitle}>{t('silent_card_title')}</Text>
+              </View>
+            </View>
+            <View style={styles.silentEmptyWrap}>
+              <MaterialCommunityIcons name="water-off-outline" size={36} color={Colors.textMuted} />
+              <Text style={styles.silentEmptyTitle}>{t('silent_card_empty_title')}</Text>
+              <Text style={styles.silentEmptyHint}>{t('silent_card_empty_hint')}</Text>
+            </View>
+          </AnimatedCard>
+        );
+      } else {
+        const { items, totalAmount, totalCount, distinctItems } = silentSpendInfo;
+        content = (
+          <AnimatedCard delay={220} style={styles.section}>
+            <View style={styles.silentHeader}>
+              <View style={styles.silentHeaderLeft}>
+                <View style={[styles.silentHeaderIcon, { backgroundColor: Colors.warning + '1F' }]}>
+                  <MaterialCommunityIcons name="water-outline" size={16} color={Colors.warning} />
+                </View>
+                <Text style={styles.sectionTitle}>{t('silent_card_title')}</Text>
+              </View>
+            </View>
+
+            {/* Hero block */}
+            <View style={styles.silentHeroBlock}>
+              <Text style={styles.silentHeroLabel}>{t('silent_card_total_label')}</Text>
+              <Text style={styles.silentHeroValue} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>
+                {formatCurrency(totalAmount, currency)}
+              </Text>
+              <View style={styles.silentHeroMeta}>
+                <Text style={styles.silentHeroMetaText}>{t('silent_card_count_label', { count: totalCount.toString() })}</Text>
+                <View style={styles.silentHeroMetaDot} />
+                <Text style={styles.silentHeroMetaText}>{t('silent_card_distinct', { count: distinctItems.toString() })}</Text>
+              </View>
+            </View>
+
+            <Text style={styles.silentHint}>{t('silent_card_hint')}</Text>
+
+            {/* Item list */}
+            <View style={styles.silentList}>
+              {items.map((it, i) => {
+                const displayName = it.turkish_name || it.name;
+                const catColor = it.category_color || Colors.warning;
+                const icon = (it.category_icon as any) || 'water-outline';
+                return (
+                  <Animated.View key={it.normalized_key} entering={FadeInDown.delay(i * 50).duration(280)}>
+                    <Pressable
+                      onPress={() => setSelectedItemName(it.name)}
+                      style={({ pressed }) => [styles.silentRow, pressed && { opacity: 0.85 }]}
+                      accessibilityRole="button"
+                    >
+                      <View style={[styles.silentAvatar, { backgroundColor: catColor + '22' }]}>
+                        <MaterialCommunityIcons name={icon} size={16} color={catColor} />
+                      </View>
+                      <View style={styles.silentRowMain}>
+                        <Text style={styles.silentRowName} numberOfLines={1}>{displayName}</Text>
+                        <View style={styles.silentRowMeta}>
+                          <Text style={styles.silentRowTimes}>{t('silent_card_times', { count: it.purchase_count.toString() })}</Text>
+                          <View style={styles.silentRowMetaDot} />
+                          <Text style={styles.silentRowAvg}>{t('silent_card_avg', { amount: formatCurrency(it.avg_price, currency, false) })}</Text>
+                        </View>
+                      </View>
+                      <Text style={styles.silentRowTotal}>{formatCurrency(it.total_spent, currency, false)}</Text>
+                    </Pressable>
+                  </Animated.View>
+                );
+              })}
+            </View>
+          </AnimatedCard>
+        );
+      }
+    }
+
     return content;
   };
 
@@ -1691,6 +2609,7 @@ const getStyles = () => StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingVertical: Spacing.lg,
+    gap: Spacing.sm,
   },
   title: {
     ...Typography.headlineLarge,
@@ -2533,5 +3452,811 @@ const getStyles = () => StyleSheet.create({
     ...Typography.labelSmall,
     color: Colors.textSecondary,
     fontFamily: FontFamily.medium,
+  },
+
+  // ── A8: Month-end Projection ──
+  projHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: Spacing.lg,
+  },
+  projHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    flex: 1,
+    minWidth: 0,
+  },
+  projHeaderIcon: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  projDaysChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 4,
+    borderRadius: BorderRadius.round,
+  },
+  projDaysChipText: {
+    ...Typography.labelSmall,
+    color: Colors.textSecondary,
+    fontFamily: FontFamily.semiBold,
+    fontSize: 11,
+  },
+  projHeroLabel: {
+    ...Typography.labelSmall,
+    color: Colors.textMuted,
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+    marginBottom: 4,
+  },
+  projHeroValue: {
+    fontSize: 36,
+    lineHeight: 42,
+    fontFamily: FontFamily.bold,
+    letterSpacing: -0.5,
+  },
+  projPaceHint: {
+    ...Typography.bodySmall,
+    color: Colors.textSecondary,
+    marginTop: 4,
+  },
+  projTrackWrap: {
+    marginTop: Spacing.lg,
+    marginBottom: Spacing.md,
+  },
+  projTrack: {
+    height: 8,
+    backgroundColor: Colors.surfaceLight,
+    borderRadius: 4,
+    overflow: 'hidden',
+    position: 'relative',
+  },
+  projTrackCurrent: {
+    position: 'absolute',
+    left: 0,
+    top: 0,
+    bottom: 0,
+    borderRadius: 4,
+  },
+  projTrackProjected: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+  },
+  projTrackBudgetMarker: {
+    position: 'absolute',
+    top: -3,
+    bottom: -3,
+    width: 2,
+    backgroundColor: Colors.textPrimary,
+    borderRadius: 1,
+  },
+  projTrackLegend: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: Spacing.md,
+    marginTop: Spacing.sm,
+  },
+  projLegendItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+  },
+  projLegendDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  projLegendDotBudget: {
+    width: 2,
+    height: 10,
+    borderRadius: 1,
+    backgroundColor: Colors.textPrimary,
+  },
+  projLegendText: {
+    ...Typography.labelSmall,
+    color: Colors.textMuted,
+    fontSize: 11,
+  },
+  projOutcomePanel: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.md,
+    marginTop: Spacing.md,
+    paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.md,
+    borderRadius: BorderRadius.lg,
+    borderWidth: 1,
+  },
+  projOutcomeIconWrap: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  projOutcomeTextWrap: {
+    flex: 1,
+    minWidth: 0,
+    gap: 2,
+  },
+  projOutcomeTitle: {
+    ...Typography.bodyMedium,
+    fontFamily: FontFamily.bold,
+    fontSize: 14,
+  },
+  projOutcomeSub: {
+    ...Typography.bodySmall,
+    color: Colors.textPrimary,
+    fontFamily: FontFamily.medium,
+    lineHeight: 18,
+  },
+  projPaceRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: Spacing.md,
+    paddingTop: Spacing.md,
+    borderTopWidth: 1,
+    borderTopColor: Colors.divider,
+  },
+  projPaceRowLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  projPaceLabel: {
+    ...Typography.labelSmall,
+    color: Colors.textSecondary,
+    fontFamily: FontFamily.medium,
+  },
+  projPaceValue: {
+    ...Typography.bodyMedium,
+    fontFamily: FontFamily.bold,
+    color: Colors.textPrimary,
+  },
+  projEmptyWrap: {
+    alignItems: 'center',
+    paddingVertical: Spacing.xl,
+    gap: Spacing.sm,
+  },
+  projEmptyText: {
+    ...Typography.bodyMedium,
+    color: Colors.textMuted,
+    textAlign: 'center',
+  },
+
+  // ── A9: Active Subscriptions ──
+  subsHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: Spacing.md,
+  },
+  subsHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    flex: 1,
+    minWidth: 0,
+  },
+  subsHeaderIcon: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  subsCountBadge: {
+    minWidth: 26,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 3,
+    borderRadius: BorderRadius.round,
+    alignItems: 'center',
+  },
+  subsCountText: {
+    ...Typography.labelSmall,
+    fontFamily: FontFamily.bold,
+    color: Colors.textPrimary,
+    fontSize: 11,
+  },
+  subsHeroBlock: {
+    marginBottom: Spacing.lg,
+  },
+  subsHeroLabel: {
+    ...Typography.labelSmall,
+    color: Colors.textMuted,
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+    marginBottom: 4,
+  },
+  subsHeroValue: {
+    fontSize: 30,
+    lineHeight: 36,
+    fontFamily: FontFamily.bold,
+    color: Colors.textPrimary,
+    letterSpacing: -0.5,
+  },
+  subsUpcomingHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    marginBottom: Spacing.sm,
+  },
+  subsUpcomingLabel: {
+    ...Typography.labelSmall,
+    color: Colors.textSecondary,
+    fontFamily: FontFamily.semiBold,
+    textTransform: 'uppercase',
+    letterSpacing: 0.8,
+    fontSize: 10,
+  },
+  subsDividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: Colors.divider,
+  },
+  subsList: {
+    gap: 4,
+  },
+  subsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.md,
+    paddingVertical: Spacing.sm,
+  },
+  subsAvatar: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  subsRowMain: {
+    flex: 1,
+    minWidth: 0,
+    gap: 2,
+  },
+  subsRowName: {
+    ...Typography.bodyMedium,
+    color: Colors.textPrimary,
+    fontFamily: FontFamily.medium,
+  },
+  subsRowMeta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+  },
+  subsRowDays: {
+    ...Typography.labelSmall,
+    fontFamily: FontFamily.medium,
+    fontSize: 11,
+  },
+  subsRowAmount: {
+    ...Typography.bodyMedium,
+    fontFamily: FontFamily.bold,
+    color: Colors.textPrimary,
+  },
+  subsEmptyWrap: {
+    alignItems: 'center',
+    paddingVertical: Spacing.xl,
+    gap: Spacing.xs,
+  },
+  subsEmptyTitle: {
+    ...Typography.bodyLarge,
+    color: Colors.textSecondary,
+    fontFamily: FontFamily.medium,
+    marginTop: Spacing.xs,
+  },
+  subsEmptyHint: {
+    ...Typography.bodySmall,
+    color: Colors.textMuted,
+    textAlign: 'center',
+    paddingHorizontal: Spacing.lg,
+  },
+
+  // ── A10: Category Limits Health ──
+  limitsHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: Spacing.md,
+  },
+  limitsHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    flex: 1,
+    minWidth: 0,
+  },
+  limitsHeaderIcon: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  limitsHeaderStats: {
+    flexDirection: 'row',
+    gap: Spacing.xs,
+  },
+  limitsStatChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 3,
+    borderRadius: BorderRadius.round,
+  },
+  limitsStatChipText: {
+    ...Typography.labelSmall,
+    fontFamily: FontFamily.extraBold,
+    fontSize: 11,
+  },
+  limitsList: {
+    gap: Spacing.md,
+  },
+  limitRow: {
+    gap: 6,
+  },
+  limitRowTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+  },
+  limitIcon: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  limitName: {
+    ...Typography.bodyMedium,
+    color: Colors.textPrimary,
+    fontFamily: FontFamily.medium,
+    flex: 1,
+    minWidth: 0,
+  },
+  limitPct: {
+    ...Typography.labelMedium,
+    fontFamily: FontFamily.bold,
+    fontSize: 13,
+  },
+  limitTrack: {
+    height: 6,
+    backgroundColor: Colors.surfaceLight,
+    borderRadius: 3,
+    overflow: 'hidden',
+  },
+  limitTrackFill: {
+    height: '100%',
+    borderRadius: 3,
+  },
+  limitRowBottom: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  limitAmounts: {
+    ...Typography.labelSmall,
+    color: Colors.textMuted,
+  },
+  limitSpent: {
+    color: Colors.textPrimary,
+    fontFamily: FontFamily.semiBold,
+  },
+  limitDiv: {
+    color: Colors.textMuted,
+  },
+  limitMax: {
+    color: Colors.textMuted,
+    fontFamily: FontFamily.medium,
+  },
+  limitRemaining: {
+    ...Typography.labelSmall,
+    color: Colors.textSecondary,
+    fontFamily: FontFamily.medium,
+    fontSize: 11,
+  },
+  limitsEmptyWrap: {
+    alignItems: 'center',
+    paddingVertical: Spacing.xl,
+    gap: Spacing.xs,
+  },
+  limitsEmptyTitle: {
+    ...Typography.bodyLarge,
+    color: Colors.textSecondary,
+    fontFamily: FontFamily.medium,
+    marginTop: Spacing.xs,
+  },
+  limitsEmptyHint: {
+    ...Typography.bodySmall,
+    color: Colors.textMuted,
+    textAlign: 'center',
+    paddingHorizontal: Spacing.lg,
+  },
+
+  // ── A11: Savings Goal ──
+  goalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: Spacing.md,
+  },
+  goalHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    flex: 1,
+    minWidth: 0,
+  },
+  goalHeaderIcon: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  goalDateChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 4,
+    borderRadius: BorderRadius.round,
+  },
+  goalDateChipText: {
+    ...Typography.labelSmall,
+    color: Colors.textSecondary,
+    fontFamily: FontFamily.semiBold,
+    fontSize: 11,
+  },
+  goalTitle: {
+    ...Typography.bodyLarge,
+    color: Colors.textPrimary,
+    fontFamily: FontFamily.semiBold,
+    marginBottom: Spacing.md,
+  },
+  goalBody: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.lg,
+    marginBottom: Spacing.md,
+  },
+  goalDonutWrap: {
+    width: 140,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  goalDonutCenter: {
+    alignItems: 'center',
+    gap: 2,
+  },
+  goalDonutPct: {
+    fontSize: 26,
+    fontFamily: FontFamily.bold,
+    letterSpacing: -0.5,
+  },
+  goalDonutLabel: {
+    ...Typography.labelSmall,
+    color: Colors.textMuted,
+    fontSize: 10,
+    textTransform: 'uppercase',
+    letterSpacing: 0.8,
+  },
+  goalStats: {
+    flex: 1,
+    gap: Spacing.sm,
+    justifyContent: 'center',
+  },
+  goalStatRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+  },
+  goalStatDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+  },
+  goalStatLabel: {
+    ...Typography.labelSmall,
+    color: Colors.textSecondary,
+    flex: 1,
+  },
+  goalStatValue: {
+    ...Typography.labelMedium,
+    fontFamily: FontFamily.bold,
+    color: Colors.textPrimary,
+  },
+  goalOutcome: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.md,
+    paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.md,
+    borderRadius: BorderRadius.lg,
+    borderWidth: 1,
+  },
+  goalOutcomeIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  goalOutcomeText: {
+    ...Typography.bodySmall,
+    color: Colors.textPrimary,
+    fontFamily: FontFamily.medium,
+    flex: 1,
+    lineHeight: 18,
+  },
+  goalEmptyWrap: {
+    alignItems: 'center',
+    paddingVertical: Spacing.xl,
+    gap: Spacing.xs,
+  },
+  goalEmptyTitle: {
+    ...Typography.bodyLarge,
+    color: Colors.textSecondary,
+    fontFamily: FontFamily.medium,
+    marginTop: Spacing.xs,
+  },
+  goalEmptyHint: {
+    ...Typography.bodySmall,
+    color: Colors.textMuted,
+    textAlign: 'center',
+    paddingHorizontal: Spacing.lg,
+  },
+
+  // ── A12: Time-of-day Heatmap ──
+  todHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: Spacing.md,
+    gap: Spacing.sm,
+  },
+  todHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    flex: 1,
+    minWidth: 0,
+  },
+  todHeaderIcon: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  todPeakChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 4,
+    borderRadius: BorderRadius.round,
+  },
+  todPeakChipText: {
+    ...Typography.labelSmall,
+    color: Colors.primary,
+    fontFamily: FontFamily.semiBold,
+    fontSize: 11,
+  },
+  todGridWrap: {
+    gap: 4,
+    marginBottom: Spacing.md,
+  },
+  todGridHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  todGridRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  todDayLabelCell: {
+    width: 32,
+    alignItems: 'flex-start',
+    justifyContent: 'center',
+  },
+  todDayLabelText: {
+    ...Typography.labelSmall,
+    color: Colors.textSecondary,
+    fontFamily: FontFamily.medium,
+    fontSize: 11,
+  },
+  todSlotHeaderCell: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  todSlotHeaderText: {
+    ...Typography.labelSmall,
+    color: Colors.textMuted,
+    fontFamily: FontFamily.medium,
+    fontSize: 10,
+  },
+  todCell: {
+    flex: 1,
+    height: 26,
+    borderRadius: 6,
+  },
+  todCellPeak: {
+    borderWidth: 2,
+    borderColor: Colors.primary,
+  },
+  todDisclaimer: {
+    ...Typography.labelSmall,
+    color: Colors.textMuted,
+    textAlign: 'center',
+    fontSize: 11,
+  },
+  todEmptyWrap: {
+    alignItems: 'center',
+    paddingVertical: Spacing.xl,
+    gap: Spacing.xs,
+  },
+  todEmptyTitle: {
+    ...Typography.bodyLarge,
+    color: Colors.textSecondary,
+    fontFamily: FontFamily.medium,
+    marginTop: Spacing.xs,
+  },
+  todEmptyHint: {
+    ...Typography.bodySmall,
+    color: Colors.textMuted,
+    textAlign: 'center',
+    paddingHorizontal: Spacing.lg,
+  },
+
+  // ── A13: Silent Spend ──
+  silentHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: Spacing.md,
+  },
+  silentHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    flex: 1,
+    minWidth: 0,
+  },
+  silentHeaderIcon: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  silentHeroBlock: {
+    marginBottom: Spacing.sm,
+  },
+  silentHeroLabel: {
+    ...Typography.labelSmall,
+    color: Colors.textMuted,
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+    marginBottom: 4,
+  },
+  silentHeroValue: {
+    fontSize: 30,
+    lineHeight: 36,
+    fontFamily: FontFamily.bold,
+    color: Colors.textPrimary,
+    letterSpacing: -0.5,
+  },
+  silentHeroMeta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    marginTop: 4,
+  },
+  silentHeroMetaText: {
+    ...Typography.labelSmall,
+    color: Colors.textSecondary,
+    fontFamily: FontFamily.medium,
+  },
+  silentHeroMetaDot: {
+    width: 3,
+    height: 3,
+    borderRadius: 1.5,
+    backgroundColor: Colors.textMuted,
+  },
+  silentHint: {
+    ...Typography.bodySmall,
+    color: Colors.textMuted,
+    fontFamily: FontFamily.medium,
+    marginTop: Spacing.sm,
+    marginBottom: Spacing.md,
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.md,
+    backgroundColor: Colors.surfaceLight,
+    borderRadius: BorderRadius.md,
+    lineHeight: 18,
+  },
+  silentList: {
+    gap: 2,
+  },
+  silentRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.md,
+    paddingVertical: Spacing.sm,
+  },
+  silentAvatar: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  silentRowMain: {
+    flex: 1,
+    minWidth: 0,
+    gap: 2,
+  },
+  silentRowName: {
+    ...Typography.bodyMedium,
+    color: Colors.textPrimary,
+    fontFamily: FontFamily.medium,
+  },
+  silentRowMeta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+  },
+  silentRowTimes: {
+    ...Typography.labelSmall,
+    color: Colors.textSecondary,
+    fontFamily: FontFamily.medium,
+    fontSize: 11,
+  },
+  silentRowMetaDot: {
+    width: 3,
+    height: 3,
+    borderRadius: 1.5,
+    backgroundColor: Colors.textMuted,
+  },
+  silentRowAvg: {
+    ...Typography.labelSmall,
+    color: Colors.textMuted,
+    fontSize: 11,
+  },
+  silentRowTotal: {
+    ...Typography.bodyMedium,
+    fontFamily: FontFamily.bold,
+    color: Colors.textPrimary,
+  },
+  silentEmptyWrap: {
+    alignItems: 'center',
+    paddingVertical: Spacing.xl,
+    gap: Spacing.xs,
+  },
+  silentEmptyTitle: {
+    ...Typography.bodyLarge,
+    color: Colors.textSecondary,
+    fontFamily: FontFamily.medium,
+    marginTop: Spacing.xs,
+  },
+  silentEmptyHint: {
+    ...Typography.bodySmall,
+    color: Colors.textMuted,
+    textAlign: 'center',
+    paddingHorizontal: Spacing.lg,
   },
 });

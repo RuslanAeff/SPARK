@@ -7,7 +7,7 @@
 
 ## Proje özeti
 
-**S.P.A.R.K** — kişisel harcama takibi mobil uygulaması.
+**S.P.A.R.K** — kişisel harcama takibi mobil uygulaması (mağaza sürümü örn. **2.2.0** — `app.json` / `package.json`).
 - **Yığın:** Expo SDK ~55, expo-router (file-based), React 19, RN 0.83
 - **Veri:** expo-sqlite (`spark.db`, WAL, FK on)
 - **Yapay zekâ:** Google Gemini (fiş ayrıştırma)
@@ -17,7 +17,7 @@
 
 ```
 app/                    # Ekranlar (expo-router)
-  (tabs)/               # Dashboard, İşlemler, Tarayıcı, Analiz, Ayarlar
+  (tabs)/               # Dashboard, İşlemler, Tarayıcı, Analiz (`analytics.tsx` — kart kataloğu §5.8), Ayarlar
 src/
   components/           # Ortak UI
   context/              # Currency, Refresh, Notifications, Language
@@ -80,3 +80,4 @@ npm run ios            # expo run:ios
 1. Görev hangi alana giriyor? → `DESIGN_BRIEF.md` ilgili bölümünü oku (içindekiler tablosuna bak).
 2. Tema/güvenlik/DB dokunan iş mi? → Yukarıdaki "Kritik kurallar"a tekrar göz at.
 3. UI değişikliği mi? → şüşevar + cam kart + dört dil + tema kalıbı.
+4. Analiz sekmesi / yeni kart / `analytics_card_order` mi? → `DESIGN_BRIEF.md` §5.8 (ALL_CARDS, DEFAULT_ACTIVE, `loadCardConfig`, i18n).
