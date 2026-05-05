@@ -2,7 +2,7 @@
   "expo": {
     "name": "S.P.A.R.K",
     "slug": "spark-finance",
-    "version": "2.2.0",
+    "version": "2.3.0",
     "orientation": "portrait",
     "icon": "./assets/spark-icon.png",
     "userInterfaceStyle": "dark",
@@ -22,7 +22,7 @@
         "foregroundImage": "./assets/spark-icon.png"
       },
       "package": "com.spark.finance",
-      "versionCode": 4,
+      "versionCode": 5,
       "permissions": [
         "android.permission.CAMERA",
         "android.permission.READ_EXTERNAL_STORAGE",

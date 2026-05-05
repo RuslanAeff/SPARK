@@ -43,4 +43,38 @@ export const CategoryLimitDao = {
     const db = await getDatabase();
     await db.runAsync('DELETE FROM category_limits');
   },
+
+  /**
+   * Analiz limit-sağlığı kartı için tek seferlik birleşik sorgu.
+   * Her limit + kategori meta + alt kategoriler dahil aralık harcaması
+   * tek SQL'de döner — eski yaklaşım her limit için 2 sorgu (children + spent)
+   * + ayrıca CategoryDao.getAll() = 5 limit için 11 sorgu yapıyordu.
+   */
+  async getForMonthWithSpending(month: string, startDate: string, endDate: string) {
+    const db = await getDatabase();
+    return db.getAllAsync<{
+      category_id: number;
+      limit_amount: number;
+      category_name: string;
+      category_icon: string;
+      category_color: string;
+      spent: number;
+    }>(
+      `SELECT cl.category_id,
+              cl.limit_amount,
+              c.name  AS category_name,
+              c.icon  AS category_icon,
+              c.color AS category_color,
+              COALESCE(SUM(e.total_amount), 0) AS spent
+         FROM category_limits cl
+         JOIN categories c ON c.id = cl.category_id
+         LEFT JOIN expenses e
+           ON e.date BETWEEN ? AND ?
+          AND (e.category_id = cl.category_id
+               OR e.category_id IN (SELECT id FROM categories WHERE parent_id = cl.category_id))
+        WHERE cl.month = ?
+        GROUP BY cl.category_id, cl.limit_amount, c.name, c.icon, c.color`,
+      [startDate, endDate, month]
+    );
+  },
 };

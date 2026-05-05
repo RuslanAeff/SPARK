@@ -14,6 +14,7 @@ import {
   Pressable,
   BackHandler,
   ActivityIndicator,
+  PanResponder,
   type ListRenderItemInfo,
 } from 'react-native';
 import { useAppTheme } from '../../src/theme/themeStore';
@@ -55,6 +56,27 @@ export default function TransactionsScreen() {
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [bulkDeleteVisible, setBulkDeleteVisible] = useState(false);
   const [deleting, setDeleting] = useState(false);
+
+  // ── Drag-to-multiselect + auto-scroll (Word'deki çoklu seçim hissi) ──
+  // Long-press → seçim modu + ilk satır seçilir; parmak basılı tutulup
+  // sürüklendikçe altındaki satırlar seçim setine eklenir. Parmak ekranın
+  // alt/üst kenarına yaklaşınca liste otomatik kayar.
+  const flatListRef = useRef<FlatList<Row>>(null);
+  const wrapperRef = useRef<View>(null);
+  const scrollOffsetRef = useRef(0);
+  const listLayoutRef = useRef({ y: 0, height: 0 });
+  const dragSelectingRef = useRef(false);
+  const lastTouchedIdRef = useRef<number | null>(null);
+  const rowsRef = useRef<Row[]>([]);
+  const [dragSelecting, setDragSelecting] = useState(false);
+  const [autoScrollDir, setAutoScrollDir] = useState<-1 | 0 | 1>(0);
+
+  // İlk render'da gerçek cell yüksekliklerini ölç → drag sırasında parmak
+  // altındaki satırı pixel-perfect tespit. Tahmin başlangıç değerleri (sabit
+  // değişmesin diye ref).
+  const measuredRef = useRef({ header: 32, row: 72, headerLocked: false, rowLocked: false });
+  const EDGE_THRESHOLD = 90;
+  const AUTO_SCROLL_SPEED = 14;
 
   useFocusEffect(useCallback(() => { refresh(); }, [refresh]));
 
@@ -120,7 +142,92 @@ export default function TransactionsScreen() {
       setSelectionMode(true);
       setSelectedIds(new Set([expenseId]));
     }
+    // Drag-to-multiselect: long-press anından parmak kalkana kadar sürükleme
+    // ile ek satırlar seçilir. flag ref + state ikisi de set edilir (ref
+    // PanResponder closure'ı için, state FlatList scrollEnabled için).
+    lastTouchedIdRef.current = expenseId;
+    dragSelectingRef.current = true;
+    setDragSelecting(true);
   }, []);
+
+  // Auto-scroll loop: parmak edge'deyken liste otomatik kayar.
+  useEffect(() => {
+    if (autoScrollDir === 0) return;
+    const interval = setInterval(() => {
+      const next = Math.max(0, scrollOffsetRef.current + autoScrollDir * AUTO_SCROLL_SPEED);
+      flatListRef.current?.scrollToOffset({ offset: next, animated: false });
+      scrollOffsetRef.current = next;
+    }, 16);
+    return () => clearInterval(interval);
+  }, [autoScrollDir]);
+
+  // Parmak Y'sinden hangi satırın altında olduğunu bulur — ölçülen gerçek
+  // yükseklikleri kullanır (header + row).
+  const findExpenseIdAtListY = useCallback((listY: number): number | null => {
+    const { header: HH, row: RH } = measuredRef.current;
+    let cumY = 0;
+    for (const row of rowsRef.current) {
+      const h = row.kind === 'header' ? HH : RH;
+      if (listY >= cumY && listY < cumY + h) {
+        return row.kind === 'row' ? row.expense.id : null;
+      }
+      cumY += h;
+    }
+    return null;
+  }, []);
+
+  // PanResponder — ref pattern ile referans-kararlı. Drag aktif olduğunda
+  // FlatList scroll'unu intercept eder (scrollEnabled=false ile uyum içinde).
+  const dragPan = useRef(
+    PanResponder.create({
+      // Capture fazı önemli: TransactionRow Pressable olduğu için normal akışta
+      // touch event'lerini yutuyor → PanResponder'a hareket düşmüyor. Capture
+      // ile drag aktifken child responder'lardan önce yakalıyoruz.
+      onStartShouldSetPanResponder: () => false,
+      onStartShouldSetPanResponderCapture: () => false,
+      onMoveShouldSetPanResponder: (_, gs) =>
+        dragSelectingRef.current && (Math.abs(gs.dy) > 4 || Math.abs(gs.dx) > 4),
+      onMoveShouldSetPanResponderCapture: (_, gs) =>
+        dragSelectingRef.current && (Math.abs(gs.dy) > 4 || Math.abs(gs.dx) > 4),
+      onPanResponderMove: (evt) => {
+        if (!dragSelectingRef.current) return;
+        const touchPageY = evt.nativeEvent.pageY;
+        const { y: listTop, height: listH } = listLayoutRef.current;
+        const relY = touchPageY - listTop;
+
+        // Edge auto-scroll
+        if (relY < EDGE_THRESHOLD) setAutoScrollDir(-1);
+        else if (relY > listH - EDGE_THRESHOLD) setAutoScrollDir(1);
+        else setAutoScrollDir(0);
+
+        // Parmak altındaki satırı tespit + ek seç
+        const listCoordY = scrollOffsetRef.current + relY;
+        const id = findExpenseIdAtListY(listCoordY);
+        if (id !== null && id !== lastTouchedIdRef.current) {
+          lastTouchedIdRef.current = id;
+          setSelectedIds(prev => {
+            if (prev.has(id)) return prev; // additive — geri silmez
+            const next = new Set(prev);
+            next.add(id);
+            Haptics.selectionAsync();
+            return next;
+          });
+        }
+      },
+      onPanResponderRelease: () => {
+        dragSelectingRef.current = false;
+        lastTouchedIdRef.current = null;
+        setDragSelecting(false);
+        setAutoScrollDir(0);
+      },
+      onPanResponderTerminate: () => {
+        dragSelectingRef.current = false;
+        lastTouchedIdRef.current = null;
+        setDragSelecting(false);
+        setAutoScrollDir(0);
+      },
+    }),
+  ).current;
 
   const openBulkDelete = useCallback(() => {
     if (selectedIds.size === 0) return;
@@ -176,24 +283,48 @@ export default function TransactionsScreen() {
     return out;
   }, [filtered]);
 
+  // findExpenseIdAtListY closure'ı ref'ten okuyacak — her render güncel veri.
+  rowsRef.current = rows;
+
   const keyExtractor = useCallback((item: Row) => item.key, []);
+
+  // Cell yüksekliklerini ilk render'da ölç — drag select pixel-doğru olsun.
+  const onCellLayout = useCallback((kind: 'header' | 'row', height: number) => {
+    const m = measuredRef.current;
+    if (kind === 'header' && !m.headerLocked && height > 0) {
+      m.header = height;
+      m.headerLocked = true;
+    } else if (kind === 'row' && !m.rowLocked && height > 0) {
+      m.row = height;
+      m.rowLocked = true;
+    }
+  }, []);
 
   const renderItem = useCallback(
     ({ item }: ListRenderItemInfo<Row>) => {
       if (item.kind === 'header') {
-        return <Text style={styles.dateHeader}>{formatDate(item.date, t)}</Text>;
+        return (
+          <Text
+            style={styles.dateHeader}
+            onLayout={(e) => onCellLayout('header', e.nativeEvent.layout.height)}
+          >
+            {formatDate(item.date, t)}
+          </Text>
+        );
       }
       return (
-        <TransactionRow
-          expense={item.expense}
-          selectionMode={selectionMode}
-          selected={selectedIds.has(item.expense.id)}
-          onPress={() => handleRowPress(item.expense.id)}
-          onLongPress={() => handleRowLongPress(item.expense.id)}
-        />
+        <View onLayout={(e) => onCellLayout('row', e.nativeEvent.layout.height)}>
+          <TransactionRow
+            expense={item.expense}
+            selectionMode={selectionMode}
+            selected={selectedIds.has(item.expense.id)}
+            onPress={() => handleRowPress(item.expense.id)}
+            onLongPress={() => handleRowLongPress(item.expense.id)}
+          />
+        </View>
       );
     },
-    [t, styles, selectionMode, selectedIds, handleRowPress, handleRowLongPress],
+    [t, styles, selectionMode, selectedIds, handleRowPress, handleRowLongPress, onCellLayout],
   );
 
   const selectedCount = selectedIds.size;
@@ -271,35 +402,57 @@ export default function TransactionsScreen() {
         )}
       </Animated.View>
 
-      <FlatList
-        data={rows}
-        keyExtractor={keyExtractor}
-        renderItem={renderItem}
-        removeClippedSubviews={false}
-        initialNumToRender={18}
-        maxToRenderPerBatch={16}
-        windowSize={9}
-        updateCellsBatchingPeriod={40}
-        onEndReached={handleEndReached}
-        onEndReachedThreshold={0.6}
-        ListFooterComponent={listFooter}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={onRefresh}
-            tintColor={Colors.primary}
-          />
-        }
-        contentContainerStyle={styles.listContent}
-        showsVerticalScrollIndicator={false}
-        ListEmptyComponent={
-          <View style={styles.emptyState}>
-            <MaterialCommunityIcons name="receipt" size={64} color={Colors.textMuted} />
-            <Text style={styles.emptyTitle}>{t('no_transactions')}</Text>
-            <Text style={styles.emptySubtitle}>{t('no_transactions_subtitle')}</Text>
-          </View>
-        }
-      />
+      <View
+        ref={wrapperRef}
+        style={{ flex: 1 }}
+        onLayout={() => {
+          // measure ile pageY (ekran-mutlak Y) — drag pan responder bunu kullanır.
+          wrapperRef.current?.measure((_x, _y, _w, h, _pageX, pageY) => {
+            listLayoutRef.current = { y: pageY, height: h };
+          });
+        }}
+        {...dragPan.panHandlers}
+      >
+        <FlatList
+          ref={flatListRef}
+          data={rows}
+          keyExtractor={keyExtractor}
+          renderItem={renderItem}
+          removeClippedSubviews={false}
+          initialNumToRender={18}
+          maxToRenderPerBatch={16}
+          windowSize={9}
+          updateCellsBatchingPeriod={40}
+          onEndReached={handleEndReached}
+          onEndReachedThreshold={0.6}
+          ListFooterComponent={listFooter}
+          // Drag aktifken FlatList kendi scroll'unu devre dışı bırakıyor; auto-scroll
+          // loop scrollToOffset ile programatik kaydırıyor → çakışma olmuyor.
+          scrollEnabled={!dragSelecting}
+          onScroll={(e) => { scrollOffsetRef.current = e.nativeEvent.contentOffset.y; }}
+          scrollEventThrottle={16}
+          // Drag aktifken pull-to-refresh devre dışı (Android `enabled` prop'u).
+          // refreshControl'ü tamamen kaldırmak FlatList'i resetleyip scroll
+          // pozisyonunu en üste atıyordu — onun yerine prop ile kontrol.
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              tintColor={Colors.primary}
+              enabled={!dragSelecting}
+            />
+          }
+          contentContainerStyle={styles.listContent}
+          showsVerticalScrollIndicator={false}
+          ListEmptyComponent={
+            <View style={styles.emptyState}>
+              <MaterialCommunityIcons name="receipt" size={64} color={Colors.textMuted} />
+              <Text style={styles.emptyTitle}>{t('no_transactions')}</Text>
+              <Text style={styles.emptySubtitle}>{t('no_transactions_subtitle')}</Text>
+            </View>
+          }
+        />
+      </View>
 
       <GlassDeleteModal
         visible={bulkDeleteVisible}

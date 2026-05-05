@@ -4,7 +4,7 @@
 |------|--------|
 | **Belge amacı** | Tasarımcı, geliştirici ve yapay zekâ asistanlarının projeyi tek kaynaktan anlaması; performans, güvenlik ve tutarlı UX için yol haritası |
 | **Uygulama adı** | **S.P.A.R.K.** (kişisel finans / harcama takibi) |
-| **Son güncelleme** | Mayıs 2026 — **sürüm 2.2.0** (`app.json` / `package.json`); Analiz sekmesi modüler kart kataloğu ve `analytics_card_order` ayarı §5.8; Ayarlar grup menüsü §5.7; yedek import onayı `ConfirmModal` §5.3; işlemler listesi P13 (`removeClippedSubviews`) |
+| **Son güncelleme** | Mayıs 2026 — **sürüm 2.3.0** (`app.json` / `package.json`); ilk açılış onboarding akışı §5.9, sürükle-çoklu-seçim + auto-scroll §5.10, Analiz modüler kart kataloğu §5.8, Ayarlar grup menüsü §5.7, performans P14–P20 (Limit Sağlığı N+1, toast flicker, projeksiyon outlier dirençi, dateUtils timezone fix, Colors proxy themeStore okuma, drag-select RefreshControl resetlemesi, splash overlay route registry) — §8.1; **Jest + GitHub Actions CI** §9 |
 | **Platform** | React Native / Expo — iOS & Android |
 | **Desteklenen diller** | **TR** (Türkçe — varsayılan), **EN** (İngilizce), **AZ** (Azərbaycan), **RU** (Русский) |
 
@@ -375,6 +375,49 @@ Kayıtlı `active+hidden` setine **`ALL_CARDS`'da olup ikisinde de bulunmayan** 
 
 **`projection` özel notu:** Sadece `timeframe === 'month'` modunda anlamlı; diğer timeframe'lerde `projection_only_month` boş durumu. `dayOfMonth < 2` ise `projection_too_early`. Outcome metni daima **mutlak tutar** (`formatCurrency` / görüntüleme para birimi); yüzdeyle özetlenmez.
 
+### 5.9 Onboarding akışı (Mayıs 2026 — v2.3)
+
+İlk açılış deneyimi 4 ekranlı yatay pager ile yönetilir (`app/onboarding.tsx`):
+
+1. **Karşılama:** büyük logo, tek cümle değer önerisi, 3 mini özellik etiketi ve şüşevar "Başlayalım".
+2. **Dil:** TR / EN / AZ / RU büyük kartlar; sistem dili varsayılan seçilir, kullanıcı anında değiştirebilir.
+3. **Bütçe (opsiyonel):** aylık tutar alanı + görüntüleme para birimi seçici; "Sonra ekleyeyim" ile atlanabilir.
+4. **Bitti:** check animasyonu, "İlk fişini tara" (`/(tabs)/scanner`) ve "Önce keşfedeyim" (`/(tabs)`).
+
+**Flag ve yönlendirme sözleşmesi**
+
+- Kalıcılık anahtarı: `settings.onboarding_completed` (`'1'` tamamlandı, yoksa göster).
+- Okuma/yazma: `src/hooks/useOnboardingStatus.ts`.
+- Başlangıç guard'ı: `app/_layout.tsx` — `useDatabase().isReady` + onboarding flag yüklendikten sonra tek sefer route kararı verilir; tamamlanmamışsa `router.replace('/onboarding')` ile geri stack kirlenmeden onboarding açılır.
+- `Skip`, "Bitti" CTA’ları aynı flag'i set eder; onboarding yalnız bir kez görünür.
+
+**UX kuralları**
+
+- Skip daima görünür; kullanıcı hiçbir adımda zorlanmaz.
+- Kamera izni onboarding'de istenmez; yalnız tarama CTA’sında (scanner akışı) neden açıklamasıyla istenir.
+
+### 5.10 İşlemler — sürükle-çoklu-seçim + otomatik kaydırma (v2.3)
+
+`app/(tabs)/transactions.tsx` toplu seçim deneyimi Word/Apple Notes tarzı **drag-to-multiselect**'i destekler:
+
+- **Tetikleyici:** Bir satıra long-press → seçim modu açılır + ilk satır seçilir + `dragSelectingRef.current = true`.
+- **Sürükleme:** Parmak basılı tutulup hareket ettikçe altındaki her satır seçim setine **eklemeli** olarak alınır (kazara silmeyi engellemek için geri alma yok).
+- **Auto-scroll:** Parmak ekranın üst veya alt 90px kenar bandında ise `setInterval(16ms)` ile `scrollToOffset` çağrılır (~14 px/tick ≈ 50 satır/sn).
+- **Haptik:** Her yeni seçimde `Haptics.selectionAsync()`.
+
+**Teknik notlar (önemli regresyon kaynakları):**
+
+1. **PanResponder capture:** `TransactionRow` zaten `Pressable` olduğu için touch event'leri yutar; PanResponder'ın `onMoveShouldSetPanResponderCapture` ile **capture fazında** intercept etmesi şarttır, normal bubble fazı yetmez.
+2. **`scrollEnabled={!dragSelecting}`:** Drag aktifken FlatList kullanıcı scroll'unu kapatır; auto-scroll programatik `scrollToOffset` ile yürür.
+3. **`RefreshControl`:** Drag aktifken `refreshControl` prop'unu **`undefined`'a düşürmeyin** — bu FlatList'in iç scroll yapısını sıfırlar ve liste en üste sıçrar. Doğru yöntem: kontrol her zaman bağlı, `enabled={!dragSelecting}` ile kapatılır (Android-only prop, iOS sessizce yutar).
+4. **Pixel-perfect satır tespiti:** Sabit yükseklik tahmini (header 32 / row 72) yeterli değil — gerçek cihazda off-by-one'a yol açıyor. İlk render'da `onLayout` ile `measuredRef = { header, row, headerLocked, rowLocked }` doldurulur; `findExpenseIdAtListY()` cumulative scan ile bu değerleri kullanır.
+5. `rowsRef.current = rows` her render güncellenir — PanResponder closure stale veriye gitmez.
+
+**State + ref'ler:** `dragSelecting` (state, FlatList prop'ları için) + `dragSelectingRef` (ref, PanResponder closure için), `flatListRef`, `wrapperRef` (PanResponder mount + `measure` ile pageY için), `scrollOffsetRef`, `listLayoutRef`, `lastTouchedIdRef`, `autoScrollDir`.
+
+Yeni satır tipleri eklenirse (`{ kind: 'row' | 'header' | ... }`) `findExpenseIdAtListY` cumulative scan'ine yükseklik kaydı eklenmelidir.
+- Tasarım dili: şüşevar CTA + cam kart + Reanimated geçişler + tema mağazası (`useAppTheme` + `useMemo(getStyles, [scheme])`).
+
 ---
 
 ## 6. Tasarım sistemi
@@ -564,6 +607,13 @@ Yeni bir DAO yazarken önce `normalizeXxxPatch` yardımcısı tanımlanıp hem `
 | P12 | **Aydınlık modda kartların içi siyah — "flash of dark" + stale scheme** | Sebep-sonuç zinciri: (1) `ThemeScheduler.applyThemeFromDatabase()` **async** DB okuması yaptığı için ilk render'da `Colors` proxy OS'un dark temasını çözüp `StyleSheet`'e donduruyordu; (2) DB okununca `Appearance.setColorScheme('light')` çağrılıyor **ama Android/Expo Go'da `useColorScheme()` hook'u bu programatik değişimi her zaman tetiklemiyor** (RN bilinen quirk'i) → component re-render almıyor, eski StyleSheet ekranda kalıyor; (3) sekme değiştirip dönünce `useFocusEffect` render'ı yeniliyor ve kart beyazlaşıyor. Dashboard'ta ekstra tetikleyici: `statsCard.backgroundColor = Colors.cardSurface` override'ı AnimatedCard'ın arka planını ikinci bir StyleSheet'e dondurup kaçış yolunu kapatıyordu. **Çözüm:** (a) Merkezi `themeStore` (`src/theme/themeStore.ts`) `useSyncExternalStore` tabanlı çift kanallı (`Appearance.addChangeListener` + manuel `notifyThemeChanged()`); (b) `themeSchedule` her `Appearance.setColorScheme()` sonrası store'u notify ediyor; (c) `useDatabase` hook'u `isReady=true` vermeden **önce** `await applyThemeFromDatabase()` ile teklik senkronu sağlıyor → ilk render zaten doğru temayla çıkıyor; (d) tüm tema-bağımlı component'ler `useColorScheme()` yerine `useAppTheme()` + `useMemo(() => getStyles(), [scheme])` kullanıyor; (e) Dashboard'taki çift-kaynak background override kaldırıldı. Detay §6.1.2. | `src/theme/themeStore.ts` (yeni), `src/utils/themeSchedule.ts`, `src/hooks/useDatabase.ts`, `app/_layout.tsx`, `app/(tabs)/_layout.tsx`, `app/(tabs)/index.tsx`, `app/(tabs)/analytics.tsx`, `app/(tabs)/transactions.tsx`, `app/(tabs)/settings.tsx`, `app/notifications.tsx`, `src/components/AnimatedCard.tsx`, `src/components/BudgetCard.tsx`, `src/components/SpendingHeatmap.tsx`, `src/components/BudgetHistoryCard.tsx`, `src/components/SavingsGoalCard.tsx`, `src/components/CategoryLimitsSection.tsx`, `src/components/SpendingTrend.tsx`, `src/components/DonutChart.tsx`, `src/components/BarChart.tsx`, `src/components/LineChart.tsx`, `src/components/CategoryPill.tsx`, `src/components/VendorAvatar.tsx`, `src/components/TransactionRow.tsx`, `src/components/ItemAnalyticsModal.tsx`, `src/components/BackupSection.tsx`, `src/components/CustomDatePicker.tsx`, `src/components/GlassCheckButton.tsx`, `src/components/LanguagePickerSheet.tsx`, `src/components/SettingsInfoHint.tsx` |
 
 | P13 | **`FlatList` `removeClippedSubviews` toggle bug'ı (Android)** | Toplu seçim modu girişinde `removeClippedSubviews={!selectionMode}` ifadesi `true → false` geçince Android'de bazı satırların native view'leri "clipped" durumda takılı kalıyor → satırlar yer tutar ama **görünmez ve dokunulmaz** oluyordu (tarih başlıkları virtualization dışı olduğu için görünmeye devam ediyor, kullanıcı "satırlar kayboldu" olarak algılıyor). Bilinen RN Android quirk'i: prop runtime'da değiştirilince clip'lenmiş subview'ler otomatik geri yüklenmiyor. **Çözüm:** prop sabit `false` yapıldı; `usePaginatedExpenses(60)` ile DB seviyesinde sayfalama zaten aktif olduğundan virtualization'ın tek başına yükü yeterli. | `app/(tabs)/transactions.tsx` |
+| P14 | **Limit Sağlığı kartı N+1** (`loadCategoryLimits`) | Eski akış: limit listesi (1 SQL) + tüm kategoriler (1 SQL) + her limit için `getSpentForCategoryInRange` (alt kategori sorgusu + harcama toplamı = 2 SQL/limit). 5 limit için **11 SQL roundtrip**. Yeni `CategoryLimitDao.getForMonthWithSpending(month, start, end)` tek sorguda limit + kategori meta + alt kategoriler dahil aralık harcamasını JOIN/GROUP ile döner → **1 SQL**. Pull-to-refresh ve ekran açılış gecikmesi belirgin azaldı. | `src/db/categoryLimitDao.ts`, `app/(tabs)/analytics.tsx` |
+| P15 | **`SparkToast` flicker — aynı içerik tetiklendiğinde popup yere düşüp tekrar açılıyor** | Aynı toast mesajı bir form-kaydet akışında 2 kez (handler + sonraki state effect'i) çağrıldığında, `_show` her seferinde animasyon değerlerini sıfırlayıp yeniden başlatıyordu → kullanıcıya yanıp sönme olarak görünüyor. **Çözüm:** `activeKeyRef = "${type}\|${message}\|${submessage}"`; aynı key aktifken sadece auto-dismiss timer ve `progW` (progress bar) sıfırlanır, animasyon/state'e dokunulmaz. Toast kapandığında `activeKeyRef = null`. | `src/components/SparkToast.tsx` |
+| P16 | **Ay sonu projeksiyonu — outlier'a aşırı duyarlı** | Naive `currentTotal / dayOfMonth × totalDaysInMonth` kira/fatura/elektronik gibi tek seferlik büyük harcamalardan sonra abartılı projeksiyon veriyor (ör. 5. günde 2.000 zł kira → ay sonu 12.000+ zł tahmini). **Çözüm:** Ay başından bugüne sparse `dailyData` 0 günler dahil dense diziye genişletilir, sıralanır, **üst %20 trim** edilir; kalanın ortalaması `trimmedDailyPace` olur. Projeksiyon = `currentTotal + daysLeft × trimmedDailyPace`. `currentSpent` (gerçek harcanan) ve track-bar "şu ana kadar" segmenti değişmez; sadece **kalan gün için tahmin** gürültüden arındırılır. `hasOutlier = naivePace > trimmedPace × 1.5` flag'i ileride bilgi rozeti için döner. | `app/(tabs)/analytics.tsx` (`projectionInfo` useMemo) |
+| P17 | **`dateUtils` timezone bug — `toISOString()` UTC'ye çeviriyor** | `getToday()`, `getEndOfMonth()`, `normalizeToYYYYMMDD()` `Date.toISOString().split('T')[0]` kullanıyordu. UTC+3 cihazlarda gece yarısı civarında "bugün" ertesi günü dönebiliyor; `getEndOfMonth(Şubat 2026)` `28` yerine `27` veriyordu. Yan etki: yanlış güne kaydedilen harcamalar, projeksiyon kartında 1 gün eksik hesap, ay sonu rapor karışmaları. **Çözüm:** Yerel takvim gününü garanti eden `toLocalYmd(date)` helper'ı eklendi (`${y}-${MM}-${DD}` padStart) ve üç yerde de çağrılır oldu. `__tests__/dateUtils.test.ts` regresyon testi ekledi (Şubat 28/29, Aralık 31, Nisan 30 doğrulamaları). | `src/utils/dateUtils.ts`, `src/utils/__tests__/dateUtils.test.ts`, `app/onboarding.tsx` (yeni dosyada da `new Date().toISOString().slice(0,7)` tekrar üretilmişti, `getStartOfMonth().substring(0,7)` ile değiştirildi) |
+| P18 | **`Colors` proxy `Appearance.getColorScheme()` stale dönüyor (P12 nüksü)** | `_layout.tsx` Stack'i splash sırasında daima mount edildikten sonra (route registry erişimi için zorunlu), tema henüz DB'den okunmadan render edilen kartlar OS scheme'ini yakalıyor. Android'de `Appearance.setColorScheme()` sonrası `Appearance.getColorScheme()` her zaman güncellenmiyor → aydınlık modda bazı kartlar (özellikle koşullu render edilen budget kartı) siyah donuyor. **Çözüm:** `Colors` proxy artık `themeStore.getAppThemeSnapshot()` üzerinden okuyor (lazy `require` ile circular import güvenli, ilk modül yükleme sırasında Appearance fallback). themeStore manuel `notifyThemeChanged()` ve OS değişimi her ikisini de takip ettiği için stale dönmez. | `src/theme/colors.ts` |
+| P19 | **Drag-to-multiselect başlangıç sıçraması** | `transactions.tsx` çoklu seçim drag akışında, drag aktivasyonunda `refreshControl={dragSelecting ? undefined : <RefreshControl/>}` ile prop tamamen kaldırılıyordu → FlatList iç scroll yapısını sıfırlıyor → liste birden en üste sıçrıyor (kullanıcı görünüm: "elini bırakmadan aşağı sürüklerken birden başa atıyor"). **Çözüm:** `RefreshControl` her zaman bağlı; drag aktifken Android'in `enabled={!dragSelecting}` prop'u ile pull-to-refresh kapatılıyor. Mount/unmount yaşanmadığı için scroll state korunuyor. iOS'ta `enabled` prop ignore edilir; orada `scrollEnabled={!dragSelecting}` zaten parmak scroll'u keserek refresh tetikleyicisini de pasifleştiriyor. | `app/(tabs)/transactions.tsx` |
+| P20 | **İlk açılış splash'inde Stack mount edilmiyor → `router.replace('/onboarding')` kilitleniyor** | Eski `_layout.tsx` `if (!isReady || ...) return <Splash/>` ile Stack'i tamamen render etmiyor; bu durumda `router.replace('/onboarding')` çağrısı henüz tanımlı olmayan route'u arıyor → uygulama splash'te sonsuz dönüyor. **Çözüm:** Stack daima render edilir, splash bir **overlay** olarak (`StyleSheet.absoluteFillObject`, `zIndex: 100`) `showSplash` koşuluyla üzerine bindirilir. Yönlendirme effect'i `onboardingHandledRef` guard'ı ile tek sefer çalışır. Provider'lar (Language/Currency/...) ve route registry hep mount, splash bittiğinde overlay kalkar. | `app/_layout.tsx` |
 
 ### 8.2 Performans kuralları — yeni katkılar için
 
@@ -616,7 +666,7 @@ P1–P13 denetim bulguları tamamlandıktan sonra orta öncelikli olarak takip e
 
 - **TypeScript:** her commit’ten önce `npx tsc --noEmit`. PR kontrol listesi zorunlu madde.
 - **Linter:** kod eklerken `ReadLints` / editör uyarıları sıfır bırakılmalı.
-- **Otomatik test:** şu anda birim/E2E test altyapısı **yok** (bilinçli kapsam dışı). Eklenirse: **Jest + React Native Testing Library** birim için, **Maestro** E2E için önerilir; DAO’lar ve `inputValidation.ts` öncelikli test hedefleridir.
+- **Otomatik test (kuruldu — v2.3):** **Jest** (`jest-expo` preset) ile birim test altyapısı; `npm test`, `npm run test:watch`, `npm run typecheck` script'leri. Kapsanan kritik yardımcılar: `formatCurrency`, `dateUtils`, `itemNameNormalizer`, `inputValidation` — **47 test, 4 suite**. Bileşen/E2E için **React Native Testing Library** + **Maestro** önerisi açık (DAO ve hook'ların üstüne genişletilebilir). **GitHub Actions CI** (`.github/workflows/ci.yml`): her `push` ve `pull_request` üzerinde Node 20 ile `npm ci` → `npm run typecheck` → `npm test --ci`. Test/CI değiştiğinde §12 bakım kuralına göre `package.json` script'leri ve workflow dosyası birlikte güncellenmelidir.
 - **Hata sınırı:** `ErrorBoundary` analiz ekranında aktif; kök `app/_layout.tsx`-e de sarmalama yol haritasındadır (güvenlik bulguları §7.10 ile paralel).
 - **i18n:** Yeni metinler `translations.ts` / `locales/*.json` içinde **dört dilde** (TR/EN/AZ/RU) anahtarlarıyla eklenmelidir; eksik çeviri fallback olarak TR’ye düşer.
 
@@ -684,6 +734,10 @@ P1–P13 denetim bulguları tamamlandıktan sonra orta öncelikli olarak takip e
 - Yeni bir uzun liste ekranı eklenirse `usePaginatedExpenses` gibi bir sayfalı hook’a (veya eşdeğerine) bağlanmalı ve §8.5 listesine eklenmelidir.
 - **Yedek formatı (§5.3) değişirse:** `BACKUP_FORMAT_VERSION` artırılmalı, eski sürümü **geriye dönük okuyabilecek** importer dalları korunmalı; DB şemasına yeni tablo/kolon eklenirse hem `buildBackupPayload` hem `importBackupPayload` ve DESIGN_BRIEF §5.3 JSON şeması tek commit’te güncellenmelidir. Yeni bağımlılık (`expo-sharing` / `expo-document-picker`) sürümü §2.1 tablosuna yazılmalıdır.
 - **Analiz kartları (§5.8) değişirse:** `app/(tabs)/analytics.tsx` içindeki `ALL_CARDS`, `DEFAULT_ACTIVE`, `loadCardConfig` migrasyonu, `renderCard` dalları ve ilgili DAO/i18n bu bölümle aynı commit’te güncellenmelidir; mağaza sürümü için `app.json` `expo.version` + Android `versionCode` artışı unutulmamalıdır.
+- **Onboarding akışı (§5.9) değişirse:** `app/onboarding.tsx`, `src/hooks/useOnboardingStatus.ts`, `app/_layout.tsx` başlangıç check'i ve ilgili i18n anahtarları tek commit içinde birlikte güncellenmelidir.
+- **Drag-to-multiselect (§5.10) değişirse:** `app/(tabs)/transactions.tsx` içindeki `dragSelecting`/`dragSelectingRef`, `findExpenseIdAtListY`, PanResponder capture handler'ları ve `RefreshControl` `enabled` prop'u tutarlı kalmalıdır. Yeni satır tipleri eklenirse cell yüksekliği `measuredRef`'e + cumulative scan'e eklenmelidir. **`refreshControl` prop'unu drag aktifken `undefined`'a düşürmeyin** (P19) — FlatList iç state resetler.
+- **Otomatik test/CI (§9 sonu) değişirse:** `package.json` script'leri (`test`, `test:watch`, `typecheck`), `jest` preset alanı, `.github/workflows/ci.yml` ve §9 metni birlikte güncellenmeli; yeni test dosyaları `src/**/__tests__/**/*.test.ts` glob'una düşmelidir.
+- **`Colors` proxy okuma kaynağı (§8.1 P18) değişirse:** `src/theme/colors.ts` lazy `require('./themeStore').getAppThemeSnapshot` zincirine dokunulurken circular import güvenliği (try/catch fallback) korunmalı; aksi halde uygulama init zamanında çakılır.
 
 ---
 

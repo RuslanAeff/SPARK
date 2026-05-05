@@ -207,6 +207,26 @@ export const translations = {
     unknown_error: 'Bilinmeyen hata',
     error_saving_data: 'Veriler kaydedilemedi.',
     scanner_subtitle: 'Fişinizin fotoğrafını çekin veya galeriden yükleyin.\nAI otomatik olarak kalemleri ayrıştıracak.',
+
+    // Onboarding
+    onboarding_skip: 'Geç',
+    onboarding_next: 'İleri',
+    onboarding_welcome_title: 'Fişini tara, paranı anla.',
+    onboarding_welcome_subtitle: 'S.P.A.R.K ile harcamalarını saniyeler içinde düzenle.',
+    onboarding_welcome_cta: 'Başlayalım',
+    onboarding_feature_scan: 'Tarama',
+    onboarding_feature_budget: 'Bütçe',
+    onboarding_feature_analytics: 'Analiz',
+    onboarding_language_title: 'Dilini seç',
+    onboarding_language_subtitle: 'Sistem dilini önerdik, istersen şimdi değiştirebilirsin.',
+    onboarding_budget_title: 'Aylık bir bütçe belirleyeyim mi?',
+    onboarding_budget_subtitle: 'İstersen şimdi gir, istersen sonra ayarlarsın.',
+    onboarding_budget_input_placeholder: 'Örn: 15000',
+    onboarding_budget_skip_link: 'Sonra ekleyeyim',
+    onboarding_done_title: 'Hazırsın!',
+    onboarding_done_subtitle: 'İlk adımı tamamladın. Şimdi S.P.A.R.K seni bekliyor.',
+    onboarding_done_scan_cta: 'İlk fişini tara',
+    onboarding_done_explore_link: 'Önce keşfedeyim',
     
     // Settings
     settings_title: 'Ayarlar',
@@ -909,6 +929,26 @@ export const translations = {
     unknown_error: 'Unknown error',
     error_saving_data: 'Could not save data.',
     scanner_subtitle: 'Take a photo of your receipt or upload from gallery.\nAI will automatically extract the items.',
+
+    // Onboarding
+    onboarding_skip: 'Skip',
+    onboarding_next: 'Next',
+    onboarding_welcome_title: 'Scan your receipt, understand your money.',
+    onboarding_welcome_subtitle: 'Organize your spending in seconds with S.P.A.R.K.',
+    onboarding_welcome_cta: 'Let\'s start',
+    onboarding_feature_scan: 'Scan',
+    onboarding_feature_budget: 'Budget',
+    onboarding_feature_analytics: 'Analytics',
+    onboarding_language_title: 'Choose your language',
+    onboarding_language_subtitle: 'We suggested your system language, but you can change it now.',
+    onboarding_budget_title: 'Would you like to set a monthly budget?',
+    onboarding_budget_subtitle: 'You can set it now or add it later.',
+    onboarding_budget_input_placeholder: 'e.g. 400',
+    onboarding_budget_skip_link: 'I\'ll add it later',
+    onboarding_done_title: 'You are ready!',
+    onboarding_done_subtitle: 'First step complete. S.P.A.R.K is ready for you.',
+    onboarding_done_scan_cta: 'Scan your first receipt',
+    onboarding_done_explore_link: 'Let me explore first',
     
     // Settings
     settings_title: 'Settings',

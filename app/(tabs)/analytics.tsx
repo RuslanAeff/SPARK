@@ -19,9 +19,8 @@ import { useCategorySpending, useVendorSpending, useDailySpending, useTopTransac
 import { ExpenseDao } from '../../src/db/expenseDao';
 import { SubscriptionDao } from '../../src/db/subscriptionDao';
 import { CategoryLimitDao } from '../../src/db/categoryLimitDao';
-import { CategoryDao } from '../../src/db/categoryDao';
 import { GoalDao, type SavingsGoalRow } from '../../src/db/goalDao';
-import type { SubscriptionWithDetails, Category } from '../../src/db/schema';
+import type { SubscriptionWithDetails } from '../../src/db/schema';
 import { getStartOfMonth, getEndOfMonth, formatMonthYear, getDaysInMonth, getDayOfMonth } from '../../src/utils/dateUtils';
 
 import DonutChart from '../../src/components/DonutChart';
@@ -573,30 +572,20 @@ export default function AnalyticsScreen() {
       const monthKey = getStartOfMonth().substring(0, 7);
       const monthStart = getStartOfMonth();
       const monthEnd = getEndOfMonth();
-      const [limits, allCats] = await Promise.all([
-        CategoryLimitDao.getForMonth(monthKey),
-        CategoryDao.getAll() as Promise<Category[]>,
-      ]);
-      if (limits.length === 0) {
+      // Tek SQL ile limit + kategori meta + aralık harcaması (alt kategoriler dahil)
+      const rows = await CategoryLimitDao.getForMonthWithSpending(monthKey, monthStart, monthEnd);
+      if (rows.length === 0) {
         setCategoryLimits([]);
         return;
       }
-      const catMap = new Map<number, Category>();
-      allCats.forEach(c => catMap.set(c.id, c));
-      const enriched = await Promise.all(
-        limits.map(async (l) => {
-          const cat = catMap.get(l.category_id);
-          const spent = await ExpenseDao.getSpentForCategoryInRange(l.category_id, monthStart, monthEnd);
-          return {
-            category_id: l.category_id,
-            category_name: cat?.name ?? '',
-            category_icon: cat?.icon ?? 'tag-outline',
-            category_color: cat?.color ?? Colors.primary,
-            limit: l.limit_amount,
-            spent,
-          };
-        })
-      );
+      const enriched = rows.map(r => ({
+        category_id: r.category_id,
+        category_name: r.category_name,
+        category_icon: r.category_icon || 'tag-outline',
+        category_color: r.category_color || Colors.primary,
+        limit: r.limit_amount,
+        spent: r.spent,
+      }));
       // Aşılanları en üste, sonra doluluk oranına göre azalan
       enriched.sort((a, b) => {
         const ra = a.limit > 0 ? a.spent / a.limit : 0;
@@ -729,9 +718,34 @@ export default function AnalyticsScreen() {
     if (dayOfMonth < 2) {
       return { available: false as const, reason: 'too_early' as const };
     }
-    const dailyPace = currentTotal / dayOfMonth;
-    const projected = dailyPace * totalDaysInMonth;
+    // Outlier'a dirençli günlük tempo hesabı:
+    // Naive `currentTotal / dayOfMonth` tek seferlik büyük harcamalardan
+    // (kira, fatura, elektronik) çok etkilenir → projeksiyon abartılı çıkar.
+    // Çözüm: bu ay'a kadar olan günlük dizide üst %20'lik dilimi (en yüksek
+    // değerleri) kırp, kalan günlerin ortalamasını "kalan gün için tempo"
+    // olarak kullan. `currentSpent` (gerçek harcanan) değişmez; sadece **gelecek**
+    // tahmini gürültüden arındırılır. Projected = currentSpent + daysLeft × trimmedPace.
+    const dailyByDate = new Map<string, number>();
+    for (const d of dailyData) dailyByDate.set(d.date, d.total);
+    const dailyTotals: number[] = [];
+    const monthStart = new Date(dateRange.start);
+    for (let i = 0; i < dayOfMonth; i++) {
+      const d = new Date(monthStart);
+      d.setDate(monthStart.getDate() + i);
+      const ymd = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      dailyTotals.push(dailyByDate.get(ymd) ?? 0);
+    }
+    const sorted = [...dailyTotals].sort((a, b) => a - b);
+    const trimCount = Math.floor(sorted.length * 0.2);
+    const trimmed = trimCount > 0 ? sorted.slice(0, sorted.length - trimCount) : sorted;
+    const trimmedSum = trimmed.reduce((s, v) => s + v, 0);
+    const trimmedPace = trimmed.length > 0 ? trimmedSum / trimmed.length : 0;
+    const naivePace = currentTotal / dayOfMonth;
     const daysLeft = Math.max(0, totalDaysInMonth - dayOfMonth);
+    // Projection: gerçek harcanan + outlier'sız tempo × kalan gün.
+    const projected = currentTotal + daysLeft * trimmedPace;
+    // Görsellerde kullanıcıya "günlük ortalama" satırında trimmed pace gösterilir
+    // (hedef: gerçekçi olmak). Naive değer şimdilik gizli — ileride bir tooltip için.
     const monthlyBudget = budget.monthlyBudget;
     let status: 'safe' | 'warn' | 'over' | 'no_budget' = 'no_budget';
     let deltaPct: number | null = null;
@@ -746,13 +760,15 @@ export default function AnalyticsScreen() {
       available: true as const,
       projected,
       currentSpent: currentTotal,
-      dailyPace,
+      dailyPace: trimmedPace,
+      naiveDailyPace: naivePace,
       daysLeft,
       monthlyBudget,
       status,
       deltaPct,
+      hasOutlier: trimmedPace > 0 && naivePace > trimmedPace * 1.5,
     };
-  }, [timeframe, currentTotal, budget.monthlyBudget]);
+  }, [timeframe, currentTotal, budget.monthlyBudget, dailyData, dateRange.start]);
 
   // ── Abonelik özeti ───────────────────────────────────────────────
   // Her abonelik period_days'a göre 30 günlük döneme normalize edilir.

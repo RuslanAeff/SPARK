@@ -77,7 +77,7 @@ export function SparkToastContainer() {
       Animated.parallel([
         Animated.timing(btmY, { toValue: 400, duration: 300, easing: Easing.in(Easing.cubic), useNativeDriver: true }),
         Animated.timing(btmOp, { toValue: 0, duration: 250, useNativeDriver: true }),
-      ]).start(() => setToast(null));
+      ]).start(() => { setToast(null); activeKeyRef.current = null; });
     };
 
     pauseSuccessRef.current = () => {
@@ -128,7 +128,7 @@ export function SparkToastContainer() {
           Animated.parallel([
             Animated.timing(btmY, { toValue: 400, duration: 250, easing: Easing.in(Easing.cubic), useNativeDriver: true }),
             Animated.timing(btmOp, { toValue: 0, duration: 200, useNativeDriver: true }),
-          ]).start(() => setToast(null));
+          ]).start(() => { setToast(null); activeKeyRef.current = null; });
         } else {
           Animated.spring(btmY, { toValue: 0, friction: 10, tension: 80, useNativeDriver: true }).start();
           resumeSuccessRef.current();
@@ -138,8 +138,38 @@ export function SparkToastContainer() {
   ).current;
 
   // Register module-level show function on mount
+  const activeKeyRef = useRef<string | null>(null);
   useEffect(() => {
     _show = (message: string, type: ToastType = 'success', submessage?: string) => {
+      const nextKey = `${type}|${message}|${submessage ?? ''}`;
+
+      // Aynı toast hâlâ ekrandaysa baştan başlatma — sadece kapanma sayacını
+      // ve süre çubuğunu sıfırla. Yoksa hızlı arka arkaya tetiklemeler
+      // (form kaydet → state güncelle → tekrar tetikleme) toast'ı düşürüp
+      // tekrar yukarı çıkarır → flicker görüntüsü oluşur.
+      if (activeKeyRef.current === nextKey) {
+        if (timerRef.current) clearTimeout(timerRef.current);
+        if (type === 'success') {
+          progW.stopAnimation();
+          progW.setValue(1);
+          Animated.timing(progW, { toValue: 0, duration: DISMISS_MS, easing: Easing.linear, useNativeDriver: false }).start();
+          timerRef.current = setTimeout(() => dismissSuccessRef.current(), DISMISS_MS);
+        } else {
+          timerRef.current = setTimeout(() => {
+            scanLoopRef.current?.stop();
+            scanLoopRef.current = null;
+            Animated.parallel([
+              Animated.timing(hudY, { toValue: -120, duration: 300, easing: Easing.in(Easing.cubic), useNativeDriver: true }),
+              Animated.timing(hudOp, { toValue: 0, duration: 200, useNativeDriver: true }),
+            ]).start(() => { setToast(null); activeKeyRef.current = null; });
+          }, DISMISS_MS);
+        }
+        return;
+      }
+
+      // Farklı toast → temiz başlangıç
+      activeKeyRef.current = nextKey;
+
       // Clear any pending work
       if (timerRef.current) clearTimeout(timerRef.current);
       if (delayRef.current) clearTimeout(delayRef.current);
@@ -196,7 +226,7 @@ export function SparkToastContainer() {
             Animated.parallel([
               Animated.timing(hudY, { toValue: -120, duration: 300, easing: Easing.in(Easing.cubic), useNativeDriver: true }),
               Animated.timing(hudOp, { toValue: 0, duration: 200, useNativeDriver: true }),
-            ]).start(() => setToast(null));
+            ]).start(() => { setToast(null); activeKeyRef.current = null; });
           }, DISMISS_MS);
         }
       }, 80);

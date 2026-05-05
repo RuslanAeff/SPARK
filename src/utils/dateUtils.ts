@@ -1,6 +1,16 @@
 // S.P.A.R.K. — Date Utilities
 type TranslateFunc = (key: string, params?: Record<string, string | number>) => string;
 
+/**
+ * Yerel saat dilimine duyarlı YYYY-MM-DD üretici.
+ * `Date.toISOString()` UTC'ye çevirir → kullanıcı yerel saatinde 23:30'da
+ * "bugün" ertesi gün dönebilir veya `getEndOfMonth(Şubat)` 28 yerine 27 olabilir.
+ * Bu fonksiyon yerel takvim gününü garanti eder.
+ */
+function toLocalYmd(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
 function getMonthShort(monthIndex: number, t?: TranslateFunc): string {
   if (t) return t(`month_short_${String(monthIndex + 1).padStart(2, '0')}`);
   const fallback = ['Oca', 'Şub', 'Mar', 'Nis', 'May', 'Haz', 'Tem', 'Ağu', 'Eyl', 'Eki', 'Kas', 'Ara'];
@@ -29,7 +39,7 @@ export function formatMonthYear(dateStr: string, t?: TranslateFunc): string {
 }
 
 export function getToday(): string {
-  return new Date().toISOString().split('T')[0];
+  return toLocalYmd(new Date());
 }
 
 /** Normalize various date formats to YYYY-MM-DD for DB storage */
@@ -46,7 +56,7 @@ export function normalizeToYYYYMMDD(dateStr: string): string {
   }
   // Try parsing as ISO or generic
   const d = new Date(s);
-  if (!isNaN(d.getTime())) return d.toISOString().split('T')[0];
+  if (!isNaN(d.getTime())) return toLocalYmd(d);
   return getToday();
 }
 
@@ -58,7 +68,7 @@ export function getStartOfMonth(date?: Date): string {
 export function getEndOfMonth(date?: Date): string {
   const d = date || new Date();
   const lastDay = new Date(d.getFullYear(), d.getMonth() + 1, 0);
-  return lastDay.toISOString().split('T')[0];
+  return toLocalYmd(lastDay);
 }
 
 export function getDaysInMonth(date?: Date): number {

@@ -111,9 +111,26 @@ export function getEffectiveColorScheme(): 'light' | 'dark' {
   return 'light';
 }
 
+// Colors proxy okuma kaynağı: önce themeStore (programatik tema değişimleri için
+// güvenilir), olmazsa Appearance fallback. Bu, P12 regresyonunun nüksetmesini
+// engeller — Android'de `Appearance.setColorScheme()` sonrası `Appearance
+// .getColorScheme()` stale döndüğünde bile themeStore güncel kalır.
+let _themeSnapshot: (() => 'light' | 'dark') | null = null;
+function readActiveScheme(): 'light' | 'dark' {
+  if (!_themeSnapshot) {
+    try {
+      _themeSnapshot = require('./themeStore').getAppThemeSnapshot;
+    } catch {
+      // İlk modül yükleme sırasında themeStore henüz hazır değilse fallback'e düşer
+    }
+  }
+  if (_themeSnapshot) return _themeSnapshot();
+  return getEffectiveColorScheme();
+}
+
 export const Colors = new Proxy(DarkTheme, {
   get(_target, prop: keyof typeof DarkTheme) {
-    return getEffectiveColorScheme() === 'light' ? LightTheme[prop] : DarkTheme[prop];
+    return readActiveScheme() === 'light' ? LightTheme[prop] : DarkTheme[prop];
   },
 });
 
