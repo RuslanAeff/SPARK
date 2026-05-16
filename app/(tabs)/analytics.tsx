@@ -1085,6 +1085,35 @@ export default function AnalyticsScreen() {
               );
             })}
           </ScrollView>
+          {selectedCategory !== null && (
+            <Animated.View entering={FadeInDown.duration(280)} exiting={FadeOutUp.duration(200)}>
+              <View style={{ height: 1, backgroundColor: Colors.border, marginTop: Spacing.md, marginBottom: Spacing.md }} />
+              <Text style={styles.sectionTitle}>{t('subcategories')}</Text>
+              {subcats.length > 0 ? subcats.map((sc, i) => (
+                <Animated.View key={sc.category_id} entering={FadeInDown.delay(i * 50).duration(280)}>
+                  <View style={[styles.vendorRow, { borderBottomWidth: 0, paddingBottom: Spacing.sm }]}>
+                    <View style={[styles.pillIcon, { backgroundColor: sc.category_color, width: 44, height: 44, borderRadius: 22 }]}>
+                      <MaterialCommunityIcons name={sc.category_icon as any} size={22} color="#FFF" />
+                    </View>
+                    <View style={styles.vendorInfo}>
+                      <Text style={styles.vendorName}>{tc(sc.category_name)}</Text>
+                      <View style={styles.vendorBar}>
+                        <View style={[styles.vendorBarFill, { width: `${Math.max(2, sc.percentage)}%`, backgroundColor: sc.category_color }]} />
+                      </View>
+                    </View>
+                    <View style={styles.vendorAmountCol}>
+                      <Text style={styles.vendorAmount}>{formatCurrency(sc.total, currency)}</Text>
+                      <Text style={styles.vendorPercent}>{sc.percentage}%</Text>
+                    </View>
+                  </View>
+                </Animated.View>
+              )) : (
+                <Text style={{ ...Typography.bodyMedium, color: Colors.textMuted, textAlign: 'center', paddingVertical: Spacing.lg }}>
+                  {t('no_sub_categories')}
+                </Text>
+              )}
+            </Animated.View>
+          )}
         </AnimatedCard>
       );
     } else if (id === 'donut') {
@@ -1222,51 +1251,9 @@ export default function AnalyticsScreen() {
     } else if (id === 'vendors') {
       content = (
         <AnimatedCard delay={400} style={styles.section}>
-          <Text style={styles.sectionTitle}>{selectedCategory && subcats.length > 0 ? t('subcategories') : t('vendors_stores')}</Text>
-          {/*
-            Layout transition süresi, micro-analysis'in çıkış süresi (240ms) ile
-            uyumlu tutuluyor — aksi halde panel kaybolurken alttaki satırlar
-            kendi yerlerine yavaş oturuyor ve geçiş "bir tık sert" hissettiriyor.
-          */}
+          <Text style={styles.sectionTitle}>{t('vendors_stores')}</Text>
           <Animated.View layout={LinearTransition.duration(320)}>
-          {selectedCategory && subcats.length > 0 ? (
-            subcats.length > 4 ? (
-              <ScrollView style={styles.vendorsScroll} showsVerticalScrollIndicator={false} nestedScrollEnabled>
-                {subcats.map((sc, i) => (
-                  <Animated.View key={sc.category_id} entering={FadeInDown.delay(i * 60).duration(400)}>
-                    <View style={[styles.vendorRow, { borderBottomWidth: 0, paddingBottom: Spacing.sm }]}>
-                      <View style={[styles.pillIcon, { backgroundColor: sc.category_color, width: 44, height: 44, borderRadius: 22 }]}><MaterialCommunityIcons name={sc.category_icon as any} size={22} color="#FFF" /></View>
-                      <View style={styles.vendorInfo}>
-                        <Text style={styles.vendorName}>{tc(sc.category_name)}</Text>
-                        <View style={styles.vendorBar}><View style={[styles.vendorBarFill, { width: `${Math.max(2, sc.percentage)}%`, backgroundColor: sc.category_color }]} /></View>
-                      </View>
-                      <View style={styles.vendorAmountCol}>
-                        <Text style={styles.vendorAmount}>{formatCurrency(sc.total, currency)}</Text>
-                        <Text style={styles.vendorPercent}>{sc.percentage}%</Text>
-                      </View>
-                    </View>
-                  </Animated.View>
-                ))}
-              </ScrollView>
-            ) : (
-              subcats.map((sc, i) => (
-                <Animated.View key={sc.category_id} entering={FadeInDown.delay(i * 60).duration(400)}>
-                  <View style={[styles.vendorRow, { borderBottomWidth: 0, paddingBottom: Spacing.sm }]}>
-                    <View style={[styles.pillIcon, { backgroundColor: sc.category_color, width: 44, height: 44, borderRadius: 22 }]}><MaterialCommunityIcons name={sc.category_icon as any} size={22} color="#FFF" /></View>
-                    <View style={styles.vendorInfo}>
-                      <Text style={styles.vendorName}>{tc(sc.category_name)}</Text>
-                      <View style={styles.vendorBar}><View style={[styles.vendorBarFill, { width: `${Math.max(2, sc.percentage)}%`, backgroundColor: sc.category_color }]} /></View>
-                    </View>
-                    <View style={styles.vendorAmountCol}>
-                      <Text style={styles.vendorAmount}>{formatCurrency(sc.total, currency)}</Text>
-                      <Text style={styles.vendorPercent}>{sc.percentage}%</Text>
-                    </View>
-                  </View>
-                </Animated.View>
-              ))
-            )
-          ) : (
-            (() => {
+          {(() => {
               const VENDORS_VISIBLE = 4;
               const needsVendorScroll = vendors.length > VENDORS_VISIBLE;
               const vendorsContent = (
@@ -1467,8 +1454,7 @@ export default function AnalyticsScreen() {
                   {vendorsContent}
                 </ScrollView>
               ) : vendorsContent;
-            })()
-          )}
+            })()}
           </Animated.View>
         </AnimatedCard>
       );

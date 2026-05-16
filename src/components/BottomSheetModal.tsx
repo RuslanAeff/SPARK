@@ -1,19 +1,22 @@
 // S.P.A.R.K. — Alt sayfa modal'ı (eşzamanlı fade overlay + slide sheet)
 //
-// Sorun: Yerleşik `<Modal animationType="slide" transparent>` kullanıldığında
-// yarı-saydam overlay de sheet ile birlikte alttan yukarı kayıyor. Bu
-// yüzden sheet yarıya geldiğinde üst yarı hâlâ ışık modunda beyaz / eski
-// ekranı gösteriyor → gri katman sonradan "sıçrayarak" oturuyor.
+// ANDROID NAV-BAR SORUNU (Samsung Galaxy S25 Ultra, Android 15 edge-to-edge):
+// Android 15 / API 35+ uygulamaları edge-to-edge modda çalışır; Modal penceresi
+// ekranın tamamını kaplar. Gezinme çubuğu (gesture veya button) sistem UI katmanı
+// olarak içeriğin üzerine çizilir ve sheet'in alt bölümünü örter → gri şerit.
 //
-// Çözüm: Modal'ın kendi animasyonunu kapatıp (`animationType="none"`)
-// overlay'i `Animated.Value` ile opacity üzerinden 180 ms'de anında
-// karartıyor, sheet'i ise `translateY` ile 280 ms slide up yapıyoruz.
-// Kapanırken ters sıra uygulanır ve animasyon bitince `onClose`
-// tetiklenir.
+// Çözüm mimarisi:
+//  1. `statusBarTranslucent` + `navigationBarTranslucent` — Modal penceresi tam
+//     ekranda tutulur, sistem çubuğunun "arkasına" kadar uzanır.
+//  2. Doğrudan Modal'ın altına `SafeAreaProvider` eklenir. Nested provider Modal
+//     penceresini ölçerek `insets.bottom` = nav-bar/gesture-bar yüksekliğini
+//     doğru döndürür. (Parent app'teki SafeAreaProvider modal penceresini değil
+//     ana uygulama penceresini ölçer, bu yüzden kullanılmaz.)
+//  3. `ModalContent` bu nested provider'dan inset okur; sheet'e `paddingBottom`
+//     ekler → son satır gesture area'nın üstünde kalır.
 //
-// NOT: Android'de modal içinde `react-native-reanimated` kullanımı bazı
-// cihazlarda donmaya yol açtığı için projenin genel kuralına uyup
-// yalnızca yerleşik `Animated` API'sini kullanıyoruz.
+// NOT: SafeAreaProvider Animated.View IÇINDE değil, Modal'ın doğrudan çocuğu
+// olmalıdır — aksi hâlde ölçüm, transform'lu layout'ta hatalı olabilir.
 import React, { useEffect, useRef, useState, useMemo } from 'react';
 import {
   Modal,
@@ -28,28 +31,91 @@ import {
   Dimensions,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
+import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 interface BottomSheetModalProps {
   visible: boolean;
   onClose: () => void;
   children: React.ReactNode;
-  /** Sheet'in stil'i (arkaplan, radius, maxHeight vb.). */
   sheetStyle?: StyleProp<ViewStyle>;
-  /** Overlay (backdrop) rengi. Varsayılan: rgba(0,0,0,0.55) */
   backdropColor?: string;
-  /** Sheet slide süresi (ms). */
   slideDurationMs?: number;
-  /** Overlay fade süresi (ms). */
   fadeDurationMs?: number;
-  /**
-   * Modal açıkken Android status bar ikon rengi. Overlay koyu olduğundan
-   * varsayılan 'light' kalır. Özel durumlarda override edilebilir.
-   */
   statusBarStyle?: 'light' | 'dark' | 'auto' | 'inverted';
 }
 
-const SCREEN_H = Dimensions.get('window').height;
+const SCREEN_H = Dimensions.get('screen').height;
 
+// ────────────────────────────────────────────────────────────
+// ModalContent — Modal penceresinin içinde çalışır.
+// useSafeAreaInsets() burada nested SafeAreaProvider'ı okur
+// (parent app sağlayıcısını değil), dolayısıyla navigationBarTranslucent
+// ile genişlemiş modal penceresinin gerçek bottom inset'ini alır.
+// ────────────────────────────────────────────────────────────
+interface ModalContentProps {
+  onClose: () => void;
+  children: React.ReactNode;
+  sheetStyle?: StyleProp<ViewStyle>;
+  backdropColor: string;
+  statusBarStyle: 'light' | 'dark' | 'auto' | 'inverted';
+  overlayOpacity: Animated.Value;
+  translateY: Animated.Value;
+}
+
+function ModalContent({
+  onClose,
+  children,
+  sheetStyle,
+  backdropColor,
+  statusBarStyle,
+  overlayOpacity,
+  translateY,
+}: ModalContentProps) {
+  const { bottom } = useSafeAreaInsets();
+
+  const overlayAnimStyle = useMemo(
+    () => [styles.overlay, { backgroundColor: backdropColor, opacity: overlayOpacity }],
+    [backdropColor, overlayOpacity],
+  );
+
+  const adjustedSheetStyle = useMemo(() => {
+    const flat = (StyleSheet.flatten(sheetStyle) ?? {}) as ViewStyle;
+    const basePB = typeof flat.paddingBottom === 'number' ? flat.paddingBottom : 0;
+    return { ...flat, paddingBottom: basePB + bottom };
+  }, [sheetStyle, bottom]);
+
+  return (
+    <>
+      {Platform.OS === 'android' && (
+        <StatusBar style={statusBarStyle} backgroundColor="transparent" translucent />
+      )}
+      {/* Karartma katmanı */}
+      <Animated.View style={overlayAnimStyle}>
+        <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
+      </Animated.View>
+      {/* Sheet */}
+      <Animated.View
+        pointerEvents="box-none"
+        style={[styles.sheetWrapper, { transform: [{ translateY }] }]}
+      >
+        {/*
+          Pressable SARMALAMA YOK: Android'de Pressable dikey pan'ı yakalar
+          ve ScrollView'a iletmez; ALIM GEÇMİŞİ gibi listeleri kilitler.
+          Overlay ve sheet ayrı kardeş katmanlar — sheet önde olduğu için
+          backdrop tap'i doğal olarak engellenir.
+        */}
+        <View style={adjustedSheetStyle}>
+          {children}
+        </View>
+      </Animated.View>
+    </>
+  );
+}
+
+// ────────────────────────────────────────────────────────────
+// BottomSheetModal — animasyon state'i burada yönetilir;
+// tüm içerik SafeAreaProvider içinde render edilir.
+// ────────────────────────────────────────────────────────────
 export default function BottomSheetModal({
   visible,
   onClose,
@@ -60,8 +126,6 @@ export default function BottomSheetModal({
   fadeDurationMs = 180,
   statusBarStyle = 'light',
 }: BottomSheetModalProps) {
-  // Modal'ı gerçekten DOM/hiyerarşiden çıkarmak için ayrı bir `mounted`
-  // bayrağı tutuyoruz. Böylece kapanış animasyonu bitmeden modal kaldırılmıyor.
   const [mounted, setMounted] = useState(visible);
   const overlayOpacity = useRef(new Animated.Value(0)).current;
   const translateY = useRef(new Animated.Value(SCREEN_H)).current;
@@ -69,8 +133,6 @@ export default function BottomSheetModal({
   useEffect(() => {
     if (visible) {
       setMounted(true);
-      // Açılışta önce overlay koyulaşmaya başlar, sheet onun üstüne gelir.
-      // İkisi paralel başlar; overlay daha kısa sürdüğü için bitmiş olur.
       Animated.parallel([
         Animated.timing(overlayOpacity, {
           toValue: 1,
@@ -105,46 +167,35 @@ export default function BottomSheetModal({
     }
   }, [visible, mounted, overlayOpacity, translateY, fadeDurationMs, slideDurationMs]);
 
-  const overlayStyle = useMemo(
-    () => [styles.overlay, { backgroundColor: backdropColor, opacity: overlayOpacity }],
-    [backdropColor, overlayOpacity]
-  );
-
   if (!mounted) return null;
 
   return (
     <Modal
       visible
       transparent
-      // Kendi fade/slide animasyonumuzu çalıştırdığımız için Modal'ın
-      // yerleşik animasyonunu kapatıyoruz. Aksi halde overlay de sheet
-      // ile birlikte kaymaya devam ederdi.
       animationType="none"
       statusBarTranslucent
+      navigationBarTranslucent
       onRequestClose={onClose}
     >
-      {Platform.OS === 'android' && (
-        <StatusBar style={statusBarStyle} backgroundColor="transparent" translucent />
-      )}
-      <Animated.View style={overlayStyle}>
-        <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
-      </Animated.View>
-      <Animated.View
-        pointerEvents="box-none"
-        style={[styles.sheetWrapper, { transform: [{ translateY }] }]}
-      >
-        {/*
-          ÖNEMLİ: Burada bir `Pressable` SARMALAMA kullanmıyoruz. Pressable,
-          Android'de dikey pan hareketlerini kendi yakalayıp `ScrollView`'a
-          iletmediği için içerideki liste (örn. ItemAnalyticsModal'daki
-          ALIM GEÇMİŞİ) uzun olduğunda kaydırılamıyordu. Overlay ve sheet
-          zaten ayrı kardeş katmanlar — sheet üstte durduğu için basit bir
-          `View` alttaki overlay'e tap sızmasını doğal olarak engeller.
-        */}
-        <View style={sheetStyle}>
+      {/*
+        SafeAreaProvider Modal'ın doğrudan çocuğu olarak tanımlandı.
+        Bu pozisyonda Modal penceresini ölçer; navigationBarTranslucent
+        ile genişlemiş pencerede `insets.bottom` = gesture/nav-bar yüksekliği.
+        ModalContent bu değerle sheet'e paddingBottom ekler.
+      */}
+      <SafeAreaProvider>
+        <ModalContent
+          onClose={onClose}
+          sheetStyle={sheetStyle}
+          backdropColor={backdropColor}
+          statusBarStyle={statusBarStyle}
+          overlayOpacity={overlayOpacity}
+          translateY={translateY}
+        >
           {children}
-        </View>
-      </Animated.View>
+        </ModalContent>
+      </SafeAreaProvider>
     </Modal>
   );
 }

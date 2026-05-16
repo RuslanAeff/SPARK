@@ -19,6 +19,7 @@ import { BorderRadius, ScreenPadding, Spacing } from '../src/theme/spacing';
 import { FontFamily, Typography } from '../src/theme/typography';
 import { useLanguage } from '../src/i18n/LanguageContext';
 import { LANGUAGE_OPTIONS } from '../src/i18n/languageOptions';
+import type { Language } from '../src/i18n/translations';
 import { useCurrency, DISPLAY_CURRENCIES, DisplayCurrency } from '../src/context/CurrencyContext';
 import { useAppTheme } from '../src/theme/themeStore';
 import { susevarButton, susevarButtonPressed, susevarButtonText } from '../src/theme/susevar';
@@ -38,6 +39,17 @@ function suggestCurrency(): DisplayCurrency {
   return 'EUR';
 }
 
+function suggestLanguage(): Language {
+  const locale = Intl.NumberFormat().resolvedOptions().locale.toLowerCase();
+  if (locale.startsWith('az')) return 'az';
+  if (locale.startsWith('ru')) return 'ru';
+  if (locale.startsWith('tr')) return 'tr';
+  if (locale.startsWith('en')) return 'en';
+  // Ek Rusça konuşan bölge kodları
+  if (['kk', 'ky', 'uz', 'tg', 'tk', 'be', 'uk', 'uk'].some(c => locale.startsWith(c))) return 'ru';
+  return 'tr';
+}
+
 export default function OnboardingScreen() {
   const scheme = useAppTheme();
   const styles = useMemo(() => getStyles(), [scheme]);
@@ -53,6 +65,19 @@ export default function OnboardingScreen() {
   const [budgetAmount, setBudgetAmount] = useState('');
   const [selectedCurrency, setSelectedCurrency] = useState<DisplayCurrency>(suggestCurrency());
   const [budgetInvalid, setBudgetInvalid] = useState(false);
+
+  // Onboarding ilk kez açılıyor → dil henüz kaydedilmedi (default 'tr').
+  // Cihaz locale'inden uygun dili saptayıp hemen uygula; kullanıcı dil
+  // sayfasında istediği zaman değiştirebilir.
+  useEffect(() => {
+    const detected = suggestLanguage();
+    if (detected !== language) {
+      setSelectedLanguage(detected);
+      void setLanguage(detected);
+    }
+  // Sadece mount'ta çalışsın; language bağımlılığı kasıtlı olarak dışarıda.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     const sub = BackHandler.addEventListener('hardwareBackPress', () => page === 0);

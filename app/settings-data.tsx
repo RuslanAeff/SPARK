@@ -8,6 +8,7 @@ import {
   Pressable,
   Image,
   Platform,
+  TextInput,
 } from 'react-native';
 import { useAppTheme } from '../src/theme/themeStore';
 import { useRouter } from 'expo-router';
@@ -47,7 +48,13 @@ export default function SettingsDataScreen() {
     expenseCount: number;
   } | null>(null);
   const [vendorInfoOpen, setVendorInfoOpen] = useState(false);
+  const [vendorSearch, setVendorSearch] = useState('');
   const logoTimestamp = useRef(Date.now());
+
+  const filteredVendors = useMemo(() => {
+    const q = vendorSearch.trim().toLowerCase();
+    return q ? vendors.filter(v => v.name.toLowerCase().includes(q)) : vendors;
+  }, [vendors, vendorSearch]);
 
   const VENDOR_TILE_COLORS = useMemo(
     () => [
@@ -159,83 +166,111 @@ export default function SettingsDataScreen() {
 
               {vendors.length > 0 ? (
                 <>
-                  <ScrollView
-                    horizontal
-                    showsHorizontalScrollIndicator={false}
-                    contentContainerStyle={styles.vendorCarousel}
-                    style={styles.vendorCarouselView}
-                  >
-                    {vendors.map((v) => {
-                      const tileColor = getVendorTileColor(v.name);
-                      const hasLogo = !!v.logo_uri;
-                      const hasDefaultCategory = v.default_category_id != null;
-                      return (
-                        <Pressable
-                          key={v.id}
-                          onPress={() => {
-                            Haptics.selectionAsync();
-                            setVendorOptionsTarget(v);
-                          }}
-                          onLongPress={async () => {
-                            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                            const expenseCount = await VendorDao.countExpenses(v.id);
-                            setDeleteVendorPrompt({ vendor: v, expenseCount });
-                          }}
-                          delayLongPress={400}
-                          style={({ pressed }) => [
-                            styles.vendorTile,
-                            pressed && styles.vendorTilePressed,
-                          ]}
-                        >
-                          <View
-                            style={[
-                              styles.vendorTileAvatar,
-                              !hasLogo && { backgroundColor: tileColor },
+                  {vendors.length >= 6 && (
+                    <View style={styles.vendorSearchWrap}>
+                      <MaterialCommunityIcons name="magnify" size={16} color={Colors.textMuted} />
+                      <TextInput
+                        style={styles.vendorSearchInput}
+                        value={vendorSearch}
+                        onChangeText={setVendorSearch}
+                        placeholder={t('vendor_search_placeholder')}
+                        placeholderTextColor={Colors.textMuted}
+                        returnKeyType="search"
+                        autoCorrect={false}
+                        autoCapitalize="none"
+                      />
+                      {vendorSearch.length > 0 && (
+                        <Pressable onPress={() => setVendorSearch('')} hitSlop={8}>
+                          <MaterialCommunityIcons name="close-circle" size={14} color={Colors.textMuted} />
+                        </Pressable>
+                      )}
+                    </View>
+                  )}
+
+                  {filteredVendors.length > 0 ? (
+                    <ScrollView
+                      horizontal
+                      showsHorizontalScrollIndicator={false}
+                      contentContainerStyle={styles.vendorCarousel}
+                      style={styles.vendorCarouselView}
+                    >
+                      {filteredVendors.map((v) => {
+                        const tileColor = getVendorTileColor(v.name);
+                        const hasLogo = !!v.logo_uri;
+                        const hasDefaultCategory = v.default_category_id != null;
+                        return (
+                          <Pressable
+                            key={v.id}
+                            onPress={() => {
+                              Haptics.selectionAsync();
+                              setVendorOptionsTarget(v);
+                            }}
+                            onLongPress={async () => {
+                              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                              const expenseCount = await VendorDao.countExpenses(v.id);
+                              setDeleteVendorPrompt({ vendor: v, expenseCount });
+                            }}
+                            delayLongPress={400}
+                            style={({ pressed }) => [
+                              styles.vendorTile,
+                              pressed && styles.vendorTilePressed,
                             ]}
                           >
-                            {hasLogo ? (
-                              <Image
-                                source={{ uri: v.logo_uri + '?ts=' + logoTimestamp.current }}
-                                style={styles.vendorTileImg}
-                              />
-                            ) : (
-                              <Text style={styles.vendorTileInitial}>
-                                {v.name.trim().charAt(0).toUpperCase()}
-                              </Text>
-                            )}
                             <View
                               style={[
-                                styles.vendorTileBadge,
-                                {
-                                  backgroundColor: Colors.cardSurface,
-                                  borderWidth: 1,
-                                  borderColor: Colors.border,
-                                },
+                                styles.vendorTileAvatar,
+                                !hasLogo && { backgroundColor: tileColor },
                               ]}
                             >
-                              <MaterialCommunityIcons
-                                name="dots-horizontal"
-                                size={12}
-                                color={Colors.textPrimary}
-                              />
-                            </View>
-                            {hasDefaultCategory && (
-                              <View style={styles.vendorTileDefaultDot}>
+                              {hasLogo ? (
+                                <Image
+                                  source={{ uri: v.logo_uri + '?ts=' + logoTimestamp.current }}
+                                  style={styles.vendorTileImg}
+                                />
+                              ) : (
+                                <Text style={styles.vendorTileInitial}>
+                                  {v.name.trim().charAt(0).toUpperCase()}
+                                </Text>
+                              )}
+                              <View
+                                style={[
+                                  styles.vendorTileBadge,
+                                  {
+                                    backgroundColor: Colors.cardSurface,
+                                    borderWidth: 1,
+                                    borderColor: Colors.border,
+                                  },
+                                ]}
+                              >
                                 <MaterialCommunityIcons
-                                  name="auto-fix"
-                                  size={10}
-                                  color="#fff"
+                                  name="dots-horizontal"
+                                  size={12}
+                                  color={Colors.textPrimary}
                                 />
                               </View>
-                            )}
-                          </View>
-                          <Text style={styles.vendorTileName} numberOfLines={2}>
-                            {v.name}
-                          </Text>
-                        </Pressable>
-                      );
-                    })}
-                  </ScrollView>
+                              {hasDefaultCategory && (
+                                <View style={styles.vendorTileDefaultDot}>
+                                  <MaterialCommunityIcons
+                                    name="auto-fix"
+                                    size={10}
+                                    color="#fff"
+                                  />
+                                </View>
+                              )}
+                            </View>
+                            <Text style={styles.vendorTileName} numberOfLines={2}>
+                              {v.name}
+                            </Text>
+                          </Pressable>
+                        );
+                      })}
+                    </ScrollView>
+                  ) : (
+                    <View style={styles.vendorNoResults}>
+                      <MaterialCommunityIcons name="magnify-close" size={24} color={Colors.textMuted} />
+                      <Text style={[styles.emptyText, { marginTop: Spacing.xs }]}>{t('vendor_no_results')}</Text>
+                    </View>
+                  )}
 
                   <View style={styles.vendorHintRow}>
                     <MaterialCommunityIcons
@@ -451,6 +486,30 @@ const getStyles = () => StyleSheet.create({
     fontFamily: FontFamily.medium,
     textAlign: 'center',
     lineHeight: 14,
+  },
+  vendorSearchWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    backgroundColor: Colors.inputBackground,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: Colors.inputBorder,
+    borderRadius: BorderRadius.lg,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    marginTop: Spacing.sm,
+  },
+  vendorSearchInput: {
+    flex: 1,
+    ...Typography.bodyMedium,
+    color: Colors.textPrimary,
+    padding: 0,
+  },
+  vendorNoResults: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: Spacing.xl,
+    gap: Spacing.xs,
   },
   vendorHintRow: {
     flexDirection: 'row',

@@ -481,6 +481,7 @@ const getStyles = () => StyleSheet.create({
 
 - `src/utils/themeSchedule.ts` — `applyThemeFromDatabase()` içinde `Appearance.setColorScheme(...)`'dan sonra `notifyThemeChanged()` çağrılır. `setManualTheme` ve `setAutoThemeSchedule` bu fonksiyonu dolaylı tetiklediği için güvenlidir. `Appearance.setColorScheme` çağıran **yeni bir yol** eklenirse (örn. hızlı eylemler, quick tile), aynı satırdan sonra `notifyThemeChanged()` çağrılmak zorundadır.
 - `src/hooks/useDatabase.ts` — `initializeDatabase()` sonrasında `await applyThemeFromDatabase()` **önce** çalışır, ancak sonra `setIsReady(true)` gelir. Böylece `RootLayout` ilk kez Stack'i monte ettiğinde `Appearance` zaten doğru şemaya ayarlanmış olur ve "flash of dark" yaşanmaz.
+- `app/_layout.tsx` — `Stack` **`isReady=true` kapısının arkasında** mount edilmek zorundadır (`if (!isReady) return <Splash/>`). Stack'i her zaman mount edip splash'i overlay yapmak P12 regresyonunu geri getirir: `(tabs)` ekranı `applyThemeFromDatabase()` tamamlanmadan doğar, kartlar OS şemasıyla `StyleSheet`'lerini donduruyor ve aydınlık modda siyah görünüyor. Onboarding yönlendirmesi zaten `useEffect` içinde `isReady=true && !onboardingLoading` koşuluna bağlı olduğu için Stack mount edildikten sonra `router.replace('/onboarding')` güvenle çalışır — Stack'i erken mount etmenin route registration için gerekli olduğu varsayımı **yanlıştır**.
 
 ### 6.2 Bileşenler (seçme)
 

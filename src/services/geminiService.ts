@@ -8,6 +8,7 @@ import {
   stripTrailingCommasJson,
 } from '../utils/receiptJsonRepair';
 import { stripDangerousKeys } from '../utils/inputValidation';
+import type { Language } from '../i18n/translations';
 
 // Preferred model keywords in priority order (for auto-selection)
 const MODEL_PREFERENCES = ['flash', 'pro'];
@@ -100,7 +101,29 @@ const buildApiUrl = (model: string, apiVersion: string) =>
 const MAX_ATTEMPTS_PER_MODEL = 6;
 const RETRY_BASE_DELAY_MS = 5000;
 
-const MASTER_PROMPT = `You are a receipt parser for a personal finance app called S.P.A.R.K. 
+// Dile göre çeviri talimatları (JSON'daki alan adı turkish_name olarak kalır — DB şeması değişmez)
+const LANG_META: Record<Language, { langName: string; examples: string }> = {
+  tr: {
+    langName: 'Turkish',
+    examples: 'Woda Niegaz 5L -> Doğal Su 5L, Chleb -> Ekmek, Pomid gat luz -> Domates',
+  },
+  en: {
+    langName: 'English',
+    examples: 'Woda Niegaz 5L -> Natural Water 5L, Chleb -> Bread, Pomid gat luz -> Tomatoes',
+  },
+  az: {
+    langName: 'Azerbaijani',
+    examples: 'Woda Niegaz 5L -> Təbii Su 5L, Chleb -> Çörək, Pomid gat luz -> Pomidor',
+  },
+  ru: {
+    langName: 'Russian',
+    examples: 'Woda Niegaz 5L -> Питьевая вода 5L, Chleb -> Хлеб, Pomid gat luz -> Помидоры',
+  },
+};
+
+function buildReceiptPrompt(language: Language = 'tr'): string {
+  const { langName, examples } = LANG_META[language] ?? LANG_META.tr;
+  return `You are a receipt parser for a personal finance app called S.P.A.R.K.
 Analyze the receipt image carefully and extract all information.
 
 Return ONLY a valid JSON object (no markdown, no code blocks) with this exact structure:
@@ -110,7 +133,7 @@ Return ONLY a valid JSON object (no markdown, no code blocks) with this exact st
   "items": [
     {
       "name": "Item name exactly as printed on the receipt",
-      "turkish_name": "Turkish translation of item name (e.g. Woda Niegaz 5L -> Doğal Su 5L, Chleb -> Ekmek, Pomid gat luz -> Domates)",
+      "turkish_name": "${langName} translation of item name (e.g. ${examples})",
       "quantity": 1,
       "unit_price": 0.00,
       "total_price": 0.00,
@@ -139,7 +162,8 @@ Rules:
 - Date format must be YYYY-MM-DD
 - If currency is not clear, default to PLN
 - suggested_category should be the most fitting Turkish category name (never "İndirim" for a real product — use Market, etc.)
-- turkish_name MUST be a clear, natural Turkish translation of the product name. Abbreviations from the receipt should be expanded to full product names in Turkish.`;
+- turkish_name MUST be a clear, natural ${langName} translation of the product name. Abbreviations from the receipt should be expanded to full product names in ${langName}.`;
+}
 
 export interface ParsedReceipt {
   vendor_name: string;
@@ -317,7 +341,7 @@ async function callGeminiModel(
   return { ok: false, status: lastStatus, body: lastBody || 'Max attempts exceeded for this model.' };
 }
 
-export async function parseReceipt(imageBase64: string): Promise<ParsedReceipt> {
+export async function parseReceipt(imageBase64: string, language: Language = 'tr'): Promise<ParsedReceipt> {
   const apiKey = await getApiKey();
   if (!apiKey) {
     throw new Error('Gemini API key not configured. Please set it in Settings → API Key.');
@@ -330,7 +354,7 @@ export async function parseReceipt(imageBase64: string): Promise<ParsedReceipt> 
   const requestBody = {
     contents: [{
       parts: [
-        { text: MASTER_PROMPT },
+        { text: buildReceiptPrompt(language) },
         {
           inline_data: {
             mime_type: 'image/jpeg',

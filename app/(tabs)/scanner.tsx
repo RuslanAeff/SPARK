@@ -38,7 +38,7 @@ type ScanState = 'idle' | 'processing' | 'result' | 'error' | 'no_key';
 export default function ScannerScreen() {
   const styles = getStyles();
   const router = useRouter();
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const { triggerRefresh } = useRefresh();
   const { currency } = useCurrency();
   const [state, setState] = useState<ScanState>('idle');
@@ -101,7 +101,7 @@ export default function ScannerScreen() {
       // P3: Görüntüyü sıkıştır + base64'e çevir (max 1536px, JPEG %70)
       const base64 = await compressImageToBase64(uri);
 
-      const parsed = await parseReceipt(base64);
+      const parsed = await parseReceipt(base64, language);
       setResult(parsed);
       setState('result');
     } catch (e) {

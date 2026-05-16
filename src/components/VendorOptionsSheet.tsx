@@ -61,6 +61,18 @@ export default function VendorOptionsSheet({
     };
   }, [visible, vendor]);
 
+  // Kategori seçici: alt kategoriler ile birlikte düz liste — kullanıcı yaprak
+  // veya kök seçebilir. Kök = "tüm alt kategoriler için tek varsayılan".
+  // Erken-return'den ÖNCE çağrılmalı: aksi halde `vendor=null` render'ı ile
+  // sonraki render'da hook sayısı değişir → "Rendered more hooks…" hatası.
+  const groupedCategories = useMemo(() => {
+    const roots = categories.filter((c) => c.parent_id === null);
+    return roots.map((root) => ({
+      root,
+      children: categories.filter((c) => c.parent_id === root.id),
+    }));
+  }, [categories]);
+
   if (!vendor) return null;
 
   async function handleSetDefault(categoryId: number | null) {
@@ -78,16 +90,6 @@ export default function VendorOptionsSheet({
 
   const currentCat = categories.find((c) => c.id === currentDefault) ?? null;
   const currentLabel = currentCat ? tc(currentCat.name) : t('vendor_default_none');
-
-  // Kategori seçici: alt kategoriler ile birlikte düz liste — kullanıcı yaprak
-  // veya kök seçebilir. Kök = "tüm alt kategoriler için tek varsayılan".
-  const groupedCategories = useMemo(() => {
-    const roots = categories.filter((c) => c.parent_id === null);
-    return roots.map((root) => ({
-      root,
-      children: categories.filter((c) => c.parent_id === root.id),
-    }));
-  }, [categories]);
 
   return (
     <BottomSheetModal

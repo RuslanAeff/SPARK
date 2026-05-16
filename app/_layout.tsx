@@ -54,7 +54,21 @@ export default function RootLayout() {
     );
   }
 
-  const showSplash = !isReady || onboardingLoading;
+  // Tema senkronlanmadan Stack mount edilirse `(tabs)` ekranı OS şemasıyla
+  // doğar; modül seviyesi `Colors` proxy çağrıları dark değerini hash'leyip
+  // dondurur → aydınlık modda "flash of dark". `applyThemeFromDatabase()`
+  // `isReady=true` öncesinde await edildiği için Stack'i bu kapının
+  // arkasında tutmak P12 regresyonunu önler (DESIGN_BRIEF §6.1.2).
+  if (!isReady) {
+    return (
+      <View style={styles.center}>
+        <ActivityIndicator size="large" color={theme.primary} />
+        <Text style={styles.loadingText}>S.P.A.R.K.</Text>
+      </View>
+    );
+  }
+
+  const showSplash = onboardingLoading;
 
   return (
     <SafeAreaProvider>

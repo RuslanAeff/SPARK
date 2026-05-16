@@ -274,6 +274,8 @@ export const translations = {
     show_all_vendors: 'Tümünü göster ({count})',
     show_less_vendors: 'Daralt',
     vendor_tile_hint: 'Düzenle için dokunun · Silmek için basılı tutun',
+    vendor_search_placeholder: 'Satıcı ara…',
+    vendor_no_results: 'Eşleşen satıcı bulunamadı.',
     category_management: 'Kategori Yönetimi',
 
     // Vendor options sheet (default kategori)
@@ -996,6 +998,8 @@ export const translations = {
     show_all_vendors: 'Show all ({count})',
     show_less_vendors: 'Show less',
     vendor_tile_hint: 'Tap to edit · Hold to delete',
+    vendor_search_placeholder: 'Search vendors…',
+    vendor_no_results: 'No matching vendors found.',
     category_management: 'Category Management',
 
     // Vendor options sheet (default category)

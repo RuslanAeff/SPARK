@@ -231,6 +231,8 @@
   "show_all_vendors": "Hamısını göstər ({count})",
   "show_less_vendors": "Yığ",
   "vendor_tile_hint": "Redaktə üçün toxunun · Silmək üçün basılı saxlayın",
+  "vendor_search_placeholder": "Satıcı axtar…",
+  "vendor_no_results": "Uyğun satıcı tapılmadı.",
   "category_management": "Kateqoriya idarəetməsi",
   "vendor_action_change_logo": "Loqonu dəyiş",
   "vendor_action_change_logo_has": "Qalereyadan yeni şəkil seç",
