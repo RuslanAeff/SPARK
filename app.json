@@ -55,7 +55,8 @@
     ],
     "extra": {
       "router": {},
-      "eas": {}
+      "eas": {},
+      "privacyPolicyUrl": "https://ruslanaeff.github.io/privacy-policy.html"
     },
     "owner": "ruslanaeff0"
   }

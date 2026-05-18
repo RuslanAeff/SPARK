@@ -27,6 +27,7 @@ export default function AnimatedCard({
   const content = (
     <Animated.View
       entering={FadeInDown.delay(delay).duration(500).springify()}
+      renderToHardwareTextureAndroid
       style={[
         styles.card,
         elevated && styles.elevated,

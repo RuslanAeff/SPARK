@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>S.P.A.R.K — Privacy Policy / Gizlilik Politikası</title>
+  <style>
+    :root {
+      --bg: #0f0f11;
+      --surface: #1a1a1e;
+      --border: #2e2e35;
+      --primary: #a78bfa;
+      --text: #e8e8ed;
+      --muted: #8e8e99;
+      --radius: 12px;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      font-size: 16px;
+      line-height: 1.7;
+      padding: 24px 16px 80px;
+    }
+    .wrapper { max-width: 760px; margin: 0 auto; }
+    header {
+      text-align: center;
+      padding: 48px 0 40px;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 40px;
+    }
+    .logo { font-size: 2.2rem; font-weight: 800; color: var(--primary); letter-spacing: -1px; }
+    .subtitle { color: var(--muted); margin-top: 6px; font-size: 0.95rem; }
+    .lang-tabs {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 36px;
+    }
+    .lang-tabs button {
+      flex: 1;
+      padding: 10px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background: var(--surface);
+      color: var(--muted);
+      cursor: pointer;
+      font-size: 0.9rem;
+      font-weight: 600;
+      transition: all 0.15s;
+    }
+    .lang-tabs button.active {
+      background: var(--primary);
+      color: #fff;
+      border-color: var(--primary);
+    }
+    .section {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 24px 28px;
+      margin-bottom: 16px;
+    }
+    h2 {
+      font-size: 1rem;
+      font-weight: 700;
+      color: var(--primary);
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      margin-bottom: 12px;
+    }
+    p { color: var(--text); margin-bottom: 10px; }
+    p:last-child { margin-bottom: 0; }
+    ul { padding-left: 20px; margin-top: 8px; }
+    li { margin-bottom: 6px; color: var(--text); }
+    .highlight {
+      background: rgba(167,139,250,0.08);
+      border-left: 3px solid var(--primary);
+      border-radius: 6px;
+      padding: 14px 18px;
+      margin: 12px 0;
+    }
+    a { color: var(--primary); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    .updated {
+      text-align: center;
+      color: var(--muted);
+      font-size: 0.85rem;
+      margin-top: 48px;
+    }
+    .lang-content { display: none; }
+    .lang-content.visible { display: block; }
+  </style>
+</head>
+<body>
+<div class="wrapper">
+
+  <header>
+    <div class="logo">✦ S.P.A.R.K</div>
+    <div class="subtitle">Privacy Policy &nbsp;/&nbsp; Gizlilik Politikası</div>
+  </header>
+
+  <div class="lang-tabs">
+    <button class="active" onclick="switchLang('tr', this)">🇹🇷 Türkçe</button>
+    <button onclick="switchLang('en', this)">🇬🇧 English</button>
+  </div>
+
+  <!-- ──────────── TÜRKÇE ──────────── -->
+  <div id="lang-tr" class="lang-content visible">
+
+    <div class="section">
+      <h2>Genel Bakış</h2>
+      <p>S.P.A.R.K, kişisel harcama takibi için tasarlanmış bir mobil uygulamadır. Geliştirici olarak verilerinizin gizliliğini en yüksek öncelik olarak görüyoruz. Bu politika, hangi verilerin toplandığını, nasıl saklandığını ve üçüncü taraflarla paylaşılıp paylaşılmadığını açıklar.</p>
+    </div>
+
+    <div class="section">
+      <h2>Toplanan Veriler</h2>
+      <p>Uygulama yalnızca siz girdiğiniz verileri saklar:</p>
+      <ul>
+        <li>Harcama kayıtları (tutar, tarih, kategori, satıcı adı, notlar)</li>
+        <li>Aylık bütçe ve kategori limitleri</li>
+        <li>Tasarruf hedefleri ve abonelik bilgileri</li>
+        <li>Satıcı logoları (galeriden seçtiğiniz görseller)</li>
+        <li>Google Gemini API anahtarınız (yalnızca cihazınızın güvenli depolama alanında — OS Keychain)</li>
+      </ul>
+      <div class="highlight">
+        Tüm bu veriler <strong>yalnızca cihazınızda</strong> saklanır. Geliştirici, bu verileri hiçbir şekilde göremez veya erişemez.
+      </div>
+    </div>
+
+    <div class="section">
+      <h2>Sunucuya Gönderilen Veriler</h2>
+      <p>Uygulama, arka uç sunucusu veya bulut depolama alanı <strong>kullanmaz</strong>. Tek istisna, fiş tarama özelliğidir:</p>
+      <div class="highlight">
+        <strong>Google Gemini API:</strong> Fiş tarama butonuna bastığınızda, fişin fotoğrafı Google'ın Gemini yapay zeka servisine işlenmek üzere gönderilir. Bu işlem için <em>sizin</em> Gemini API anahtarınız kullanılır. Görüntüler geliştiricinin sunucusundan geçmez; doğrudan cihazınızdan Google'a iletilir. Google'ın veri işleme kuralları için bkz: <a href="https://policies.google.com/privacy" target="_blank">Google Gizlilik Politikası</a>.
+      </div>
+      <p>Fiş tarama özelliğini kullanmadığınızda hiçbir veri internet üzerinden iletilmez.</p>
+    </div>
+
+    <div class="section">
+      <h2>Üçüncü Taraf Paylaşımı</h2>
+      <p>Verileriniz hiçbir reklam ağı, analitik servisi veya başka üçüncü tarafla paylaşılmaz. Uygulamada reklam veya kullanıcı izleme kodu <strong>bulunmaz</strong>.</p>
+    </div>
+
+    <div class="section">
+      <h2>Veri Saklama ve Silme</h2>
+      <p>Tüm veriler cihazınızdaki yerel SQLite veritabanında saklanır. Uygulamayı cihazınızdan sildiğinizde tüm veriler kalıcı olarak silinir. Yedekleme özelliğini kullandıysanız, yedek dosyaları istediğiniz zaman cihazınızdan silebilirsiniz.</p>
+    </div>
+
+    <div class="section">
+      <h2>Çocukların Gizliliği</h2>
+      <p>S.P.A.R.K 13 yaşın altındaki kullanıcılara yönelik değildir ve bu yaş grubundan kasıtlı olarak veri toplanmaz.</p>
+    </div>
+
+    <div class="section">
+      <h2>İzinler</h2>
+      <p>Uygulama aşağıdaki cihaz izinlerini kullanır:</p>
+      <ul>
+        <li><strong>Kamera:</strong> Fiş fotoğrafı çekmek için (isteğe bağlı)</li>
+        <li><strong>Fotoğraf/Galeri:</strong> Fiş veya logo görseli seçmek için (isteğe bağlı)</li>
+        <li><strong>Bildirimler:</strong> Bütçe uyarıları ve hatırlatmalar için (isteğe bağlı)</li>
+      </ul>
+      <p>Bu izinlerin hiçbiri zorunlu değildir; uygulamanın temel işlevleri izin verilmese de çalışır.</p>
+    </div>
+
+    <div class="section">
+      <h2>Politika Değişiklikleri</h2>
+      <p>Bu politika gerektiğinde güncellenebilir. Önemli değişiklikler uygulama güncellemesiyle birlikte duyurulur. Güncel politika her zaman bu sayfada yayınlanır.</p>
+    </div>
+
+    <div class="section">
+      <h2>İletişim</h2>
+      <p>Gizlilik konusundaki sorularınız için: <a href="mailto:ruslan.eliyev124@gmail.com">ruslan.eliyev124@gmail.com</a></p>
+      <p>Geliştirici: Ruslan Aliyev</p>
+    </div>
+
+  </div><!-- /lang-tr -->
+
+  <!-- ──────────── ENGLISH ──────────── -->
+  <div id="lang-en" class="lang-content">
+
+    <div class="section">
+      <h2>Overview</h2>
+      <p>S.P.A.R.K is a personal expense tracking mobile application. As the developer, we treat your data privacy as our highest priority. This policy explains what data is collected, how it is stored, and whether it is shared with third parties.</p>
+    </div>
+
+    <div class="section">
+      <h2>Data Collected</h2>
+      <p>The app stores only the data you enter:</p>
+      <ul>
+        <li>Expense records (amount, date, category, vendor name, notes)</li>
+        <li>Monthly budgets and category spending limits</li>
+        <li>Savings goals and subscription details</li>
+        <li>Vendor logos (images you select from your gallery)</li>
+        <li>Your Google Gemini API key (stored only in your device's secure storage — OS Keychain)</li>
+      </ul>
+      <div class="highlight">
+        All data is stored <strong>exclusively on your device</strong>. The developer cannot view or access this data in any way.
+      </div>
+    </div>
+
+    <div class="section">
+      <h2>Data Sent Over the Internet</h2>
+      <p>The app does <strong>not</strong> use any back-end server or cloud storage. The only exception is the receipt scanning feature:</p>
+      <div class="highlight">
+        <strong>Google Gemini API:</strong> When you tap the receipt scan button, the photo of your receipt is sent to Google's Gemini AI service for processing. This uses <em>your own</em> Gemini API key. Images do not pass through the developer's servers — they are transmitted directly from your device to Google. For Google's data handling rules, see: <a href="https://policies.google.com/privacy" target="_blank">Google Privacy Policy</a>.
+      </div>
+      <p>When you do not use the receipt scanning feature, no data is transmitted over the internet.</p>
+    </div>
+
+    <div class="section">
+      <h2>Third-Party Sharing</h2>
+      <p>Your data is never shared with any advertising network, analytics service, or other third party. The app contains <strong>no</strong> advertising or user-tracking code.</p>
+    </div>
+
+    <div class="section">
+      <h2>Data Retention and Deletion</h2>
+      <p>All data is stored in a local SQLite database on your device. Uninstalling the app permanently deletes all data. If you have used the backup feature, backup files can be deleted from your device at any time.</p>
+    </div>
+
+    <div class="section">
+      <h2>Children's Privacy</h2>
+      <p>S.P.A.R.K is not directed at children under 13, and we do not knowingly collect data from this age group.</p>
+    </div>
+
+    <div class="section">
+      <h2>Permissions</h2>
+      <p>The app uses the following device permissions:</p>
+      <ul>
+        <li><strong>Camera:</strong> To photograph receipts (optional)</li>
+        <li><strong>Photos/Gallery:</strong> To select receipt or logo images (optional)</li>
+        <li><strong>Notifications:</strong> For budget alerts and reminders (optional)</li>
+      </ul>
+      <p>None of these permissions are required; the app's core features work without them.</p>
+    </div>
+
+    <div class="section">
+      <h2>Policy Changes</h2>
+      <p>This policy may be updated when necessary. Significant changes will be announced with an app update. The current policy is always published on this page.</p>
+    </div>
+
+    <div class="section">
+      <h2>Contact</h2>
+      <p>For privacy-related questions: <a href="mailto:ruslan.eliyev124@gmail.com">ruslan.eliyev124@gmail.com</a></p>
+      <p>Developer: Ruslan Aliyev</p>
+    </div>
+
+  </div><!-- /lang-en -->
+
+  <p class="updated">Last updated: May 2026 &nbsp;·&nbsp; S.P.A.R.K v2.3.0</p>
+
+</div>
+
+<script>
+  function switchLang(lang, btn) {
+    document.querySelectorAll('.lang-content').forEach(el => el.classList.remove('visible'));
+    document.querySelectorAll('.lang-tabs button').forEach(el => el.classList.remove('active'));
+    document.getElementById('lang-' + lang).classList.add('visible');
+    btn.classList.add('active');
+  }
+</script>
+</body>
+</html>

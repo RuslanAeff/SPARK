@@ -276,6 +276,7 @@ export const translations = {
     vendor_tile_hint: 'Düzenle için dokunun · Silmek için basılı tutun',
     vendor_search_placeholder: 'Satıcı ara…',
     vendor_no_results: 'Eşleşen satıcı bulunamadı.',
+    privacy_policy: 'Gizlilik Politikası',
     category_management: 'Kategori Yönetimi',
 
     // Vendor options sheet (default kategori)
@@ -1000,6 +1001,7 @@ export const translations = {
     vendor_tile_hint: 'Tap to edit · Hold to delete',
     vendor_search_placeholder: 'Search vendors…',
     vendor_no_results: 'No matching vendors found.',
+    privacy_policy: 'Privacy Policy',
     category_management: 'Category Management',
 
     // Vendor options sheet (default category)

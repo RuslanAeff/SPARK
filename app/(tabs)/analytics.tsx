@@ -2393,6 +2393,7 @@ export default function AnalyticsScreen() {
           ref={scrollRef}
           contentContainerStyle={styles.content}
           showsVerticalScrollIndicator={false}
+          overScrollMode="never"
           onScroll={(e) => { scrollOffsetRef.current = e.nativeEvent.contentOffset.y; }}
           scrollEventThrottle={16}
           refreshControl={

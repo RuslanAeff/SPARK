@@ -1,6 +1,6 @@
 // S.P.A.R.K. — Settings Screen (group menu)
 import React, { useMemo } from 'react';
-import { View, Text, ScrollView, StyleSheet, Pressable } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, Pressable, Linking } from 'react-native';
 import { useAppTheme } from '../../src/theme/themeStore';
 import { useRouter } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -125,6 +125,13 @@ export default function SettingsScreen() {
                 by Mr. RUSLAN
               </Text>
             </View>
+            <Pressable
+              onPress={() => Linking.openURL('https://ruslanaeff.github.io/privacy-policy.html')}
+              style={styles.privacyLink}
+            >
+              <MaterialCommunityIcons name="shield-check-outline" size={13} color={Colors.textMuted} />
+              <Text style={styles.privacyLinkText}>{t('privacy_policy')}</Text>
+            </Pressable>
           </View>
         </Animated.View>
 
@@ -217,6 +224,18 @@ const getStyles = () => StyleSheet.create({
     textShadowColor: '#00e5ff',
     textShadowOffset: { width: 0, height: 0 },
     textShadowRadius: 8,
+  },
+  privacyLink: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginTop: Spacing.lg,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.xs,
+  },
+  privacyLinkText: {
+    ...Typography.labelSmall,
+    color: Colors.textMuted,
   },
   bottomSpacer: {
     height: 100,
