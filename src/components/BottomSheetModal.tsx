@@ -29,6 +29,7 @@ import {
   Easing,
   Platform,
   Dimensions,
+  PanResponder,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -42,9 +43,20 @@ interface BottomSheetModalProps {
   slideDurationMs?: number;
   fadeDurationMs?: number;
   statusBarStyle?: 'light' | 'dark' | 'auto' | 'inverted';
+  /** Üstte sürükle-kapat tutamağı göster (dokununca yatay genişler). */
+  showHandle?: boolean;
 }
 
 const SCREEN_H = Dimensions.get('screen').height;
+
+// Sürükle-kapat eşiği: tutamak bu kadar piksel aşağı çekilirse panel kapanır.
+const DRAG_CLOSE_THRESHOLD = 90;
+const DRAG_CLOSE_VELOCITY = 0.6;
+
+// Beyaz yüzey, ekranın gerçek alt kenarından bu kadar AŞAĞI taşar. Böylece
+// inset ölçümü (Samsung düğme/gesture modunda) ne dönerse dönsün altta boşluk
+// veya backdrop'un gri perdesi görünmez; içerik yine `bottom` kadar yukarıda durur.
+const SHEET_BOTTOM_OVERSHOOT = 48;
 
 // ────────────────────────────────────────────────────────────
 // ModalContent — Modal penceresinin içinde çalışır.
@@ -60,6 +72,7 @@ interface ModalContentProps {
   statusBarStyle: 'light' | 'dark' | 'auto' | 'inverted';
   overlayOpacity: Animated.Value;
   translateY: Animated.Value;
+  showHandle: boolean;
 }
 
 function ModalContent({
@@ -70,8 +83,55 @@ function ModalContent({
   statusBarStyle,
   overlayOpacity,
   translateY,
+  showHandle,
 }: ModalContentProps) {
   const { bottom } = useSafeAreaInsets();
+
+  // Tutamak: dokununca yatay genişlesin (scaleX), sürüklerken paneli aşağı taşı.
+  const handleScaleX = useRef(new Animated.Value(1)).current;
+
+  const panResponder = useMemo(
+    () =>
+      PanResponder.create({
+        onStartShouldSetPanResponder: () => true,
+        onMoveShouldSetPanResponder: (_e, g) => Math.abs(g.dy) > 2,
+        onPanResponderGrant: () => {
+          Animated.spring(handleScaleX, {
+            toValue: 1.7,
+            useNativeDriver: true,
+            speed: 30,
+            bounciness: 8,
+          }).start();
+        },
+        onPanResponderMove: (_e, g) => {
+          if (g.dy > 0) translateY.setValue(g.dy);
+        },
+        onPanResponderRelease: (_e, g) => {
+          Animated.spring(handleScaleX, {
+            toValue: 1,
+            useNativeDriver: true,
+            speed: 20,
+            bounciness: 6,
+          }).start();
+          const shouldClose = g.dy > DRAG_CLOSE_THRESHOLD || g.vy > DRAG_CLOSE_VELOCITY;
+          if (shouldClose) {
+            onClose();
+          } else {
+            Animated.spring(translateY, {
+              toValue: 0,
+              useNativeDriver: true,
+              speed: 18,
+              bounciness: 4,
+            }).start();
+          }
+        },
+        onPanResponderTerminate: () => {
+          Animated.spring(handleScaleX, { toValue: 1, useNativeDriver: true, speed: 20, bounciness: 6 }).start();
+          Animated.spring(translateY, { toValue: 0, useNativeDriver: true, speed: 18, bounciness: 4 }).start();
+        },
+      }),
+    [handleScaleX, translateY, onClose],
+  );
 
   const overlayAnimStyle = useMemo(
     () => [styles.overlay, { backgroundColor: backdropColor, opacity: overlayOpacity }],
@@ -81,8 +141,21 @@ function ModalContent({
   const adjustedSheetStyle = useMemo(() => {
     const flat = (StyleSheet.flatten(sheetStyle) ?? {}) as ViewStyle;
     const basePB = typeof flat.paddingBottom === 'number' ? flat.paddingBottom : 0;
+    // İçerik padding'i = inset (son satır gesture/nav çubuğunun üstünde kalsın).
     return { ...flat, paddingBottom: basePB + bottom };
   }, [sheetStyle, bottom]);
+
+  // Beyaz yüzeyin rengini sheet stilinden çıkar ve sarmalayıcıya ver.
+  // Sarmalayıcı ekranın en dibine kadar (overshoot ile altına da taşarak) dolar;
+  // böylece inset ölçümü ne olursa olsun altta boşluk/gri perde görünmez.
+  const sheetBg = useMemo(() => {
+    const flat = (StyleSheet.flatten(sheetStyle) ?? {}) as ViewStyle;
+    return {
+      backgroundColor: flat.backgroundColor,
+      borderTopLeftRadius: flat.borderTopLeftRadius,
+      borderTopRightRadius: flat.borderTopRightRadius,
+    };
+  }, [sheetStyle]);
 
   return (
     <>
@@ -96,15 +169,26 @@ function ModalContent({
       {/* Sheet */}
       <Animated.View
         pointerEvents="box-none"
-        style={[styles.sheetWrapper, { transform: [{ translateY }] }]}
+        style={[
+          styles.sheetWrapper,
+          sheetBg,
+          { marginBottom: -SHEET_BOTTOM_OVERSHOOT, paddingBottom: SHEET_BOTTOM_OVERSHOOT },
+          { transform: [{ translateY }] },
+        ]}
       >
         {/*
-          Pressable SARMALAMA YOK: Android'de Pressable dikey pan'ı yakalar
-          ve ScrollView'a iletmez; ALIM GEÇMİŞİ gibi listeleri kilitler.
-          Overlay ve sheet ayrı kardeş katmanlar — sheet önde olduğu için
-          backdrop tap'i doğal olarak engellenir.
+          Beyaz arka plan sarmalayıcıda: ekranın en dibine kadar (overshoot ile
+          altına da taşarak) dolar. Pressable SARMALAMA YOK: Android'de Pressable
+          dikey pan'ı yakalar ve ScrollView'a iletmez (ALIM GEÇMİŞİ kilitlenir).
         */}
         <View style={adjustedSheetStyle}>
+          {showHandle && (
+            <View style={styles.handleZone} {...panResponder.panHandlers}>
+              <Animated.View
+                style={[styles.handleBar, { transform: [{ scaleX: handleScaleX }] }]}
+              />
+            </View>
+          )}
           {children}
         </View>
       </Animated.View>
@@ -125,6 +209,7 @@ export default function BottomSheetModal({
   slideDurationMs = 280,
   fadeDurationMs = 180,
   statusBarStyle = 'light',
+  showHandle = false,
 }: BottomSheetModalProps) {
   const [mounted, setMounted] = useState(visible);
   const overlayOpacity = useRef(new Animated.Value(0)).current;
@@ -192,6 +277,7 @@ export default function BottomSheetModal({
           statusBarStyle={statusBarStyle}
           overlayOpacity={overlayOpacity}
           translateY={translateY}
+          showHandle={showHandle}
         >
           {children}
         </ModalContent>
@@ -209,5 +295,19 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
+  },
+  // Tutamak dokunma alanı — geniş tutuldu ki kolay yakalansın.
+  handleZone: {
+    alignSelf: 'stretch',
+    alignItems: 'center',
+    paddingTop: 10,
+    paddingBottom: 6,
+    marginTop: -4,
+  },
+  handleBar: {
+    width: 40,
+    height: 5,
+    borderRadius: 3,
+    backgroundColor: 'rgba(140,140,140,0.55)',
   },
 });

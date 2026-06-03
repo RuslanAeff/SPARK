@@ -97,9 +97,8 @@ export default function VendorOptionsSheet({
       onClose={onClose}
       backdropColor={scheme === 'light' ? 'rgba(0,0,0,0.35)' : 'rgba(0,0,0,0.55)'}
       sheetStyle={styles.sheet}
+      showHandle
     >
-      <View style={styles.handle} />
-
       {/* Header — satıcı kimliği */}
       <View style={styles.header}>
         <View style={[styles.avatar, !vendor.logo_uri && { backgroundColor: Colors.primary + '33' }]}>

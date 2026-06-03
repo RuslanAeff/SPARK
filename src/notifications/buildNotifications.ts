@@ -7,7 +7,13 @@ import { SubscriptionDao } from '../db/subscriptionDao';
 import { hasApiKey } from '../services/geminiService';
 import { peekPendingReceiptDraft } from '../services/pendingReceiptDraft';
 import { getScanSessionError } from '../services/scanSession';
-import { getStartOfMonth, getEndOfMonth } from '../utils/dateUtils';
+import { getCycleStartDay } from '../services/budgetCycleSettings';
+import {
+  getCurrentCycle,
+  getCycleForKey,
+  getCycleProgress,
+  shiftCycleKey,
+} from '../utils/budgetCycle';
 import { loadBackupMeta, isBackupOverdue } from '../services/backupMeta';
 import { syncSubscriptions } from '../services/subscriptionDetector';
 import type { InAppNotification, RulesState, NotificationSeverity } from './types';
@@ -20,10 +26,6 @@ import {
   loadMutes,
   stripLegacyDevDemoNotifications,
 } from './storage';
-
-function monthKeyNow(): string {
-  return new Date().toISOString().slice(0, 7);
-}
 
 function daysToDate(isoDate: string): number {
   const t = new Date();
@@ -45,20 +47,6 @@ function muted(
     | 'backup'
 ): boolean {
   return !!mutes[ch];
-}
-
-function previousMonthKey(): string {
-  const d = new Date();
-  d.setDate(1);
-  d.setMonth(d.getMonth() - 1);
-  return d.toISOString().slice(0, 7);
-}
-
-function previousMonthRange(): { start: string; end: string } {
-  const ym = previousMonthKey();
-  const [y, m] = ym.split('-').map(Number);
-  const lastDay = new Date(y, m, 0).getDate();
-  return { start: `${ym}-01`, end: `${ym}-${String(lastDay).padStart(2, '0')}` };
 }
 
 function todayIso(): string {
@@ -89,9 +77,13 @@ export async function runNotificationSync(
   let feed = stripLegacyDevDemoNotifications(await loadFeed());
   let rules: RulesState = await loadRulesState();
 
-  const ym = monthKeyNow();
-  const start = getStartOfMonth();
-  const end = getEndOfMonth();
+  // Bütçe dönemi takvim ayı değil, kullanıcının döngü başlangıç gününe göredir.
+  // anchor=1'de cycle = takvim ayı → tüm aşağıdaki bölümler eski davranışı korur.
+  const anchor = await getCycleStartDay();
+  const cycle = getCurrentCycle(anchor);
+  const ym = cycle.key;
+  const start = cycle.start;
+  const end = cycle.end;
 
   // —— 1) Aylık bütçe %80 / %100 / aşım ——
   if (!muted(mutes, 'budget')) {
@@ -292,17 +284,20 @@ export async function runNotificationSync(
     }
   }
 
-  // —— 9) Aylık otomatik özet (önceki ay) ——
-  // Her ayın başında (ilk 7 gün içinde) bir kez gönderilir. Önceki ayın toplam
-  // harcama, bütçeye göre yüzde ve en yüksek harcanan kategori bilgisi içerir.
+  // —— 9) Otomatik döngü özeti (önceki döngü) ——
+  // Her döngünün başında (ilk 7 gün içinde) bir kez gönderilir. Önceki döngünün
+  // toplam harcama, bütçeye göre yüzde ve en yüksek harcanan kategori bilgisini içerir.
+  // anchor=1'de "döngü" = takvim ayıdır (eski "aylık özet" davranışı korunur).
   if (!muted(mutes, 'budget')) {
     try {
-      const dayOfMonth = new Date().getDate();
-      if (dayOfMonth <= 7) {
-        const prevYm = previousMonthKey();
+      const { dayOfCycle } = getCycleProgress(cycle);
+      if (dayOfCycle <= 7) {
+        const prevCycle = getCycleForKey(anchor, shiftCycleKey(cycle.key, -1));
+        const prevYm = prevCycle.key;
         rules.monthSummary = rules.monthSummary || {};
         if (!rules.monthSummary[prevYm]) {
-          const { start: ps, end: pe } = previousMonthRange();
+          const ps = prevCycle.start;
+          const pe = prevCycle.end;
           const totalPrev = await ExpenseDao.getTotalByDateRange(ps, pe);
           if (totalPrev > 0) {
             const prevBudgetRow =

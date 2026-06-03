@@ -7,6 +7,7 @@ import { useAppTheme } from '../theme/themeStore';
 import { Typography, FontFamily } from '../theme/typography';
 import { Spacing, BorderRadius } from '../theme/spacing';
 import { formatCurrency } from '../utils/formatCurrency';
+import { formatDayMonth } from '../utils/dateUtils';
 import { BudgetInfo } from '../hooks/useBudget';
 import AnimatedCard from './AnimatedCard';
 import { useLanguage } from '../i18n/LanguageContext';
@@ -41,7 +42,14 @@ function BudgetCard({ budget }: BudgetCardProps) {
               color={barColor}
             />
           </View>
-          <Text style={styles.title}>{t('budget_monthly')}</Text>
+          <View style={styles.titleTextCol}>
+            <Text style={styles.title}>{t('budget_monthly')}</Text>
+            {budget.cycleStartDay !== 1 && budget.periodStart ? (
+              <Text style={styles.cycleRange}>
+                {formatDayMonth(budget.periodStart, t)} – {formatDayMonth(budget.periodEnd, t)}
+              </Text>
+            ) : null}
+          </View>
         </View>
         <View style={[styles.percentageBadge, { backgroundColor: barColor + '22' }]}>
           <Text style={[styles.percentageText, { color: barColor }]}>%{percentage}</Text>
@@ -117,6 +125,13 @@ const getStyles = () => StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.sm,
+  },
+  titleTextCol: {
+    gap: 2,
+  },
+  cycleRange: {
+    ...Typography.labelSmall,
+    color: Colors.textSecondary,
   },
   iconCircle: {
     width: 32,

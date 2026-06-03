@@ -105,9 +105,7 @@ export default function ItemAnalyticsModal({ visible, itemName, onClose }: ItemA
   // kırardı.
 
   return (
-    <BottomSheetModal visible={visible} onClose={onClose} sheetStyle={styles.sheet}>
-      {/* Drag Handle */}
-      <View style={styles.handleBar} />
+    <BottomSheetModal visible={visible} onClose={onClose} sheetStyle={styles.sheet} showHandle>
 
           {/* Close Button */}
           <Pressable style={styles.closeBtn} onPress={onClose}>

@@ -9,26 +9,20 @@ import React, {
   useMemo,
 } from 'react';
 import { getDatabase } from '../db/database';
+import {
+  DISPLAY_CURRENCIES,
+  CURRENCY_META,
+  isDisplayCurrency,
+  type DisplayCurrency,
+} from '../utils/currencyMeta';
 
 const SETTINGS_KEY = 'display_currency';
 
-export const DISPLAY_CURRENCIES = ['PLN', 'USD', 'EUR', 'AZN', 'TRY'] as const;
-export type DisplayCurrency = (typeof DISPLAY_CURRENCIES)[number];
-
-export const CURRENCY_META: Record<
-  DisplayCurrency,
-  { label: string; symbol: string; shortLabel: string }
-> = {
-  PLN: { label: 'Polonya Zlotisi', symbol: 'zł', shortLabel: 'PLN' },
-  USD: { label: 'ABD Doları', symbol: '$', shortLabel: 'USD' },
-  EUR: { label: 'Euro', symbol: '€', shortLabel: 'EUR' },
-  AZN: { label: 'Azerbaycan Manatı', symbol: '₼', shortLabel: 'AZN' },
-  TRY: { label: 'Türk Lirası', symbol: '₺', shortLabel: 'TL' },
-};
-
-function isDisplayCurrency(v: string): v is DisplayCurrency {
-  return DISPLAY_CURRENCIES.includes(v as DisplayCurrency);
-}
+// Tek kaynak: src/utils/currencyMeta.ts. Geriye dönük uyumluluk için buradan yeniden
+// export edilir — mevcut tüketiciler ('../context/CurrencyContext'): add-expense,
+// settings-general, onboarding.
+export { DISPLAY_CURRENCIES, CURRENCY_META };
+export type { DisplayCurrency };
 
 interface CurrencyContextType {
   currency: DisplayCurrency;

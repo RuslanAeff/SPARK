@@ -4,7 +4,7 @@
 |------|--------|
 | **Belge amacı** | Tasarımcı, geliştirici ve yapay zekâ asistanlarının projeyi tek kaynaktan anlaması; performans, güvenlik ve tutarlı UX için yol haritası |
 | **Uygulama adı** | **S.P.A.R.K.** (kişisel finans / harcama takibi) |
-| **Son güncelleme** | Mayıs 2026 — **sürüm 2.3.0** (`app.json` / `package.json`); ilk açılış onboarding akışı §5.9, sürükle-çoklu-seçim + auto-scroll §5.10, Analiz modüler kart kataloğu §5.8, Ayarlar grup menüsü §5.7, performans P14–P22 (Limit Sağlığı N+1, toast flicker, projeksiyon outlier dirençi, dateUtils timezone fix, Colors proxy themeStore okuma, drag-select RefreshControl resetlemesi, splash overlay route registry, **Analiz alt kategori UX**, **120Hz scroll GPU optimizasyonu**) — §8.1; **Jest + GitHub Actions CI** §9; **Satıcı arama** §5.4; **Gizlilik politikası** §7.8 |
+| **Son güncelleme** | Mayıs 2026 — **sürüm 2.3.0** (`app.json` / `package.json`); ilk açılış onboarding akışı §5.9, sürükle-çoklu-seçim + auto-scroll §5.10, Analiz modüler kart kataloğu §5.8, Ayarlar grup menüsü §5.7, performans P14–P22 (Limit Sağlığı N+1, toast flicker, projeksiyon outlier dirençi, dateUtils timezone fix, Colors proxy themeStore okuma, drag-select RefreshControl resetlemesi, splash overlay route registry, **Analiz alt kategori UX**, **120Hz scroll GPU optimizasyonu**) — §8.1; **Jest + GitHub Actions CI** §9; **Satıcı arama** §5.4; **Gizlilik politikası** §7.8; **Bütçe döngüsü (gelir gününe göre)** §5.11 |
 | **Platform** | React Native / Expo — iOS & Android |
 | **Desteklenen diller** | **TR** (Türkçe — varsayılan), **EN** (İngilizce), **AZ** (Azərbaycan), **RU** (Русский) |
 
@@ -422,6 +422,32 @@ Yeni satır tipleri eklenirse (`{ kind: 'row' | 'header' | ... }`) `findExpenseI
 
 ---
 
+### 5.11 Bütçe döngüsü (gelir gününe göre) — v2.3
+
+**Problem.** Bütçe eskiden yalnızca takvim ayına (ayın 1'i → son günü) bağlıydı. Geliri/desteği her ayın sabit bir günü (ör. 23'ü) alan kullanıcıda bu yanlış sonuç verir: 24'ünde yapılan harcama (yeni paranın harcaması) eski ayın bütçesine yazılır ve "kalan gün" göstergesi her zaman takvim ayı sonunu sayar.
+
+**Çözüm.** Kullanıcı tek bir **döngü başlangıç günü** (anchor, 1–31) seçer; bütçe dönemi buna göre kayar. **Varsayılan 1 → döngü = takvim ayı**, yani eski davranış birebir korunur (özellik tamamen opt-in, migration yok).
+
+**Kurallar:**
+- **Clamp:** anchor kısa aya denk gelirse ay sonuna çekilir (31 → Şubat'ta 28/29, Nisan'da 30). Döngüler boşluksuz/çakışmasız zincirlenir.
+- **Anahtar:** bütçe, döngünün **başladığı ay** (`YYYY-MM`) ile saklanır (`budgets.start_date`). anchor=1'de bu takvim ayına eşit olduğundan mevcut bütçe kayıtları aynen geçerli kalır.
+- **Etiket:** anchor≠1'de UI tarih aralığını gösterir (ör. "23 May – 22 Haz").
+
+**Tek kaynak (single source of truth):**
+- `src/utils/budgetCycle.ts` — saf tarih matematiği (React/DB importu yok → izole test edilebilir): `getCurrentCycle`, `getCycleForKey`, `getCycleForYmd`, `getCycleProgress`, `shiftCycleKey`, `normalizeCycleStartDay`. Birim test: `src/utils/__tests__/budgetCycle.test.ts` (anchor=1 ↔ takvim ayı eşitliği, clamp zinciri, 23'ü senaryosu).
+- `src/services/budgetCycleSettings.ts` — `settings` tablosunda `budget_cycle_start_day` anahtarı (kalıcılık; varsayılan 1).
+
+**Tüketiciler (hepsi `budgetCycle`'ı import eder; anchor=1'de eski davranış):**
+- `useBudget` — dönem hesabı döngüye göre; `BudgetInfo`'ya `periodStart` / `periodEnd` / `cycleStartDay` eklendi.
+- `BudgetCard` — anchor≠1'de başlık altında döngü tarih aralığı.
+- `settings-budget` (§5.7) — döngü başlangıç günü seçici (stepper) + döngü navigasyonu/etiketi.
+- `BudgetHistoryCard` — geçmiş döngülerin harcaması `getTotalByDateRange(start, end)` ile; etiket anchor≠1'de aralık.
+- `buildNotifications` — bütçe %80/%100/aşım, hedef riski, "bütçe yok" ipucu ve otomatik özet (§5.6) artık döngü penceresine göre.
+
+**i18n:** `budget_cycle_start_day_label`, `budget_cycle_day_default`, `budget_cycle_day_value`, `budget_cycle_clamp_note`, `budget_cycle_hint` — dört dilde (TR/EN `translations.ts`, AZ/RU JSON).
+
+---
+
 ## 6. Tasarım sistemi
 
 ### 6.1 Renk ve tipografi
@@ -675,6 +701,7 @@ P1–P13 denetim bulguları tamamlandıktan sonra orta öncelikli olarak takip e
 5. `keyExtractor`, `renderItem`, `ListEmptyComponent`, `ListFooterComponent` **stabil referans** (modül seviyesi veya `useCallback` / `useMemo`).
 6. **FlashList** şu anda bağımlılık listesinde yok; 1000+ satıra ölçülebilir şekilde ulaşılırsa eklenebilir. Bu aşamada `FlatList` + virtualization + pagination yeterlidir.
 7. **`removeClippedSubviews` Android'de runtime toggle'lanmamalı** (P13). Mode/state değişikliğine bağlı `true ↔ false` geçişi clip'lenmiş native view'leri gözden kaybediyor. Sabit değer kullanın; satır görünürlüğüne mod bağımlı bir prop gerekiyorsa list mount sırasında bir kez belirleyin (`useState` ile sabit) veya başka bir mekanizma (key reset ile remount) tercih edin.
+8. **Tek kaynak prensibi — tekrar eden sabitler** (Mayıs 2026 — friend-review #5). Para birimi meta verisi (sembol, locale, etiket) artık `src/utils/currencyMeta.ts`'de merkezi tanımlanır; formatlama (`formatCurrency.ts`) ve UI (`CurrencyContext.tsx`) bunu import eder — duplikasyon ortadan kalkar. Benzer şekilde gelecekte tekrar eden sabitleri (kategori renkleri, tab varsayılanları, bildirim şablonları) merkezi yere çekmek gizli tutarsızlıkları (test'te görünmez ama runtime'da yanıp sönmeler) önler.
 
 ---
 

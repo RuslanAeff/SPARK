@@ -154,9 +154,8 @@ export default function StreakDetailsSheet({
       onClose={onClose}
       sheetStyle={styles.sheet}
       backdropColor={scheme === 'light' ? 'rgba(0,0,0,0.35)' : 'rgba(0,0,0,0.55)'}
+      showHandle
     >
-      <View style={styles.handleBar} />
-
       <Pressable style={styles.closeBtn} onPress={onClose} hitSlop={10}>
         <MaterialCommunityIcons name="close" size={22} color={Colors.textSecondary} />
       </Pressable>

@@ -1,34 +1,11 @@
 // S.P.A.R.K. — Currency Formatting
-
-const SYMBOLS: Record<string, string> = {
-  PLN: 'zł',
-  USD: '$',
-  EUR: '€',
-  TRY: '₺',
-  AZN: '₼',
-  GBP: '£',
-};
-
-function localeForCurrency(currency: string): string {
-  switch (currency) {
-    case 'USD':
-      return 'en-US';
-    case 'EUR':
-      return 'de-DE';
-    case 'TRY':
-      return 'tr-TR';
-    case 'AZN':
-      return 'az-AZ';
-    case 'PLN':
-    default:
-      return 'pl-PL';
-  }
-}
+// Sembol ve locale tek kaynaktan gelir: src/utils/currencyMeta.ts (§7.8 / friend-review #5).
+import { getCurrencySymbol, getCurrencyLocale } from './currencyMeta';
 
 const formatterCache = new Map<string, Intl.NumberFormat>();
 
 function getFormatter(currency: string, showDecimal: boolean): Intl.NumberFormat {
-  const locale = localeForCurrency(currency);
+  const locale = getCurrencyLocale(currency);
   const key = `${locale}_${currency}_${showDecimal ? 2 : 0}`;
   let fmt = formatterCache.get(key);
   if (!fmt) {
@@ -48,7 +25,7 @@ export function formatCurrency(
   showDecimal: boolean = true
 ): string {
   const formatted = getFormatter(currency, showDecimal).format(amount);
-  return `${formatted} ${SYMBOLS[currency] || currency}`;
+  return `${formatted} ${getCurrencySymbol(currency)}`;
 }
 
 export function formatCompactCurrency(amount: number, currency: string = 'PLN'): string {

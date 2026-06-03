@@ -1,8 +1,12 @@
 // S.P.A.R.K. — Budget Calculation Hook
+// Bütçe dönemi takvim ayı DEĞİL, kullanıcının seçtiği "döngü başlangıç günü"ne
+// göre hesaplanır (src/utils/budgetCycle.ts). anchor=1'de döngü = takvim ayı,
+// yani eski davranış birebir korunur.
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { BudgetDao } from '../db/budgetDao';
 import { ExpenseDao } from '../db/expenseDao';
-import { getStartOfMonth, getEndOfMonth, getDaysInMonth, getDayOfMonth } from '../utils/dateUtils';
+import { getCycleStartDay } from '../services/budgetCycleSettings';
+import { getCurrentCycle, getCycleForKey, getCycleProgress } from '../utils/budgetCycle';
 
 export interface BudgetInfo {
   monthlyBudget: number;
@@ -14,6 +18,12 @@ export interface BudgetInfo {
   daysRemaining: number;
   isOverBudget: boolean;
   currency: string;
+  /** Geçerli döngünün ilk günü (YYYY-MM-DD). */
+  periodStart: string;
+  /** Geçerli döngünün son günü (YYYY-MM-DD). */
+  periodEnd: string;
+  /** Aktif döngü başlangıç günü (1–31). 1 = takvim ayı. */
+  cycleStartDay: number;
 }
 
 export function useBudget(specificMonth?: string) {
@@ -27,6 +37,9 @@ export function useBudget(specificMonth?: string) {
     daysRemaining: 0,
     isOverBudget: false,
     currency: 'PLN',
+    periodStart: '',
+    periodEnd: '',
+    cycleStartDay: 1,
   });
   const [loading, setLoading] = useState(true);
   const mounted = useRef(true);
@@ -35,64 +48,44 @@ export function useBudget(specificMonth?: string) {
   const refresh = useCallback(async () => {
     setLoading(true);
     try {
-      // Determine the month to query (YYYY-MM format)
-      // getStartOfMonth returns 'YYYY-MM-DD', we just take 'YYYY-MM'
-      const startOfM = getStartOfMonth();
-      const currentMonthStr = specificMonth || startOfM.substring(0, 7);
-      
-      let activeBudget = await BudgetDao.getForMonth(currentMonthStr);
-      
-      // Fallback: If no budget set for this month, try to get the most recent one 
-      // as a template, but maybe we just default to 0 to prompt user.
+      const anchor = await getCycleStartDay();
+      const currentCycle = getCurrentCycle(anchor);
+      // specificMonth verilirse o döngü anahtarını (YYYY-MM = döngü başlangıç ayı) çöz.
+      const cycle = specificMonth ? getCycleForKey(anchor, specificMonth) : currentCycle;
+      const isCurrent = cycle.key === currentCycle.key;
+
+      // Bütçe tutarı döngünün başladığı ay anahtarıyla saklanır.
+      let activeBudget = await BudgetDao.getForMonth(cycle.key);
       if (!activeBudget) {
+        // Bu döngü için bütçe yoksa en son aktif bütçeyi şablon olarak kullan (daha iyi UX).
         activeBudget = await BudgetDao.getLatestActive();
-        // If we want it strictly per month, we could set amount to 0
-        // but keeping the last budget as a fallback is a nicer UX.
       }
 
       const budgetAmount = activeBudget ? activeBudget.monthly_amount : 0;
       const budgetCurrency = activeBudget ? activeBudget.currency : 'PLN';
 
-      // Spendings for the requested month
-      // Build start/end dynamically if specificMonth is given
-      let startRange = startOfM;
-      let endRange = getEndOfMonth();
-      let daysInM = getDaysInMonth();
-      let currentDay = getDayOfMonth();
-      
-      if (specificMonth) {
-        // Compute for that specific month
-        const dateObj = new Date(`${specificMonth}-01T12:00:00Z`);
-        const year = dateObj.getFullYear();
-        const month = dateObj.getMonth() + 1;
-        const paddedMonth = month.toString().padStart(2, '0');
-        
-        startRange = `${year}-${paddedMonth}-01`;
-        
-        // End of month
-        const nextMonthStr = month === 12 ? `${year + 1}-01-01` : `${year}-${(month + 1).toString().padStart(2, '0')}-01`;
-        const endObj = new Date(new Date(`${nextMonthStr}T12:00:00Z`).getTime() - 86400000);
-        endRange = endObj.toISOString().split('T')[0];
-        
-        daysInM = endObj.getDate();
-        
-        // If the specific month is not the current month, we evaluate it statically
-        const todayMonthStr = new Date().toISOString().substring(0, 7);
-        if (specificMonth !== todayMonthStr) {
-          // It's a past or future month, we assume full month passed or 0 days passed
-          currentDay = specificMonth < todayMonthStr ? daysInM : 0;
-        }
+      const totalSpent = await ExpenseDao.getTotalByDateRange(cycle.start, cycle.end);
+
+      // Döngü içindeki ilerleme: güncel döngüde bugüne göre; geçmiş döngüde tam
+      // dolmuş, gelecek döngüde hiç başlamamış kabul edilir.
+      let dayOfCycle: number;
+      let daysRemaining: number;
+      if (isCurrent) {
+        ({ dayOfCycle, daysRemaining } = getCycleProgress(cycle));
+      } else if (cycle.key < currentCycle.key) {
+        dayOfCycle = cycle.totalDays;
+        daysRemaining = 0;
+      } else {
+        dayOfCycle = 0;
+        daysRemaining = cycle.totalDays;
       }
 
-      const totalSpent = await ExpenseDao.getTotalByDateRange(startRange, endRange);
-      const daysRemaining = Math.max(0, daysInM - currentDay);
-      
       const remaining = budgetAmount - totalSpent;
-      const percentage = budgetAmount > 0 
+      const percentage = budgetAmount > 0
         ? Math.min(100, Math.round((totalSpent / budgetAmount) * 100))
         : 0;
-      
-      const dailyAverage = currentDay > 0 ? totalSpent / currentDay : 0;
+
+      const dailyAverage = dayOfCycle > 0 ? totalSpent / dayOfCycle : 0;
       const dailyBudget = daysRemaining > 0 ? Math.max(0, remaining) / daysRemaining : 0;
 
       if (mounted.current) {
@@ -106,6 +99,9 @@ export function useBudget(specificMonth?: string) {
           daysRemaining,
           isOverBudget: remaining < 0,
           currency: budgetCurrency,
+          periodStart: cycle.start,
+          periodEnd: cycle.end,
+          cycleStartDay: anchor,
         });
       }
     } catch (e) {

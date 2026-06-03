@@ -15,7 +15,14 @@ import { useLanguage } from '../src/i18n/LanguageContext';
 import { useCurrency } from '../src/context/CurrencyContext';
 import { useRefresh } from '../src/context/RefreshContext';
 import { BudgetDao } from '../src/db/budgetDao';
-import { formatMonthYear } from '../src/utils/dateUtils';
+import { formatMonthYear, formatDayMonth } from '../src/utils/dateUtils';
+import { getCycleStartDay, setCycleStartDay } from '../src/services/budgetCycleSettings';
+import {
+  getCurrentCycle,
+  getCycleForKey,
+  MIN_CYCLE_START_DAY,
+  MAX_CYCLE_START_DAY,
+} from '../src/utils/budgetCycle';
 import GlassCheckButton from '../src/components/GlassCheckButton';
 import BudgetHistoryCard from '../src/components/BudgetHistoryCard';
 import { SparkToast } from '../src/components/SparkToast';
@@ -43,20 +50,46 @@ export default function SettingsBudgetScreen() {
   });
   const [budgetAmount, setBudgetAmount] = useState('');
   const [goalFeatureOn, setGoalFeatureOn] = useState(true);
+  const [cycleDay, setCycleDay] = useState(1);
   const [budgetInfoOpen, setBudgetInfoOpen] = useState(false);
   const [goalInfoOpen, setGoalInfoOpen] = useState(false);
 
   useEffect(() => {
     let alive = true;
     (async () => {
-      const on = await getGoalFeatureEnabled();
+      const [on, day] = await Promise.all([getGoalFeatureEnabled(), getCycleStartDay()]);
       if (!alive) return;
       setGoalFeatureOn(on);
+      setCycleDay(day);
+      // Açılışta güncel döngüyü göster (anchor=1'de bu zaten takvim ayıdır).
+      setSelectedMonth(getCurrentCycle(day).key);
     })();
     return () => {
       alive = false;
     };
   }, []);
+
+  // Seçili döngünün tarih aralığı (etiket için). anchor=1'de ay adı, aksi halde aralık.
+  const cycleLabel = useMemo(() => {
+    if (cycleDay === 1) return formatMonthYear(`${selectedMonth}-01`, t);
+    const c = getCycleForKey(cycleDay, selectedMonth);
+    return `${formatDayMonth(c.start, t)} – ${formatDayMonth(c.end, t)}`;
+  }, [cycleDay, selectedMonth, t]);
+
+  async function changeCycleDay(next: number) {
+    const clamped = Math.min(MAX_CYCLE_START_DAY, Math.max(MIN_CYCLE_START_DAY, next));
+    if (clamped === cycleDay) return;
+    setCycleDay(clamped);
+    try {
+      await setCycleStartDay(clamped);
+      setSelectedMonth(getCurrentCycle(clamped).key);
+      triggerRefresh();
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    } catch (e) {
+      console.warn('cycle day', e);
+      SparkToast.show(t('error_saving_data'), 'error');
+    }
+  }
 
   useEffect(() => {
     loadBudgetForMonth(selectedMonth);
@@ -78,7 +111,7 @@ export default function SettingsBudgetScreen() {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     const curLabel = currency === 'TRY' ? 'TL' : currency;
     SparkToast.show(
-      t('budget_saved', { month: formatMonthYear(`${selectedMonth}-01`, t) }),
+      t('budget_saved', { month: cycleLabel }),
       'success',
       t('budget_saved_desc', { amount: amount.toLocaleString(), currency: curLabel }),
     );
@@ -145,6 +178,54 @@ export default function SettingsBudgetScreen() {
                 />
               </View>
 
+              {/* Döngü başlangıç günü — bütçe takvim ayına değil bu güne göre işler */}
+              <View style={styles.cycleBox}>
+                <View style={styles.cycleBoxHeader}>
+                  <MaterialCommunityIcons
+                    name="calendar-sync-outline"
+                    size={18}
+                    color={Colors.primary}
+                  />
+                  <Text style={styles.cycleDayLabel}>{t('budget_cycle_start_day_label')}</Text>
+                </View>
+                <View style={styles.stepper}>
+                  <Pressable
+                    onPress={() => changeCycleDay(cycleDay - 1)}
+                    style={({ pressed }) => [styles.stepperBtn, pressed && styles.stepperBtnPressed]}
+                    disabled={cycleDay <= MIN_CYCLE_START_DAY}
+                    hitSlop={6}
+                    accessibilityRole="button"
+                  >
+                    <MaterialCommunityIcons
+                      name="minus"
+                      size={20}
+                      color={cycleDay <= MIN_CYCLE_START_DAY ? Colors.textMuted : Colors.textPrimary}
+                    />
+                  </Pressable>
+                  <Text style={styles.stepperValue}>
+                    {cycleDay === 1
+                      ? t('budget_cycle_day_default')
+                      : t('budget_cycle_day_value', { day: String(cycleDay) })}
+                  </Text>
+                  <Pressable
+                    onPress={() => changeCycleDay(cycleDay + 1)}
+                    style={({ pressed }) => [styles.stepperBtn, pressed && styles.stepperBtnPressed]}
+                    disabled={cycleDay >= MAX_CYCLE_START_DAY}
+                    hitSlop={6}
+                    accessibilityRole="button"
+                  >
+                    <MaterialCommunityIcons
+                      name="plus"
+                      size={20}
+                      color={cycleDay >= MAX_CYCLE_START_DAY ? Colors.textMuted : Colors.textPrimary}
+                    />
+                  </Pressable>
+                </View>
+                {cycleDay >= 29 && (
+                  <Text style={styles.cycleClampNote}>{t('budget_cycle_clamp_note')}</Text>
+                )}
+              </View>
+
               <View style={styles.monthSelector}>
                 <Pressable onPress={() => changeMonth(-1)} style={styles.monthArrow}>
                   <MaterialCommunityIcons
@@ -153,9 +234,7 @@ export default function SettingsBudgetScreen() {
                     color={Colors.textPrimary}
                   />
                 </Pressable>
-                <Text style={styles.monthText}>
-                  {formatMonthYear(`${selectedMonth}-01`, t)}
-                </Text>
+                <Text style={styles.monthText}>{cycleLabel}</Text>
                 <Pressable onPress={() => changeMonth(1)} style={styles.monthArrow}>
                   <MaterialCommunityIcons
                     name="chevron-right"
@@ -251,7 +330,7 @@ export default function SettingsBudgetScreen() {
         visible={budgetInfoOpen}
         onClose={() => setBudgetInfoOpen(false)}
         title={t('budget_system')}
-        paragraphs={[t('budget_hint')]}
+        paragraphs={[t('budget_hint'), t('budget_cycle_hint')]}
       />
       <SettingsInfoHintModal
         visible={goalInfoOpen}
@@ -328,6 +407,52 @@ const getStyles = () => StyleSheet.create({
   },
   monthArrow: { padding: Spacing.xs },
   monthText: { ...Typography.labelLarge, color: Colors.textPrimary },
+  cycleBox: {
+    backgroundColor: Colors.surfaceLight,
+    borderRadius: BorderRadius.md,
+    padding: Spacing.md,
+    marginBottom: Spacing.md,
+    gap: Spacing.sm,
+  },
+  cycleBoxHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.xs,
+  },
+  cycleDayLabel: {
+    ...Typography.labelMedium,
+    color: Colors.textSecondary,
+    flex: 1,
+  },
+  stepper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: Spacing.sm,
+  },
+  stepperBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: BorderRadius.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: Colors.cardSurface,
+    borderWidth: 1,
+    borderColor: Colors.cardBorder,
+  },
+  stepperBtnPressed: { opacity: 0.7 },
+  stepperValue: {
+    ...Typography.bodyLarge,
+    fontFamily: FontFamily.semiBold,
+    color: Colors.textPrimary,
+    flex: 1,
+    textAlign: 'center',
+  },
+  cycleClampNote: {
+    ...Typography.labelSmall,
+    color: Colors.textMuted,
+    fontStyle: 'italic',
+  },
   inputRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
   input: {
     ...Typography.bodyLarge,

@@ -38,6 +38,12 @@ export function formatMonthYear(dateStr: string, t?: TranslateFunc): string {
   return `${getMonthFull(d.getMonth(), t)} ${d.getFullYear()}`;
 }
 
+/** Yıl olmadan kompakt "gün kısa-ay" (ör. "23 May") — döngü aralığı etiketleri için. */
+export function formatDayMonth(dateStr: string, t?: TranslateFunc): string {
+  const d = new Date(dateStr);
+  return `${d.getDate()} ${getMonthShort(d.getMonth(), t)}`;
+}
+
 export function getToday(): string {
   return toLocalYmd(new Date());
 }

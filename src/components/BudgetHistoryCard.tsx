@@ -6,18 +6,28 @@ import { Colors } from '../theme/colors';
 import { Typography, FontFamily } from '../theme/typography';
 import { Spacing, BorderRadius } from '../theme/spacing';
 import { formatCurrency } from '../utils/formatCurrency';
+import { formatDayMonth } from '../utils/dateUtils';
 import { BudgetDao } from '../db/budgetDao';
 import { ExpenseDao } from '../db/expenseDao';
 import { Budget } from '../db/schema';
+import { getCycleStartDay } from '../services/budgetCycleSettings';
+import {
+  getCurrentCycle,
+  getCycleForKey,
+  getCycleForYmd,
+  BudgetCycle,
+} from '../utils/budgetCycle';
 import { useLanguage } from '../i18n/LanguageContext';
 import { useCurrency } from '../context/CurrencyContext';
 import { useRefresh } from '../context/RefreshContext';
 import { useAppTheme } from '../theme/themeStore';
 
-interface MonthEntry {
-  month: string;   // YYYY-MM
+interface CycleEntry {
+  key: string;        // YYYY-MM (döngünün başladığı ay)
+  cycle: BudgetCycle;
   budget: Budget | null;
   spent: number;
+  isCurrent: boolean;
 }
 
 export default function BudgetHistoryCard() {
@@ -26,7 +36,8 @@ export default function BudgetHistoryCard() {
   const { t } = useLanguage();
   const { currency } = useCurrency();
   const { refreshKey } = useRefresh();
-  const [entries, setEntries] = useState<MonthEntry[]>([]);
+  const [entries, setEntries] = useState<CycleEntry[]>([]);
+  const [anchor, setAnchor] = useState(1);
   const [loading, setLoading] = useState(true);
   const mountedRef = useRef(true);
 
@@ -45,9 +56,10 @@ export default function BudgetHistoryCard() {
   async function load() {
     setLoading(true);
     try {
+      const anchorDay = await getCycleStartDay();
       const spendingMonths = await ExpenseDao.getMonthsWithSpending();
       const budgets = await BudgetDao.getAllBudgets();
-      
+
       const budgetMap = new Map<string, Budget>();
       budgets.forEach(b => {
         const normalized = b.start_date.substring(0, 7);
@@ -56,24 +68,37 @@ export default function BudgetHistoryCard() {
         }
       });
 
-      const allMonths = [...new Set([
-        ...spendingMonths,
-        ...Array.from(budgetMap.keys()),
-      ])].sort((a, b) => b.localeCompare(a));
+      // Gösterilecek döngü anahtarları: bütçesi olanlar + harcama olan aylar
+      // (ayın 15'i tek bir döngüye düşer → o döngünün anahtarı) + güncel döngü.
+      const current = getCurrentCycle(anchorDay);
+      const keySet = new Set<string>(budgetMap.keys());
+      for (const ym of spendingMonths) {
+        const [y, m] = ym.split('-').map(Number);
+        keySet.add(getCycleForYmd(anchorDay, y, m - 1, 15).key);
+      }
+      keySet.add(current.key);
+
+      const keys = [...keySet].sort((a, b) => b.localeCompare(a));
 
       // Android / expo-sqlite: aynı DB üzerinde çok sayıda eşzamanlı sorgu prepareAsync
       // hatasına (NativeStatement / released object) yol açabiliyor — sırayla yükle.
-      const withData: MonthEntry[] = [];
-      for (const month of allMonths) {
-        const spent = await ExpenseDao.getSpendingByMonth(month);
+      const withData: CycleEntry[] = [];
+      for (const key of keys) {
+        const cycle = getCycleForKey(anchorDay, key);
+        const spent = await ExpenseDao.getTotalByDateRange(cycle.start, cycle.end);
         withData.push({
-          month,
-          budget: budgetMap.get(month) ?? null,
+          key,
+          cycle,
+          budget: budgetMap.get(key) ?? null,
           spent,
+          isCurrent: key === current.key,
         });
       }
 
-      if (mountedRef.current) setEntries(withData);
+      if (mountedRef.current) {
+        setAnchor(anchorDay);
+        setEntries(withData);
+      }
     } catch (e) {
       console.error('BudgetHistory load error:', e);
     }
@@ -107,7 +132,7 @@ export default function BudgetHistoryCard() {
         decelerationRate="fast"
       >
         {entries.map((entry) => {
-          const { month, budget, spent } = entry;
+          const { key, cycle, budget, spent, isCurrent } = entry;
           const hasBudget = budget !== null;
           const pct = hasBudget && budget!.monthly_amount > 0
             ? Math.min((spent / budget!.monthly_amount) * 100, 100)
@@ -115,19 +140,22 @@ export default function BudgetHistoryCard() {
           const overBudget = hasBudget && spent > budget!.monthly_amount;
           const remaining = hasBudget ? budget!.monthly_amount - spent : null;
           const barColor = overBudget ? Colors.danger : pct > 80 ? Colors.warning : Colors.primary;
-          const isCurrentMonth = month === new Date().toISOString().slice(0, 7);
+          // anchor=1 → ay adı; aksi halde döngü tarih aralığı.
+          const label = anchor === 1
+            ? formatMonth(key)
+            : `${formatDayMonth(cycle.start, t)}–${formatDayMonth(cycle.end, t)}`;
 
           return (
-            <View key={month} style={[styles.card, isCurrentMonth && styles.cardCurrent]}>
+            <View key={key} style={[styles.card, isCurrent && styles.cardCurrent]}>
               {/* Header */}
               <View style={styles.cardHeader}>
-                {isCurrentMonth ? (
+                {isCurrent ? (
                   <View style={styles.currentBadge}>
                     <View style={styles.currentDot} />
                     <Text style={styles.currentText}>{t('current_month')}</Text>
                   </View>
                 ) : (
-                  <Text style={styles.monthLabel}>{formatMonth(month)}</Text>
+                  <Text style={styles.monthLabel}>{label}</Text>
                 )}
                 <MaterialCommunityIcons 
                   name={overBudget ? "alert-circle" : (pct > 80 ? "alert" : "check-circle")} 
