@@ -1,10 +1,10 @@
-﻿# S.P.A.R.K — Tasarım ve Teknik Rehber
+# S.P.A.R.K — Tasarım ve Teknik Rehber
 
 | Alan | Değer |
 |------|--------|
 | **Belge amacı** | Tasarımcı, geliştirici ve yapay zekâ asistanlarının projeyi tek kaynaktan anlaması; performans, güvenlik ve tutarlı UX için yol haritası |
 | **Uygulama adı** | **S.P.A.R.K.** (kişisel finans / harcama takibi) |
-| **Son güncelleme** | Mayıs 2026 — **sürüm 2.3.0** (`app.json` / `package.json`); ilk açılış onboarding akışı §5.9, sürükle-çoklu-seçim + auto-scroll §5.10, Analiz modüler kart kataloğu §5.8, Ayarlar grup menüsü §5.7, performans P14–P22 (Limit Sağlığı N+1, toast flicker, projeksiyon outlier dirençi, dateUtils timezone fix, Colors proxy themeStore okuma, drag-select RefreshControl resetlemesi, splash overlay route registry, **Analiz alt kategori UX**, **120Hz scroll GPU optimizasyonu**) — §8.1; **Jest + GitHub Actions CI** §9; **Satıcı arama** §5.4; **Gizlilik politikası** §7.8; **Bütçe döngüsü (gelir gününe göre)** §5.11 |
+| **Son güncelleme** | 8 Haziran 2026 — **sürüm 2.3.1** (`app.json` / `package.json`); işlemler çoklu seçim performans ve kararlılık düzeltmesi (§5.10 - `stateRef` iptali, FlatList `removeClippedSubviews` kapatılması), bütçe döngüsü Dashboard tutarsızlığı giderme (§5.11 - donut, bütçe kartı ve kategori ilerlemelerinin döngü tarih aralığına hizalanması) |
 | **Platform** | React Native / Expo — iOS & Android |
 | **Desteklenen diller** | **TR** (Türkçe — varsayılan), **EN** (İngilizce), **AZ** (Azərbaycan), **RU** (Русский) |
 
@@ -420,6 +420,10 @@ Kayıtlı `active+hidden` setine **`ALL_CARDS`'da olup ikisinde de bulunmayan** 
 Yeni satır tipleri eklenirse (`{ kind: 'row' | 'header' | ... }`) `findExpenseIdAtListY` cumulative scan'ine yükseklik kaydı eklenmelidir.
 - Tasarım dili: şüşevar CTA + cam kart + Reanimated geçişler + tema mağazası (`useAppTheme` + `useMemo(getStyles, [scheme])`).
 
+**Haziran 2026 Seçim Modu Düzeltmesi (v2.3.1):** Çoklu seçim modunda satırların kaybolması ve ekranın kararması hatası giderildi. Çözüm olarak:
+1. `transactions.tsx` içindeki karmaşık `stateRef` ve ref-memoization pattern'i iptal edildi; `renderItem` ve press callback'leri doğrudan React `selectionMode` ve `selectedIds` state'lerine bağlanarak re-render'ların React ağacıyla tam uyumlu gerçekleşmesi sağlandı.
+2. FlatList `removeClippedSubviews` prop'u tamamen `false` yapıldı. Dinamik true/false geçişleri native katmanda önceden clip'lenmiş olan hücrelerin geri eklenmesini engelliyordu.
+
 ---
 
 ### 5.11 Bütçe döngüsü (gelir gününe göre) — v2.3
@@ -443,6 +447,7 @@ Yeni satır tipleri eklenirse (`{ kind: 'row' | 'header' | ... }`) `findExpenseI
 - `settings-budget` (§5.7) — döngü başlangıç günü seçici (stepper) + döngü navigasyonu/etiketi.
 - `BudgetHistoryCard` — geçmiş döngülerin harcaması `getTotalByDateRange(start, end)` ile; etiket anchor≠1'de aralık.
 - `buildNotifications` — bütçe %80/%100/aşım, hedef riski, "bütçe yok" ipucu ve otomatik özet (§5.6) artık döngü penceresine göre.
+- **Dashboard senkronizasyonu (Haziran 2026 - v2.3.1):** Dashboard üzerindeki donut grafik, kategori ilerleme limitleri, satıcı harcamaları ve toplam harcama göstergeleri (`useMonthlyTotal`, `useCategorySpending`, `useVendorSpending`, `useCategoryLimitsProgress`) artık bütçe döngüsü başlangıç/bitiş tarih aralığına (`cycleStart` - `cycleEnd`) göre hesaplanıyor. Böylece tüm dashboard verisi bütçe kartı ile tam tutarlı hale getirildi.
 
 **i18n:** `budget_cycle_start_day_label`, `budget_cycle_day_default`, `budget_cycle_day_value`, `budget_cycle_clamp_note`, `budget_cycle_hint` — dört dilde (TR/EN `translations.ts`, AZ/RU JSON).
 

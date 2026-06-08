@@ -11,6 +11,7 @@ import { Colors } from '../../src/theme/colors';
 import { Typography, FontFamily } from '../../src/theme/typography';
 import { Spacing, ScreenPadding, BorderRadius } from '../../src/theme/spacing';
 import { formatCurrency } from '../../src/utils/formatCurrency';
+import { formatDayMonth } from '../../src/utils/dateUtils';
 import { useBudget } from '../../src/hooks/useBudget';
 import { useCategorySpending, useVendorSpending, useMonthlyTotal } from '../../src/hooks/useExpenses';
 import { useSavingsGoal, useCategoryLimitsProgress, useGoalFeatureEnabled } from '../../src/hooks/useSavingsGoalData';
@@ -35,11 +36,18 @@ export default function DashboardScreen() {
   const router = useRouter();
   const { t, tc } = useLanguage();
   const { budget, loading: budgetLoading, refresh: refreshBudget } = useBudget();
-  const { data: categories, refresh: refreshCats } = useCategorySpending();
-  const { data: vendors, refresh: refreshVendors } = useVendorSpending();
-  const { total: monthlyTotal, refresh: refreshTotal } = useMonthlyTotal();
+
+  // Bütçe döngüsü tarihlerini tüm Dashboard hook'larına geçir.
+  // budget.periodStart/End yüklenmeden (ilk render) hook'lar
+  // undefined alır → kendi içinde takvim ayı fallback'ine düşer (güvenli).
+  const cycleStart = budget.periodStart || undefined;
+  const cycleEnd = budget.periodEnd || undefined;
+
+  const { data: categories, refresh: refreshCats } = useCategorySpending(cycleStart, cycleEnd);
+  const { data: vendors, refresh: refreshVendors } = useVendorSpending(cycleStart, cycleEnd);
+  const { total: monthlyTotal, refresh: refreshTotal } = useMonthlyTotal(cycleStart, cycleEnd);
   const { goal, refresh: refreshGoal } = useSavingsGoal();
-  const { rows: limitRows, refresh: refreshLimits } = useCategoryLimitsProgress();
+  const { rows: limitRows, refresh: refreshLimits } = useCategoryLimitsProgress(cycleStart, cycleEnd);
   const { enabled: goalFeatureEnabled, refresh: refreshGoalFeature } = useGoalFeatureEnabled();
   const [refreshing, setRefreshing] = React.useState(false);
   const [selectedIndex, setSelectedIndex] = React.useState<number | null>(null);
@@ -102,6 +110,9 @@ export default function DashboardScreen() {
     ? categories[selectedIndex] 
     : null;
 
+  // Döngü bilgisi: anchor ≠ 1 ise tarih aralığını göster
+  const showCycleRange = budget.cycleStartDay !== 1 && budget.periodStart && budget.periodEnd;
+
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <ScrollView
@@ -151,6 +162,11 @@ export default function DashboardScreen() {
         {/* Main Amount & Donut */}
         <Animated.View entering={FadeInDown.delay(100).duration(500)} layout={LinearTransition.duration(750)} style={styles.chartSection}>
           <Text style={styles.totalLabel}>{t('this_month_spent')}</Text>
+          {showCycleRange && (
+            <Text style={styles.cycleDateRange}>
+              {formatDayMonth(budget.periodStart, t)} – {formatDayMonth(budget.periodEnd, t)}
+            </Text>
+          )}
           <Text style={styles.totalAmount}>
             {formatCurrency(monthlyTotal, currency)}
           </Text>
@@ -471,6 +487,11 @@ const getStyles = () => StyleSheet.create({
   },
   totalLabel: {
     ...Typography.bodyMedium,
+    color: Colors.textSecondary,
+    marginBottom: Spacing.xs,
+  },
+  cycleDateRange: {
+    ...Typography.labelSmall,
     color: Colors.textSecondary,
     marginBottom: Spacing.xs,
   },

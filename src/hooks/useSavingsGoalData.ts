@@ -44,17 +44,18 @@ function monthKey(d = new Date()): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
 }
 
-export function useCategoryLimitsProgress() {
+export function useCategoryLimitsProgress(startDate?: string, endDate?: string) {
   const [rows, setRows] = useState<CategoryLimitProgress[]>([]);
   const [loading, setLoading] = useState(true);
+
+  const start = startDate || getStartOfMonth();
+  const end = endDate || getEndOfMonth();
 
   const refresh = useCallback(async () => {
     const m = monthKey();
     setLoading(true);
     try {
       const limits = await CategoryLimitDao.getForMonth(m);
-      const start = getStartOfMonth();
-      const end = getEndOfMonth();
 
       // P1: Tüm kategorileri tek sorguda ön-yükle → O(1) lookup
       const allCategories = await CategoryDao.getAll();
@@ -90,7 +91,7 @@ export function useCategoryLimitsProgress() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [start, end]);
 
   useEffect(() => {
     refresh();

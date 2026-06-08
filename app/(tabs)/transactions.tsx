@@ -117,27 +117,19 @@ export default function TransactionsScreen() {
     });
   }, []);
 
-  // P9: Callback referans kararlılığı — TransactionRow React.memo’lu;
-  // onPress/onLongPress referansı her render’da değişirse tüm satırlar
-  // boşuna yeniden çizilirdi. Ref pattern ile referansı sabit tutuyoruz.
-  const stateRef = useRef({ selectionMode, router, toggleSelect });
-  stateRef.current = { selectionMode, router, toggleSelect };
-
   const handleRowPress = useCallback((expenseId: number) => {
-    const s = stateRef.current;
-    if (s.selectionMode) {
+    if (selectionMode) {
       Haptics.selectionAsync();
-      s.toggleSelect(expenseId);
+      toggleSelect(expenseId);
       return;
     }
-    s.router.push(`/add-expense?id=${expenseId}`);
-  }, []);
+    router.push(`/add-expense?id=${expenseId}`);
+  }, [selectionMode, router, toggleSelect]);
 
   const handleRowLongPress = useCallback((expenseId: number) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    const s = stateRef.current;
-    if (s.selectionMode) {
-      s.toggleSelect(expenseId);
+    if (selectionMode) {
+      toggleSelect(expenseId);
     } else {
       setSelectionMode(true);
       setSelectedIds(new Set([expenseId]));
@@ -270,7 +262,7 @@ export default function TransactionsScreen() {
     );
   }, [expenses, searchQuery]);
 
-  // P9: Tek boyutlu liste — FlatList virtualization’ı artık iç içe `.map` değil
+  // P9: Tek boyutlu liste — FlatList virtualization'ı artık iç içe `.map` değil
   // gerçek satırlar üzerinde çalışır.
   const rows = useMemo<Row[]>(() => {
     const grouped = groupByDate(filtered);
@@ -300,6 +292,9 @@ export default function TransactionsScreen() {
     }
   }, []);
 
+  // renderItem — selectionMode ve selectedIds bağımlılık dizisindedir.
+  // Seçim durumu değiştiğinde renderItem referansı güncellenir ve FlatList
+  // tüm görünür hücreleri yeni seçim durumuna göre yeniden çizer.
   const renderItem = useCallback(
     ({ item }: ListRenderItemInfo<Row>) => {
       if (item.kind === 'header') {
@@ -324,7 +319,7 @@ export default function TransactionsScreen() {
         </View>
       );
     },
-    [t, styles, selectionMode, selectedIds, handleRowPress, handleRowLongPress, onCellLayout],
+    [t, styles, handleRowPress, handleRowLongPress, onCellLayout, selectionMode, selectedIds],
   );
 
   const selectedCount = selectedIds.size;
@@ -344,6 +339,13 @@ export default function TransactionsScreen() {
     // hasMore true ise arka planda devamını çek ki arama sonuçları genişlesin.
     if (hasMore) loadMore();
   }, [hasMore, loadMore]);
+
+  // FlatList'e extraData vererek selectionMode/selectedIds değiştiğinde
+  // yeniden render tetiklenir — renderItem referansı değişmeden.
+  const extraData = useMemo(
+    () => ({ selectionMode, selectedIds }),
+    [selectionMode, selectedIds],
+  );
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -416,9 +418,10 @@ export default function TransactionsScreen() {
         <FlatList
           ref={flatListRef}
           data={rows}
+          extraData={extraData}
           keyExtractor={keyExtractor}
           renderItem={renderItem}
-          removeClippedSubviews={!dragSelecting}
+          removeClippedSubviews={false}
           initialNumToRender={18}
           maxToRenderPerBatch={16}
           windowSize={9}

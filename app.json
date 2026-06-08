@@ -2,7 +2,7 @@
   "expo": {
     "name": "S.P.A.R.K",
     "slug": "spark-finance",
-    "version": "2.3.0",
+    "version": "2.3.1",
     "orientation": "portrait",
     "icon": "./assets/spark-icon.png",
     "userInterfaceStyle": "dark",
