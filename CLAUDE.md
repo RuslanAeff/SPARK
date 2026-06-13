@@ -62,6 +62,11 @@ src/
 - Expo Go Android'de `expo-notifications` push API yüklenmez → `isRunningInExpoGo()` guard'ı zorunlu.
 - Yeni kural eklerken: tür bazlı sessize alma (mute channel) eklemeyi unutma.
 
+### 7. Alt sayfalar (bottom-sheet)
+- Yeni alt sayfa = **ortak `src/components/BottomSheetModal.tsx`** (kendi `Modal`'ını yazma). Detay: `DESIGN_BRIEF.md` §5.12.
+- Tutamak için `showHandle` prop'unu ver — kendi statik handle'ını render etme (dokunmada genişler + sürükle-kapat ortak bileşende).
+- Alt kenar boşluğu/gri perde sorunu yüzey overshoot ile çözülür; `sheetStyle`'a manuel `paddingBottom = inset` ekleme.
+
 ## Komutlar
 
 ```powershell

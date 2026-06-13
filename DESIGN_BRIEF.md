@@ -453,6 +453,20 @@ Yeni satır tipleri eklenirse (`{ kind: 'row' | 'header' | ... }`) `findExpenseI
 
 ---
 
+### 5.12 Ortak alt-sayfa bileşeni `BottomSheetModal` (Haziran 2026 — v2.3.1)
+
+`src/components/BottomSheetModal.tsx` — `VendorOptionsSheet`, `StreakDetailsSheet`, `ItemAnalyticsModal` ve diğer alt sayfaların ortak kabuğu. RN `Modal` + `Animated` (slide + fade) üzerine kurulu.
+
+**Edge-to-edge alt kenar (Samsung Android 15 regresyonu).** `Modal` `statusBarTranslucent` + `navigationBarTranslucent` ile tam ekran açılır; navigasyon çubuğu (düğme **veya** gesture) içeriğin üstüne çizilir. Nested `SafeAreaProvider`'ın döndürdüğü `insets.bottom` Samsung'da güvenilmez olduğundan, eski "yalnız `paddingBottom = inset`" yaklaşımı iki regresyon üretiyordu: düğme modunda altta gri **boşluk**, gesture modunda alt içeriği örten gri **perde**.
+- **Çözüm:** beyaz yüzey (arka plan + üst köşe yuvarlaklığı) **dış sarmalayıcıya** taşındı ve `marginBottom: -SHEET_BOTTOM_OVERSHOOT` (48px) + eşit `paddingBottom` ile ekranın gerçek alt kenarının **altına taşar**. İnset ölçümü ne dönerse dönsün altta beyaz yüzey görünür; iç içerik yine `paddingBottom = inset` ile gesture/nav çubuğunun üstünde kalır. (LanguagePickerSheet §5.1 "tek sürekli yüzey" mantığıyla aynı ilke.)
+
+**Sürükle-kapat tutamağı (`showHandle` prop'u).** Tüketiciler artık kendi statik handle'larını render etmez; `showHandle` verirler.
+- **Dokunma → yatay genişleme:** `PanResponder` grant'ında tutamak `scaleX 1 → 1.7` yaylı animasyonla uzar, bırakınca geri döner.
+- **Sürükle → kapat:** aşağı çekildikçe panel parmakla iner; `dy > 90px` **veya** `vy > 0.6` ise `onClose`, aksi halde yaylı geri oturma. `useNativeDriver: true`.
+- **ScrollView uyumu:** sheet'i saran `Pressable` **yok** (Android'de dikey pan'ı yutup listeyi kilitler); overlay ve sheet ayrı kardeş katmanlar.
+
+---
+
 ## 6. Tasarım sistemi
 
 ### 6.1 Renk ve tipografi
