@@ -1,6 +1,3 @@
-import azLocale from './locales/az.json';
-import ruLocale from './locales/ru.json';
-
 export type Language = 'tr' | 'en' | 'az' | 'ru';
 
 export const translations = {
@@ -460,6 +457,7 @@ export const translations = {
     product_name_placeholder: 'Ürün Adı',
     quantity_placeholder: 'Miktar',
     unit_price_placeholder: 'Birim Fiyat (zł)',
+    discount_placeholder: 'İndirim tutarı (varsa)',
     update: 'Güncelle',
     add: 'Ekle',
 
@@ -645,6 +643,7 @@ export const translations = {
     projection_estimated: 'Tahmini ay sonu',
     projection_so_far: 'Şu ana kadar',
     projection_pace_hint: 'Mevcut hızla harcamaya devam edersen',
+    projection_outlier_note: 'Tek seferlik büyük bir harcama tahminden ayıklandı',
     projection_outcome_save_title: 'Bütçeyi aşmayacaksın',
     projection_outcome_save_sub: 'Tahmini olarak {amount} elinde kalacak',
     projection_outcome_over_title: 'Bütçeyi aşacaksın',
@@ -1190,6 +1189,7 @@ export const translations = {
     product_name_placeholder: 'Product Name',
     quantity_placeholder: 'Quantity',
     unit_price_placeholder: 'Unit Price (zł)',
+    discount_placeholder: 'Discount amount (optional)',
     update: 'Update',
     add: 'Add',
 
@@ -1375,6 +1375,7 @@ export const translations = {
     projection_estimated: 'Estimated month-end',
     projection_so_far: 'So far',
     projection_pace_hint: 'If you keep spending at this pace',
+    projection_outlier_note: 'A one-time large expense was excluded from this estimate',
     projection_outcome_save_title: 'You\'ll stay under budget',
     projection_outcome_save_sub: 'About {amount} left over',
     projection_outcome_over_title: 'You\'ll go over budget',
@@ -1465,6 +1466,32 @@ export const translations = {
     month_short_05: 'May', month_short_06: 'Jun', month_short_07: 'Jul', month_short_08: 'Aug',
     month_short_09: 'Sep', month_short_10: 'Oct', month_short_11: 'Nov', month_short_12: 'Dec',
   },
-  az: azLocale as Record<string, string>,
-  ru: ruLocale as Record<string, string>,
 };
+
+// ── i18n locale lazy-load (§8.3) ─────────────────────────────────────────────
+// TR (varsayılan) + EN (fallback tabanı) inline → her zaman yüklü.
+// AZ/RU JSON yalnız seçilince import() ile yüklenir; böylece TR/EN kullanıcılarında
+// startup'ta ~80KB sözlük parse'ı ertelenir. Dil DB'den okunurken (ilk render öncesi,
+// LanguageContext) await edildiğinden "flash of wrong locale" oluşmaz.
+const lazyCache: Partial<Record<Language, Record<string, string>>> = {};
+
+export async function loadLocale(lang: Language): Promise<void> {
+  if (lang === 'tr' || lang === 'en') return;        // eager — inline
+  if (lazyCache[lang]) return;                         // zaten yüklü
+  // Metro/Hermes JSON dinamik import bazen { default } sarar, bazen objeyi doğrudan
+  // döner → her iki şekle dayanıklı oku.
+  if (lang === 'az') {
+    const m: any = await import('./locales/az.json');
+    lazyCache.az = (m.default ?? m) as Record<string, string>;
+  } else if (lang === 'ru') {
+    const m: any = await import('./locales/ru.json');
+    lazyCache.ru = (m.default ?? m) as Record<string, string>;
+  }
+}
+
+/** Bir dilin sözlüğü (yüklüyse). tr/en her zaman; az/ru yalnız `loadLocale` sonrası. */
+export function getDict(lang: Language): Record<string, string> | undefined {
+  if (lang === 'tr') return translations.tr as unknown as Record<string, string>;
+  if (lang === 'en') return translations.en as unknown as Record<string, string>;
+  return lazyCache[lang];
+}

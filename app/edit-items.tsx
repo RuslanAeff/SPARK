@@ -39,6 +39,7 @@ export default function EditItemsScreen() {
   const [itemName, setItemName] = useState('');
   const [quantity, setQuantity] = useState('1');
   const [unitPrice, setUnitPrice] = useState('');
+  const [discount, setDiscount] = useState('');
   const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null);
 
   useEffect(() => {
@@ -61,6 +62,7 @@ export default function EditItemsScreen() {
     setItemName('');
     setQuantity('1');
     setUnitPrice('');
+    setDiscount('');
   }
 
   function handleEditClick(item: ExpenseItem) {
@@ -68,6 +70,8 @@ export default function EditItemsScreen() {
     setItemName(item.name);
     setQuantity(item.quantity.toString());
     setUnitPrice(item.unit_price.toString());
+    const d = effectiveLineDiscount(item);
+    setDiscount(d > 0 ? String(d) : '');
   }
 
   async function handleSaveItem() {
@@ -86,6 +90,13 @@ export default function EditItemsScreen() {
     const totalPrice = q * up;
     const expenseId = parseInt(id);
 
+    const disc = parseFloat((discount || '').replace(',', '.'));
+    const hasDisc = !isNaN(disc) && disc > 0.001;
+    const discFields = {
+      line_discount: hasDisc ? disc : null,
+      list_line_total_before_discount: hasDisc ? totalPrice + disc : null,
+    };
+
     try {
       if (editingItemId) {
         await ExpenseDao.updateItem(editingItemId, {
@@ -94,6 +105,7 @@ export default function EditItemsScreen() {
           quantity: q,
           unit_price: up,
           total_price: totalPrice,
+          ...discFields,
         });
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         SparkToast.show(t('item_updated'), 'success');
@@ -106,6 +118,7 @@ export default function EditItemsScreen() {
           unit_price: up,
           total_price: totalPrice,
           category_id: null,
+          ...discFields,
         });
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         SparkToast.show(t('item_added'), 'success');
@@ -246,6 +259,14 @@ export default function EditItemsScreen() {
               onChangeText={setUnitPrice}
             />
           </View>
+          <TextInput
+            style={styles.input}
+            placeholder={t('discount_placeholder')}
+            placeholderTextColor={Colors.textMuted}
+            keyboardType="decimal-pad"
+            value={discount}
+            onChangeText={setDiscount}
+          />
           <Pressable
             style={({ pressed }) => [styles.saveBtn, pressed && styles.saveBtnPressed]}
             onPress={handleSaveItem}

@@ -12,6 +12,20 @@ export async function getDatabase(): Promise<SQLite.SQLiteDatabase> {
     const instance = await SQLite.openDatabaseAsync('spark.db');
     await instance.execAsync('PRAGMA journal_mode = WAL;');
     await instance.execAsync('PRAGMA foreign_keys = ON;');
+    // Bütünlük kontrolü (§7.5) — disk bozulmasını açılışta erken yakala. quick_check,
+    // integrity_check'in hızlı varyantıdır; sağlamsa tek satır 'ok' döner. Hassas veri
+    // loglanmaz (§7.6); auto-recovery yok — kullanıcı onayı olmadan veriye dokunulmaz.
+    try {
+      const rows = await instance.getAllAsync<Record<string, string>>('PRAGMA quick_check;');
+      const ok = rows.length === 1 && Object.values(rows[0])[0] === 'ok';
+      if (!ok) {
+        console.warn('[DB] integrity check failed');
+      } else if (__DEV__) {
+        console.log('[DB] integrity ok');
+      }
+    } catch (e) {
+      if (__DEV__) console.warn('[DB] integrity check error', e);
+    }
     await instance.execAsync(CREATE_TABLES_SQL);
     try {
       await instance.execAsync('ALTER TABLE expense_items ADD COLUMN turkish_name TEXT;');

@@ -5,13 +5,23 @@ function round2(n: number): number {
   return Math.round(n * 100) / 100;
 }
 
+/**
+ * Eşleştirme için küçük harfe çevirir + Türkçe büyük 'İ'nin `toLowerCase()`'te
+ * ürettiği birleşik noktayı (U+0307) temizler. Aksi halde 'İndirim' → 'i̇ndirim'
+ * olur ve 'indirim' alt dizesini içermez (Hermes'te `toLocaleLowerCase('tr')`
+ * güvenilmez olduğundan tercih edilmez).
+ */
+function normForMatch(s: string): string {
+  return s.toLowerCase().split(String.fromCharCode(0x0307)).join('');
+}
+
 export function isDiscountLineItem(it: ParsedItem): boolean {
   const tp = Number(it.total_price);
   const up = Number(it.unit_price);
   if (tp < -0.0001 || up < -0.0001) return true;
-  const cat = (it.suggested_category || '').toLowerCase();
+  const cat = normForMatch(it.suggested_category || '');
   if (cat.includes('indirim')) return true;
-  const raw = `${it.name || ''} ${it.turkish_name || ''}`.toLowerCase();
+  const raw = normForMatch(`${it.name || ''} ${it.turkish_name || ''}`);
   if (
     /\bdiscount\b|rabat|obniżka|obnizka|promocja|promo|znizk|zniżk|sparen|rabatt/i.test(raw)
   ) {

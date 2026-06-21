@@ -1,22 +1,25 @@
 // S.P.A.R.K. — Dynamic Expo Config
-// S10: EAS projectId ortam değişkeninden okunur, kaynak kodda sabit değil.
-// Kullanım: EAS_PROJECT_ID=xxx npx eas build ...
+// S10: EAS projectId YALNIZCA ortam değişkeninden okunur; kaynak kodda sabit literal yok.
+// Kullanım: yerelde `.env` (EAS_PROJECT_ID=...) — bkz. .env.example; EAS/CI'da secret olarak tanımlanır.
 
 const baseConfig = require('./app.json');
 
 module.exports = () => {
   const config = { ...baseConfig.expo };
 
-  // EAS projectId: CI’da EAS_PROJECT_ID; yerelde aynı Expo projesine bağlanmak için fallback
-  const easProjectId =
-    process.env.EAS_PROJECT_ID || '6e22ef61-4027-4f79-811b-cde50765e90e';
-  config.extra = {
-    ...config.extra,
-    eas: {
-      ...(config.extra && config.extra.eas),
-      projectId: easProjectId,
-    },
-  };
+  const easProjectId = process.env.EAS_PROJECT_ID;
+  if (easProjectId) {
+    config.extra = {
+      ...config.extra,
+      eas: {
+        ...(config.extra && config.extra.eas),
+        projectId: easProjectId,
+      },
+    };
+  } else if (process.env.EAS_BUILD || process.env.CI) {
+    // Yalnızca gerçekten gerektiği bağlamda uyar — yerel `expo start` gürültü yapmasın.
+    console.warn('[app.config] EAS_PROJECT_ID tanımlı değil; EAS build projectId olmadan başarısız olabilir.');
+  }
 
   return config;
 };

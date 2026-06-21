@@ -115,6 +115,7 @@
   "needs_analysis": "Обязательные расходы составляют %{percentage} вашего бюджета.",
   "wants_analysis": "Дискреционные расходы составляют %{percentage} вашего бюджета.",
   "savings_other_analysis": "Сбережения и прочее — %{percentage} вашего бюджета.",
+  "discount_placeholder": "Сумма скидки (если есть)",
   "donut_hint_swipe_right": "Нажмите на график для деталей • Свайп ➔",
   "spending_time": "Время расходов",
   "time_segment": "Интервал времени",

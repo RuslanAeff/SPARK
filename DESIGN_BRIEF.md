@@ -4,7 +4,7 @@
 |------|--------|
 | **Belge amacı** | Tasarımcı, geliştirici ve yapay zekâ asistanlarının projeyi tek kaynaktan anlaması; performans, güvenlik ve tutarlı UX için yol haritası |
 | **Uygulama adı** | **S.P.A.R.K.** (kişisel finans / harcama takibi) |
-| **Son güncelleme** | 8 Haziran 2026 — **sürüm 2.3.1** (`app.json` / `package.json`); işlemler çoklu seçim performans ve kararlılık düzeltmesi (§5.10 - `stateRef` iptali, FlatList `removeClippedSubviews` kapatılması), bütçe döngüsü Dashboard tutarsızlığı giderme (§5.11 - donut, bütçe kartı ve kategori ilerlemelerinin döngü tarih aralığına hizalanması) |
+| **Son güncelleme** | 21 Haziran 2026 (3. tur) — **analiz ekranı `LayoutAnimation` → Reanimated** (§2 — VendorsCard `LinearTransition`, global experimental flag kaldırıldı), **locale lazy-load** (§8.3 — AZ/RU `import()` ile ertelenir), **SQLite açılış bütünlük kontrolü** (§7.5 — `PRAGMA quick_check`). 2. tur: **fiş kalemi indirim düzenleme** (§3.3 `edit-items`), **ay sonu projeksiyonu aykırı-değer rozeti** (§8.1 P16 — `hasOutlier` artık UI'da), **EAS Project ID fallback literali kaldırıldı** (§7.5 S10), **i18n anahtar paritesi guard'ı + ratchet baseline** (§9.1 — AZ/RU'da ~217 bilinen eksik donduruldu). Aynı gün (1. tur): **analiz ekranı dosya bazlı modülerleştirme** (§5.8 / §8.1 P23 — 16 kart `src/components/analytics/`'e ayrıldı, `analytics.tsx` ~4265→~1300 satır), **işlemler listesi `getItemLayout`** (§8.1 P24), **Gemini fiş pipeline sertleştirme** (§8.1 P25 — `items` üst sınırı + 404 model önbelleği). Önceki: 8 Haziran 2026 — sürüm 2.3.1; işlemler çoklu seçim performans/kararlılık (§5.10), bütçe döngüsü Dashboard tutarsızlığı (§5.11) |
 | **Platform** | React Native / Expo — iOS & Android |
 | **Desteklenen diller** | **TR** (Türkçe — varsayılan), **EN** (İngilizce), **AZ** (Azərbaycan), **RU** (Русский) |
 
@@ -30,7 +30,7 @@ S.P.A.R.K, kullanıcıların **harcamalarını yerel olarak** kaydetmesini, **b�
 | Çatı | **Expo SDK ~55**, **expo-router** (dosya tabanlı rota) | Giriş: `app/_layout.tsx`, sekmeler: `app/(tabs)/` |
 | UI | React 19, React Native 0.83 | |
 | Navigasyon | **`@react-navigation/material-top-tabs`** (altta render) + `pager-view` swipe | `app/(tabs)/_layout.tsx` — cam kart tab bar, `insets.bottom` ile jest çubuğu üstünde |
-| Animasyon | **react-native-reanimated 4** (donut, kartlar, bottom-sheet), **react-native-gesture-handler** (Pan jesti), RN `Animated` / `LayoutAnimation` (analiz kartları — yol haritasında Reanimated’e taşınacak) | |
+| Animasyon | **react-native-reanimated 4** (donut, kartlar, bottom-sheet, analiz kart layout geçişleri — VendorsCard `LinearTransition`), **react-native-gesture-handler** (Pan jesti). `LayoutAnimation` + Android `setLayoutAnimationEnabledExperimental` analiz ekranından **kaldırıldı** (Haziran 2026). Kalan legacy RN `Animated` (bilinçli — dönüşüm yüksek riskli): `DraggablePanel` (analiz kart sürükle-sırala, PanResponder), `CountUpText` (animasyonlu sayaç, Reanimated metin primitifi gerektirir), `GlassDeleteModal` (bağımsız modal) | |
 | Grafik | **react-native-svg** | Bar, donut, çizgi grafikleri, heatmap |
 | Veri | **expo-sqlite** (`spark.db`), `PRAGMA journal_mode=WAL`, `foreign_keys=ON` | |
 | Medya | **expo-image-picker**, **expo-file-system**, **expo-image-manipulator** | Fiş: 1536px, JPEG %70 sıkıştırma (`imageCompressor.ts`) |
@@ -75,7 +75,7 @@ app/                    # Ekranlar ve navigasyon (expo-router)
                         # `analytics.tsx` — modüler analiz kartları + sıra/görünürlük (`analytics_card_order`) §5.8
                         # `(tabs)/settings.tsx` artık sadece grup menüsü — detay §5.7
   add-expense.tsx       # Harcama ekle / düzenle
-  edit-items.tsx        # Harcama kalemleri (ürün satırları, şüşevar CTA)
+  edit-items.tsx        # Harcama kalemleri (ürün satırları + satır indirimi düzenleme, şüşevar CTA)
   categories.tsx, goal-settings.tsx, notifications.tsx, subscriptions.tsx,
   settings-general.tsx  # Ayarlar → Genel (dil, para birimi, tema)         §5.7
   settings-budget.tsx   # Ayarlar → Bütçe ve hedefler                      §5.7
@@ -84,6 +84,8 @@ app/                    # Ekranlar ve navigasyon (expo-router)
 
 src/
   components/           # Ortak UI (AnimatedCard, DonutChart, SparkToast, LanguagePickerSheet, …)
+                        #   analytics/ — Analiz ekranı kart bileşenleri (16 kart `React.memo`),
+                        #               analyticsStyles.ts (paylaşımlı StyleSheet), shared.tsx (BaseCardProps + tipler) §5.8
   context/              # Currency, Refresh, Notifications, …
   db/                   # schema, database, DAO’lar (expense, category, vendor, goal, …)
   hooks/                # useExpenses, useBudget, useDatabase, useSavingsGoalData, …
@@ -137,7 +139,7 @@ Yapay zekâ veya raporlama için: harcama toplamları çoğunlukla DAO sorgular�
 | **Tarayıcı** | Kamera/galeri, Gemini fiş önizleme, kaydet / düzenle, **şüşevar** kayıt butonu — **satıcı için varsayılan kategori** atanmışsa Gemini'nin önerisi yerine o kullanılır (§5.4) |
 | **Analiz** | Sürükle-bırak kart sırası, bar/donut, heatmap, satıcı donut + ürün lejantı (Dashboard ile uyumlu animasyon), mikro analiz |
 | **Ayarlar** | **Grup menüsü** (Mayıs 2026 refactor — §5.7): ana sekme ekranı 4 grup kartı + About'tan ibaret. Her kart `slide_from_right` ile alt sayfayı açar. **Genel** (§5.7 — dil, para birimi, tema/auto-schedule), **Bütçe ve hedefler** (§5.7 — bütçe + geçmiş, hedef özellik anahtarı, kategoriler linki), **Veri ve yedek** (§5.7 — satıcı yönetimi §5.4, abonelikler linki §5.5, yedek al/geri yükle §5.3), **Yapay zekâ** (§5.7 — Gemini API anahtarı). Önceki tek-sayfa monolitik yapı kaldırıldı; tüm bilgi-modal'ları (`SettingsInfoHintModal`) ilgili alt sayfaya taşındı. |
-| **Harcama / ürün** | `add-expense` (satıcı yazılınca varsayılan kategori otomatik dolar), `edit-items` (satır indirimi gösterimi, şüşevar) |
+| **Harcama / ürün** | `add-expense` (satıcı yazılınca varsayılan kategori otomatik dolar), `edit-items` (kalem ekle/düzenle; satır indirimi **gösterim + düzenleme** — formda `discount_placeholder` indirim alanı. Model: `total_price`=NET (ödenen); indirim>0 ise `line_discount`=indirim & `list_line_total_before_discount`=NET+indirim (brüt), alan boş bırakılınca ikisi de `null` → indirim temizlenir. Gösterim/okuma mantığı `receiptLineDiscountUi.ts` (`lineHasDiscount`/`effectiveLineDiscount`); şüşevar) |
 | **Abonelikler** | `app/subscriptions.tsx` — yerel veriden tespit edilen tekrar eden ödemeler, tahmini aylık toplam, "abonelik değil" gizleme — §5.5 |
 | **Bildirimler** | `app/notifications.tsx` + `NotificationsContext` + `src/notifications/*` (feed, kural motoru, sessize alma türleri — yedek hatırlatması, abonelik yaklaşan ödeme, **aylık otomatik özet** dahil) |
 
@@ -310,9 +312,11 @@ app/(tabs)/settings.tsx        # Sadece grup kartları + About
 3. Bilgi-modal'ları (`SettingsInfoHintModal`) ait olduğu alt sayfada tanımlanmalıdır; ana grup menüsüne eklenmemelidir.
 4. Modal seçimi semantik: yıkıcı aksiyon (sil) → `GlassDeleteModal`; yapıcı/nötr onay (kaydet, içe aktar, dışa aktar, dil değiştir) → `ConfirmModal` (`tone="primary"`). Bu kurala §5.3 import onayında uyulmamış olduğu Mayıs 2026'da düzeltildi.
 
-### 5.8 Analiz kartları sistemi (Mayıs 2026 — v2.2)
+### 5.8 Analiz kartları sistemi (Mayıs 2026 — v2.2; Haziran 2026 — dosya bazlı modülerleştirme)
 
-Tüm Analiz ekranı tek bir `analytics.tsx` içinde **modüler kart kataloğu** olarak organize edilir. Kartlar kullanıcı tarafından eklenebilir/kaldırılabilir/sıralanabilir; düzen `settings.analytics_card_order` anahtarında JSON olarak saklanır.
+Analiz ekranı bir **modüler kart kataloğu** olarak organize edilir. Kartlar kullanıcı tarafından eklenebilir/kaldırılabilir/sıralanabilir; düzen `settings.analytics_card_order` anahtarında JSON olarak saklanır.
+
+> **Haziran 2026 — modülerleştirme (P23):** Eski `analytics.tsx` (~4265 satır) parçalandı. Artık **her kart kendi `React.memo` bileşeni** olarak `src/components/analytics/` altında yaşar (`ChartCard.tsx`, `BudgetCard.tsx`, `VendorsCard.tsx`, … 16 kart). `analytics.tsx` (~1300 satır) yalnızca **orkestratör**dür: state + veri hook'ları + `loadX()` loader'ları + türetilmiş `useMemo` özetleri + sürükle/düzenle/`loadCardConfig` + ince `renderCard` dispatcher'ı. Paylaşımlı parçalar: dev StyleSheet `src/components/analytics/analyticsStyles.ts` (`getAnalyticsStyles()` — parent bir kez `useMemo([scheme])` ile üretip her karta `styles` prop'u geçer; kartlar **kendi içinde çağırmaz** — P10/P12), ortak tip/yardımcılar `src/components/analytics/shared.tsx` (`BaseCardProps`, kart `*Info` tipleri, `CountUpText`, `Timeframe`). Her kart `BaseCardProps`'u (`styles, t, tc, currency`) `extends` eder; parent bunları tek `cardBase = useMemo(...)` ile `{...cardBase}` olarak yayar (P11 — referans-kararlı → memo etkili).
 
 **Katalog (`ALL_CARDS`):**
 
@@ -359,13 +363,14 @@ Tüm Analiz ekranı tek bir `analytics.tsx` içinde **modüler kart kataloğu** 
 
 **Yeni kart ekleme adımları:**
 
-1. Veri katmanı: ya yeni DAO metodu (`ExpenseDao.*`) ya `loadXxx()` async + `useState`.
-2. `useMemo` ile özet → `{ available: false } | { available: true, ...stats }` patern'i.
-3. `ALL_CARDS` listesine `{ id, icon, labelKey: 'card_<id>' }` kaydı.
-4. Varsayılan açık olacaksa `DEFAULT_ACTIVE` array'ine ekle.
-5. `renderCard` içinde yeni `if (id === '<id>')` bloğu — boş durum + dolu durum.
-6. Stil bloğu: `// ── A<n>: <Name> ──` yorumu altında küçük ön ekli (`projX`, `subsX`, `goalX`...) keylerle.
-7. i18n: `card_<id>` etiketi + alanlar; **TR + EN** `translations.ts` inline, **AZ + RU** `locales/*.json`. Çakışan generic anahtardan kaçın → `<feature>_card_*` öneki tercih edilir (mevcut `subscriptions_*` çakışması bu nedenle `subs_card_*` olarak ayrıldı).
+1. Veri katmanı: ya yeni DAO metodu (`ExpenseDao.*`) ya `loadXxx()` async + `useState` (`analytics.tsx` parent'ında).
+2. `useMemo` ile özet → `{ available: false } | { available: true, ...stats }` patern'i (parent'ta). Tipi `shared.tsx`'e ekle (ör. `XInfo`).
+3. **Kart bileşeni:** `src/components/analytics/<Name>Card.tsx` — `interface <Name>CardProps extends BaseCardProps { ...veri/callback }`, `function ...({ styles, t, ... })`, `export default React.memo(<Name>Card)`. Veri prop'ları parent'ta memoize/state olmalı; callback'ler `useCallback` (P11). Stiller `styles` prop'undan gelir (kart **`getAnalyticsStyles()` çağırmaz**).
+4. `ALL_CARDS` listesine `{ id, icon, labelKey: 'card_<id>' }` kaydı.
+5. Varsayılan açık olacaksa `DEFAULT_ACTIVE` array'ine ekle.
+6. `renderCard` içinde yeni `} else if (id === '<id>') { content = (<XCard {...cardBase} ... />); }` dalı + en üste `import`. Boş/dolu durum ayrımı kart bileşeninin **içinde** (early-return).
+7. Stil bloğu: `analyticsStyles.ts` içinde küçük ön ekli (`projX`, `subsX`, `goalX`...) keylerle.
+8. i18n: `card_<id>` etiketi + alanlar; **TR + EN** `translations.ts` inline, **AZ + RU** `locales/*.json`. Çakışan generic anahtardan kaçın → `<feature>_card_*` öneki tercih edilir (mevcut `subscriptions_*` çakışması bu nedenle `subs_card_*` olarak ayrıldı).
 
 **Migration kuralı (`loadCardConfig`):**
 
@@ -572,7 +577,7 @@ AnimatedCard, BudgetCard, SpendingHeatmap, BarChart, DonutChart, LineChart, Cust
 | S7 | **Vendor/Category isim sanitizasyonu yok** | `sanitizeText(name, maxLen)` ile kontrol karakter temizliği, uzunluk sınırı (vendor 200, category 100 karakter) ve boş isim engeli eklendi | `src/db/vendorDao.ts`, `src/db/categoryDao.ts` |
 | S8 | **Gemini JSON proto-pollution** | `coerceParsedReceipt()` fonksiyonuna `stripDangerousKeys()` eklendi. `__proto__`, `constructor`, `prototype` gibi tehlikeli anahtarlar tüm nesne ağacında özyinelemeli olarak temizleniyor | `src/services/geminiService.ts`, `src/utils/inputValidation.ts` |
 | S9 | **`deleteMany` toplu silme — sınır yok** | `sanitizeIdArray(ids, 500)` + 400'lük SQL chunk'lara bölme. SQLite ~999 placeholder limiti koruması | `src/db/expenseDao.ts`, `src/utils/inputValidation.ts` |
-| S10 | **EAS Project ID kaynak kodda sabit** | `app.config.js` ile ortam değişkeninden (`EAS_PROJECT_ID`) okunuyor; `app.json`'dan kaldırıldı | `app.config.js` (yeni), `app.json`, `.env.example` (yeni) |
+| S10 | **EAS Project ID kaynak kodda sabit** | `app.config.js` ile **yalnızca** ortam değişkeninden (`EAS_PROJECT_ID`) okunuyor; `app.json`'dan ve **kaynak koddaki fallback literalinden de** tamamen kaldırıldı (Haziran 2026). Anahtar yoksa yalnız EAS/CI bağlamında uyarı verir; yerel `expo start` gürültü yapmaz | `app.config.js`, `app.json`, `.env.example` |
 | S11 | **Model cache yarış durumu** | `_modelCachePromise` ile in-flight dedup: eşzamanlı `discoverModels()` çağrıları tek network isteğine birleşir | `src/services/geminiService.ts` |
 
 ### 7.3 Güvenlik katmanı — `inputValidation.ts` API referansı
@@ -608,10 +613,10 @@ AnimatedCard, BudgetCard, SpendingHeatmap, BarChart, DonutChart, LineChart, Cust
 | **İsim sanitizasyonu** | ✅ Aktif | Vendor 200, Category 100, text 500 karakter |
 | **Toplu silme sınırı** | ✅ Aktif | 500 ID, 400'lük SQL chunk'lar |
 | **Proto-pollution** | ✅ Aktif | `stripDangerousKeys` Gemini yanıtında |
-| **EAS Project ID** | ✅ Ortam değişkeni | `app.config.js` — `EAS_PROJECT_ID` |
+| **EAS Project ID** | ✅ Ortam değişkeni | `app.config.js` — `EAS_PROJECT_ID`; kaynak kodda **fallback literal yok** (Haziran 2026) |
 | **Model cache** | ✅ Race-free | in-flight promise dedup |
 | **Fiş görüntüsü base64** | ⚠️ İzleniyor | Log'lara sızmaması için dikkat gerekli |
-| **SQLite bütünlük** | ⚠️ Takip etmek | `PRAGMA integrity_check` opsiyonel eklenebilir |
+| **SQLite bütünlük** | ✅ Aktif | Açılışta `PRAGMA quick_check` (init'te tek sefer); bozulmada anonim `console.warn`, auto-recovery yok (kullanıcı onayı olmadan veriye dokunulmaz) — `src/db/database.ts` |
 | **Gizlilik politikası** | ✅ Yayında | `https://ruslanaeff.github.io/privacy-policy.html` — GitHub Pages, TR+EN, dark-themed HTML |
 
 ### 7.6 Loglama politikası
@@ -648,7 +653,7 @@ Yeni bir DAO yazarken önce `normalizeXxxPatch` yardımcısı tanımlanıp hem `
 
 > Bu bölüm Nisan–Mayıs 2026 performans denetimine dayanır. **P1–P13** kapatıldı (P1–P6 ilk dalga, P7–P11 ikinci dalga, P12 tema mağazası + ilk render senkronu, P13 işlemler listesi Android clip).
 
-### 8.1 Tamamlanan performans iyileştirmeleri (P1–P13)
+### 8.1 Tamamlanan performans iyileştirmeleri (P1–P25)
 
 | # | Sorun | Çözüm | İlgili dosyalar |
 |---|-------|-------|------------------|
@@ -668,13 +673,16 @@ Yeni bir DAO yazarken önce `normalizeXxxPatch` yardımcısı tanımlanıp hem `
 | P13 | **`FlatList` `removeClippedSubviews` toggle bug'ı (Android)** | Toplu seçim modu girişinde `removeClippedSubviews={!selectionMode}` ifadesi `true → false` geçince Android'de bazı satırların native view'leri "clipped" durumda takılı kalıyor → satırlar yer tutar ama **görünmez ve dokunulmaz** oluyordu (tarih başlıkları virtualization dışı olduğu için görünmeye devam ediyor, kullanıcı "satırlar kayboldu" olarak algılıyor). Bilinen RN Android quirk'i: prop runtime'da değiştirilince clip'lenmiş subview'ler otomatik geri yüklenmiyor. **Çözüm:** prop sabit `false` yapıldı; `usePaginatedExpenses(60)` ile DB seviyesinde sayfalama zaten aktif olduğundan virtualization'ın tek başına yükü yeterli. | `app/(tabs)/transactions.tsx` |
 | P14 | **Limit Sağlığı kartı N+1** (`loadCategoryLimits`) | Eski akış: limit listesi (1 SQL) + tüm kategoriler (1 SQL) + her limit için `getSpentForCategoryInRange` (alt kategori sorgusu + harcama toplamı = 2 SQL/limit). 5 limit için **11 SQL roundtrip**. Yeni `CategoryLimitDao.getForMonthWithSpending(month, start, end)` tek sorguda limit + kategori meta + alt kategoriler dahil aralık harcamasını JOIN/GROUP ile döner → **1 SQL**. Pull-to-refresh ve ekran açılış gecikmesi belirgin azaldı. | `src/db/categoryLimitDao.ts`, `app/(tabs)/analytics.tsx` |
 | P15 | **`SparkToast` flicker — aynı içerik tetiklendiğinde popup yere düşüp tekrar açılıyor** | Aynı toast mesajı bir form-kaydet akışında 2 kez (handler + sonraki state effect'i) çağrıldığında, `_show` her seferinde animasyon değerlerini sıfırlayıp yeniden başlatıyordu → kullanıcıya yanıp sönme olarak görünüyor. **Çözüm:** `activeKeyRef = "${type}\|${message}\|${submessage}"`; aynı key aktifken sadece auto-dismiss timer ve `progW` (progress bar) sıfırlanır, animasyon/state'e dokunulmaz. Toast kapandığında `activeKeyRef = null`. | `src/components/SparkToast.tsx` |
-| P16 | **Ay sonu projeksiyonu — outlier'a aşırı duyarlı** | Naive `currentTotal / dayOfMonth × totalDaysInMonth` kira/fatura/elektronik gibi tek seferlik büyük harcamalardan sonra abartılı projeksiyon veriyor (ör. 5. günde 2.000 zł kira → ay sonu 12.000+ zł tahmini). **Çözüm:** Ay başından bugüne sparse `dailyData` 0 günler dahil dense diziye genişletilir, sıralanır, **üst %20 trim** edilir; kalanın ortalaması `trimmedDailyPace` olur. Projeksiyon = `currentTotal + daysLeft × trimmedDailyPace`. `currentSpent` (gerçek harcanan) ve track-bar "şu ana kadar" segmenti değişmez; sadece **kalan gün için tahmin** gürültüden arındırılır. `hasOutlier = naivePace > trimmedPace × 1.5` flag'i ileride bilgi rozeti için döner. | `app/(tabs)/analytics.tsx` (`projectionInfo` useMemo) |
+| P16 | **Ay sonu projeksiyonu — outlier'a aşırı duyarlı** | Naive `currentTotal / dayOfMonth × totalDaysInMonth` kira/fatura/elektronik gibi tek seferlik büyük harcamalardan sonra abartılı projeksiyon veriyor (ör. 5. günde 2.000 zł kira → ay sonu 12.000+ zł tahmini). **Çözüm:** Ay başından bugüne sparse `dailyData` 0 günler dahil dense diziye genişletilir, sıralanır, **üst %20 trim** edilir; kalanın ortalaması `trimmedDailyPace` olur. Projeksiyon = `currentTotal + daysLeft × trimmedDailyPace`. `currentSpent` (gerçek harcanan) ve track-bar "şu ana kadar" segmenti değişmez; sadece **kalan gün için tahmin** gürültüden arındırılır. `hasOutlier = naivePace > trimmedPace × 1.5` flag'i `ProjectionCard`'ta **bilgi rozeti** olarak gösterilir (Haziran 2026 — `projection_outlier_note`: "tek seferlik büyük harcama tahminden ayıklandı"). | `app/(tabs)/analytics.tsx` (`projectionInfo` useMemo), `src/components/analytics/ProjectionCard.tsx` |
 | P17 | **`dateUtils` timezone bug — `toISOString()` UTC'ye çeviriyor** | `getToday()`, `getEndOfMonth()`, `normalizeToYYYYMMDD()` `Date.toISOString().split('T')[0]` kullanıyordu. UTC+3 cihazlarda gece yarısı civarında "bugün" ertesi günü dönebiliyor; `getEndOfMonth(Şubat 2026)` `28` yerine `27` veriyordu. Yan etki: yanlış güne kaydedilen harcamalar, projeksiyon kartında 1 gün eksik hesap, ay sonu rapor karışmaları. **Çözüm:** Yerel takvim gününü garanti eden `toLocalYmd(date)` helper'ı eklendi (`${y}-${MM}-${DD}` padStart) ve üç yerde de çağrılır oldu. `__tests__/dateUtils.test.ts` regresyon testi ekledi (Şubat 28/29, Aralık 31, Nisan 30 doğrulamaları). | `src/utils/dateUtils.ts`, `src/utils/__tests__/dateUtils.test.ts`, `app/onboarding.tsx` (yeni dosyada da `new Date().toISOString().slice(0,7)` tekrar üretilmişti, `getStartOfMonth().substring(0,7)` ile değiştirildi) |
 | P18 | **`Colors` proxy `Appearance.getColorScheme()` stale dönüyor (P12 nüksü)** | `_layout.tsx` Stack'i splash sırasında daima mount edildikten sonra (route registry erişimi için zorunlu), tema henüz DB'den okunmadan render edilen kartlar OS scheme'ini yakalıyor. Android'de `Appearance.setColorScheme()` sonrası `Appearance.getColorScheme()` her zaman güncellenmiyor → aydınlık modda bazı kartlar (özellikle koşullu render edilen budget kartı) siyah donuyor. **Çözüm:** `Colors` proxy artık `themeStore.getAppThemeSnapshot()` üzerinden okuyor (lazy `require` ile circular import güvenli, ilk modül yükleme sırasında Appearance fallback). themeStore manuel `notifyThemeChanged()` ve OS değişimi her ikisini de takip ettiği için stale dönmez. | `src/theme/colors.ts` |
 | P19 | **Drag-to-multiselect başlangıç sıçraması** | `transactions.tsx` çoklu seçim drag akışında, drag aktivasyonunda `refreshControl={dragSelecting ? undefined : <RefreshControl/>}` ile prop tamamen kaldırılıyordu → FlatList iç scroll yapısını sıfırlıyor → liste birden en üste sıçrıyor (kullanıcı görünüm: "elini bırakmadan aşağı sürüklerken birden başa atıyor"). **Çözüm:** `RefreshControl` her zaman bağlı; drag aktifken Android'in `enabled={!dragSelecting}` prop'u ile pull-to-refresh kapatılıyor. Mount/unmount yaşanmadığı için scroll state korunuyor. iOS'ta `enabled` prop ignore edilir; orada `scrollEnabled={!dragSelecting}` zaten parmak scroll'u keserek refresh tetikleyicisini de pasifleştiriyor. | `app/(tabs)/transactions.tsx` |
 | P20 | **İlk açılış splash'inde Stack mount edilmiyor → `router.replace('/onboarding')` kilitleniyor** | Eski `_layout.tsx` `if (!isReady || ...) return <Splash/>` ile Stack'i tamamen render etmiyor; bu durumda `router.replace('/onboarding')` çağrısı henüz tanımlı olmayan route'u arıyor → uygulama splash'te sonsuz dönüyor. **Çözüm:** Stack daima render edilir, splash bir **overlay** olarak (`StyleSheet.absoluteFillObject`, `zIndex: 100`) `showSplash` koşuluyla üzerine bindirilir. Yönlendirme effect'i `onboardingHandledRef` guard'ı ile tek sefer çalışır. Provider'lar (Language/Currency/...) ve route registry hep mount, splash bittiğinde overlay kalkar. | `app/_layout.tsx` |
 | P21 | **Analiz — alt kategori seçiminde ScrollView zıplaması ve boş Satıcılar kartı** | Alt kategoriler (`subcats`) daha önce Satıcılar kartı içinde koşullu gösteriliyordu. Kategoriye tıklanınca kartın yüksekliği ani değişiyor → ScrollView layout yeniden hesaplıyor → kullanıcı sayfanın istemediği bir yerine sıçrıyordu. Ek sorun: "Diğer" kategorisinde `subcats.length === 0` olduğu için Satıcılar kartı da boşalıyordu. **Çözüm:** Alt kategori bölümü `categories` kartının içine taşındı — seçili kategori altında `FadeInDown`/`FadeOutUp` animasyonlu inline genişleyen bölüm. `subcats.length === 0` ise `t('no_sub_categories')` boş durumu gösteriliyor. Satıcılar kartı her zaman satıcıları gösteriyor. | `app/(tabs)/analytics.tsx` |
 | P22 | **120Hz cihazlarda scroll sırasında FPS/Hz düşüşü** | `AnimatedCard` `elevation` gölgesi her kaydırma frame'inde CPU'da yeniden rasterize ediliyordu. Android glow efekti GPU bant genişliği tüketiyordu. **Çözüm:** (1) `AnimatedCard` → `renderToHardwareTextureAndroid` — kart bir kez GPU texture'ına alınır, scroll sırasında CPU rasterize yapılmaz (en büyük kazanım). (2) Ana `ScrollView`'lara `overScrollMode="never"` — Android sınır glow efekti kaldırıldı. | `src/components/AnimatedCard.tsx`, `app/(tabs)/index.tsx`, `app/(tabs)/analytics.tsx` |
+| P23 | **Analiz ekranı 4265 satırlık tek dosya** | `analytics.tsx` dev bir `renderCard` (~1440 satır if/else) + `getStyles` (~1660 satır) barındırıyordu; her küçük state değişiminde tüm inline JSX yeniden değerlendiriliyordu (§8.3 eski madde). **Çözüm:** 16 kart ayrı `React.memo` bileşenine bölündü (`src/components/analytics/<X>Card.tsx`); StyleSheet `analyticsStyles.ts`'e, ortak tip/yardımcılar `shared.tsx`'e taşındı. `analytics.tsx` (~1300 satır) orkestratör kaldı. Parent `cardBase = useMemo({styles,t,tc,currency})` + her kart `BaseCardProps`'u `extends` eder → sadece verisi değişen kart re-render olur (P11 ilkesinin tüm ekrana yayılması). Davranış/tasarım birebir; JSX verbatim taşındı. | `app/(tabs)/analytics.tsx`, `src/components/analytics/*` |
+| P24 | **İşlemler listesi `getItemLayout` yok** | `FlatList` her hücreyi async ölçüyor; hızlı kaydırmada tahmin maliyeti + `scrollToOffset` belirsizliği. **Çözüm:** stabil-kimlikli, **mod-duyarlı** (normal/seçim satır yüksekliği ayrı), **runtime-ölçümlü** (fontScale/cihaz dayanıklı) `getItemLayout`. Offsetler `offsetsRef`'ten okunur → prop kimliği hiç değişmez (TOGGLE YOK — P13/P19 dersi: seçim moduna geçişte FlatList prop'u değiştirmek scroll/native regresyonu doğuruyordu). Drag hit-testi de aynı ölçümleri kullanır. | `app/(tabs)/transactions.tsx` |
+| P25 | **Gemini fiş pipeline — kalem patlaması + 404 model tekrar denemesi** | Halüsinasyonlu yanıtta `items` çok büyük olabilir (UI + DB toplu INSERT şişmesi); generateContent 404 dönen modeller her taramada yeniden deneniyordu (gecikme). **Çözüm:** (1) `coerceParsedReceipt`'te `items` `slice(0, 500)` üst sınırı (`raw.total` korunur). (2) 404 dönen modeller `FAILED_MODEL_TTL` (10 dk) boyunca atlanır (`_failedModels` Map) — kademeli geri-düşüş ile asla "hiç model yok" durumuna düşmez. | `src/services/geminiService.ts` |
 
 ### 8.2 Performans kuralları — yeni katkılar için
 
@@ -698,11 +706,11 @@ P1–P13 denetim bulguları tamamlandıktan sonra orta öncelikli olarak takip e
 
 | Alan | Gözlem | Öneri |
 |------|--------|-------|
-| **Locale bundle** | `translations.ts` (TR+EN inline) startup’ta yüklenir | `import()` ile **lazy-load** + cache |
-| **Gemini** | Büyük `maxOutputTokens`, sıralı model denemesi | Başarısız modelleri kısa süre önbellekle; `items` uzunluğunu `slice(0, 500)` |
+| **Locale bundle** | `translations.ts` (TR+EN inline) startup’ta yüklenir | ✅ **Tamamlandı (Haziran 2026):** TR/EN inline (varsayılan + fallback) eager kalır; AZ/RU JSON `import()` ile **lazy** — dil DB'den okunurken `LanguageContext` `loadLocale(lang)`'ı ilk render'dan önce `await` eder (flash yok). API: `loadLocale()` + `getDict()` resolver. TR/EN kullanıcısında ~80KB sözlük parse'ı ertelenir. |
+| **Gemini** | Büyük `maxOutputTokens`, sıralı model denemesi | ✅ **Tamamlandı (P25):** 404 model 10 dk önbelleği + `items` `slice(0, 500)`. (`maxOutputTokens` 8192'de bırakıldı — düşürmek uzun fişlerde JSON kesilmesi riski.) |
 | **Startup** | DB init + dil yükü tamamlanana kadar siyah | Kritik olmayanları `InteractionManager.runAfterInteractions` ile ertele |
-| **Analiz ekranı boyutu** | `app/(tabs)/analytics.tsx` 2000+ satır | Her `card` id’si için ayrı alt bileşen + `React.memo` — P11 sonrası inline JSX maliyeti düşmeye devam eder |
-| **Liste — sabit yükseklik** | `TransactionRow` varyant yükseklikleri (seçim modu +1px vb.) | Sabit satır yüksekliği ölçüp `getItemLayout` eklenerek scroll’un tahmin maliyeti sıfırlanabilir |
+| **Analiz ekranı boyutu** | `app/(tabs)/analytics.tsx` 2000+ satır | ✅ **Tamamlandı (P23):** 16 kart ayrı `React.memo` bileşeni + paylaşımlı `analyticsStyles.ts`/`shared.tsx`; orkestratör ~1300 satıra indi. |
+| **Liste — sabit yükseklik** | `TransactionRow` varyant yükseklikleri (seçim modu +1px vb.) | ✅ **Tamamlandı (P24):** mod-duyarlı + runtime-ölçümlü stabil `getItemLayout`. |
 
 ### 8.4 Context performans kuralları (uygulandı — P7)
 
@@ -728,8 +736,8 @@ P1–P13 denetim bulguları tamamlandıktan sonra orta öncelikli olarak takip e
 
 - **TypeScript:** her commit’ten önce `npx tsc --noEmit`. PR kontrol listesi zorunlu madde.
 - **Linter:** kod eklerken `ReadLints` / editör uyarıları sıfır bırakılmalı.
-- **Otomatik test (kuruldu — v2.3):** **Jest** (`jest-expo` preset) ile birim test altyapısı; `npm test`, `npm run test:watch`, `npm run typecheck` script'leri. Kapsanan kritik yardımcılar: `formatCurrency`, `dateUtils`, `itemNameNormalizer`, `inputValidation` — **47 test, 4 suite**. Bileşen/E2E için **React Native Testing Library** + **Maestro** önerisi açık (DAO ve hook'ların üstüne genişletilebilir). **GitHub Actions CI** (`.github/workflows/ci.yml`): her `push` ve `pull_request` üzerinde Node 20 ile `npm ci` → `npm run typecheck` → `npm test --ci`. Test/CI değiştiğinde §12 bakım kuralına göre `package.json` script'leri ve workflow dosyası birlikte güncellenmelidir.
-- **Hata sınırı:** `ErrorBoundary` analiz ekranında aktif; kök `app/_layout.tsx`-e de sarmalama yol haritasındadır (güvenlik bulguları §7.10 ile paralel).
+- **Otomatik test (kuruldu — v2.3; Haziran 2026 genişletildi):** **Jest** (`jest-expo` preset) ile birim test altyapısı; `npm test`, `npm run test:watch`, `npm run typecheck` script'leri. **150 test, 18 suite** — saf-mantık: `formatCurrency`, `dateUtils`, `itemNameNormalizer`, `inputValidation`, `budgetCycle`, `currencyMeta`, `vendorPlaceholders`, `receiptLineDiscountUi` (utils) + `receiptLineMerge`, `geminiParse` (coerce/items-cap/JSON onarım), `subscriptionDetector` (detectForVendor) (services) + `localeParity` (i18n 4-dil anahtar paritesi — ratchet, aşağı bkz.); **bileşen testleri:** analiz kartları `SubscriptionsCard`, `MonthlyCompareCard`, `SilentSpendCard`, `TopTxCard`, `LimitsHealthCard` (boş/dolu durum + callback). **Saf test deseni:** native bağımlı modülleri (`secureKeyStore`/`expo-secure-store`, `db/database`/`expo-sqlite`, `db/*Dao`) `jest.mock(...)` ile değiştir; test edilecek saf fonksiyonu gerekirse `export` et (ör. `coerceParsedReceipt`, `tryJsonToReceipt`, `detectForVendor`). **Bileşen test altyapısı (Haziran 2026):** `@testing-library/react-native@14` + `test-renderer@1` (RNTL 14 React 19 için `react-test-renderer` yerine `test-renderer` paketini kullanır). **Dikkat:** RNTL 14'te `render` **async**'tir → `const { getByText } = await render(<X/>)`. `react-native-reanimated` 4'ün jest mock'u bozuk olduğundan `__mocks__/react-native-reanimated.js` (kök) hafif bir stub sağlar (jest node_modules komşusu `__mocks__`'u otomatik kullanır); animasyon prop'ları (`entering/exiting/layout`) ayıklanır. Kart testinde `styles` için `getAnalyticsStyles()`, `t`/`tc` için `(k)=>k` (anahtar döner → metin doğrulaması) kullanılır. Hook/DAO testleri için DAO/SQLite mock stratejisi + **Maestro** (E2E) önerisi açık. **GitHub Actions CI** (`.github/workflows/ci.yml`): her `push` ve `pull_request` üzerinde Node 20 ile `npm ci` → `npm run typecheck` → `npm test --ci`. Test/CI değiştiğinde §12 bakım kuralına göre `package.json` script'leri ve workflow dosyası birlikte güncellenmelidir.
+- **Hata sınırı (Haziran 2026 — TAMAMLANDI):** `ErrorBoundary` hem analiz ekranında hem **kökte** (`app/_layout.tsx` → `RootLayout` içeriği `RootLayoutContent` olarak ayrılıp `<ErrorBoundary>` ile sarıldı) aktif. Böylece sağlayıcılar + `Stack` + erken-dönüş dalları dahil herhangi bir ekranın render hatası tüm uygulamayı boş/siyah ekrana düşürmez. `ErrorBoundary` fallback'i çift modlu: **geliştirmede** tam tanılama (mesaj + component/JS stack), **üretimde** sade kullanıcı dostu kurtarma ekranı ("Bir şeyler ters gitti" + **Tekrar Dene** → boundary state reset). Tema duyarlı (`Colors` proxy).
 - **i18n:** Yeni metinler `translations.ts` / `locales/*.json` içinde **dört dilde** (TR/EN/AZ/RU) anahtarlarıyla eklenmelidir; eksik çeviri fallback olarak TR’ye düşer.
 
 ### 9.1 i18n workflow (TR + EN + AZ + RU)
@@ -754,7 +762,9 @@ P1–P13 denetim bulguları tamamlandıktan sonra orta öncelikli olarak takip e
 2. Anahtarı uygun `map-az-*.json` / `map-ru-*.json` dosyasına ekle (yoksa yeni bir `map-az-N.json` oluştur).
 3. `node src/i18n/compilePartial.mjs` ile `az.json` / `ru.json` yeniden üretilir.
 4. `node src/i18n/buildLocales.mjs` ile anahtar sırası ve kaynak sözlük doğrulanır.
-5. Eksik çeviri runtime’da `en` → `tr` fallback’ine düşer; ancak CI’da eksik anahtar **uyarı** bırakmalı.
+5. Eksik çeviri runtime’da `en` → `tr` fallback’ine düşer.
+
+**Anahtar paritesi guard'ı (Haziran 2026 — `src/i18n/__tests__/localeParity.test.ts`):** TR kaynak alınır; EN/AZ/RU eksik/fazla anahtarlar test edilir → `npm test` (dolayısıyla CI) her **yeni** drift'te kırmızıya düşer. **EN inline TR ile tam paritede** olmalı (baseline'a izin yok). AZ/RU için mevcut borç `src/i18n/locales/_parityBaseline.json`'da **dondurulmuş** (ratchet): yalnız baseline dışı yeni eksikler hata; çevrilmiş anahtarlar baseline'dan çıkarılınca "stale baseline" testi uyarır → borç yalnız küçülebilir. **Bilinen borç:** `_en.json`/map dosyaları inline EN'den ayrışmış olduğu için AZ ve RU'da **~217'şer anahtar eksik** (projeksiyon, bildirim şablonları, onboarding, hedef katkıları, ayarlar grupları, bütçe döngüsü vb. — tüm kart/ekran fallback gösteriyor). Yeni anahtar eklerken bu sayıyı **artırma**; mümkünse baseline'dan birkaç anahtar **çevirip çıkararak** azalt.
 
 **Kural:** UI’da `t('tab_dashboard')` gibi kullan; **bu repoda dize literali hardcode** etme. Yeni tanımlayıcı anahtar isimleri `snake_case` ve alan ön ekiyle (`settings_*`, `notif_*`, `cat_*`, `language_*`).
 
@@ -769,7 +779,7 @@ P1–P13 denetim bulguları tamamlandıktan sonra orta öncelikli olarak takip e
 5. **Fiş pipeline:** `geminiService.ts`, `receiptJsonRepair.ts`, `receiptLineMerge.ts` — değişikliklerden önce geriye dönük uyumluluğu kontrol et; `stripDangerousKeys` ve `items` kapsaması §7.2 / §7.7.
 6. **Girdi/çıktı güvenliği:** Tüm DAO mutasyonları `inputValidation.ts` üzerinden — §7.3 + §7.7.
 7. **i18n ve erişilebilirlik:** Yeni metinler **TR/EN/AZ/RU** dördü için eklenmelidir — §9.1 workflow’u.
-8. **Ortam değişkenleri:** EAS bulut derlemeleri için `EAS_PROJECT_ID` **secret** olarak tanımlanmalı; kaynak kod fallback literali **release için kaldırılmalıdır** (§7.5 “EAS Project ID” ve §12).
+8. **Ortam değişkenleri:** EAS bulut derlemeleri için `EAS_PROJECT_ID` **secret** olarak tanımlanmalı; kaynak koddaki fallback literali **kaldırıldı** (Haziran 2026 — yerelde `.env`, EAS/CI'da secret). Yeni ortam sabitleri eklerken aynı kalıbı izle: literal gömme (§7.5 “EAS Project ID” ve §12).
 9. **Yedek / geri yükleme:** Ayarlar ekranındaki BackupSection (§5.3). Yeni tablo/kolon eklenirse `backupService.ts` (hem export sorgularında hem import INSERT’lerinde) ve JSON şeması versiyonu birlikte güncellenmelidir.
 
 ---
@@ -795,7 +805,7 @@ P1–P13 denetim bulguları tamamlandıktan sonra orta öncelikli olarak takip e
 - Yeni bir grafik animasyonu eklenirse §8.1 P8 deseni (`SharedValue` + `useAnimatedProps`) kullanılıp burada referans gösterilmelidir.
 - Yeni bir uzun liste ekranı eklenirse `usePaginatedExpenses` gibi bir sayfalı hook’a (veya eşdeğerine) bağlanmalı ve §8.5 listesine eklenmelidir.
 - **Yedek formatı (§5.3) değişirse:** `BACKUP_FORMAT_VERSION` artırılmalı, eski sürümü **geriye dönük okuyabilecek** importer dalları korunmalı; DB şemasına yeni tablo/kolon eklenirse hem `buildBackupPayload` hem `importBackupPayload` ve DESIGN_BRIEF §5.3 JSON şeması tek commit’te güncellenmelidir. Yeni bağımlılık (`expo-sharing` / `expo-document-picker`) sürümü §2.1 tablosuna yazılmalıdır.
-- **Analiz kartları (§5.8) değişirse:** `app/(tabs)/analytics.tsx` içindeki `ALL_CARDS`, `DEFAULT_ACTIVE`, `loadCardConfig` migrasyonu, `renderCard` dalları ve ilgili DAO/i18n bu bölümle aynı commit’te güncellenmelidir; mağaza sürümü için `app.json` `expo.version` + Android `versionCode` artışı unutulmamalıdır.
+- **Analiz kartları (§5.8) değişirse:** `app/(tabs)/analytics.tsx` içindeki `ALL_CARDS`, `DEFAULT_ACTIVE`, `loadCardConfig` migrasyonu, `renderCard` dispatcher dalı, ilgili **kart bileşeni** (`src/components/analytics/<X>Card.tsx`) + tipleri (`shared.tsx`) + stilleri (`analyticsStyles.ts`) ve DAO/i18n bu bölümle aynı commit'te güncellenmelidir. Kart bileşenleri `getAnalyticsStyles()`'ı **kendi içinde çağırmaz** (parent `styles` prop'u geçer — P10/P12); `React.memo`'lu kartlara verilen dizi/nesne/callback prop'ları parent'ta `useMemo`/`useCallback` ile sabitlenmelidir (P11). Mağaza sürümü için `app.json` `expo.version` + Android `versionCode` artışı unutulmamalıdır.
 - **Onboarding akışı (§5.9) değişirse:** `app/onboarding.tsx`, `src/hooks/useOnboardingStatus.ts`, `app/_layout.tsx` başlangıç check'i ve ilgili i18n anahtarları tek commit içinde birlikte güncellenmelidir.
 - **Drag-to-multiselect (§5.10) değişirse:** `app/(tabs)/transactions.tsx` içindeki `dragSelecting`/`dragSelectingRef`, `findExpenseIdAtListY`, PanResponder capture handler'ları ve `RefreshControl` `enabled` prop'u tutarlı kalmalıdır. Yeni satır tipleri eklenirse cell yüksekliği `measuredRef`'e + cumulative scan'e eklenmelidir. **`refreshControl` prop'unu drag aktifken `undefined`'a düşürmeyin** (P19) — FlatList iç state resetler.
 - **Otomatik test/CI (§9 sonu) değişirse:** `package.json` script'leri (`test`, `test:watch`, `typecheck`), `jest` preset alanı, `.github/workflows/ci.yml` ve §9 metni birlikte güncellenmeli; yeni test dosyaları `src/**/__tests__/**/*.test.ts` glob'una düşmelidir.

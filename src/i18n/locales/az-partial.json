@@ -115,6 +115,7 @@
   "needs_analysis": "Məcburi xərclər büdcənizin %{percentage}-ni əhatə edir.",
   "wants_analysis": "İstəyə bağlı xərclər büdcənizin %{percentage}-ni təşkil edir.",
   "savings_other_analysis": "Yığım və digər məqamlar büdcənizin %{percentage}-dir.",
+  "discount_placeholder": "Endirim məbləği (varsa)",
   "donut_hint_swipe_right": "Detallar üçün qrafikə toxunun • Sürüşdürün ➔",
   "spending_time": "Xərcləmə vaxtı",
   "time_segment": "Vaxt intervalı",

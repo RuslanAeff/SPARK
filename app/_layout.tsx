@@ -10,6 +10,7 @@ import { useAppTheme } from '../src/theme/themeStore';
 import { FontFamily } from '../src/theme/typography';
 import { useDatabase } from '../src/hooks/useDatabase';
 import { SparkToastContainer } from '../src/components/SparkToast';
+import { ErrorBoundary } from '../src/components/ErrorBoundary';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { LanguageProvider } from '../src/i18n/LanguageContext';
 import { RefreshProvider } from '../src/context/RefreshContext';
@@ -25,7 +26,7 @@ function AndroidNotificationBootstrap() {
   return null;
 }
 
-export default function RootLayout() {
+function RootLayoutContent() {
   // Tek doğruluk kaynağı: hem OS değişimi hem manuel setColorScheme'i dinler.
   const scheme = useAppTheme();
   const theme = scheme === 'light' ? LightTheme : DarkTheme;
@@ -125,6 +126,17 @@ export default function RootLayout() {
       </CurrencyProvider>
     </LanguageProvider>
     </SafeAreaProvider>
+  );
+}
+
+// Kök hata sınırı: herhangi bir ekran ya da sağlayıcı render sırasında hata
+// fırlatırsa, tüm uygulamanın boş/siyah ekrana düşmesi yerine kullanıcı dostu bir
+// kurtarma ekranı gösterilir (üretimde sade "Tekrar Dene", geliştirmede tam stack).
+export default function RootLayout() {
+  return (
+    <ErrorBoundary>
+      <RootLayoutContent />
+    </ErrorBoundary>
   );
 }
 

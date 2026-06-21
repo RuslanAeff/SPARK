@@ -7,7 +7,7 @@ import React, {
   useMemo,
   ReactNode,
 } from 'react';
-import { translations, Language } from './translations';
+import { Language, loadLocale, getDict } from './translations';
 import { getDatabase } from '../db/database';
 
 const VALID_LANGS: Language[] = ['tr', 'en', 'az', 'ru'];
@@ -31,25 +31,31 @@ export const LanguageProvider = ({ children }: { children: ReactNode }) => {
 
   useEffect(() => {
     const loadLang = async () => {
+      let lang: Language = 'tr';
       try {
         const db = await getDatabase();
         const result = await db.getFirstAsync<{ value: string }>(
           "SELECT value FROM settings WHERE key = 'app_language'",
         );
-        if (result && isLanguage(result.value)) {
-          setLanguageState(result.value);
-        }
+        if (result && isLanguage(result.value)) lang = result.value;
       } catch (e) {
         if (__DEV__) console.warn('[Language] load failed', e);
-      } finally {
-        setIsLoaded(true);
       }
+      // AZ/RU sözlüğü ilk render'dan ÖNCE yüklenir → flash of wrong locale yok (§8.3).
+      try {
+        await loadLocale(lang);
+      } catch (e) {
+        if (__DEV__) console.warn('[Language] locale load failed', e);
+      }
+      setLanguageState(lang);
+      setIsLoaded(true);
     };
     loadLang();
   }, []);
 
   const setLanguage = useCallback(async (lang: Language) => {
     try {
+      await loadLocale(lang); // dil değişiminde sözlük hazır olmadan state'i güncelleme
       const db = await getDatabase();
       await db.runAsync(
         "INSERT OR REPLACE INTO settings (key, value) VALUES ('app_language', ?)",
@@ -66,13 +72,13 @@ export const LanguageProvider = ({ children }: { children: ReactNode }) => {
   // gereksiz yere tetikliyordu.
   const t = useCallback(
     (key: string, params?: Record<string, string | number>): string => {
-      const dict = translations[language];
-      const enDict = translations.en;
-      const trDict = translations.tr;
+      const dict = getDict(language) ?? {};
+      const enDict = getDict('en')!;
+      const trDict = getDict('tr')!;
       let text =
-        (dict as any)[key] ??
-        (language !== 'en' ? (enDict as any)[key] : undefined) ??
-        (trDict as any)[key] ??
+        dict[key] ??
+        (language !== 'en' ? enDict[key] : undefined) ??
+        trDict[key] ??
         key;
 
       if (params) {
@@ -90,10 +96,11 @@ export const LanguageProvider = ({ children }: { children: ReactNode }) => {
   const tc = useCallback(
     (categoryName: string): string => {
       const key = `cat_${categoryName}`;
-      const dict = translations[language];
+      const dict = getDict(language) ?? {};
+      const enDict = getDict('en')!;
       return (
-        (dict as any)[key] ??
-        (language !== 'en' ? (translations.en as any)[key] : undefined) ??
+        dict[key] ??
+        (language !== 'en' ? enDict[key] : undefined) ??
         categoryName
       );
     },

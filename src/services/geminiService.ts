@@ -19,6 +19,17 @@ let _modelCache: { models: string[]; expiry: number } | null = null;
 let _modelCachePromise: Promise<string[]> | null = null; // S11: in-flight dedup
 const MODEL_CACHE_TTL = 5 * 60 * 1000;
 
+// #4: Anormal/halüsinasyonlu bir yanıtta kalem sayısı patlamasını engelle —
+// 500'den fazla kalem hem UI'ı (kalem listesi render) hem DB transaction'ını
+// (toplu INSERT) gereksiz şişirir. Gerçek fişler bunun çok altındadır.
+const MAX_RECEIPT_ITEMS = 500;
+
+// #4: 404 dönen (bu API anahtarı için generateContent desteklemeyen) modelleri
+// kısa süre önbelleğe al → sonraki taramalarda boşuna deneyip gecikme yaratma.
+// TTL sonunda yeniden denenir (model erişimi sonradan açılabilir).
+const FAILED_MODEL_TTL = 10 * 60 * 1000;
+const _failedModels = new Map<string, number>(); // modelStr → expiry (epoch ms)
+
 function fetchWithTimeout(url: string, options?: RequestInit, timeoutMs = FETCH_TIMEOUT_MS): Promise<Response> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
@@ -403,12 +414,24 @@ export async function parseReceipt(imageBase64: string, language: Language = 'tr
       return aId.localeCompare(bId);
     });
 
-  // Sıralama: flash → pro; 1.5 önce; bilinen 404’lü liste adlarını çıkar
-  const filteredOut = sortModelStrings(
-    availableModels.filter((m) => !isDeprecatedListedModelId(modelStrToId(m)))
+  // Sıralama: flash → pro; 1.5 önce; bilinen 404'lü liste adlarını VE son
+  // FAILED_MODEL_TTL içinde 404 dönen modelleri (#4 önbellek) çıkar. Hepsi
+  // elenirse güvenli geri-düşüş: önce deprecated-hariç tam liste, o da boşsa ham
+  // liste denenir (asla "hiç model yok" durumuna düşme).
+  const now = Date.now();
+  const notRecentlyFailed = (m: string) => {
+    const exp = _failedModels.get(m);
+    if (exp === undefined) return true;
+    if (now < exp) return false;
+    _failedModels.delete(m); // süresi doldu — temizle, yeniden denenebilir
+    return true;
+  };
+  const nonDeprecated = availableModels.filter(
+    (m) => !isDeprecatedListedModelId(modelStrToId(m))
   );
-  const sortedModels =
-    filteredOut.length > 0 ? filteredOut : sortModelStrings([...availableModels]);
+  const baseList = nonDeprecated.length > 0 ? nonDeprecated : [...availableModels];
+  const usable = baseList.filter(notRecentlyFailed);
+  const sortedModels = sortModelStrings(usable.length > 0 ? usable : baseList);
 
   // Try each discovered model starting from the best one
   let lastError = '';
@@ -442,8 +465,10 @@ export async function parseReceipt(imageBase64: string, language: Language = 'tr
     }
 
     if (result.status === 404) {
+      // #4: Bu modeli kısa süre önbelleğe al — sonraki taramalar boşuna denemesin.
+      _failedModels.set(modelStr, Date.now() + FAILED_MODEL_TTL);
       if (__DEV__) {
-        console.log(`[GEMINI] ${tag} → 404, sıradaki model deneniyor`);
+        console.log(`[GEMINI] ${tag} → 404, sıradaki model deneniyor (kısa süre atlanacak)`);
       }
       lastError = `Model ${tag} is currently unavailable (404).`;
       continue;
@@ -473,14 +498,25 @@ function toFiniteNumber(v: unknown, fallback: number): number {
   return fallback;
 }
 
-/** Model bazen sayıları string döndürür; şema gevşetilir */
-function coerceParsedReceipt(raw: Record<string, unknown>): ParsedReceipt | null {
+/** Model bazen sayıları string döndürür; şema gevşetilir. (Saf — test edilebilir.) */
+export function coerceParsedReceipt(raw: Record<string, unknown>): ParsedReceipt | null {
   if (!raw || typeof raw !== 'object') return null;
   // S8: Proto-pollution koruması — dış kaynaktan gelen JSON'dan tehlikeli anahtarları temizle
   stripDangerousKeys(raw);
   if (!Array.isArray(raw.items)) return null;
 
-  const items = (raw.items as Record<string, unknown>[]).map((it) => {
+  // #4: Kalem sayısını üst sınıra indir (raw.total korunur — printed total tercih
+  // edildiğinden kapatma toplamı bozulmaz).
+  const rawItems = raw.items as Record<string, unknown>[];
+  const cappedItems =
+    rawItems.length > MAX_RECEIPT_ITEMS ? rawItems.slice(0, MAX_RECEIPT_ITEMS) : rawItems;
+  if (__DEV__ && rawItems.length > MAX_RECEIPT_ITEMS) {
+    console.warn(
+      `[GEMINI] ${rawItems.length} kalem döndü, ${MAX_RECEIPT_ITEMS} ile sınırlandırıldı.`
+    );
+  }
+
+  const items = cappedItems.map((it) => {
     const q = Math.max(0.001, toFiniteNumber(it.quantity, 1));
     const total = toFiniteNumber(it.total_price, 0);
     let unit = toFiniteNumber(it.unit_price, 0);
@@ -517,7 +553,8 @@ function coerceParsedReceipt(raw: Record<string, unknown>): ParsedReceipt | null
   };
 }
 
-function tryJsonToReceipt(jsonStr: string): ParsedReceipt | null {
+/** Ham metni (markdown/bozuk JSON dahil) onarıp ParsedReceipt'e çevirir. (Saf — test edilebilir.) */
+export function tryJsonToReceipt(jsonStr: string): ParsedReceipt | null {
   const variants = new Set<string>();
   let base = stripMarkdownCodeFences(jsonStr.trim());
   variants.add(base);

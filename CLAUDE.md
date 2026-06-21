@@ -17,9 +17,10 @@
 
 ```
 app/                    # Ekranlar (expo-router)
-  (tabs)/               # Dashboard, İşlemler, Tarayıcı, Analiz (`analytics.tsx` — kart kataloğu §5.8), Ayarlar
+  (tabs)/               # Dashboard, İşlemler, Tarayıcı, Analiz (`analytics.tsx` — orkestratör; kartlar src/components/analytics §5.8), Ayarlar
 src/
   components/           # Ortak UI
+    analytics/          # Analiz kart bileşenleri (16 React.memo kart) + analyticsStyles.ts + shared.tsx (§5.8)
   context/              # Currency, Refresh, Notifications, Language
   db/                   # schema, database, DAO'lar
   hooks/                # useExpenses, useBudget, useDatabase, ...
@@ -73,7 +74,11 @@ src/
 npm start              # expo start
 npm run android        # expo run:android
 npm run ios            # expo run:ios
+npm test               # jest (139 test) — değişiklik sonrası çalıştır
+npm run typecheck      # tsc --noEmit — commit öncesi zorunlu
 ```
+
+> **Test notu (detay: `DESIGN_BRIEF.md` §9):** Saf fonksiyonlar doğrudan test edilir; native/DB modülleri (`expo-secure-store`, `expo-sqlite`, `db/*Dao`) `jest.mock(...)` ile değiştirilir. Kart bileşen testlerinde `render` **async**'tir (`await render(<X/>)`); `react-native-reanimated` kök `__mocks__/` ile otomatik stub'lanır.
 
 ## İletişim
 
@@ -85,4 +90,4 @@ npm run ios            # expo run:ios
 1. Görev hangi alana giriyor? → `DESIGN_BRIEF.md` ilgili bölümünü oku (içindekiler tablosuna bak).
 2. Tema/güvenlik/DB dokunan iş mi? → Yukarıdaki "Kritik kurallar"a tekrar göz at.
 3. UI değişikliği mi? → şüşevar + cam kart + dört dil + tema kalıbı.
-4. Analiz sekmesi / yeni kart / `analytics_card_order` mi? → `DESIGN_BRIEF.md` §5.8 (ALL_CARDS, DEFAULT_ACTIVE, `loadCardConfig`, i18n).
+4. Analiz sekmesi / yeni kart / `analytics_card_order` mi? → `DESIGN_BRIEF.md` §5.8 (ALL_CARDS, DEFAULT_ACTIVE, `loadCardConfig`, i18n). Her kart `src/components/analytics/<X>Card.tsx`'te ayrı `React.memo` bileşeni; stiller `analyticsStyles.ts`, tipler `shared.tsx`. Kart **kendi içinde `getAnalyticsStyles()` çağırmaz** (parent `styles` prop'u geçer — P12); memo'lu karta verilen prop'lar parent'ta `useMemo`/`useCallback` ile sabitlenir (P11).

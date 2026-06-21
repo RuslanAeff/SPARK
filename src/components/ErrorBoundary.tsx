@@ -1,5 +1,5 @@
 import React, { Component, ErrorInfo, ReactNode } from "react";
-import { View, Text, ScrollView, SafeAreaView } from "react-native";
+import { View, Text, ScrollView, SafeAreaView, Pressable } from "react-native";
 import { Colors } from "../theme/colors";
 
 interface Props {
@@ -28,28 +28,73 @@ export class ErrorBoundary extends Component<Props, State> {
     console.error("Uncaught error:", error, errorInfo);
   }
 
+  private handleReset = () => {
+    this.setState({ hasError: false, error: null, errorInfo: null });
+  };
+
   public render() {
     if (this.state.hasError) {
+      // Geliştirme: tam tanılama (mesaj + component stack + JS stack).
+      if (__DEV__) {
+        return (
+          <SafeAreaView style={{ flex: 1, backgroundColor: Colors.background }}>
+            <ScrollView style={{ flex: 1, padding: 20 }}>
+              <Text style={{ color: Colors.danger, fontSize: 24, fontWeight: 'bold', marginBottom: 10 }}>🚨 Crash Detected</Text>
+
+              <Text style={{ color: Colors.textPrimary, fontSize: 16, fontWeight: 'bold' }}>Error Message:</Text>
+              <Text style={{ color: Colors.danger, marginBottom: 20, fontFamily: 'monospace' }}>
+                {this.state.error?.message || 'Unknown Error'}
+              </Text>
+
+              <Text style={{ color: Colors.textPrimary, fontSize: 16, fontWeight: 'bold' }}>Component Stack:</Text>
+              <Text style={{ color: Colors.textSecondary, fontSize: 10, fontFamily: 'monospace', marginBottom: 20 }}>
+                {this.state.errorInfo?.componentStack}
+              </Text>
+
+              <Text style={{ color: Colors.textPrimary, fontSize: 16, fontWeight: 'bold' }}>JS Stack Trace:</Text>
+              <Text style={{ color: Colors.textSecondary, fontSize: 10, fontFamily: 'monospace', marginBottom: 24 }}>
+                {this.state.error?.stack}
+              </Text>
+
+              <Pressable
+                onPress={this.handleReset}
+                style={{ alignSelf: 'flex-start', paddingVertical: 10, paddingHorizontal: 18, borderRadius: 12, backgroundColor: Colors.primaryGlow, borderWidth: 1, borderColor: Colors.glassBorder }}
+              >
+                <Text style={{ color: Colors.primary, fontWeight: 'bold' }}>Tekrar Dene</Text>
+              </Pressable>
+            </ScrollView>
+          </SafeAreaView>
+        );
+      }
+
+      // Üretim: kullanıcı dostu, sade kurtarma ekranı (ham hata gösterilmez).
       return (
         <SafeAreaView style={{ flex: 1, backgroundColor: Colors.background }}>
-          <ScrollView style={{ flex: 1, padding: 20 }}>
-            <Text style={{ color: Colors.danger, fontSize: 24, fontWeight: 'bold', marginBottom: 10 }}>🚨 Crash Detected</Text>
-            
-            <Text style={{ color: Colors.textPrimary, fontSize: 16, fontWeight: 'bold' }}>Error Message:</Text>
-            <Text style={{ color: Colors.danger, marginBottom: 20, fontFamily: 'monospace' }}>
-              {this.state.error?.message || 'Unknown Error'}
+          <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 32, gap: 14 }}>
+            <Text style={{ fontSize: 52 }}>⚠️</Text>
+            <Text style={{ color: Colors.textPrimary, fontSize: 20, fontWeight: 'bold', textAlign: 'center' }}>
+              Bir şeyler ters gitti
             </Text>
-
-            <Text style={{ color: Colors.textPrimary, fontSize: 16, fontWeight: 'bold' }}>Component Stack:</Text>
-            <Text style={{ color: Colors.textSecondary, fontSize: 10, fontFamily: 'monospace', marginBottom: 20 }}>
-              {this.state.errorInfo?.componentStack}
+            <Text style={{ color: Colors.textSecondary, fontSize: 14, textAlign: 'center', lineHeight: 20 }}>
+              Uygulamada beklenmedik bir sorun oluştu. Verileriniz güvende. Lütfen tekrar deneyin.
             </Text>
-
-            <Text style={{ color: Colors.textPrimary, fontSize: 16, fontWeight: 'bold' }}>JS Stack Trace:</Text>
-            <Text style={{ color: Colors.textSecondary, fontSize: 10, fontFamily: 'monospace' }}>
-              {this.state.error?.stack}
-            </Text>
-          </ScrollView>
+            <Pressable
+              onPress={this.handleReset}
+              accessibilityRole="button"
+              style={({ pressed }) => ({
+                marginTop: 8,
+                paddingVertical: 12,
+                paddingHorizontal: 28,
+                borderRadius: 14,
+                backgroundColor: Colors.primaryGlow,
+                borderWidth: 1,
+                borderColor: Colors.glassBorder,
+                opacity: pressed ? 0.8 : 1,
+              })}
+            >
+              <Text style={{ color: Colors.primary, fontSize: 15, fontWeight: 'bold' }}>Tekrar Dene</Text>
+            </Pressable>
+          </View>
         </SafeAreaView>
       );
     }

@@ -283,6 +283,7 @@
   "product_name_placeholder": "Product Name",
   "quantity_placeholder": "Quantity",
   "unit_price_placeholder": "Unit Price (zł)",
+  "discount_placeholder": "Discount amount (optional)",
   "update": "Update",
   "add": "Add",
   "categories_title": "Categories",

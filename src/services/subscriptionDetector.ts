@@ -90,7 +90,7 @@ interface DetectionResult {
   occurrences: number;
 }
 
-function detectForVendor(rows: CandidateRow[]): DetectionResult | null {
+export function detectForVendor(rows: CandidateRow[]): DetectionResult | null {
   if (rows.length < MIN_OCCURRENCES) return null;
   // Tarih artan
   const sorted = [...rows].sort((a, b) => a.date.localeCompare(b.date));

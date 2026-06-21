@@ -71,10 +71,26 @@ export default function TransactionsScreen() {
   const [dragSelecting, setDragSelecting] = useState(false);
   const [autoScrollDir, setAutoScrollDir] = useState<-1 | 0 | 1>(0);
 
-  // İlk render'da gerçek cell yüksekliklerini ölç → drag sırasında parmak
-  // altındaki satırı pixel-perfect tespit. Tahmin başlangıç değerleri (sabit
-  // değişmesin diye ref).
-  const measuredRef = useRef({ header: 32, row: 72, headerLocked: false, rowLocked: false });
+  // İlk render'da gerçek cell yüksekliklerini ölç → hem drag sırasında parmak
+  // altındaki satırın pixel-perfect tespiti hem de getItemLayout için. Yükseklikler
+  // sabit varsayılmaz, runtime'da ölçülür (fontScale / cihaz farklarına dayanıklı).
+  // Seçim modunda satır (margin + padding + checkbox) normalden uzun olduğundan
+  // normal ve seçim yükseklikleri AYRI tutulur → getItemLayout mod-duyarlı kalır.
+  const metricsRef = useRef({
+    header: 32,
+    rowNormal: 72,
+    rowSelection: 84,
+    headerLocked: false,
+    rowNormalLocked: false,
+    rowSelectionLocked: false,
+  });
+  // Ölçüm kilitlenince offsets memo'sunu yeniden hesaplatmak için (ref render
+  // tetiklemediğinden) — her yükseklik için yalnızca bir kez artar.
+  const [metricsVersion, setMetricsVersion] = useState(0);
+  // onCellLayout / findExpenseIdAtListY useCallback([]) closure'ları güncel modu
+  // ref üzerinden okur.
+  const selectionModeRef = useRef(selectionMode);
+  selectionModeRef.current = selectionMode;
   const EDGE_THRESHOLD = 90;
   const AUTO_SCROLL_SPEED = 14;
 
@@ -156,7 +172,10 @@ export default function TransactionsScreen() {
   // Parmak Y'sinden hangi satırın altında olduğunu bulur — ölçülen gerçek
   // yükseklikleri kullanır (header + row).
   const findExpenseIdAtListY = useCallback((listY: number): number | null => {
-    const { header: HH, row: RH } = measuredRef.current;
+    const m = metricsRef.current;
+    const HH = m.header;
+    // Drag her zaman seçim modunda çalışır; yine de güvenli tarafta kal.
+    const RH = selectionModeRef.current ? m.rowSelection : m.rowNormal;
     let cumY = 0;
     for (const row of rowsRef.current) {
       const h = row.kind === 'header' ? HH : RH;
@@ -280,17 +299,63 @@ export default function TransactionsScreen() {
 
   const keyExtractor = useCallback((item: Row) => item.key, []);
 
-  // Cell yüksekliklerini ilk render'da ölç — drag select pixel-doğru olsun.
+  // Cell yüksekliklerini ilk render'da ölç — drag select pixel-doğru + getItemLayout.
+  // Satır yüksekliği moda göre değiştiğinden normal/seçim ayrı kilitlenir.
   const onCellLayout = useCallback((kind: 'header' | 'row', height: number) => {
-    const m = measuredRef.current;
-    if (kind === 'header' && !m.headerLocked && height > 0) {
-      m.header = height;
-      m.headerLocked = true;
-    } else if (kind === 'row' && !m.rowLocked && height > 0) {
-      m.row = height;
-      m.rowLocked = true;
+    if (height <= 0) return;
+    const m = metricsRef.current;
+    if (kind === 'header') {
+      if (!m.headerLocked) {
+        m.header = height;
+        m.headerLocked = true;
+        setMetricsVersion(v => v + 1);
+      }
+    } else if (selectionModeRef.current) {
+      if (!m.rowSelectionLocked) {
+        m.rowSelection = height;
+        m.rowSelectionLocked = true;
+        setMetricsVersion(v => v + 1);
+      }
+    } else if (!m.rowNormalLocked) {
+      m.rowNormal = height;
+      m.rowNormalLocked = true;
+      setMetricsVersion(v => v + 1);
     }
   }, []);
+
+  // getItemLayout (#2): FlatList'in her hücreyi async ölçme maliyetini ve scroll
+  // tahminini sıfırlar. Offsets, runtime'da ölçülen per-kind yüksekliklerden
+  // (mod-duyarlı) kümülatif hesaplanır. Prop her zaman bağlı ve referans-kararlı —
+  // TOGGLE YOK: P13 (removeClippedSubviews) ve P19 (refreshControl) seçim moduna
+  // geçişte FlatList prop'u değiştirmenin scroll/native regresyonu doğurduğunu
+  // gösterdi. getItemLayout güncel offsetleri ref'ten okur, kimliği hiç değişmez.
+  const itemOffsets = useMemo(() => {
+    const m = metricsRef.current;
+    const headH = m.header;
+    const rowH = selectionMode ? m.rowSelection : m.rowNormal;
+    const arr = new Array<{ length: number; offset: number }>(rows.length);
+    let cum = 0;
+    for (let i = 0; i < rows.length; i++) {
+      const len = rows[i].kind === 'header' ? headH : rowH;
+      arr[i] = { length: len, offset: cum };
+      cum += len;
+    }
+    return arr;
+    // metricsVersion: ölçüm kilitlenince gerçek yüksekliklerle yeniden hesapla.
+  }, [rows, selectionMode, metricsVersion]);
+
+  const offsetsRef = useRef(itemOffsets);
+  offsetsRef.current = itemOffsets;
+
+  const getItemLayout = useCallback(
+    (_data: ArrayLike<Row> | null | undefined, index: number) => {
+      const e = offsetsRef.current[index];
+      if (e) return { length: e.length, offset: e.offset, index };
+      const rh = metricsRef.current.rowNormal;
+      return { length: rh, offset: rh * index, index };
+    },
+    [],
+  );
 
   // renderItem — selectionMode ve selectedIds bağımlılık dizisindedir.
   // Seçim durumu değiştiğinde renderItem referansı güncellenir ve FlatList
@@ -421,6 +486,7 @@ export default function TransactionsScreen() {
           extraData={extraData}
           keyExtractor={keyExtractor}
           renderItem={renderItem}
+          getItemLayout={getItemLayout}
           removeClippedSubviews={false}
           initialNumToRender={18}
           maxToRenderPerBatch={16}
