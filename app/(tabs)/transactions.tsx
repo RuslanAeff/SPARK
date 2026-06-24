@@ -487,6 +487,10 @@ export default function TransactionsScreen() {
           keyExtractor={keyExtractor}
           renderItem={renderItem}
           getItemLayout={getItemLayout}
+          // Arama klavyesi açıkken listeye İLK dokunuş klavyeyi kapatmaya gidip satıra
+          // ulaşmıyordu (varsayılan 'never') → "filtreden sonra ilk seçim çalışmıyor, ikincisi
+          // çalışıyor" hatası. 'handled' ile dokunuş satıra geçer (boş alanda klavye yine kapanır).
+          keyboardShouldPersistTaps="handled"
           removeClippedSubviews={false}
           initialNumToRender={18}
           maxToRenderPerBatch={16}

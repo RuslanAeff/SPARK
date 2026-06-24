@@ -1,0 +1,20 @@
+{
+  "debt_outstanding_label": "Открытый долг",
+  "debt_impact_label": "Влияние долга",
+  "debt_manage_cta": "Операции с долгами",
+  "debt_sheet_title": "Мои долги",
+  "debt_add_title": "Я занял",
+  "debt_empty_title": "Нет открытых долгов",
+  "debt_empty_desc": "Добавьте долг, когда покрываете платёж в долг.",
+  "debt_counterparty": "У кого",
+  "debt_counterparty_ph": "напр. Али, мама, банк",
+  "debt_counterparty_required": "Укажите, у кого заняли",
+  "debt_link_receipt": "Привязать к чеку (необязательно)",
+  "debt_repay_title": "Погасить долг",
+  "debt_repay_cta": "Погасить",
+  "debt_repay_full": "Погасить всё",
+  "debt_remaining": "Остаток",
+  "debt_created_toast": "Долг добавлен",
+  "debt_repaid_toast": "Платёж сохранён",
+  "debt_settled_toast": "Долг закрыт 🎉"
+}

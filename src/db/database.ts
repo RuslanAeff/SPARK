@@ -108,6 +108,39 @@ export async function getDatabase(): Promise<SQLite.SQLiteDatabase> {
     } catch (_) {
       // Already applied
     }
+    // debts / debt_payments: Borç Operasyonu tabloları. CREATE_TABLES_SQL bunları
+    // üretir; eski kurulumlar için (bütçe/abonelik tabloları gibi) burada da
+    // garanti ediyoruz. Saklama AYRI ama UX entegre; fiş bütünlüğü bozulmaz.
+    try {
+      await instance.execAsync(`
+        CREATE TABLE IF NOT EXISTS debts (
+          id                INTEGER PRIMARY KEY AUTOINCREMENT,
+          direction         TEXT NOT NULL DEFAULT 'borrowed',
+          counterparty      TEXT NOT NULL DEFAULT '',
+          amount            REAL NOT NULL,
+          remaining         REAL NOT NULL,
+          currency          TEXT NOT NULL DEFAULT 'PLN',
+          date              TEXT NOT NULL,
+          status            TEXT NOT NULL DEFAULT 'open',
+          linked_expense_id INTEGER REFERENCES expenses(id) ON DELETE SET NULL,
+          note              TEXT,
+          created_at        TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_debts_status ON debts(status);
+        CREATE INDEX IF NOT EXISTS idx_debts_date ON debts(date);
+        CREATE TABLE IF NOT EXISTS debt_payments (
+          id          INTEGER PRIMARY KEY AUTOINCREMENT,
+          debt_id     INTEGER NOT NULL REFERENCES debts(id) ON DELETE CASCADE,
+          amount      REAL NOT NULL,
+          date        TEXT NOT NULL,
+          created_at  TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_debt_payments_debt ON debt_payments(debt_id);
+        CREATE INDEX IF NOT EXISTS idx_debt_payments_date ON debt_payments(date);
+      `);
+    } catch (_) {
+      // Already applied
+    }
     db = instance;
     return instance;
   })();

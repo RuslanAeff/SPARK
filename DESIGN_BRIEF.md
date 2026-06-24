@@ -4,7 +4,7 @@
 |------|--------|
 | **Belge amacı** | Tasarımcı, geliştirici ve yapay zekâ asistanlarının projeyi tek kaynaktan anlaması; performans, güvenlik ve tutarlı UX için yol haritası |
 | **Uygulama adı** | **S.P.A.R.K.** (kişisel finans / harcama takibi) |
-| **Son güncelleme** | 23 Haziran 2026 (4. tur) — **i18n tam parite (dört dil)** (§9.1 — AZ 217 anahtar 11 partide `map-az-9..19` kullanıcı kontrollü; RU 217 anahtar tek partide `map-ru-9`; baseline tamamen boş → TR/EN/AZ/RU eşit), **açılış hızlandırma** (§8.1 P26 / §8.3 — `ensureDefaultCategoryTree` her açılışta ~108 sıralı sorgu → tek `SELECT` + ihtiyaç hâlinde tek transaction; sağlıklı kullanıcıda 0 yazma) + **açılış geçişi yumuşatma** (§8.3 — splash overlay kapanışta `FadeOut`; Stack `isReady` arkasında, girişte animasyon yok → P12 flash riski yok). 3. tur: **analiz ekranı `LayoutAnimation` → Reanimated** (§2 — VendorsCard `LinearTransition`, global experimental flag kaldırıldı), **locale lazy-load** (§8.3 — AZ/RU `import()` ile ertelenir), **SQLite açılış bütünlük kontrolü** (§7.5 — `PRAGMA quick_check`). 2. tur: **fiş kalemi indirim düzenleme** (§3.3 `edit-items`), **ay sonu projeksiyonu aykırı-değer rozeti** (§8.1 P16 — `hasOutlier` artık UI'da), **EAS Project ID fallback literali kaldırıldı** (§7.5 S10), **i18n anahtar paritesi guard'ı + ratchet baseline** (§9.1 — AZ/RU'da ~217 bilinen eksik donduruldu). Aynı gün (1. tur): **analiz ekranı dosya bazlı modülerleştirme** (§5.8 / §8.1 P23 — 16 kart `src/components/analytics/`'e ayrıldı, `analytics.tsx` ~4265→~1300 satır), **işlemler listesi `getItemLayout`** (§8.1 P24), **Gemini fiş pipeline sertleştirme** (§8.1 P25 — `items` üst sınırı + 404 model önbelleği). Önceki: 8 Haziran 2026 — sürüm 2.3.1; işlemler çoklu seçim performans/kararlılık (§5.10), bütçe döngüsü Dashboard tutarsızlığı (§5.11) |
+| **Son güncelleme** | 23 Haziran 2026 (4. tur) — **3 UX düzeltme:** (1) işlemler arama+seçim klavye hatası (`keyboardShouldPersistTaps="handled"`, §8.5/7b), (2) HARCAMA İSTATİSTİKLERİ yorumu artık taşınca kayan yazı (`src/components/MarqueeText.tsx`, taşmazsa statik), (3) DAVRANIŞSAL ANALİZ donut carousel sayfa genişliği `onLayout` ile ölçülüyor → sonraki donut sızması giderildi (`DonutCard.tsx`) + **Dashboard ay navigasyonu** (‹/› ile geçmiş döngüleri görüntüleme — donut+bütçe+kategoriler birlikte değişir, `useBudget(specificMonth)` + paylaşımlı `cycleStart/End`; varsayılan güncel ay, ekrana dönünce sıfırlanır; `index.tsx`). **i18n tam parite (dört dil)** (§9.1 — AZ 217 anahtar 11 partide `map-az-9..19` kullanıcı kontrollü; RU 217 anahtar tek partide `map-ru-9`; baseline tamamen boş → TR/EN/AZ/RU eşit), **açılış hızlandırma** (§8.1 P26 / §8.3 — `ensureDefaultCategoryTree` her açılışta ~108 sıralı sorgu → tek `SELECT` + ihtiyaç hâlinde tek transaction; sağlıklı kullanıcıda 0 yazma) + **açılış geçişi yumuşatma** (§8.3 — splash overlay kapanışta `FadeOut`; Stack `isReady` arkasında, girişte animasyon yok → P12 flash riski yok). 3. tur: **analiz ekranı `LayoutAnimation` → Reanimated** (§2 — VendorsCard `LinearTransition`, global experimental flag kaldırıldı), **locale lazy-load** (§8.3 — AZ/RU `import()` ile ertelenir), **SQLite açılış bütünlük kontrolü** (§7.5 — `PRAGMA quick_check`). 2. tur: **fiş kalemi indirim düzenleme** (§3.3 `edit-items`), **ay sonu projeksiyonu aykırı-değer rozeti** (§8.1 P16 — `hasOutlier` artık UI'da), **EAS Project ID fallback literali kaldırıldı** (§7.5 S10), **i18n anahtar paritesi guard'ı + ratchet baseline** (§9.1 — AZ/RU'da ~217 bilinen eksik donduruldu). Aynı gün (1. tur): **analiz ekranı dosya bazlı modülerleştirme** (§5.8 / §8.1 P23 — 16 kart `src/components/analytics/`'e ayrıldı, `analytics.tsx` ~4265→~1300 satır), **işlemler listesi `getItemLayout`** (§8.1 P24), **Gemini fiş pipeline sertleştirme** (§8.1 P25 — `items` üst sınırı + 404 model önbelleği). Önceki: 8 Haziran 2026 — sürüm 2.3.1; işlemler çoklu seçim performans/kararlılık (§5.10), bütçe döngüsü Dashboard tutarsızlığı (§5.11) |
 | **Platform** | React Native / Expo — iOS & Android |
 | **Desteklenen diller** | **TR** (Türkçe — varsayılan), **EN** (İngilizce), **AZ** (Azərbaycan), **RU** (Русский) |
 
@@ -124,6 +124,8 @@ Alt sekme **`createMaterialTopTabNavigator`** (`@react-navigation/material-top-t
 | `savings_goal` | Tek satır (id=1) hedef |
 | `category_limits` | Ay bazlı limit |
 | `subscriptions` | Tekrar eden ödeme tespiti (vendor_id, amount, period_days, next_expected_date, status: `active`/`dismissed`) — yerel detection sonuçları, kullanıcının "abonelik değil" tepkileri korunur |
+| `debts` | **Borç Operasyonu** (§5.13): `direction` (`borrowed`/`lent`), `counterparty`, `amount`, `remaining`, `currency`, `date`, `status` (`open`/`settled`), opsiyonel `linked_expense_id` (fiş silinince SET NULL). Fiş/harcamadan **ayrı** saklanır — tüketim bütünlüğü bozulmaz |
+| `debt_payments` | Borca yapılan kısmi/tam geri ödemeler (`debt_id` FK CASCADE, `amount`, `date`). Geri ödeme **tüketim sayılmaz** (çift sayım yok) |
 | `settings` | Anahtar-değer (tema, dil, bildirim durumu, **`backup_last_*`**, **`backup_reminder_interval`**); `gemini_api_key` artık SQLite'da **değil**, OS keychain'de |
 
 Yapay zekâ veya raporlama için: harcama toplamları çoğunlukla DAO sorguları ve `expense_items` üzerinden hesaplanır.
@@ -472,6 +474,33 @@ Yeni satır tipleri eklenirse (`{ kind: 'row' | 'header' | ... }`) `findExpenseI
 
 ---
 
+### 5.13 Borç Operasyonu (Haziran 2026 — v2.3.1)
+
+Borç alma/verme ve döngülere sarkan ödemeleri **fiş bütünlüğünü bozmadan** izler. Borç kullanıcıya "kötü" hissettirilir (kırmızı açık-borç göstergesi). Örn. PLN'de 129,01'lik fişin 100'ü borçla karşılanırsa: fiş bütün kalır (tüketim analizi tam), borç ayrı izlenir, geri ödeme sonraki döngüde yapılır.
+
+**Kilitli kararlar.**
+- Saklama **ayrı** (`debts` + `debt_payments` — §4) ama UX tam entegre.
+- Fiş/harcama **her zaman bütün** — asla bölünmez. Geri ödeme **tüketim/harcama sayılmaz** (çift sayım yasak).
+- Bütçe etkisi = **nakit akışı**: borç alınan döngüde harcanabilir +tutar; geri ödeme döngüsünde −tutar. İki döngünün neti sıfırlanır → hayalî para yok.
+- "Açık borç" **global** kırmızı gösterge — kullanıcı kapatana (settled) kadar dashboard'da durur.
+- v1: yalnızca **borç alma** (`borrowed`) UI'ı; şema `lent` (verme) yönünü de tutar (Faz 6).
+
+**Nakit-akışı matematiği — `src/utils/debtMath.ts` (saf, jest'li).** Bir döngü `[start,end]` için:
+- `borrowedIn` = Σ `debts.amount` (`direction='borrowed'`, `date ∈ [start,end]`)
+- `repaidIn` = Σ `debt_payments.amount` (bağlı borç `borrowed`, `payment.date ∈ [start,end]`)
+- `effectiveBudget` = `monthlyBudget + borrowedIn − repaidIn`
+- `remaining` = `effectiveBudget − totalSpent`; `isOverBudget` = `remaining < 0`
+- **`percentage` ve `remaining` `effectiveBudget` tabanlı** (kullanıcı kararı — bar şişmez/yanıltmaz).
+- `outstandingDebt` (global rozet) = Σ `debts.remaining` (`status='open'`, `borrowed`) — döngü bağımsız.
+
+**Katmanlar.**
+- DAO: `src/db/debtDao.ts` — `create / repay / listOpen / getOutstandingTotal / getBorrowedTotalByDateRange / getRepaidTotalByDateRange` (+`getById/getPayments/remove`). Tüm yazılar `inputValidation`'dan geçer (§7.7); `repay` çoklu yazısı tek `withTransactionAsync` (§7.3). Aşırı ödeme `remaining`'e kıstırılır; `remaining<=0` → `status='settled'`.
+- Hook: `src/hooks/useBudget.ts` — `BudgetInfo`'ya `borrowedIn/repaidIn/netDebtFlow/effectiveBudget/outstandingDebt` eklendi; `remaining/percentage/isOverBudget` artık `computeDebtAdjustedBudget` üzerinden. Borç yokken değerler eski davranışla **birebir** aynı (geriye dönük güvenli).
+- UI: Dashboard (`app/(tabs)/index.tsx`) kırmızı "Açık borç" rozeti (`outstandingDebt>0`) + her zaman erişilebilir "Borç işlemleri" girişi; `BudgetCard` "borç etkisi" satırı (+borrowedIn / −repaidIn). Hub: `src/components/DebtSheet.tsx` (`BottomSheetModal`, `showHandle`) — liste / "Borç Aldım" (tutar+kimden+tarih+not+opsiyonel fiş bağla) / "Borcu Öde" (kısmi destekli, "Tümünü öde").
+- i18n: `debt_*` anahtarları 4 dilde (§9.1 akışı; `map-az-21` / `map-ru-11`).
+
+---
+
 ## 6. Tasarım sistemi
 
 ### 6.1 Renk ve tipografi
@@ -639,7 +668,7 @@ AnimatedCard, BudgetCard, SpendingHeatmap, BarChart, DonutChart, LineChart, Cust
 
 ### 7.7 DAO girdi boru hattı — **tüm mutasyonlar**
 
-`create`, `addItem`, `update`, `updateItem`, `upsert`, `setMonthlyBudget`, `updateLogo` ve `deleteMany` **aynı sanitizasyonlardan** geçmelidir:
+`create`, `addItem`, `update`, `updateItem`, `upsert`, `setMonthlyBudget`, `updateLogo`, `deleteMany` ve **borç** mutasyonları (`DebtDao.create` / `repay` — §5.13) **aynı sanitizasyonlardan** geçmelidir:
 
 - `sanitizeAmount` — tüm para miktarları (bütçe, limit, hedef, harcama, birim fiyat, indirim).
 - `sanitizeText(value, maxLen)` — isim, not, başlık, para kodu (TR/EN’de bile).
@@ -684,6 +713,7 @@ Yeni bir DAO yazarken önce `normalizeXxxPatch` yardımcısı tanımlanıp hem `
 | P24 | **İşlemler listesi `getItemLayout` yok** | `FlatList` her hücreyi async ölçüyor; hızlı kaydırmada tahmin maliyeti + `scrollToOffset` belirsizliği. **Çözüm:** stabil-kimlikli, **mod-duyarlı** (normal/seçim satır yüksekliği ayrı), **runtime-ölçümlü** (fontScale/cihaz dayanıklı) `getItemLayout`. Offsetler `offsetsRef`'ten okunur → prop kimliği hiç değişmez (TOGGLE YOK — P13/P19 dersi: seçim moduna geçişte FlatList prop'u değiştirmek scroll/native regresyonu doğuruyordu). Drag hit-testi de aynı ölçümleri kullanır. | `app/(tabs)/transactions.tsx` |
 | P25 | **Gemini fiş pipeline — kalem patlaması + 404 model tekrar denemesi** | Halüsinasyonlu yanıtta `items` çok büyük olabilir (UI + DB toplu INSERT şişmesi); generateContent 404 dönen modeller her taramada yeniden deneniyordu (gecikme). **Çözüm:** (1) `coerceParsedReceipt`'te `items` `slice(0, 500)` üst sınırı (`raw.total` korunur). (2) 404 dönen modeller `FAILED_MODEL_TTL` (10 dk) boyunca atlanır (`_failedModels` Map) — kademeli geri-düşüş ile asla "hiç model yok" durumuna düşmez. | `src/services/geminiService.ts` |
 | P26 | **Açılış gecikmesi — `ensureDefaultCategoryTree` her başlatmada ~108 sıralı sorgu** | Fonksiyon `isReady=true` (ilk render) öncesinde `await` edilen `initializeDatabase` içinde çalışır. Eski akış: 9 kök + 45 alt = 54 kategori için her birine 1 `SELECT` + 1 `UPDATE` (mevcutsa) → ~108 sıralı SQLite roundtrip, ilk açılıştan sonra değişmeyen bir ağacı her seferinde yeniden doğrulayarak siyah/loading ekranını uzatıyordu. **Çözüm (§8.2/1, P1/P14 deseni):** Tek `SELECT` ile tüm kategoriler `Map`'e (`name`/`parent_id\|name`) yüklenir; yalnız gerçekten eksik satır veya yanlış `is_system` bayrağı için yazma planlanır ve **tek `withTransactionAsync`** içinde uygulanır. Sağlıklı dönüş kullanıcısı: **1 SELECT + 0 yazma** (transaction hiç açılmaz). Idempotent + self-healing korunur, davranış birebir. | `src/db/database.ts` |
+| P27 | **Borç Operasyonu — `useBudget` döngü başına ek sorgular (özellik, §5.13)** | Borç entegrasyonu döngü başına 3 yeni toplam gerektirir (borrowedIn, repaidIn, outstandingDebt) + mevcut totalSpent. Seri `await` 4 sıralı roundtrip olurdu. **Çözüm (§8.2/2):** dördü **tek `Promise.all`** ile paralel çekilir; nakit-akışı matematiği saf `computeDebtAdjustedBudget` ile JS'te yapılır (DB değil). `outstandingDebt` döngü bağımsız (her zaman global açık borç). Borç yokken sorgular `COALESCE(...,0)` ile 0 döner → `effectiveBudget==monthlyBudget`, davranış eski haliyle birebir. | `src/hooks/useBudget.ts`, `src/utils/debtMath.ts`, `src/db/debtDao.ts` |
 
 ### 8.2 Performans kuralları — yeni katkılar için
 
@@ -728,6 +758,7 @@ P1–P13 denetim bulguları tamamlandıktan sonra orta öncelikli olarak takip e
 4. `initialNumToRender` / `windowSize` / `maxToRenderPerBatch` / `updateCellsBatchingPeriod` açıkça ayarlanmalı — `TransactionsScreen` değerleri referans alınmalı. Sabit yükseklikli satırlarda ek olarak `getItemLayout` eklenmelidir (yol haritası).
 5. `keyExtractor`, `renderItem`, `ListEmptyComponent`, `ListFooterComponent` **stabil referans** (modül seviyesi veya `useCallback` / `useMemo`).
 6. **FlashList** şu anda bağımlılık listesinde yok; 1000+ satıra ölçülebilir şekilde ulaşılırsa eklenebilir. Bu aşamada `FlatList` + virtualization + pagination yeterlidir.
+7b. **Arama + dokunma: `keyboardShouldPersistTaps="handled"` zorunlu** (Haziran 2026). Listede arama kutusu varsa klavye açıkken listeye **ilk dokunuş** varsayılan (`'never'`) davranışta klavyeyi kapatmaya gider, satıra ulaşmaz → "filtreden sonra ilk seçim çalışmıyor, ikincisi çalışıyor" hatası. `transactions.tsx` FlatList'inde `keyboardShouldPersistTaps="handled"` (boş alanda klavye yine kapanır, satır dokunuşu geçer). Aramalı her yeni listede uygula.
 7. **`removeClippedSubviews` Android'de runtime toggle'lanmamalı** (P13). Mode/state değişikliğine bağlı `true ↔ false` geçişi clip'lenmiş native view'leri gözden kaybediyor. Sabit değer kullanın; satır görünürlüğüne mod bağımlı bir prop gerekiyorsa list mount sırasında bir kez belirleyin (`useState` ile sabit) veya başka bir mekanizma (key reset ile remount) tercih edin.
 8. **Tek kaynak prensibi — tekrar eden sabitler** (Mayıs 2026 — friend-review #5). Para birimi meta verisi (sembol, locale, etiket) artık `src/utils/currencyMeta.ts`'de merkezi tanımlanır; formatlama (`formatCurrency.ts`) ve UI (`CurrencyContext.tsx`) bunu import eder — duplikasyon ortadan kalkar. Benzer şekilde gelecekte tekrar eden sabitleri (kategori renkleri, tab varsayılanları, bildirim şablonları) merkezi yere çekmek gizli tutarsızlıkları (test'te görünmez ama runtime'da yanıp sönmeler) önler.
 
@@ -766,6 +797,8 @@ P1–P13 denetim bulguları tamamlandıktan sonra orta öncelikli olarak takip e
 5. Eksik çeviri runtime’da `en` → `tr` fallback’ine düşer.
 
 **Anahtar paritesi guard'ı (Haziran 2026 — `src/i18n/__tests__/localeParity.test.ts`):** TR kaynak alınır; EN/AZ/RU eksik/fazla anahtarlar test edilir → `npm test` (dolayısıyla CI) her **yeni** drift'te kırmızıya düşer. **EN inline TR ile tam paritede** olmalı (baseline'a izin yok). AZ/RU için mevcut borç `src/i18n/locales/_parityBaseline.json`'da **dondurulmuş** (ratchet): yalnız baseline dışı yeni eksikler hata; çevrilmiş anahtarlar baseline'dan çıkarılınca "stale baseline" testi uyarır → borç yalnız küçülebilir. **Borç KAPANDI (23 Haziran 2026): dört dil de TR ile TAM PARİTEDE (baseline tamamen boş).** Başlangıçta AZ/RU'da ~217'şer anahtar eksikti (`_en.json`/map dosyaları inline EN'den ayrışmıştı). **AZ** (kullanıcı ana dili — öncelik verildi, tüm çeviriler kullanıcı kontrolünden geçti) 11 partide `map-az-9..19`; **RU** tek partide `map-ru-9` (kullanıcı onayı gerekmedi — ana dili değil; EN kaynaktan çevrildi, yer-tutucu bütünlüğü ve ₺-atlama programatik doğrulandı). İçerik: onboarding, tüm analiz kartları, Abonelikler ekranı, ayarlar grupları + bütçe döngüsü, satıcı yönetimi + gizlilik, bildirimler, birikim hedefi/katkılar, yedek (export+import+hatırlatma). **Yerleşik AZ sözlüğü:** receipt→çek, scan→skan et, analytics→Analitika, budget→büdcə, monthly→aylıq, settings→Tənzimləmələr, vendor→satıcı, backup→ehtiyat nüsxə, export→ixrac, import→idxal, restore→bərpa, default→standart, AI→Süni intellekt/Sİ. **Yerleşik RU sözlüğü:** receipt→чек, budget→бюджет, vendor→продавец, analytics→Аналитика, settings→Настройки, savings→накопления, subscription→подписка, backup→резервная копия, AI→ИИ. **Dikkat (AZ false-friend):** `səhər`=sabah(morning), `sabah`=yarın(tomorrow) — `timeofday_morning`=Səhər, `subs_card_tomorrow`/`subscription_due_tomorrow`=Sabah. **RU notu:** çoğul biçimleri sabit genitiv (`{count} операций` vb.) — ICU çoğul motoru yok, tek-sayı durumu ideal değil ama UI standardı budur. Yerleşik AZ sözlüğüyle tutarlılık: receipt→**çek**, scan→**skan et**, analytics→**Analitika**, budget→**büdcə**, monthly→**aylıq**, settings→**Tənzimləmələr**. Yeni anahtar eklerken sayıyı **artırma**; baseline'dan parça parça **çevirip çıkararak** azalt.
+
+**i18n tuzağı — `%{param}` "%" işaretini yutar (Haz 2026):** `t()` önce `%{param}` kalıbını değiştirir, sonra `{param}`'ı. Yani metne `%{pct}` yazarsan motor bunu **tek token** sayıp baştaki `%`'yi de tüketir → "%83" yerine "83" çıkar (eski TR `notif_month_summary_b` hatası). Yüzde için **`{pct}%`** yaz (% sondan literal kalır). Ayrıca **para birimi sembolünü şablona sabit yazma** (eski `{total} ₺`) — tutarı `formatCurrency(amount, currency)` ile besle, şablon yalnız `{total}` içersin.
 
 **Kural:** UI’da `t('tab_dashboard')` gibi kullan; **bu repoda dize literali hardcode** etme. Yeni tanımlayıcı anahtar isimleri `snake_case` ve alan ön ekiyle (`settings_*`, `notif_*`, `cat_*`, `language_*`).
 

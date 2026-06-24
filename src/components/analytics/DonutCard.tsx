@@ -1,5 +1,5 @@
 // S.P.A.R.K. — Analiz kartı: Davranışsal analiz (needs/wants + week/weekend donut'ları)
-import React from 'react';
+import React, { useState } from 'react';
 import { View, Text, ScrollView, Dimensions } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import AnimatedCard from '../AnimatedCard';
@@ -29,16 +29,29 @@ function DonutCard({
   const nwItem = selectedNWIdx !== null ? needsWants[selectedNWIdx] : null;
   const wwItem = selectedWWIdx !== null ? weekWeekend[selectedWWIdx] : null;
 
+  // Sayfa genişliğini HESAPLAMA yerine ÖLÇ: parent padding + kart border/padding
+  // birleşimi hesapla tutmadığında her donut sayfası viewport'tan dar kalıp sonraki
+  // donut'un sağdan sızmasına yol açıyordu. onLayout ile ScrollView'in gerçek
+  // görünüm genişliğini alıp her sayfayı tam ona eşitliyoruz → kusursuz paging.
   const screenWidth = Dimensions.get('window').width;
-  const cardInnerWidth = screenWidth - (ScreenPadding.horizontal * 2);
+  const [pageW, setPageW] = useState(screenWidth - ScreenPadding.horizontal * 2); // ilk render fallback
 
   return (
     <AnimatedCard delay={300} style={{ ...styles.section, ...styles.primaryCard, paddingHorizontal: 0 }}>
       <Text style={[styles.sectionTitle, { paddingHorizontal: Spacing.lg }]}>{t('behavioral_analysis')}</Text>
-      <ScrollView horizontal pagingEnabled showsHorizontalScrollIndicator={false} snapToInterval={cardInnerWidth} decelerationRate="fast">
+      <ScrollView
+        horizontal
+        pagingEnabled
+        showsHorizontalScrollIndicator={false}
+        decelerationRate="fast"
+        onLayout={(e) => {
+          const w = e.nativeEvent.layout.width;
+          if (w > 0 && Math.abs(w - pageW) > 0.5) setPageW(w);
+        }}
+      >
 
         {/* Donut 1: Needs vs Wants */}
-        <View style={[styles.donutCard, { width: cardInnerWidth }]}>
+        <View style={[styles.donutCard, { width: pageW }]}>
           <Text style={styles.trendTitle}>{t('budget_philosophy')}</Text>
           <DonutChart
             segments={nwSegments}
@@ -79,7 +92,7 @@ function DonutCard({
         </View>
 
         {/* Donut 2: Weekday vs Weekend */}
-        <View style={[styles.donutCard, { width: cardInnerWidth }]}>
+        <View style={[styles.donutCard, { width: pageW }]}>
            <Text style={styles.trendTitle}>{t('spending_time')}</Text>
            <DonutChart
             segments={wwSegments}

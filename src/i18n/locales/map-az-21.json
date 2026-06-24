@@ -1,0 +1,20 @@
+{
+  "debt_outstanding_label": "Açıq borc",
+  "debt_impact_label": "Borc təsiri",
+  "debt_manage_cta": "Borc əməliyyatları",
+  "debt_sheet_title": "Borclarım",
+  "debt_add_title": "Borc aldım",
+  "debt_empty_title": "Açıq borcun yoxdur",
+  "debt_empty_desc": "Bir ödənişi borcla qarşıladıqda buradan əlavə et.",
+  "debt_counterparty": "Kimdən",
+  "debt_counterparty_ph": "məs. Əli, ana, bank",
+  "debt_counterparty_required": "Kimdən aldığını yaz",
+  "debt_link_receipt": "Bir çekə bağla (istəyə bağlı)",
+  "debt_repay_title": "Borcu Ödə",
+  "debt_repay_cta": "Ödə",
+  "debt_repay_full": "Hamısını ödə",
+  "debt_remaining": "Qalıq",
+  "debt_created_toast": "Borc əlavə edildi",
+  "debt_repaid_toast": "Ödəniş yadda saxlanıldı",
+  "debt_settled_toast": "Borc bağlandı 🎉"
+}

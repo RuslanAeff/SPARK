@@ -98,6 +98,36 @@ export const CREATE_TABLES_SQL = `
   );
   CREATE INDEX IF NOT EXISTS idx_subscriptions_vendor ON subscriptions(vendor_id);
   CREATE INDEX IF NOT EXISTS idx_subscriptions_next ON subscriptions(next_expected_date);
+
+  -- Borç Operasyonu (§ debt). Borç alma/verme, fiş bütünlüğünü BOZMADAN ayrı
+  -- izlenir: harcama/fiş her zaman bütündür, geri ödeme tüketim SAYILMAZ. Bütçe
+  -- etkisi nakit-akışı modelidir (borç alınan döngüde +, ödenen döngüde −) →
+  -- src/utils/debtMath.ts. 'remaining' kalan borç; <=0 olunca status='settled'.
+  CREATE TABLE IF NOT EXISTS debts (
+    id                INTEGER PRIMARY KEY AUTOINCREMENT,
+    direction         TEXT NOT NULL DEFAULT 'borrowed',   -- 'borrowed'=ben aldım | 'lent'=ben verdim
+    counterparty      TEXT NOT NULL DEFAULT '',
+    amount            REAL NOT NULL,                       -- orijinal tutar (>0)
+    remaining         REAL NOT NULL,                       -- kalan; <=0 → settled
+    currency          TEXT NOT NULL DEFAULT 'PLN',
+    date              TEXT NOT NULL,                       -- YYYY-MM-DD (döngü bundan hesaplanır)
+    status            TEXT NOT NULL DEFAULT 'open',        -- 'open' | 'settled'
+    linked_expense_id INTEGER REFERENCES expenses(id) ON DELETE SET NULL,
+    note              TEXT,
+    created_at        TEXT NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS idx_debts_status ON debts(status);
+  CREATE INDEX IF NOT EXISTS idx_debts_date ON debts(date);
+
+  CREATE TABLE IF NOT EXISTS debt_payments (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    debt_id     INTEGER NOT NULL REFERENCES debts(id) ON DELETE CASCADE,
+    amount      REAL NOT NULL,
+    date        TEXT NOT NULL,                             -- ödeme günü (döngü bundan)
+    created_at  TEXT NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS idx_debt_payments_debt ON debt_payments(debt_id);
+  CREATE INDEX IF NOT EXISTS idx_debt_payments_date ON debt_payments(date);
 `;
 
 export const DEFAULT_CATEGORIES = [
@@ -244,6 +274,38 @@ export interface Budget {
   currency: string;
   start_date: string;
   active: number;
+}
+
+/** Borç Operasyonu — `debts` tablosu satırı. v1 UI yalnızca 'borrowed' yönüne
+ *  odaklanır; 'lent' (verme) şemada hazır, UI'ı sonraki faz. */
+export interface Debt {
+  id: number;
+  /** 'borrowed' = ben borç aldım | 'lent' = ben borç verdim. */
+  direction: 'borrowed' | 'lent';
+  /** Kime/kimden (karşı taraf). */
+  counterparty: string;
+  /** Orijinal borç tutarı (>0). */
+  amount: number;
+  /** Kalan borç; ödeme yapıldıkça düşer, <=0 → status='settled'. */
+  remaining: number;
+  currency: string;
+  /** YYYY-MM-DD; borcun düştüğü bütçe döngüsü bu tarihten hesaplanır. */
+  date: string;
+  status: 'open' | 'settled';
+  /** Borcun karşıladığı fişe opsiyonel bağ (fiş silinirse SET NULL). */
+  linked_expense_id: number | null;
+  note: string | null;
+  created_at: string;
+}
+
+/** Borç Operasyonu — `debt_payments` tablosu satırı (kısmi geri ödeme). */
+export interface DebtPayment {
+  id: number;
+  debt_id: number;
+  amount: number;
+  /** YYYY-MM-DD; ödemenin düştüğü bütçe döngüsü bu tarihten hesaplanır. */
+  date: string;
+  created_at: string;
 }
 
 // Extended types for UI

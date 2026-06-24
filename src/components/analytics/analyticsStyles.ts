@@ -855,6 +855,13 @@ export const getAnalyticsStyles = () => StyleSheet.create({
     flex: 1,
     minWidth: 0,
   },
+  // Marquee kapsayıcısı içindeki metin (flex YOK — doğal genişlik ölçülebilsin)
+  streakMsgTextInner: {
+    fontFamily: FontFamily.extraBold,
+    fontSize: 16,
+    letterSpacing: 0.5,
+    color: Colors.textPrimary,
+  },
   streakMsgSubWrap: {
     flexShrink: 0,
     paddingLeft: Spacing.md,

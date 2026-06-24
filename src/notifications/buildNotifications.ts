@@ -1,5 +1,7 @@
 import { BudgetDao } from '../db/budgetDao';
 import { ExpenseDao } from '../db/expenseDao';
+import { getDatabase } from '../db/database';
+import { formatCurrency } from '../utils/formatCurrency';
 import { GoalDao } from '../db/goalDao';
 import { CategoryLimitDao } from '../db/categoryLimitDao';
 import { CategoryDao } from '../db/categoryDao';
@@ -69,6 +71,20 @@ function push(
     params,
     createdAt: Date.now(),
   });
+}
+
+/** Kullanıcının görüntüleme para birimi (settings.display_currency). Bildirim
+ *  tutarları uygulamanın geri kalanıyla aynı sembolle gösterilsin diye. */
+async function getDisplayCurrencySetting(): Promise<string> {
+  try {
+    const db = await getDatabase();
+    const row = await db.getFirstAsync<{ value: string }>(
+      "SELECT value FROM settings WHERE key = 'display_currency'",
+    );
+    return row?.value || 'PLN';
+  } catch {
+    return 'PLN';
+  }
 }
 
 export async function runNotificationSync(
@@ -315,9 +331,9 @@ export async function runNotificationSync(
             const topShare = totalPrev > 0 && top
               ? Math.round((Number(top.total) / totalPrev) * 100)
               : 0;
-            const totalStr = totalPrev.toLocaleString('tr-TR', {
-              maximumFractionDigits: 0,
-            });
+            // Para birimi: kullanıcının görüntüleme para birimi (yoksa bütçenin / PLN).
+            // Şablonlarda sabit '₺' YOK; tutar uygulamanın formatlayıcısıyla biçimlenir.
+            const summaryCurrency = (await getDisplayCurrencySetting()) || prevBudgetRow?.currency || 'PLN';
             feed = push(
               feed,
               `month-summary-${prevYm}`,
@@ -326,7 +342,7 @@ export async function runNotificationSync(
               budgetAmount > 0 ? 'notif_month_summary_b' : 'notif_month_summary_no_budget_b',
               {
                 month: prevYm,
-                total: totalStr,
+                total: formatCurrency(totalPrev, summaryCurrency, false),
                 pct: String(pct),
                 top: topName,
                 top_pct: String(topShare),

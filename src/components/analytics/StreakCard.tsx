@@ -3,6 +3,7 @@ import React, { type Dispatch, type SetStateAction } from 'react';
 import { View, Text, Pressable } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import AnimatedCard from '../AnimatedCard';
+import MarqueeText from '../MarqueeText';
 import { Colors } from '../../theme/colors';
 import { CountUpText, type BaseCardProps, type StreakData, type StreakVariant } from './shared';
 
@@ -70,7 +71,7 @@ function StreakCard({ styles, t, streakData, dailyBudget, setStreakDetailVariant
               color={streakType === 'great' ? Colors.warning : streakType === 'good' ? Colors.primary : Colors.info}
             />
           </View>
-          <Text style={styles.streakMsgText} numberOfLines={1} ellipsizeMode="tail">{streakMsg}</Text>
+          <MarqueeText text={streakMsg} style={styles.streakMsgTextInner} containerStyle={styles.streakMsgText} />
         </View>
         {totalDays > 0 && (
           <View style={styles.streakMsgSubWrap}>

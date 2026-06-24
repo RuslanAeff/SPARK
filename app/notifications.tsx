@@ -25,7 +25,7 @@ import { Spacing, ScreenPadding, BorderRadius } from '../src/theme/spacing';
 import { useLanguage } from '../src/i18n/LanguageContext';
 import { useNotifications } from '../src/context/NotificationsContext';
 import type { InAppNotification, NotificationMuteChannel } from '../src/notifications/types';
-import { formatDate } from '../src/utils/dateUtils';
+import { formatDate, formatMonthYear } from '../src/utils/dateUtils';
 const MUTE_CHANNELS: { key: NotificationMuteChannel; labelKey: string }[] = [
   { key: 'budget', labelKey: 'notif_mute_budget' },
   { key: 'category_limit', labelKey: 'notif_mute_category' },
@@ -113,6 +113,19 @@ function groupFeedByDay(
     title: formatDate(dateStr, t as Parameters<typeof formatDate>[1]),
     data,
   }));
+}
+
+/** Bildirim parametrelerindeki YYYY-MM 'month' değerini okunabilir aya çevirir
+ *  ("2026-05" → "Mayıs 2026"). Builder'da `t` olmadığından render anında yapılır;
+ *  böylece mevcut (eski) bildirimlerde de düzelir. */
+function localizeNotifParams(
+  params: Record<string, string | number> | undefined,
+  t: (k: string, p?: Record<string, string | number>) => string,
+): Record<string, string | number> | undefined {
+  if (params && typeof params.month === 'string' && /^\d{4}-\d{2}$/.test(params.month)) {
+    return { ...params, month: formatMonthYear(`${params.month}-01`, t) };
+  }
+  return params;
 }
 
 const LIST_PREVIEW_LINES = 2;
@@ -234,8 +247,9 @@ export default function NotificationsScreen() {
         }
         renderItem={({ item }) => {
           const iconName = notificationIconName(item.id);
-          const title = t(item.titleKey, item.params);
-          const body = t(item.bodyKey, item.params);
+          const p = localizeNotifParams(item.params, t);
+          const title = t(item.titleKey, p);
+          const body = t(item.bodyKey, p);
           return (
             <View style={[styles.card, !item.read && styles.cardUnread]}>
               <View style={styles.iconCircle}>
@@ -291,7 +305,7 @@ export default function NotificationsScreen() {
           <>
             <View style={styles.detailHandle} />
             <Text style={styles.detailTitle}>
-              {t(detailNotif.titleKey, detailNotif.params)}
+              {t(detailNotif.titleKey, localizeNotifParams(detailNotif.params, t))}
             </Text>
             <ScrollView
               style={styles.detailScroll}
@@ -300,7 +314,7 @@ export default function NotificationsScreen() {
               bounces
             >
               <Text style={styles.detailBody}>
-                {t(detailNotif.bodyKey, detailNotif.params)}
+                {t(detailNotif.bodyKey, localizeNotifParams(detailNotif.params, t))}
               </Text>
             </ScrollView>
             <Text style={styles.detailTime}>{formatTime(detailNotif.createdAt)}</Text>

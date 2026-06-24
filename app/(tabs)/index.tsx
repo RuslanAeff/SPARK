@@ -11,7 +11,9 @@ import { Colors } from '../../src/theme/colors';
 import { Typography, FontFamily } from '../../src/theme/typography';
 import { Spacing, ScreenPadding, BorderRadius } from '../../src/theme/spacing';
 import { formatCurrency } from '../../src/utils/formatCurrency';
-import { formatDayMonth } from '../../src/utils/dateUtils';
+import { formatDayMonth, formatMonthYear } from '../../src/utils/dateUtils';
+import { getCurrentCycle, shiftCycleKey } from '../../src/utils/budgetCycle';
+import { getCycleStartDay } from '../../src/services/budgetCycleSettings';
 import { useBudget } from '../../src/hooks/useBudget';
 import { useCategorySpending, useVendorSpending, useMonthlyTotal } from '../../src/hooks/useExpenses';
 import { useSavingsGoal, useCategoryLimitsProgress, useGoalFeatureEnabled } from '../../src/hooks/useSavingsGoalData';
@@ -20,6 +22,7 @@ import DonutChart from '../../src/components/DonutChart';
 import SavingsGoalCard from '../../src/components/SavingsGoalCard';
 import CategoryLimitsSection from '../../src/components/CategoryLimitsSection';
 import BudgetCard from '../../src/components/BudgetCard';
+import DebtSheet from '../../src/components/DebtSheet';
 import AnimatedCard from '../../src/components/AnimatedCard';
 import CategoryPill from '../../src/components/CategoryPill';
 import VendorAvatar from '../../src/components/VendorAvatar';
@@ -35,7 +38,19 @@ export default function DashboardScreen() {
   const styles = React.useMemo(() => getStyles(), [scheme]);
   const router = useRouter();
   const { t, tc } = useLanguage();
-  const { budget, loading: budgetLoading, refresh: refreshBudget } = useBudget();
+
+  // Ay navigasyonu: 0 = güncel döngü; negatif = geçmiş döngüler (varsayılan güncel ay).
+  // Seçilen döngü useBudget'a key olarak geçer; budget.periodStart/End değişince
+  // donut/kategoriler/satıcılar/limitler hepsi otomatik o döngüye döner ([start,end] deps).
+  const [cycleOffset, setCycleOffset] = React.useState(0);
+  const [cycleAnchor, setCycleAnchor] = React.useState(1);
+  React.useEffect(() => {
+    getCycleStartDay().then(setCycleAnchor).catch(() => {});
+  }, []);
+  const currentCycleKey = React.useMemo(() => getCurrentCycle(cycleAnchor).key, [cycleAnchor]);
+  const selectedMonthKey = cycleOffset === 0 ? undefined : shiftCycleKey(currentCycleKey, cycleOffset);
+
+  const { budget, loading: budgetLoading, refresh: refreshBudget } = useBudget(selectedMonthKey);
 
   // Bütçe döngüsü tarihlerini tüm Dashboard hook'larına geçir.
   // budget.periodStart/End yüklenmeden (ilk render) hook'lar
@@ -51,6 +66,8 @@ export default function DashboardScreen() {
   const { enabled: goalFeatureEnabled, refresh: refreshGoalFeature } = useGoalFeatureEnabled();
   const [refreshing, setRefreshing] = React.useState(false);
   const [selectedIndex, setSelectedIndex] = React.useState<number | null>(null);
+  // Borç yönetim alt sayfası (açık borç rozetine dokununca açılır — Faz 4a).
+  const [debtSheetVisible, setDebtSheetVisible] = React.useState(false);
   const { refreshKey } = useRefresh();
   const { currency } = useCurrency();
   const { unreadCount, sync } = useNotifications();
@@ -72,6 +89,16 @@ export default function DashboardScreen() {
         setSelectedIndex(null);
       };
     }, [refreshAll])
+  );
+
+  // Ay seçimini YALNIZCA ekrandan ayrılınca sıfırla. (refreshAll'a bağlı effect'e
+  // koyarsak: ay değişince useBudget yeni refresh döndürür → refreshAll kimliği
+  // değişir → o effect'in cleanup'ı tetiklenip offset'i sıfırlar → güncel aya zıplar.
+  // Sabit [] deps'li ayrı effect yalnızca gerçek blur'da çalışır.)
+  useFocusEffect(
+    useCallback(() => {
+      return () => setCycleOffset(0);
+    }, [])
   );
 
   useExpenseDataRefresh(refreshAll);
@@ -159,9 +186,62 @@ export default function DashboardScreen() {
           </Pressable>
         </Animated.View>
 
+        {/* Açık borç göstergesi (global, kırmızı) — borç "kötü" hissettirilir;
+            kapatılana (settled) kadar durur. Dokununca borç yönetim sheet'i açılır. */}
+        {budget.outstandingDebt > 0 && (
+          <Animated.View entering={FadeInDown.delay(60).duration(400)} layout={LinearTransition.duration(750)}>
+            <Pressable
+              onPress={() => setDebtSheetVisible(true)}
+              style={({ pressed }) => [styles.debtBanner, pressed && { opacity: 0.92 }]}
+              accessibilityRole="button"
+              accessibilityLabel={t('debt_outstanding_label')}
+            >
+              <View style={styles.debtBannerIcon}>
+                <MaterialCommunityIcons name="alert-circle" size={22} color={Colors.danger} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.debtBannerLabel}>{t('debt_outstanding_label')}</Text>
+                <Text style={styles.debtBannerAmount}>
+                  {formatCurrency(budget.outstandingDebt, currency)}
+                </Text>
+              </View>
+              <MaterialCommunityIcons name="chevron-right" size={22} color={Colors.danger} />
+            </Pressable>
+          </Animated.View>
+        )}
+
         {/* Main Amount & Donut */}
         <Animated.View entering={FadeInDown.delay(100).duration(500)} layout={LinearTransition.duration(750)} style={styles.chartSection}>
-          <Text style={styles.totalLabel}>{t('this_month_spent')}</Text>
+          {/* Ay navigasyonu — seçilen döngü tüm dashboard'ı (donut + bütçe + kategoriler) yansıtır */}
+          <View style={styles.monthNav}>
+            <Pressable
+              onPress={() => setCycleOffset((o) => o - 1)}
+              hitSlop={10}
+              style={({ pressed }) => [styles.monthNavBtn, pressed && styles.monthNavBtnPressed]}
+              accessibilityRole="button"
+              accessibilityLabel={t('dashboard_prev_cycle')}
+            >
+              <MaterialCommunityIcons name="chevron-left" size={26} color={Colors.textSecondary} />
+            </Pressable>
+            <Text style={styles.monthNavLabel}>
+              {budget.periodStart ? formatMonthYear(budget.periodStart, t) : ''}
+            </Text>
+            <Pressable
+              onPress={() => setCycleOffset((o) => Math.min(0, o + 1))}
+              disabled={cycleOffset === 0}
+              hitSlop={10}
+              style={({ pressed }) => [styles.monthNavBtn, pressed && styles.monthNavBtnPressed]}
+              accessibilityRole="button"
+              accessibilityLabel={t('dashboard_next_cycle')}
+            >
+              <MaterialCommunityIcons
+                name="chevron-right"
+                size={26}
+                color={cycleOffset === 0 ? Colors.textMuted : Colors.textSecondary}
+              />
+            </Pressable>
+          </View>
+          {cycleOffset === 0 && <Text style={styles.totalLabel}>{t('this_month_spent')}</Text>}
           {showCycleRange && (
             <Text style={styles.cycleDateRange}>
               {formatDayMonth(budget.periodStart, t)} – {formatDayMonth(budget.periodEnd, t)}
@@ -220,6 +300,23 @@ export default function DashboardScreen() {
         {budget.monthlyBudget > 0 && (
           <Animated.View layout={LinearTransition.duration(750)}>
             <BudgetCard budget={budget} />
+          </Animated.View>
+        )}
+
+        {/* Borç işlemleri girişi — ilk borcu eklemek + borçları yönetmek için
+            her zaman erişilebilir (kırmızı rozet yalnızca açık borç varken çıkar). */}
+        {budget.monthlyBudget > 0 && (
+          <Animated.View layout={LinearTransition.duration(750)}>
+            <Pressable
+              onPress={() => setDebtSheetVisible(true)}
+              style={({ pressed }) => [styles.debtEntryBtn, pressed && { opacity: 0.9 }]}
+              accessibilityRole="button"
+              accessibilityLabel={t('debt_manage_cta')}
+            >
+              <MaterialCommunityIcons name="hand-coin-outline" size={18} color={Colors.textSecondary} />
+              <Text style={styles.debtEntryText}>{t('debt_manage_cta')}</Text>
+              <MaterialCommunityIcons name="chevron-right" size={18} color={Colors.textMuted} style={{ marginLeft: 'auto' }} />
+            </Pressable>
           </Animated.View>
         )}
 
@@ -393,6 +490,12 @@ export default function DashboardScreen() {
         <View style={{ height: 100 }} />
       </ScrollView>
 
+      <DebtSheet
+        visible={debtSheetVisible}
+        onClose={() => setDebtSheetVisible(false)}
+        currency={currency}
+        onChanged={refreshAll}
+      />
     </SafeAreaView>
   );
 }
@@ -445,6 +548,57 @@ const getStyles = () => StyleSheet.create({
     color: Colors.textSecondary,
     marginTop: 2,
   },
+  /** Açık borç göstergesi (kırmızı cam) */
+  debtBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.md,
+    backgroundColor: Colors.danger + '14',
+    borderRadius: BorderRadius.xl,
+    padding: Spacing.lg,
+    borderWidth: 1,
+    borderColor: Colors.danger + '40',
+    marginTop: Spacing.sm,
+  },
+  debtBannerIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: Colors.danger + '22',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  debtBannerLabel: {
+    ...Typography.labelMedium,
+    color: Colors.danger,
+    fontFamily: FontFamily.bold,
+    letterSpacing: 0.5,
+    textTransform: 'uppercase',
+  },
+  debtBannerAmount: {
+    ...Typography.headlineSmall,
+    color: Colors.textPrimary,
+    fontFamily: FontFamily.bold,
+    marginTop: 2,
+  },
+  /** Borç işlemleri giriş butonu (nötr cam pill) */
+  debtEntryBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    backgroundColor: Colors.surface,
+    borderRadius: BorderRadius.round,
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.md,
+    marginTop: Spacing.sm,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  debtEntryText: {
+    ...Typography.labelMedium,
+    color: Colors.textSecondary,
+    fontFamily: FontFamily.semiBold,
+  },
   /** Aylık bütçe kartı ile birikim kartı arasında nefes payı */
   goalBlockSpacing: {
     marginTop: Spacing.lg,
@@ -484,6 +638,32 @@ const getStyles = () => StyleSheet.create({
   chartSection: {
     alignItems: 'center',
     paddingVertical: Spacing.lg,
+  },
+  monthNav: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: Spacing.lg,
+    marginBottom: Spacing.sm,
+  },
+  monthNavBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: Colors.surface,
+  },
+  monthNavBtnPressed: {
+    opacity: 0.7,
+    transform: [{ scale: 0.94 }],
+  },
+  monthNavLabel: {
+    ...Typography.labelLarge,
+    color: Colors.textPrimary,
+    fontFamily: FontFamily.bold,
+    minWidth: 150,
+    textAlign: 'center',
   },
   totalLabel: {
     ...Typography.bodyMedium,

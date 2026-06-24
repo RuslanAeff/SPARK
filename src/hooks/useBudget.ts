@@ -5,14 +5,16 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { BudgetDao } from '../db/budgetDao';
 import { ExpenseDao } from '../db/expenseDao';
+import { DebtDao } from '../db/debtDao';
 import { getCycleStartDay } from '../services/budgetCycleSettings';
 import { getCurrentCycle, getCycleForKey, getCycleProgress } from '../utils/budgetCycle';
+import { computeDebtAdjustedBudget } from '../utils/debtMath';
 
 export interface BudgetInfo {
   monthlyBudget: number;
   totalSpent: number;
   remaining: number;
-  percentage: number;         // 0-100 spent percentage
+  percentage: number;         // 0-100 spent percentage (effectiveBudget tabanlı)
   dailyAverage: number;       // average daily spending
   dailyBudget: number;        // ideal daily budget
   daysRemaining: number;
@@ -24,6 +26,17 @@ export interface BudgetInfo {
   periodEnd: string;
   /** Aktif döngü başlangıç günü (1–31). 1 = takvim ayı. */
   cycleStartDay: number;
+  // --- Borç Operasyonu (nakit-akışı) — src/utils/debtMath.ts ---
+  /** Bu döngüde alınan borç toplamı (date ∈ döngü). */
+  borrowedIn: number;
+  /** Bu döngüde yapılan geri ödeme toplamı (payment.date ∈ döngü). */
+  repaidIn: number;
+  /** borrowedIn − repaidIn (döngünün net borç nakit akışı; +/−). */
+  netDebtFlow: number;
+  /** monthlyBudget + netDebtFlow (remaining/percentage bunun üzerinden). */
+  effectiveBudget: number;
+  /** Global açık borç toplamı (kırmızı rozet) — döngü bağımsız, Σ open remaining. */
+  outstandingDebt: number;
 }
 
 export function useBudget(specificMonth?: string) {
@@ -40,6 +53,11 @@ export function useBudget(specificMonth?: string) {
     periodStart: '',
     periodEnd: '',
     cycleStartDay: 1,
+    borrowedIn: 0,
+    repaidIn: 0,
+    netDebtFlow: 0,
+    effectiveBudget: 0,
+    outstandingDebt: 0,
   });
   const [loading, setLoading] = useState(true);
   const mounted = useRef(true);
@@ -64,7 +82,14 @@ export function useBudget(specificMonth?: string) {
       const budgetAmount = activeBudget ? activeBudget.monthly_amount : 0;
       const budgetCurrency = activeBudget ? activeBudget.currency : 'PLN';
 
-      const totalSpent = await ExpenseDao.getTotalByDateRange(cycle.start, cycle.end);
+      // Tüketim + döngünün borç nakit akışı + global açık borç paralel çekilir.
+      // outstandingDebt döngü bağımsızdır (her zaman güncel açık borç toplamı).
+      const [totalSpent, borrowedIn, repaidIn, outstandingDebt] = await Promise.all([
+        ExpenseDao.getTotalByDateRange(cycle.start, cycle.end),
+        DebtDao.getBorrowedTotalByDateRange(cycle.start, cycle.end),
+        DebtDao.getRepaidTotalByDateRange(cycle.start, cycle.end),
+        DebtDao.getOutstandingTotal(),
+      ]);
 
       // Döngü içindeki ilerleme: güncel döngüde bugüne göre; geçmiş döngüde tam
       // dolmuş, gelecek döngüde hiç başlamamış kabul edilir.
@@ -80,10 +105,10 @@ export function useBudget(specificMonth?: string) {
         daysRemaining = cycle.totalDays;
       }
 
-      const remaining = budgetAmount - totalSpent;
-      const percentage = budgetAmount > 0
-        ? Math.min(100, Math.round((totalSpent / budgetAmount) * 100))
-        : 0;
+      // Bütçe etkisi = nakit akışı: remaining/percentage/isOverBudget
+      // effectiveBudget (= plan + borrowedIn − repaidIn) üzerinden hesaplanır.
+      const { effectiveBudget, netDebtFlow, remaining, percentage, isOverBudget } =
+        computeDebtAdjustedBudget({ monthlyBudget: budgetAmount, totalSpent, borrowedIn, repaidIn });
 
       const dailyAverage = dayOfCycle > 0 ? totalSpent / dayOfCycle : 0;
       const dailyBudget = daysRemaining > 0 ? Math.max(0, remaining) / daysRemaining : 0;
@@ -97,11 +122,16 @@ export function useBudget(specificMonth?: string) {
           dailyAverage,
           dailyBudget,
           daysRemaining,
-          isOverBudget: remaining < 0,
+          isOverBudget,
           currency: budgetCurrency,
           periodStart: cycle.start,
           periodEnd: cycle.end,
           cycleStartDay: anchor,
+          borrowedIn,
+          repaidIn,
+          netDebtFlow,
+          effectiveBudget,
+          outstandingDebt,
         });
       }
     } catch (e) {

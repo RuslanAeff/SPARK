@@ -83,6 +83,27 @@ function BudgetCard({ budget }: BudgetCardProps) {
         </View>
       </View>
 
+      {/* Borç etkisi (nakit-akışı) — bu döngüde borç alındıysa +, ödendiyse −.
+          effectiveBudget'in plan bütçesinden neden farklı olduğunu açıklar. */}
+      {(budget.borrowedIn > 0 || budget.repaidIn > 0) ? (
+        <View style={styles.debtImpactRow}>
+          <MaterialCommunityIcons name="swap-horizontal" size={14} color={Colors.textSecondary} />
+          <Text style={styles.debtImpactLabel}>{t('debt_impact_label')}</Text>
+          <View style={styles.debtImpactValues}>
+            {budget.borrowedIn > 0 ? (
+              <Text style={[styles.debtImpactValue, { color: Colors.danger }]}>
+                +{formatCurrency(budget.borrowedIn, currency, false)}
+              </Text>
+            ) : null}
+            {budget.repaidIn > 0 ? (
+              <Text style={[styles.debtImpactValue, { color: Colors.success }]}>
+                −{formatCurrency(budget.repaidIn, currency, false)}
+              </Text>
+            ) : null}
+          </View>
+        </View>
+      ) : null}
+
       <View style={styles.divider} />
 
       <View style={styles.row}>
@@ -188,6 +209,26 @@ const getStyles = () => StyleSheet.create({
   progressFill: {
     height: '100%',
     borderRadius: BorderRadius.round,
+  },
+  debtImpactRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: Spacing.md,
+  },
+  debtImpactLabel: {
+    ...Typography.labelSmall,
+    color: Colors.textSecondary,
+  },
+  debtImpactValues: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    marginLeft: 'auto',
+  },
+  debtImpactValue: {
+    ...Typography.labelMedium,
+    fontFamily: FontFamily.bold,
   },
   divider: {
     height: 1,
