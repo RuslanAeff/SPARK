@@ -1,0 +1,16 @@
+{
+  "vendor_search_placeholder": "Satıcı axtar…",
+  "vendor_no_results": "Uyğun satıcı tapılmadı.",
+  "privacy_policy": "Məxfilik Siyasəti",
+  "vendor_action_change_logo": "Loqonu dəyiş",
+  "vendor_action_change_logo_has": "Qalereyadan yeni şəkil seç",
+  "vendor_action_change_logo_none": "Bu satıcı üçün loqo təyin et",
+  "vendor_action_default_category": "Standart kateqoriya",
+  "vendor_action_delete": "Satıcını sil",
+  "vendor_action_delete_sub": "Bu satıcı və bağlı bütün əməliyyatlar silinir",
+  "vendor_pick_default_title": "Standart kateqoriyanı seç",
+  "vendor_default_none": "Standart kateqoriya yoxdur",
+  "vendor_default_unset_hint": "Bu satıcı üçün standart kateqoriya təyin edin",
+  "vendor_default_current": "Hazırda: {category}",
+  "vendor_default_applied": "Bu satıcı üçün standart: {category}"
+}

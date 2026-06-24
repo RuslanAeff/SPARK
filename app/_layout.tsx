@@ -3,6 +3,7 @@ import React, { useEffect, useState } from 'react';
 import { Stack, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { View, ActivityIndicator, Text, StyleSheet } from 'react-native';
+import Animated, { FadeOut } from 'react-native-reanimated';
 import ThemeScheduler from '../src/components/ThemeScheduler';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { DarkTheme, LightTheme } from '../src/theme/colors';
@@ -115,10 +116,13 @@ function RootLayoutContent() {
         </Stack>
         <SparkToastContainer />
         {showSplash && (
-          <View style={styles.splashOverlay} pointerEvents="auto">
+          // Yalnız KAPANIŞTA fade — overlay tema uygulandıktan (isReady) sonra
+          // gösterildiği için P12 "flash of dark" tetiklenmez. Giriş animasyonu
+          // YOK: aksi halde altındaki içerik bir an görünüp flash olurdu.
+          <Animated.View style={styles.splashOverlay} pointerEvents="auto" exiting={FadeOut.duration(320)}>
             <ActivityIndicator size="large" color={theme.primary} />
             <Text style={styles.loadingText}>S.P.A.R.K.</Text>
-          </View>
+          </Animated.View>
         )}
       </View>
       </NotificationsProvider>

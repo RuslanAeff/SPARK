@@ -1,0 +1,16 @@
+{
+  "timeofday_title": "NƏ VAXT XƏRCLƏYİRSƏN",
+  "timeofday_morning": "Səhər",
+  "timeofday_noon": "Günorta",
+  "timeofday_evening": "Axşam",
+  "timeofday_night": "Gecə",
+  "timeofday_morning_short": "06–12",
+  "timeofday_noon_short": "12–17",
+  "timeofday_evening_short": "17–22",
+  "timeofday_night_short": "22–06",
+  "timeofday_peak_label": "Ən sıx",
+  "timeofday_peak_value": "{day} {slot}",
+  "timeofday_disclaimer": "Xərcin qeyd edildiyi vaxta görə",
+  "timeofday_empty_title": "Hələ xərc qeydi yoxdur",
+  "timeofday_empty_hint": "Bu kart həftə ərzində nə vaxt xərclədiyini göstərir"
+}

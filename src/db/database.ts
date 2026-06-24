@@ -114,39 +114,69 @@ export async function getDatabase(): Promise<SQLite.SQLiteDatabase> {
   return initPromise;
 }
 
-/** Varsayılan kategori ağacını tamamlar: eksik üst/alt kategoriler + is_system bayrağı */
+/** Varsayılan kategori ağacını tamamlar: eksik üst/alt kategoriler + is_system bayrağı.
+ *  Performans (§8.2/1, P1/P14): her açılışta ~108 sıralı sorgu yerine TEK `SELECT` ile
+ *  tüm kategoriler Map'e yüklenir; yalnızca gerçekten eksik satır veya yanlış `is_system`
+ *  bayrağı için yazma yapılır. Sağlıklı bir dönüş kullanıcısında 1 SELECT + 0 yazma →
+ *  `isReady` (ilk render) gecikmesi belirgin azalır. Yazmalar tek `withTransactionAsync`
+ *  içinde (§7.3). Fonksiyon idempotent ve self-healing kalır; davranış birebir aynıdır. */
 export async function ensureDefaultCategoryTree(database: SQLite.SQLiteDatabase): Promise<void> {
+  const rows = await database.getAllAsync<{
+    id: number; name: string; parent_id: number | null; is_system: number;
+  }>('SELECT id, name, parent_id, is_system FROM categories');
+
+  const parents = new Map<string, { id: number; is_system: number }>();
+  const children = new Map<string, { id: number; is_system: number }>(); // key: `${parent_id}|${name}`
+  for (const r of rows) {
+    if (r.parent_id === null) parents.set(r.name, { id: r.id, is_system: r.is_system });
+    else children.set(`${r.parent_id}|${r.name}`, { id: r.id, is_system: r.is_system });
+  }
+
+  // Eksik kök kategoriler (id'leri çocuklar için transaction içinde gerekli).
+  const missingParents = DEFAULT_CATEGORIES.filter((c) => !parents.has(c.name));
+  // Mevcut köklerin eksik çocukları (parentId zaten biliniyor).
+  const childInserts: Array<{ parentId: number; child: { name: string; icon: string; color: string } }> = [];
+  // is_system != 1 olan mevcut satırlar için bayrak düzeltmesi.
+  const flagFixes: number[] = [];
+
   for (const cat of DEFAULT_CATEGORIES) {
-    let parentRow = await database.getFirstAsync<{ id: number }>(
-      `SELECT id FROM categories WHERE name = ? AND parent_id IS NULL`,
-      [cat.name]
-    );
-    let parentId: number;
-    if (!parentRow) {
+    const ex = parents.get(cat.name);
+    if (!ex) continue; // eksik kök + çocukları aşağıda transaction içinde eklenir
+    if (ex.is_system !== 1) flagFixes.push(ex.id);
+    for (const child of cat.children || []) {
+      const existing = children.get(`${ex.id}|${child.name}`);
+      if (!existing) childInserts.push({ parentId: ex.id, child });
+      else if (existing.is_system !== 1) flagFixes.push(existing.id);
+    }
+  }
+
+  // Sağlıklı dönüş kullanıcısı: yapılacak yazma yok → transaction açma.
+  if (missingParents.length === 0 && childInserts.length === 0 && flagFixes.length === 0) return;
+
+  await database.withTransactionAsync(async () => {
+    for (const cat of missingParents) {
       const r = await database.runAsync(
         `INSERT INTO categories (name, icon, color, parent_id, is_system) VALUES (?, ?, ?, NULL, 1)`,
         [cat.name, cat.icon, cat.color]
       );
-      parentId = Number(r.lastInsertRowId);
-    } else {
-      parentId = parentRow.id;
-      await database.runAsync(`UPDATE categories SET is_system = 1 WHERE id = ?`, [parentId]);
-    }
-    for (const child of cat.children || []) {
-      const ex = await database.getFirstAsync<{ id: number }>(
-        `SELECT id FROM categories WHERE parent_id = ? AND name = ?`,
-        [parentId, child.name]
-      );
-      if (!ex) {
+      const parentId = Number(r.lastInsertRowId);
+      for (const child of cat.children || []) {
         await database.runAsync(
           `INSERT INTO categories (name, icon, color, parent_id, is_system) VALUES (?, ?, ?, ?, 1)`,
           [child.name, child.icon, child.color, parentId]
         );
-      } else {
-        await database.runAsync(`UPDATE categories SET is_system = 1 WHERE id = ?`, [ex.id]);
       }
     }
-  }
+    for (const { parentId, child } of childInserts) {
+      await database.runAsync(
+        `INSERT INTO categories (name, icon, color, parent_id, is_system) VALUES (?, ?, ?, ?, 1)`,
+        [child.name, child.icon, child.color, parentId]
+      );
+    }
+    for (const id of flagFixes) {
+      await database.runAsync(`UPDATE categories SET is_system = 1 WHERE id = ?`, [id]);
+    }
+  });
 }
 
 export async function initializeDatabase(): Promise<void> {

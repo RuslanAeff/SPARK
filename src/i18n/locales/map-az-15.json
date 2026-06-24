@@ -1,0 +1,16 @@
+{
+  "settings_back": "Geri",
+  "settings_group_general": "Ümumi",
+  "settings_group_general_desc": "Dil, valyuta, tema",
+  "settings_group_budget": "Büdcə və hədəflər",
+  "settings_group_budget_desc": "Aylıq büdcə, hədəf, kateqoriyalar",
+  "settings_group_data": "Məlumat və ehtiyat nüsxə",
+  "settings_group_data_desc": "Satıcılar, abunəliklər, ehtiyat nüsxə",
+  "settings_group_ai": "Süni intellekt",
+  "settings_group_ai_desc": "Gemini çek oxunması",
+  "budget_cycle_start_day_label": "Dövrün başlanğıc günü",
+  "budget_cycle_day_default": "Təqvim ayı (ayın 1-i)",
+  "budget_cycle_day_value": "Hər ayın {day}-i",
+  "budget_cycle_clamp_note": "Qısa aylarda avtomatik olaraq ayın sonuna çəkilir.",
+  "budget_cycle_hint": "Büdcə dövrü standart olaraq təqvim ayıdır (ayın 1-i). Maaşını və ya yardımını hər ayın müəyyən günü alırsansa, dövrün başlanğıc gününü o günə təyin et; büdcə və qalan günlər həmin tarixə görə sıfırlanır."
+}

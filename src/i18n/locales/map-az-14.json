@@ -1,0 +1,23 @@
+{
+  "subscriptions_title": "Abunəliklər",
+  "subscription_monthly_estimate": "Təxmini aylıq ödəniş",
+  "subscription_monthly_hint": "{count} aktiv təkrarlanan ödənişdən hesablandı",
+  "subscription_empty_title": "Hələ təkrarlanan ödəniş aşkarlanmayıb",
+  "subscription_empty_desc": "Ən azı 3 müntəzəm aralıqla edilmiş ödəniş olduqda burada görünür.",
+  "subscription_period_weekly": "Həftəlik",
+  "subscription_period_monthly": "Aylıq",
+  "subscription_period_bimonthly": "İki aydan bir",
+  "subscription_period_quarterly": "3 aydan bir",
+  "subscription_period_yearly": "İllik",
+  "subscription_per_month_short": "ay",
+  "subscription_seen_count": "{count} ödəniş",
+  "subscription_due_today": "Bu gün",
+  "subscription_due_tomorrow": "Sabah",
+  "subscription_due_in_days": "{days} gün ərzində",
+  "subscription_action_dismiss": "Abunəlik deyil",
+  "subscription_action_restore": "Yenə də göstər",
+  "subscription_dismissed": "Abunəlik siyahısından gizlədildi",
+  "subscription_restored": "Yenidən siyahıya əlavə edildi",
+  "subscription_show_dismissed": "Gizlədilənləri göstər ({count})",
+  "subscription_hide_dismissed": "Gizlədilənləri gizlət"
+}

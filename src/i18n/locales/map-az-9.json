@@ -1,0 +1,20 @@
+{
+  "onboarding_skip": "Keç",
+  "onboarding_next": "İrəli",
+  "onboarding_welcome_title": "Çekini skan et, pulunu anla.",
+  "onboarding_welcome_subtitle": "S.P.A.R.K ilə xərclərini saniyələr içində nizamla.",
+  "onboarding_welcome_cta": "Başlayaq",
+  "onboarding_feature_scan": "Skan",
+  "onboarding_feature_budget": "Büdcə",
+  "onboarding_feature_analytics": "Analitika",
+  "onboarding_language_title": "Dilini seç",
+  "onboarding_language_subtitle": "Sistem dilini təklif etdik, istəsən indi dəyişə bilərsən.",
+  "onboarding_budget_title": "Aylıq büdcə təyin edək?",
+  "onboarding_budget_subtitle": "İstəsən indi daxil et, istəsən sonra tənzimlə.",
+  "onboarding_budget_input_placeholder": "Məs: 1500",
+  "onboarding_budget_skip_link": "Sonra əlavə edim",
+  "onboarding_done_title": "Hazırsan!",
+  "onboarding_done_subtitle": "İlk addımı tamamladın. İndi S.P.A.R.K səni gözləyir.",
+  "onboarding_done_scan_cta": "İlk çekini skan et",
+  "onboarding_done_explore_link": "Əvvəlcə kəşf edim"
+}
