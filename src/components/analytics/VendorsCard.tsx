@@ -1,7 +1,7 @@
 // S.P.A.R.K. — Analiz kartı: Satıcılar/mağazalar + seçili satıcı detay paneli
 // (ürün donut'u, 2 sütun lejant ve en çok alınan ürünler listesi)
 import React, { type Dispatch, type SetStateAction } from 'react';
-import { View, Text, ScrollView, Pressable } from 'react-native';
+import { View, Text, Pressable } from 'react-native';
 import Animated, { FadeInDown, FadeOutUp, LinearTransition } from 'react-native-reanimated';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import AnimatedCard from '../AnimatedCard';
@@ -34,8 +34,6 @@ function VendorsCard({
       <Text style={styles.sectionTitle}>{t('vendors_stores')}</Text>
       <Animated.View layout={LinearTransition.duration(320)}>
       {(() => {
-          const VENDORS_VISIBLE = 4;
-          const needsVendorScroll = vendors.length > VENDORS_VISIBLE;
           const vendorsContent = (
         <>
         {vendors.map((v, i) => {
@@ -177,7 +175,6 @@ function VendorsCard({
                 {/* Rendering the items list - scroll when > 3 */}
                 {(() => {
                     const itemsToRender = selectedDonutIdx !== null ? [vendorItems[selectedDonutIdx]] : vendorItems;
-                    const needsItemScroll = itemsToRender.length > 3;
                     const filteredItems = itemsToRender.filter(Boolean);
                     const itemsList = filteredItems.map((item: any, j: number) => {
                       const nameDisplay = itemDisplayName(item);
@@ -205,13 +202,10 @@ function VendorsCard({
                       );
                     });
 
-                    return needsItemScroll ? (
-                      <ScrollView style={styles.vendorItemsScroll} showsVerticalScrollIndicator={false} nestedScrollEnabled>
-                        {itemsList}
-                      </ScrollView>
-                    ) : (
-                      <>{itemsList}</>
-                    );
+                    // İç içe dikey ScrollView KULLANMA — dış sayfa ScrollView'unun
+                    // pull-to-refresh'i ile çakışıp listeyi kaydırılamaz yapıyordu.
+                    // Satır içi render; uzun liste dış sayfayla birlikte kayar.
+                    return <>{itemsList}</>;
                 })()}
               </Animated.View>
             )}
@@ -219,11 +213,7 @@ function VendorsCard({
         ); })}
         </>
           );
-          return needsVendorScroll ? (
-            <ScrollView style={styles.vendorsScroll} showsVerticalScrollIndicator={false} nestedScrollEnabled>
-              {vendorsContent}
-            </ScrollView>
-          ) : vendorsContent;
+          return vendorsContent;
         })()}
       </Animated.View>
     </AnimatedCard>

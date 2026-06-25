@@ -1,6 +1,6 @@
 // S.P.A.R.K. — Analiz kartı: En yüksek tutarlı işlemler (top transactions)
 import React from 'react';
-import { View, Text, ScrollView } from 'react-native';
+import { View, Text } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import AnimatedCard from '../AnimatedCard';
 import { Colors } from '../../theme/colors';
@@ -12,11 +12,8 @@ interface TopTxCardProps extends BaseCardProps {
   topTx: ExpenseWithDetails[];
 }
 
-const TOP_TX_VISIBLE = 3;
-
 function TopTxCard({ styles, t, tc, currency, topTx }: TopTxCardProps) {
   if (topTx.length === 0) return null;
-  const needsScroll = topTx.length > TOP_TX_VISIBLE;
   const txList = (
     <>
       {topTx.map((tx, i) => (
@@ -41,13 +38,9 @@ function TopTxCard({ styles, t, tc, currency, topTx }: TopTxCardProps) {
   return (
     <AnimatedCard delay={350} style={styles.section}>
       <Text style={styles.sectionTitle}>{t('top_transactions')}</Text>
-      {needsScroll ? (
-        <ScrollView style={styles.topTxScroll} showsVerticalScrollIndicator={false} nestedScrollEnabled>
-          {txList}
-        </ScrollView>
-      ) : (
-        txList
-      )}
+      {/* İç içe dikey ScrollView yok — dış sayfanın pull-to-refresh'i ile çakışır.
+          Liste 8 ile sınırlı (useTopTransactions), satır içi render dış sayfayla kayar. */}
+      {txList}
     </AnimatedCard>
   );
 }

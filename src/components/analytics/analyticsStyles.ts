@@ -319,16 +319,7 @@ export const getAnalyticsStyles = () => StyleSheet.create({
     ...Typography.bodyMedium,
     fontFamily: FontFamily.bold,
   },
-  topTxScroll: {
-    maxHeight: 180,
-  },
   // Vendor rows
-  vendorsScroll: {
-    maxHeight: 420,
-  },
-  vendorItemsScroll: {
-    maxHeight: 220,
-  },
   vendorRow: {
     flexDirection: 'row',
     alignItems: 'center',
