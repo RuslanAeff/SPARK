@@ -701,5 +701,8 @@
   "debt_remaining": "Остаток",
   "debt_created_toast": "Долг добавлен",
   "debt_repaid_toast": "Платёж сохранён",
-  "debt_settled_toast": "Долг закрыт 🎉"
+  "debt_settled_toast": "Долг закрыт 🎉",
+  "stop_scan": "Остановить",
+  "delete_api_key_msg": "Удалить ключ Gemini API?",
+  "api_key_deleted": "Ключ API удалён"
 }

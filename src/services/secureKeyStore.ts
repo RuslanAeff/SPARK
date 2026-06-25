@@ -53,7 +53,12 @@ export async function getSecureApiKey(): Promise<string | null> {
 
   try {
     const key = await SecureStore.getItemAsync(SECURE_KEY);
-    return key || null;
+    // Boşluk/yeni-satır temizliği: kopyala-yapıştırda anahtara sızan görünmez
+    // karakterler `x-goog-api-key` başlığını bozar → Google ListModels 400/403
+    // döner ("Could not retrieve model list"). Okurken trim → mevcut bozuk
+    // kayıtlar da otomatik düzelir.
+    const trimmed = key?.trim();
+    return trimmed || null;
   } catch (e) {
     if (__DEV__) console.warn('[SecureKeyStore] read failed:', e);
     return null;
@@ -65,7 +70,9 @@ export async function getSecureApiKey(): Promise<string | null> {
  * Eski SQLite kaydı varsa onu da temizler.
  */
 export async function setSecureApiKey(apiKey: string): Promise<void> {
-  await SecureStore.setItemAsync(SECURE_KEY, apiKey);
+  // Kaydederken de temizle — kullanıcı sondaki boşluk/satır sonuyla yapıştırsa bile
+  // anahtar düz saklanır (bkz. getSecureApiKey trim notu).
+  await SecureStore.setItemAsync(SECURE_KEY, apiKey.trim());
 
   // Eski SQLite kaydını temizle (varsa)
   try {

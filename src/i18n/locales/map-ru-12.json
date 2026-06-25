@@ -1,0 +1,5 @@
+{
+  "stop_scan": "Остановить",
+  "delete_api_key_msg": "Удалить ключ Gemini API?",
+  "api_key_deleted": "Ключ API удалён"
+}

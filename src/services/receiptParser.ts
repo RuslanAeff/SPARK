@@ -1,5 +1,6 @@
 // S.P.A.R.K. — Receipt Parser (process Gemini output into DB)
 import { ParsedReceipt, ParsedItem } from './geminiService';
+import { getDatabase } from '../db/database';
 import { ExpenseDao } from '../db/expenseDao';
 import { VendorDao } from '../db/vendorDao';
 import { CategoryDao } from '../db/categoryDao';
@@ -128,50 +129,68 @@ export async function processReceipt(receipt: ParsedReceipt): Promise<number> {
   const rawTotal = Number(receipt.total);
   const totalAmount =
     Number.isFinite(rawTotal) && rawTotal >= 0 ? rawTotal : itemsSum > 0 ? itemsSum : 0;
-  
-  // 3. Create expense header
-  const expenseId = await ExpenseDao.create({
-    vendor_id: vendorId,
-    category_id: primaryCategoryId,
-    total_amount: totalAmount,
-    currency: receipt.currency || 'PLN',
-    note: `Fiş: ${vendorName}`,
-    receipt_uri: null,
-    date: normalizedDate,
+
+  // 3. Kalem kategorilerini transaction ÖNCESİ çöz (okuma); yazma kısa transaction'da.
+  const rawItems = receipt.items || [];
+  const resolvedItems: Array<{
+    item: ParsedItem;
+    itemCategoryId: number;
+    qty: number;
+    unitPrice: number;
+    totalPrice: number;
+  }> = [];
+  for (const item of rawItems) {
+    const itemCategoryId = await resolveCategory(item.suggested_category || 'Diğer');
+    const qty = Number(item.quantity) || 1;
+    const unitPrice = Number(item.unit_price) || 0;
+    const totalPrice = Number(item.total_price) || unitPrice * qty;
+    resolvedItems.push({ item, itemCategoryId, qty, unitPrice, totalPrice });
+  }
+
+  // 4. Header + kalemler TEK transaction'da: ya hepsi kaydolur ya hiçbiri.
+  // (Eskiden header create + ayrı addItem'lar transaction dışındaydı → bir kalemde
+  // hata olursa "fiş var ama ürünler yok" tutarsızlığı oluşuyordu — §7.3.)
+  const db = await getDatabase();
+  let expenseId = 0;
+  await db.withTransactionAsync(async () => {
+    expenseId = await ExpenseDao.create({
+      vendor_id: vendorId,
+      category_id: primaryCategoryId,
+      total_amount: totalAmount,
+      currency: receipt.currency || 'PLN',
+      note: `Fiş: ${vendorName}`,
+      receipt_uri: null,
+      date: normalizedDate,
+    });
+    for (const r of resolvedItems) {
+      await ExpenseDao.addItem({
+        expense_id: expenseId,
+        name: String(r.item.name || '').trim() || 'Ürün',
+        turkish_name: r.item.turkish_name || undefined,
+        quantity: r.qty,
+        unit_price: r.unitPrice,
+        total_price: r.totalPrice,
+        category_id: r.itemCategoryId,
+        line_discount: r.item.line_discount != null ? Number(r.item.line_discount) : 0,
+        list_line_total_before_discount:
+          r.item.list_line_total_before_discount != null
+            ? Number(r.item.list_line_total_before_discount)
+            : null,
+      } as any);
+    }
+    // NOT: Burada syncExpenseTotal ÇAĞRILMAZ. Fişin basılı toplamı (totalAmount =
+    // Gemini'nin okuduğu "SUMA PLN") gerçek ödenen tutardır; AI bir kalemi atlarsa
+    // bile dashboard/bütçe doğru kalsın. Kullanıcı edit-items'ta kalem düzenlerse
+    // orada syncExpenseTotal zaten çağrılıp toplam güncel kalemlerle eşitlenir.
   });
 
+  // Bildirim transaction dışı (isteğe bağlı; kritik değil)
   try {
     const { appendReceiptSavedNotification } = await import('../notifications/buildNotifications');
     await appendReceiptSavedNotification(vendorName, expenseId);
   } catch {
     /* bildirim isteğe bağlı */
   }
-  
-  // 4. Add line items (coerce numbers in case Gemini returns strings)
-  for (const item of receipt.items) {
-    const itemCategoryId = await resolveCategory(item.suggested_category || 'Diğer');
-    const qty = Number(item.quantity) || 1;
-    const unitPrice = Number(item.unit_price) ?? 0;
-    const totalPrice = Number(item.total_price) ?? unitPrice * qty;
-    await ExpenseDao.addItem({
-      expense_id: expenseId,
-      name: String(item.name || '').trim() || 'Ürün',
-      turkish_name: item.turkish_name || undefined,
-      quantity: qty,
-      unit_price: unitPrice,
-      total_price: totalPrice,
-      category_id: itemCategoryId,
-      line_discount: item.line_discount != null ? Number(item.line_discount) : 0,
-      list_line_total_before_discount:
-        item.list_line_total_before_discount != null
-          ? Number(item.list_line_total_before_discount)
-          : null,
-    } as any);
-  }
 
-  if (receipt.items?.length) {
-    await ExpenseDao.syncExpenseTotal(expenseId);
-  }
-  
   return expenseId;
 }

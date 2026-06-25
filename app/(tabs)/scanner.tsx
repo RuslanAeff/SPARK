@@ -22,7 +22,6 @@ import { SparkToast } from '../../src/components/SparkToast';
 import { useLanguage } from '../../src/i18n/LanguageContext';
 import { useRefresh } from '../../src/context/RefreshContext';
 import { useCurrency } from '../../src/context/CurrencyContext';
-import { setPendingReceiptDraft } from '../../src/services/pendingReceiptDraft';
 import { setScanSessionError } from '../../src/services/scanSession';
 import { effectiveLineDiscount, lineHasDiscount } from '../../src/utils/receiptLineDiscountUi';
 import { compressImageToBase64 } from '../../src/utils/imageCompressor';
@@ -46,9 +45,14 @@ export default function ScannerScreen() {
   const [result, setResult] = useState<ParsedReceipt | null>(null);
   const [errorMsg, setErrorMsg] = useState('');
   const timersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
+  // Devam eden Gemini taramasını iptal etmek için (processing → "Durdur").
+  const abortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
-    return () => { timersRef.current.forEach(clearTimeout); };
+    return () => {
+      timersRef.current.forEach(clearTimeout);
+      abortRef.current?.abort();
+    };
   }, []);
 
   async function pickImage(useCamera: boolean) {
@@ -93,6 +97,8 @@ export default function ScannerScreen() {
       return;
     }
 
+    const controller = new AbortController();
+    abortRef.current = controller;
     setState('processing');
     setErrorMsg('');
     setScanSessionError(null);
@@ -101,15 +107,28 @@ export default function ScannerScreen() {
       // P3: Görüntüyü sıkıştır + base64'e çevir (max 1536px, JPEG %70)
       const base64 = await compressImageToBase64(uri);
 
-      const parsed = await parseReceipt(base64, language);
+      const parsed = await parseReceipt(base64, language, controller.signal);
+      if (controller.signal.aborted) return; // kullanıcı "Durdur" dedi
       setResult(parsed);
       setState('result');
     } catch (e) {
+      // İptal (Durdur) → sessizce idle'a dönüldü; hata gösterme.
+      if (controller.signal.aborted) return;
       const msg = e instanceof Error ? e.message : t('unknown_error');
       setScanSessionError(msg);
       setErrorMsg(msg);
       setState('error');
+    } finally {
+      if (abortRef.current === controller) abortRef.current = null;
     }
+  }
+
+  function handleStopScan() {
+    abortRef.current?.abort();
+    abortRef.current = null;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    setState('idle');
+    setImageUri(null);
   }
 
   async function handleSave() {
@@ -132,16 +151,26 @@ export default function ScannerScreen() {
     }
   }
 
-  function handleEditBeforeSave() {
+  async function handleEditBeforeSave() {
     if (!result) return;
-    setPendingReceiptDraft(result);
-    timersRef.current.forEach(clearTimeout);
-    timersRef.current = [];
-    setState('idle');
-    setResult(null);
-    setImageUri(null);
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    router.push('/add-expense?fromScan=1');
+    const receiptToSave = result;
+    try {
+      // Düzenlemeden önce fişi (ÜRÜNLER DAHİL) kaydet, sonra edit modunda aç.
+      // Eskiden yalnız başlık prefill ediliyordu → ürünler kayboluyordu.
+      const expenseId = await processReceipt(receiptToSave);
+      setScanSessionError(null);
+      timersRef.current.forEach(clearTimeout);
+      timersRef.current = [];
+      triggerRefresh();
+      queueMicrotask(() => triggerRefresh());
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      setState('idle');
+      setResult(null);
+      setImageUri(null);
+      router.push(`/add-expense?id=${expenseId}`);
+    } catch (e) {
+      SparkToast.show(t('error_saving_data'), 'error');
+    }
   }
 
   return (
@@ -194,6 +223,17 @@ export default function ScannerScreen() {
             <ActivityIndicator size="large" color={Colors.primary} />
             <Text style={styles.processingText}>{t('scanning_ai_toast')}</Text>
             <Text style={styles.processingSubtext}>{t('processing')}</Text>
+            <Pressable
+              onPress={handleStopScan}
+              style={({ pressed }) => [styles.stopButton, pressed && styles.stopButtonPressed]}
+              accessibilityRole="button"
+              accessibilityLabel={t('stop_scan')}
+            >
+              <View style={styles.stopButtonRow}>
+                <MaterialCommunityIcons name="stop-circle-outline" size={20} color="#FFFFFF" />
+                <Text style={styles.stopButtonText}>{t('stop_scan')}</Text>
+              </View>
+            </Pressable>
           </View>
         )}
 
@@ -440,6 +480,16 @@ const getStyles = () => StyleSheet.create({
     ...Typography.bodySmall,
     color: Colors.textSecondary,
   },
+  /** Durdur — şüşevar dili, kırmızı (danger) varyant */
+  stopButton: {
+    ...susevarButton,
+    backgroundColor: Colors.danger,
+    shadowColor: Colors.danger,
+    marginTop: Spacing.xl,
+  },
+  stopButtonPressed: susevarButtonPressed,
+  stopButtonRow: susevarButtonRow,
+  stopButtonText: susevarButtonText,
   // Error
   errorContent: {
     alignItems: 'center',

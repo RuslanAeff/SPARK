@@ -82,14 +82,15 @@ export function useBudget(specificMonth?: string) {
       const budgetAmount = activeBudget ? activeBudget.monthly_amount : 0;
       const budgetCurrency = activeBudget ? activeBudget.currency : 'PLN';
 
-      // Tüketim + döngünün borç nakit akışı + global açık borç paralel çekilir.
+      // Tüketim + döngünün borç nakit akışı + global açık borç.
       // outstandingDebt döngü bağımsızdır (her zaman güncel açık borç toplamı).
-      const [totalSpent, borrowedIn, repaidIn, outstandingDebt] = await Promise.all([
-        ExpenseDao.getTotalByDateRange(cycle.start, cycle.end),
-        DebtDao.getBorrowedTotalByDateRange(cycle.start, cycle.end),
-        DebtDao.getRepaidTotalByDateRange(cycle.start, cycle.end),
-        DebtDao.getOutstandingTotal(),
-      ]);
+      // NOT: Sorgular SERİ çalışır (Promise.all DEĞİL) — expo-sqlite tek bağlantıda
+      // eşzamanlı prepareAsync'te "shared object already released" çökmesi
+      // verebiliyor; seri erişim güvenli. 4 indeksli sorgu, fark edilmez maliyet.
+      const totalSpent = await ExpenseDao.getTotalByDateRange(cycle.start, cycle.end);
+      const borrowedIn = await DebtDao.getBorrowedTotalByDateRange(cycle.start, cycle.end);
+      const repaidIn = await DebtDao.getRepaidTotalByDateRange(cycle.start, cycle.end);
+      const outstandingDebt = await DebtDao.getOutstandingTotal();
 
       // Döngü içindeki ilerleme: güncel döngüde bugüne göre; geçmiş döngüde tam
       // dolmuş, gelecek döngüde hiç başlamamış kabul edilir.

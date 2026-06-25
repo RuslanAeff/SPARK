@@ -16,7 +16,7 @@ import { Spacing, ScreenPadding, BorderRadius } from '../src/theme/spacing';
 import { ExpenseDao } from '../src/db/expenseDao';
 import { CategoryDao } from '../src/db/categoryDao';
 import { VendorDao } from '../src/db/vendorDao';
-import { Category } from '../src/db/schema';
+import { Category, ExpenseItem } from '../src/db/schema';
 import { getToday } from '../src/utils/dateUtils';
 import CustomDatePicker from '../src/components/CustomDatePicker';
 import { SparkToast } from '../src/components/SparkToast';
@@ -53,6 +53,7 @@ export default function AddExpenseScreen() {
   const [parentCategoryId, setParentCategoryId] = useState<number | null>(null);
   const [subCategoryId, setSubCategoryId] = useState<number | null>(null);
   const [categories, setCategories] = useState<Category[]>([]);
+  const [existingItems, setExistingItems] = useState<ExpenseItem[]>([]);
   const [saving, setSaving] = useState(false);
   const [datePickerVisible, setDatePickerVisible] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -135,6 +136,7 @@ export default function AddExpenseScreen() {
         setAmount(expense.total_amount.toString());
         setNote(expense.note || '');
         setDate(expense.date);
+        setExistingItems(expense.items || []);
         if (expense.vendor_name) setVendorName(expense.vendor_name);
         if (expense.category_id) {
           const cat = cats.find(c => c.id === expense.category_id);
@@ -500,6 +502,23 @@ export default function AddExpenseScreen() {
           </View>
         </View>
 
+          {/* Fiş ürünleri (salt-okunur özet) — düzenlemek için "Detaylı Düzenle".
+              Fiş tarayıp kaydedilen ürünler burada görünür; boşsa kalem yok demektir. */}
+          {isEditing && existingItems.length > 0 && (
+            <View style={styles.itemsPreview}>
+              {existingItems.map((it) => (
+                <View key={it.id} style={styles.itemPreviewRow}>
+                  <Text style={styles.itemPreviewName} numberOfLines={1}>
+                    {it.turkish_name || it.name}
+                  </Text>
+                  <Text style={styles.itemPreviewPrice}>
+                    {formatCurrency(it.total_price, currency, false)}
+                  </Text>
+                </View>
+              ))}
+            </View>
+          )}
+
           <Pressable
             onPress={handleDetailedEdit}
             disabled={saving}
@@ -731,8 +750,34 @@ const getStyles = () => StyleSheet.create({
     ...susevarButtonMarginTop,
   },
   saveButtonPressed: susevarButtonPressed,
+  itemsPreview: {
+    marginTop: Spacing.xxl,
+    gap: 2,
+    backgroundColor: Colors.surface,
+    borderRadius: BorderRadius.lg,
+    padding: Spacing.md,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  itemPreviewRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 5,
+  },
+  itemPreviewName: {
+    ...Typography.bodySmall,
+    color: Colors.textPrimary,
+    flex: 1,
+    paddingRight: Spacing.sm,
+  },
+  itemPreviewPrice: {
+    ...Typography.labelMedium,
+    color: Colors.textSecondary,
+    fontFamily: FontFamily.semiBold,
+  },
   detailedButton: {
-    marginTop: Spacing.xxl, // Adds separation from the rest of the form
+    marginTop: Spacing.md,
     backgroundColor: Colors.primaryGlow,
     borderWidth: 1,
     borderColor: Colors.glassBorder,

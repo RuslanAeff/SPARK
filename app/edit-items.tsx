@@ -69,9 +69,13 @@ export default function EditItemsScreen() {
     setEditingItemId(item.id);
     setItemName(item.name);
     setQuantity(item.quantity.toString());
-    setUnitPrice(item.unit_price.toString());
-    const d = effectiveLineDiscount(item);
-    setDiscount(d > 0 ? String(d) : '');
+    // Düzenlemede ETİKET (indirim öncesi) birim fiyatı göster; indirim ayrı alanda.
+    // Net birim yerine etiket gösterilir ki tekrar kaydetmede indirim çift düşmesin.
+    const eff = effectiveLineDiscount(item);
+    const listTotal = (item.list_line_total_before_discount ?? item.total_price) || 0;
+    const labelUnit = item.quantity > 0 ? listTotal / item.quantity : listTotal;
+    setUnitPrice(String(labelUnit));
+    setDiscount(eff > 0 ? String(eff) : '');
   }
 
   async function handleSaveItem() {
@@ -87,14 +91,20 @@ export default function EditItemsScreen() {
       return;
     }
 
-    const totalPrice = q * up;
     const expenseId = parseInt(id);
 
+    // Girilen "Unit Price" ETİKET (indirim öncesi) birim fiyattır; indirim satır
+    // toplamından DÜŞÜLÜR → ödenen (net) = etiket toplam − indirim. (Eskiden
+    // girilen fiyat net sanılıp list = net + indirim ile şişiriliyordu → indirim
+    // eklemek fiyatı artırmış gibi görünüyordu.)
+    const lineTotal = q * up;
     const disc = parseFloat((discount || '').replace(',', '.'));
     const hasDisc = !isNaN(disc) && disc > 0.001;
+    const netTotal = hasDisc ? Math.max(0, lineTotal - disc) : lineTotal;
+    const netUnit = q > 0 ? netTotal / q : netTotal;
     const discFields = {
       line_discount: hasDisc ? disc : null,
-      list_line_total_before_discount: hasDisc ? totalPrice + disc : null,
+      list_line_total_before_discount: hasDisc ? lineTotal : null,
     };
 
     try {
@@ -103,8 +113,8 @@ export default function EditItemsScreen() {
           name: itemName.trim(),
           turkish_name: itemName.trim(),
           quantity: q,
-          unit_price: up,
-          total_price: totalPrice,
+          unit_price: netUnit,
+          total_price: netTotal,
           ...discFields,
         });
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -115,8 +125,8 @@ export default function EditItemsScreen() {
           name: itemName.trim(),
           turkish_name: itemName.trim(),
           quantity: q,
-          unit_price: up,
-          total_price: totalPrice,
+          unit_price: netUnit,
+          total_price: netTotal,
           category_id: null,
           ...discFields,
         });

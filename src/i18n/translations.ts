@@ -55,6 +55,11 @@ export const translations = {
     debt_repaid_toast: 'Ödeme kaydedildi',
     debt_settled_toast: 'Borç kapandı 🎉',
 
+    // Tarayıcı / AI
+    stop_scan: 'Durdur',
+    delete_api_key_msg: 'Gemini API anahtarını silmek istiyor musun?',
+    api_key_deleted: 'API anahtarı silindi',
+
     // Notification center
     notif_go_back: 'Geri',
     notif_center_title: 'Bildirimler',
@@ -809,6 +814,11 @@ export const translations = {
     debt_created_toast: 'Debt added',
     debt_repaid_toast: 'Payment saved',
     debt_settled_toast: 'Debt settled 🎉',
+
+    // Scanner / AI
+    stop_scan: 'Stop',
+    delete_api_key_msg: 'Delete the Gemini API key?',
+    api_key_deleted: 'API key deleted',
 
     // Notification center
     notif_go_back: 'Back',

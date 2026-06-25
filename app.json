@@ -2,7 +2,7 @@
   "expo": {
     "name": "S.P.A.R.K",
     "slug": "spark-finance",
-    "version": "2.3.1",
+    "version": "2.5.0",
     "orientation": "portrait",
     "icon": "./assets/spark-icon.png",
     "userInterfaceStyle": "dark",
@@ -22,7 +22,7 @@
         "foregroundImage": "./assets/spark-icon.png"
       },
       "package": "com.spark.finance",
-      "versionCode": 5,
+      "versionCode": 7,
       "permissions": [
         "android.permission.CAMERA",
         "android.permission.READ_EXTERNAL_STORAGE",
@@ -55,7 +55,9 @@
     ],
     "extra": {
       "router": {},
-      "eas": {},
+      "eas": {
+        "projectId": "6e22ef61-4027-4f79-811b-cde50765e90e"
+      },
       "privacyPolicyUrl": "https://ruslanaeff.github.io/privacy-policy.html"
     },
     "owner": "ruslanaeff0"

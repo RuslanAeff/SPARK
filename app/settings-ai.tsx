@@ -12,8 +12,9 @@ import { Colors } from '../src/theme/colors';
 import { Typography, FontFamily } from '../src/theme/typography';
 import { Spacing, ScreenPadding, BorderRadius } from '../src/theme/spacing';
 import { useLanguage } from '../src/i18n/LanguageContext';
-import { saveApiKey, hasApiKey } from '../src/services/geminiService';
+import { saveApiKey, hasApiKey, deleteApiKey } from '../src/services/geminiService';
 import GlassCheckButton from '../src/components/GlassCheckButton';
+import GlassDeleteModal from '../src/components/GlassDeleteModal';
 import { SparkToast } from '../src/components/SparkToast';
 
 export default function SettingsAiScreen() {
@@ -24,6 +25,7 @@ export default function SettingsAiScreen() {
 
   const [apiKey, setApiKey] = useState('');
   const [hasKey, setHasKey] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -42,6 +44,15 @@ export default function SettingsAiScreen() {
     setApiKey('');
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     SparkToast.show(t('api_key_saved'), 'success', t('api_key_ready'));
+  }
+
+  async function handleDeleteApiKey() {
+    setShowDeleteConfirm(false);
+    await deleteApiKey();
+    setHasKey(false);
+    setApiKey('');
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    SparkToast.show(t('api_key_deleted'), 'success');
   }
 
   return (
@@ -87,11 +98,25 @@ export default function SettingsAiScreen() {
                 secureTextEntry
                 autoCapitalize="none"
               />
-              <GlassCheckButton onPress={handleSaveApiKey} />
+              <GlassCheckButton onPress={handleSaveApiKey} accessibilityLabel={t('save')} />
+              {hasKey && (
+                <GlassCheckButton
+                  variant="danger"
+                  onPress={() => setShowDeleteConfirm(true)}
+                  accessibilityLabel={t('delete')}
+                />
+              )}
             </View>
           </View>
         </Animated.View>
       </ScrollView>
+
+      <GlassDeleteModal
+        visible={showDeleteConfirm}
+        message={t('delete_api_key_msg')}
+        onCancel={() => setShowDeleteConfirm(false)}
+        onDelete={handleDeleteApiKey}
+      />
     </SafeAreaView>
   );
 }

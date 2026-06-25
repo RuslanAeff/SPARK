@@ -1,5 +1,5 @@
 // S.P.A.R.K. — Gemini AI Service for Receipt Parsing
-import { getSecureApiKey, setSecureApiKey, hasSecureApiKey } from './secureKeyStore';
+import { getSecureApiKey, setSecureApiKey, hasSecureApiKey, deleteSecureApiKey } from './secureKeyStore';
 import { finalizeParsedReceipt } from './receiptLineMerge';
 import {
   extractFirstBalancedJsonObject,
@@ -30,9 +30,19 @@ const MAX_RECEIPT_ITEMS = 500;
 const FAILED_MODEL_TTL = 10 * 60 * 1000;
 const _failedModels = new Map<string, number>(); // modelStr → expiry (epoch ms)
 
-function fetchWithTimeout(url: string, options?: RequestInit, timeoutMs = FETCH_TIMEOUT_MS): Promise<Response> {
+function fetchWithTimeout(
+  url: string,
+  options?: RequestInit,
+  timeoutMs = FETCH_TIMEOUT_MS,
+  externalSignal?: AbortSignal,
+): Promise<Response> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
+  // Dışarıdan iptal (ör. tarayıcıda "Durdur") → iç controller'ı da iptal et.
+  if (externalSignal) {
+    if (externalSignal.aborted) controller.abort();
+    else externalSignal.addEventListener('abort', () => controller.abort(), { once: true });
+  }
   return fetch(url, { ...options, signal: controller.signal }).finally(() => clearTimeout(timer));
 }
 
@@ -110,7 +120,6 @@ const buildApiUrl = (model: string, apiVersion: string) =>
   `https://generativelanguage.googleapis.com/${apiVersion}/models/${model}:generateContent`;
 
 const MAX_ATTEMPTS_PER_MODEL = 6;
-const RETRY_BASE_DELAY_MS = 5000;
 
 // Dile göre çeviri talimatları (JSON'daki alan adı turkish_name olarak kalır — DB şeması değişmez)
 const LANG_META: Record<Language, { langName: string; examples: string }> = {
@@ -158,7 +167,8 @@ Return ONLY a valid JSON object (no markdown, no code blocks) with this exact st
 }
 
 Rules:
-- Extract EVERY real product line from the receipt.
+- Extract EVERY real product line from the receipt, INCLUDING duplicates: if the same product appears on multiple lines (e.g. "NapCocColaZer1,75l" printed twice, or "But Plastik kaucja" twice), output a SEPARATE item for EACH occurrence. NEVER merge, deduplicate, or skip repeated lines — the item count and order must match the receipt exactly.
+- The "total" field MUST be the printed grand total on the receipt (the "SUMA PLN" / "SUMA" / "TOTAL" line, e.g. 68.80), read DIRECTLY from that line. Do NOT compute "total" by summing the items you extracted — if your item sum differs from the printed total, trust the printed total.
 - Prices must be numbers (not strings).
 - If quantity is not specified, assume 1.
 - For each PRODUCT row: total_price is the LINE TOTAL the customer pays AFTER any line-specific discount (net). unit_price = total_price / quantity.
@@ -277,6 +287,7 @@ async function callGeminiModel(
   apiVersion: string,
   apiKey: string,
   requestBody: object,
+  signal?: AbortSignal,
 ): Promise<{ ok: true; content: string } | { ok: false; status: number; body: string }> {
   let lastStatus = 0;
   let lastBody = '';
@@ -290,7 +301,7 @@ async function callGeminiModel(
         'x-goog-api-key': apiKey,
       },
       body: JSON.stringify(requestBody),
-    });
+    }, FETCH_TIMEOUT_MS, signal);
 
     if (response.ok) {
       const data = await response.json();
@@ -319,13 +330,14 @@ async function callGeminiModel(
 
     devLogGeminiHttpFailure(model, apiVersion, response.status, errorBody, attempt);
 
-    // Rate limit — bekle ve aynı modelde tekrar dene
+    // Rate limit (429) — AYNI modelde uzun uzun beklemek YERINE hemen dön; üst
+    // katman sıradaki modeli dener (farklı modellerin ayrı RPM/kota havuzu olabilir).
+    // Tüm modeller 429 verirse parseReceipt kullanıcıya "kota dolu, X sn bekle"
+    // mesajını gösterir. Eski 6×(~30-60s) bekleme ücretsiz tier'da taramayı
+    // dakikalarca "işleniyor" durumunda bırakıyordu.
     if (response.status === 429) {
-      const retryMs = parseRetryDelay(errorBody) || Math.min(RETRY_BASE_DELAY_MS * (attempt + 1), 30000);
-      const waitSec = Math.ceil(retryMs / 1000);
-      if (__DEV__) console.warn(`Gemini ${model} (${apiVersion}) quota limit, waiting ${waitSec}s (attempt ${attempt + 1}/${MAX_ATTEMPTS_PER_MODEL})...`);
-      await delay(Math.min(retryMs, 30000));
-      continue;
+      if (__DEV__) console.warn(`Gemini ${model} (${apiVersion}) 429 — sıradaki model deneniyor (model-içi bekleme yok)`);
+      return { ok: false, status: 429, body: errorBody };
     }
 
     // Google "high demand" / UNAVAILABLE — kısa backoff ile tekrar dene
@@ -352,7 +364,11 @@ async function callGeminiModel(
   return { ok: false, status: lastStatus, body: lastBody || 'Max attempts exceeded for this model.' };
 }
 
-export async function parseReceipt(imageBase64: string, language: Language = 'tr'): Promise<ParsedReceipt> {
+export async function parseReceipt(
+  imageBase64: string,
+  language: Language = 'tr',
+  signal?: AbortSignal,
+): Promise<ParsedReceipt> {
   const apiKey = await getApiKey();
   if (!apiKey) {
     throw new Error('Gemini API key not configured. Please set it in Settings → API Key.');
@@ -378,7 +394,13 @@ export async function parseReceipt(imageBase64: string, language: Language = 'tr
       temperature: 0.1,
       topK: 1,
       topP: 0.8,
-      maxOutputTokens: 8192,
+      // Uzun fişlerde JSON'un kesilmemesi için yükseltildi. "thinking" modelleri
+      // (gemini-2.5/3-flash) çıktı bütçesinin çoğunu düşünmeye harcayıp JSON'u
+      // MAX_TOKENS ile yarıda kesiyordu → thinkingBudget:0 ile düşünme kapatılır,
+      // tüm bütçe JSON çıkışına kalır. thinkingConfig'i desteklemeyen modeller
+      // 400 dönerse aşağıda atlanır (tarama ölmez).
+      maxOutputTokens: 16384,
+      thinkingConfig: { thinkingBudget: 0 },
     },
   };
 
@@ -400,6 +422,19 @@ export async function parseReceipt(imageBase64: string, language: Language = 'tr
     [...list].sort((a, b) => {
       const aId = modelStrToId(a);
       const bId = modelStrToId(b);
+
+      // Model sıralama penaltısı (küçük = önce):
+      //  0 = tam stable model (ör. gemini-2.5-flash) — prompt'u en iyi takip eder
+      //      (turkish_name çevirisi + doğru kategori).
+      //  1 = `lite` modeller (ör. gemini-flash-lite) — hızlı ama prompt takibi zayıf;
+      //      çeviri/kategori alanlarını sık atlar → tam flash'tan SONRA denensin.
+      //  2 = preview/deneysel (ör. gemini-3-flash-preview) — ücretsiz anahtarla
+      //      genelde 403 → en sona.
+      const rank = (id: string) =>
+        /preview|exp/i.test(id) ? 2 : (/lite/i.test(id) ? 1 : 0);
+      const aPrev = rank(aId);
+      const bPrev = rank(bId);
+      if (aPrev !== bPrev) return aPrev - bPrev;
 
       const aPref = MODEL_PREFERENCES.findIndex(p => aId.includes(p));
       const bPref = MODEL_PREFERENCES.findIndex(p => bId.includes(p));
@@ -441,7 +476,7 @@ export async function parseReceipt(imageBase64: string, language: Language = 'tr
     const tag = `${modelId} (${apiVersion})`;
     
     if (__DEV__) console.log(`[GEMINI] Trying model: ${tag}`);
-    const result = await callGeminiModel(modelId, apiVersion, apiKey, requestBody);
+    const result = await callGeminiModel(modelId, apiVersion, apiKey, requestBody, signal);
 
     if (result.ok) {
       if (__DEV__) console.log(`[GEMINI] Success: ${tag}`);
@@ -464,23 +499,25 @@ export async function parseReceipt(imageBase64: string, language: Language = 'tr
       continue;
     }
 
-    if (result.status === 404) {
-      // #4: Bu modeli kısa süre önbelleğe al — sonraki taramalar boşuna denemesin.
+    // 404 (model yok), 403 (anahtar/projeye kapalı — özellikle preview/exp), VE
+    // 400 (geçersiz istek — ör. model thinkingConfig/maxOutputTokens'ı kabul
+    // etmiyor) → modeli kısa süre atla ve SIRADAKİ modele geç. Tek bir uyumsuz
+    // model yüzünden tüm tarama düşmesin; uygun bir flash modeli (gemini-2.5-flash
+    // gibi) çalışır. (Eskiden 403/400 doğrudan throw ediyordu → tarama ölüyordu.)
+    if (result.status === 404 || result.status === 403 || result.status === 400) {
       _failedModels.set(modelStr, Date.now() + FAILED_MODEL_TTL);
       if (__DEV__) {
-        console.log(`[GEMINI] ${tag} → 404, sıradaki model deneniyor (kısa süre atlanacak)`);
+        console.log(`[GEMINI] ${tag} → ${result.status}, sıradaki model deneniyor (kısa süre atlanacak)`);
       }
-      lastError = `Model ${tag} is currently unavailable (404).`;
+      lastError =
+        result.status === 403
+          ? `Google API ${tag} erişimini reddetti (403) — sıradaki model denendi.`
+          : result.status === 400
+            ? `Model ${tag} isteği reddetti (400) — sıradaki model denendi.`
+            : `Model ${tag} is currently unavailable (404).`;
       continue;
     }
-
-    if (result.status === 400) {
-      throw new Error(`Invalid request sent. Model: ${modelId}. Please update the app.`);
-    } else if (result.status === 403) {
-      throw new Error(`Google API access denied (${modelId}). Please use a different API key.`);
-    } else {
-      throw new Error(`Unknown API Error (${result.status}). Please check your internet connection.`);
-    }
+    throw new Error(`Unknown API Error (${result.status}). Please check your internet connection.`);
   }
 
   // All known combos failed
@@ -600,6 +637,10 @@ function cleanAndParseResponse(content: string): ParsedReceipt {
 
 export async function saveApiKey(key: string): Promise<void> {
   await setSecureApiKey(key);
+}
+
+export async function deleteApiKey(): Promise<void> {
+  await deleteSecureApiKey();
 }
 
 export async function hasApiKey(): Promise<boolean> {

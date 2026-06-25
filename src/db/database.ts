@@ -141,6 +141,13 @@ export async function getDatabase(): Promise<SQLite.SQLiteDatabase> {
     } catch (_) {
       // Already applied
     }
+    // İlk kurulum tohumlaması init promise'in İÇİNDE: getDatabase() çağıran her
+    // tüketici (onboarding/tema okuması vb.) tohumlama BİTENE kadar bekler.
+    // Aksi halde seed transaction'ı (ensureDefaultCategoryTree) ile eşzamanlı bir
+    // SELECT, expo-sqlite'ta "shared object already released" çökmesi veriyordu —
+    // yalnız TEMİZ kurulumda (seed yalnız o zaman çalışır), bu yüzden mevcut
+    // veritabanlı cihazlarda görülmüyordu.
+    await seedIfNeeded(instance);
     db = instance;
     return instance;
   })();
@@ -213,12 +220,18 @@ export async function ensureDefaultCategoryTree(database: SQLite.SQLiteDatabase)
 }
 
 export async function initializeDatabase(): Promise<void> {
-  const database = await getDatabase();
+  // Tüm tohumlama artık getDatabase() init promise'i içinde (seedIfNeeded).
+  // Bu fonksiyon geriye dönük uyum için kalıyor; getDatabase'i beklemek yeterli.
+  await getDatabase();
+}
 
+/** İlk kurulum tohumlaması (kategoriler + varsayılan bütçe), idempotent.
+ *  getDatabase() init promise'i İÇİNDE çağrılır → tohumlama sırasında başka
+ *  hiçbir tüketici sorgu çalıştıramaz (eşzamanlı erişim çökmesi engellenir). */
+async function seedIfNeeded(database: SQLite.SQLiteDatabase): Promise<void> {
   const result = await database.getFirstAsync<{ count: number }>(
     'SELECT COUNT(*) as count FROM categories'
   );
-
   if (result && result.count === 0) {
     await seedDefaultCategories(database);
   }
