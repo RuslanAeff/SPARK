@@ -97,6 +97,15 @@ export const DebtDao = {
     );
   },
 
+  /** Tüm borçlar (açık + kapanmış) — geçmiş görünümü, en yeni tarih önce. */
+  async listAll(direction: Direction = 'borrowed'): Promise<Debt[]> {
+    const db = await getDatabase();
+    return db.getAllAsync<Debt>(
+      `SELECT * FROM debts WHERE direction = ? ORDER BY date DESC, id DESC`,
+      [direction]
+    );
+  },
+
   async getById(id: number): Promise<Debt | null> {
     const db = await getDatabase();
     return db.getFirstAsync<Debt>('SELECT * FROM debts WHERE id = ?', [id]);

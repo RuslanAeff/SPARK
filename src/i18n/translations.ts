@@ -54,6 +54,11 @@ export const translations = {
     debt_created_toast: 'Borç eklendi',
     debt_repaid_toast: 'Ödeme kaydedildi',
     debt_settled_toast: 'Borç kapandı 🎉',
+    debt_tab_open: 'Açık',
+    debt_tab_history: 'Geçmiş',
+    debt_status_settled: 'Ödendi',
+    debt_payment_history: 'Ödeme geçmişi',
+    debt_no_payments: 'Henüz ödeme yok',
 
     // Tarayıcı / AI
     stop_scan: 'Durdur',
@@ -814,6 +819,11 @@ export const translations = {
     debt_created_toast: 'Debt added',
     debt_repaid_toast: 'Payment saved',
     debt_settled_toast: 'Debt settled 🎉',
+    debt_tab_open: 'Open',
+    debt_tab_history: 'History',
+    debt_status_settled: 'Settled',
+    debt_payment_history: 'Payment history',
+    debt_no_payments: 'No payments yet',
 
     // Scanner / AI
     stop_scan: 'Stop',

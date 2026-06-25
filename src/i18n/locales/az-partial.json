@@ -702,6 +702,11 @@
   "debt_created_toast": "Borc əlavə edildi",
   "debt_repaid_toast": "Ödəniş yadda saxlanıldı",
   "debt_settled_toast": "Borc bağlandı 🎉",
+  "debt_tab_open": "Açıq",
+  "debt_tab_history": "Tarixçə",
+  "debt_status_settled": "Bağlanıb",
+  "debt_payment_history": "Ödəniş tarixçəsi",
+  "debt_no_payments": "Hələ ödəniş yoxdur",
   "stop_scan": "Dayandır",
   "delete_api_key_msg": "Gemini API açarını silmək istəyirsən?",
   "api_key_deleted": "API açarı silindi"

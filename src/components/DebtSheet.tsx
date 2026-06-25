@@ -21,7 +21,7 @@ import { formatCurrency } from '../utils/formatCurrency';
 import { formatDayMonth, getToday } from '../utils/dateUtils';
 import { DebtDao } from '../db/debtDao';
 import { ExpenseDao } from '../db/expenseDao';
-import { Debt, ExpenseWithDetails } from '../db/schema';
+import { Debt, DebtPayment, ExpenseWithDetails } from '../db/schema';
 import { useLanguage } from '../i18n/LanguageContext';
 
 const SCREEN_H = Dimensions.get('window').height;
@@ -50,6 +50,13 @@ export default function DebtSheet({ visible, onClose, currency, onChanged }: Deb
   const [saving, setSaving] = useState(false);
   const [datePickerVisible, setDatePickerVisible] = useState(false);
 
+  // Liste sekmesi: açık borçlar vs tüm geçmiş (açık + kapanmış).
+  const [listTab, setListTab] = useState<'open' | 'history'>('open');
+  const [allDebts, setAllDebts] = useState<Debt[]>([]);
+  // Geçmişte bir borca dokununca ödeme dökümü (tarih + tutar) satır içi açılır.
+  const [expandedDebtId, setExpandedDebtId] = useState<number | null>(null);
+  const [paymentsByDebt, setPaymentsByDebt] = useState<Record<number, DebtPayment[]>>({});
+
   // Ekle formu
   const [amount, setAmount] = useState('');
   const [counterparty, setCounterparty] = useState('');
@@ -65,16 +72,38 @@ export default function DebtSheet({ visible, onClose, currency, onChanged }: Deb
   const [repayDate, setRepayDate] = useState(getToday());
 
   const reload = useCallback(async () => {
-    const open = await DebtDao.listOpen('borrowed');
+    const [open, all] = await Promise.all([
+      DebtDao.listOpen('borrowed'),
+      DebtDao.listAll('borrowed'),
+    ]);
     setDebts(open);
+    setAllDebts(all);
+    // Veri değişti → ödeme önbelleği ve açık satır bayatlamasın.
+    setPaymentsByDebt({});
+    setExpandedDebtId(null);
   }, []);
 
   useEffect(() => {
     if (visible) {
       setView('list');
+      setListTab('open');
       void reload();
     }
   }, [visible, reload]);
+
+  // Geçmişte borca dokun → ödeme dökümünü aç/kapat (ilk açılışta tembel yükle).
+  const toggleExpand = useCallback(async (debtId: number) => {
+    const willExpand = expandedDebtId !== debtId;
+    setExpandedDebtId(willExpand ? debtId : null);
+    if (willExpand && paymentsByDebt[debtId] === undefined) {
+      try {
+        const pays = await DebtDao.getPayments(debtId);
+        setPaymentsByDebt((m) => ({ ...m, [debtId]: pays }));
+      } catch {
+        setPaymentsByDebt((m) => ({ ...m, [debtId]: [] }));
+      }
+    }
+  }, [expandedDebtId, paymentsByDebt]);
 
   const resetAddForm = useCallback(() => {
     setAmount('');
@@ -162,6 +191,106 @@ export default function DebtSheet({ visible, onClose, currency, onChanged }: Deb
   }
 
   // ── Görünümler ────────────────────────────────────────────────
+  const renderOpenList = () =>
+    debts.length === 0 ? (
+      <View style={styles.emptyWrap}>
+        <View style={styles.emptyIcon}>
+          <MaterialCommunityIcons name="check-circle-outline" size={30} color={Colors.primary} />
+        </View>
+        <Text style={styles.emptyTitle}>{t('debt_empty_title')}</Text>
+        <Text style={styles.emptyDesc}>{t('debt_empty_desc')}</Text>
+      </View>
+    ) : (
+      <ScrollView style={styles.listScroll} contentContainerStyle={styles.listContent}>
+        {debts.map((d) => (
+          <Pressable
+            key={d.id}
+            onPress={() => openRepay(d)}
+            style={({ pressed }) => [styles.debtRow, pressed && { opacity: 0.85 }]}
+          >
+            <View style={{ flex: 1, minWidth: 0 }}>
+              <Text style={styles.debtName} numberOfLines={1}>{d.counterparty}</Text>
+              <Text style={styles.debtMeta} numberOfLines={1}>
+                {formatDayMonth(d.date, t)}
+                {d.remaining < d.amount
+                  ? ` · ${formatCurrency(d.remaining, currency, false)} / ${formatCurrency(d.amount, currency, false)}`
+                  : ''}
+              </Text>
+            </View>
+            <View style={styles.debtRight}>
+              <Text style={styles.debtRemaining}>{formatCurrency(d.remaining, currency, false)}</Text>
+              <View style={styles.payChip}>
+                <Text style={styles.payChipText}>{t('debt_repay_cta')}</Text>
+              </View>
+            </View>
+          </Pressable>
+        ))}
+      </ScrollView>
+    );
+
+  const renderHistoryList = () =>
+    allDebts.length === 0 ? (
+      <View style={styles.emptyWrap}>
+        <View style={styles.emptyIcon}>
+          <MaterialCommunityIcons name="history" size={30} color={Colors.textMuted} />
+        </View>
+        <Text style={styles.emptyTitle}>{t('empty')}</Text>
+      </View>
+    ) : (
+      <ScrollView style={styles.listScroll} contentContainerStyle={styles.listContent}>
+        {allDebts.map((d) => {
+          const settled = d.status === 'settled';
+          const expanded = expandedDebtId === d.id;
+          const pays = paymentsByDebt[d.id];
+          return (
+            <View key={d.id}>
+              <Pressable
+                onPress={() => void toggleExpand(d.id)}
+                style={({ pressed }) => [styles.debtRow, pressed && { opacity: 0.85 }]}
+              >
+                <View style={{ flex: 1, minWidth: 0 }}>
+                  <Text style={styles.debtName} numberOfLines={1}>{d.counterparty}</Text>
+                  <Text style={styles.debtMeta} numberOfLines={1}>
+                    {formatDayMonth(d.date, t)} · {formatCurrency(d.amount, currency, false)}
+                  </Text>
+                </View>
+                <View style={styles.debtRight}>
+                  {settled ? (
+                    <View style={styles.settledBadge}>
+                      <MaterialCommunityIcons name="check" size={12} color={Colors.primary} />
+                      <Text style={styles.settledBadgeText}>{t('debt_status_settled')}</Text>
+                    </View>
+                  ) : (
+                    <Text style={styles.debtRemaining}>{formatCurrency(d.remaining, currency, false)}</Text>
+                  )}
+                  <MaterialCommunityIcons
+                    name={expanded ? 'chevron-up' : 'chevron-down'}
+                    size={18}
+                    color={Colors.textMuted}
+                  />
+                </View>
+              </Pressable>
+              {expanded ? (
+                <View style={styles.paymentsBox}>
+                  <Text style={styles.paymentsTitle}>{t('debt_payment_history')}</Text>
+                  {pays === undefined ? null : pays.length === 0 ? (
+                    <Text style={styles.paymentEmpty}>{t('debt_no_payments')}</Text>
+                  ) : (
+                    pays.map((p) => (
+                      <View key={p.id} style={styles.paymentRow}>
+                        <Text style={styles.paymentDate}>{formatDayMonth(p.date, t)}</Text>
+                        <Text style={styles.paymentAmount}>{formatCurrency(p.amount, currency, false)}</Text>
+                      </View>
+                    ))
+                  )}
+                </View>
+              ) : null}
+            </View>
+          );
+        })}
+      </ScrollView>
+    );
+
   const renderList = () => (
     <>
       <View style={styles.header}>
@@ -178,41 +307,25 @@ export default function DebtSheet({ visible, onClose, currency, onChanged }: Deb
         </View>
       </View>
 
-      {debts.length === 0 ? (
-        <View style={styles.emptyWrap}>
-          <View style={styles.emptyIcon}>
-            <MaterialCommunityIcons name="check-circle-outline" size={30} color={Colors.primary} />
-          </View>
-          <Text style={styles.emptyTitle}>{t('debt_empty_title')}</Text>
-          <Text style={styles.emptyDesc}>{t('debt_empty_desc')}</Text>
-        </View>
-      ) : (
-        <ScrollView style={styles.listScroll} contentContainerStyle={styles.listContent}>
-          {debts.map((d) => (
+      {/* Açık / Geçmiş segmenti */}
+      <View style={styles.segment}>
+        {(['open', 'history'] as const).map((tab) => {
+          const active = listTab === tab;
+          return (
             <Pressable
-              key={d.id}
-              onPress={() => openRepay(d)}
-              style={({ pressed }) => [styles.debtRow, pressed && { opacity: 0.85 }]}
+              key={tab}
+              onPress={() => { setListTab(tab); setExpandedDebtId(null); }}
+              style={[styles.segmentBtn, active && styles.segmentBtnActive]}
             >
-              <View style={{ flex: 1, minWidth: 0 }}>
-                <Text style={styles.debtName} numberOfLines={1}>{d.counterparty}</Text>
-                <Text style={styles.debtMeta} numberOfLines={1}>
-                  {formatDayMonth(d.date, t)}
-                  {d.remaining < d.amount
-                    ? ` · ${formatCurrency(d.remaining, currency, false)} / ${formatCurrency(d.amount, currency, false)}`
-                    : ''}
-                </Text>
-              </View>
-              <View style={styles.debtRight}>
-                <Text style={styles.debtRemaining}>{formatCurrency(d.remaining, currency, false)}</Text>
-                <View style={styles.payChip}>
-                  <Text style={styles.payChipText}>{t('debt_repay_cta')}</Text>
-                </View>
-              </View>
+              <Text style={[styles.segmentText, active && styles.segmentTextActive]}>
+                {tab === 'open' ? t('debt_tab_open') : t('debt_tab_history')}
+              </Text>
             </Pressable>
-          ))}
-        </ScrollView>
-      )}
+          );
+        })}
+      </View>
+
+      {listTab === 'open' ? renderOpenList() : renderHistoryList()}
 
       <Pressable
         onPress={openAdd}
@@ -441,6 +554,85 @@ const getStyles = () => StyleSheet.create({
     color: Colors.danger,
     fontFamily: FontFamily.semiBold,
     marginTop: 2,
+  },
+  // Açık / Geçmiş segmenti
+  segment: {
+    flexDirection: 'row',
+    backgroundColor: Colors.surface,
+    borderRadius: BorderRadius.round,
+    padding: 4,
+    marginBottom: Spacing.md,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  segmentBtn: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.round,
+  },
+  segmentBtnActive: {
+    backgroundColor: Colors.primary + '22',
+  },
+  segmentText: {
+    ...Typography.labelLarge,
+    color: Colors.textSecondary,
+    fontFamily: FontFamily.semiBold,
+  },
+  segmentTextActive: {
+    color: Colors.primary,
+    fontFamily: FontFamily.bold,
+  },
+  // Geçmiş — "Ödendi" rozeti + ödeme dökümü
+  settledBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: 3,
+    borderRadius: BorderRadius.round,
+    backgroundColor: Colors.primary + '22',
+  },
+  settledBadgeText: {
+    ...Typography.labelSmall,
+    color: Colors.primary,
+    fontFamily: FontFamily.bold,
+  },
+  paymentsBox: {
+    marginTop: 4,
+    marginBottom: 2,
+    marginLeft: Spacing.md,
+    paddingLeft: Spacing.md,
+    paddingVertical: Spacing.sm,
+    borderLeftWidth: 2,
+    borderLeftColor: Colors.border,
+    gap: 4,
+  },
+  paymentsTitle: {
+    ...Typography.labelSmall,
+    color: Colors.textSecondary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.6,
+    marginBottom: 2,
+  },
+  paymentEmpty: {
+    ...Typography.bodySmall,
+    color: Colors.textMuted,
+  },
+  paymentRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  paymentDate: {
+    ...Typography.bodySmall,
+    color: Colors.textSecondary,
+  },
+  paymentAmount: {
+    ...Typography.labelMedium,
+    color: Colors.textPrimary,
+    fontFamily: FontFamily.semiBold,
   },
   // Liste
   listScroll: {

@@ -16,5 +16,10 @@
   "debt_remaining": "Остаток",
   "debt_created_toast": "Долг добавлен",
   "debt_repaid_toast": "Платёж сохранён",
-  "debt_settled_toast": "Долг закрыт 🎉"
+  "debt_settled_toast": "Долг закрыт 🎉",
+  "debt_tab_open": "Открытые",
+  "debt_tab_history": "История",
+  "debt_status_settled": "Погашен",
+  "debt_payment_history": "История платежей",
+  "debt_no_payments": "Платежей пока нет"
 }
