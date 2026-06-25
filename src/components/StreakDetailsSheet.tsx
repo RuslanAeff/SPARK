@@ -156,10 +156,7 @@ export default function StreakDetailsSheet({
       backdropColor={scheme === 'light' ? 'rgba(0,0,0,0.35)' : 'rgba(0,0,0,0.55)'}
       showHandle
     >
-      <Pressable style={styles.closeBtn} onPress={onClose} hitSlop={10}>
-        <MaterialCommunityIcons name="close" size={22} color={Colors.textSecondary} />
-      </Pressable>
-
+      {/* Kapat (X) yok — sürükle-kapat kulpu zaten var (gereksiz tekrar). */}
       {/* Header */}
       <View style={styles.header}>
         <View style={[styles.headerIcon, { backgroundColor: color + '22' }]}>
@@ -294,13 +291,6 @@ const getStyles = () => StyleSheet.create({
     backgroundColor: Colors.border,
     alignSelf: 'center',
     marginBottom: Spacing.sm,
-  },
-  closeBtn: {
-    position: 'absolute',
-    top: Spacing.md,
-    right: Spacing.lg,
-    zIndex: 10,
-    padding: 4,
   },
   header: {
     flexDirection: 'row',

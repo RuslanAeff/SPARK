@@ -216,6 +216,9 @@ export default function DebtSheet({ visible, onClose, currency, onChanged }: Deb
                   ? ` · ${formatCurrency(d.remaining, currency, false)} / ${formatCurrency(d.amount, currency, false)}`
                   : ''}
               </Text>
+              {d.note ? (
+                <Text style={styles.debtNote} numberOfLines={1}>{d.note}</Text>
+              ) : null}
             </View>
             <View style={styles.debtRight}>
               <Text style={styles.debtRemaining}>{formatCurrency(d.remaining, currency, false)}</Text>
@@ -272,6 +275,12 @@ export default function DebtSheet({ visible, onClose, currency, onChanged }: Deb
               </Pressable>
               {expanded ? (
                 <View style={styles.paymentsBox}>
+                  {d.note ? (
+                    <View style={styles.noteRow}>
+                      <MaterialCommunityIcons name="note-text-outline" size={14} color={Colors.textMuted} />
+                      <Text style={styles.noteText}>{d.note}</Text>
+                    </View>
+                  ) : null}
                   <Text style={styles.paymentsTitle}>{t('debt_payment_history')}</Text>
                   {pays === undefined ? null : pays.length === 0 ? (
                     <Text style={styles.paymentEmpty}>{t('debt_no_payments')}</Text>
@@ -452,6 +461,9 @@ export default function DebtSheet({ visible, onClose, currency, onChanged }: Deb
         {activeDebt ? (
           <View style={styles.repaySummary}>
             <Text style={styles.repayName}>{activeDebt.counterparty}</Text>
+            {activeDebt.note ? (
+              <Text style={styles.repayNote} numberOfLines={2}>{activeDebt.note}</Text>
+            ) : null}
             <Text style={styles.repayRemainingLabel}>{t('debt_remaining')}</Text>
             <Text style={styles.repayRemaining}>{formatCurrency(activeDebt.remaining, currency)}</Text>
           </View>
@@ -494,14 +506,11 @@ export default function DebtSheet({ visible, onClose, currency, onChanged }: Deb
     <BottomSheetModal
       visible={visible}
       onClose={onClose}
-      sheetStyle={styles.sheet}
+      sheetStyle={[styles.sheet, scheme === 'dark' && styles.sheetDark]}
       backdropColor={scheme === 'light' ? 'rgba(0,0,0,0.35)' : 'rgba(0,0,0,0.55)'}
       showHandle
     >
-      <Pressable style={styles.closeBtn} onPress={onClose} hitSlop={10}>
-        <MaterialCommunityIcons name="close" size={22} color={Colors.textSecondary} />
-      </Pressable>
-
+      {/* Kapat (X) yok — sürükle-kapat kulpu zaten var (gereksiz tekrar). */}
       {view === 'list' ? renderList() : view === 'add' ? renderAdd() : renderRepay()}
 
       <CustomDatePicker
@@ -526,12 +535,10 @@ const getStyles = () => StyleSheet.create({
     borderTopWidth: 1,
     borderColor: Colors.cardBorder,
   },
-  closeBtn: {
-    position: 'absolute',
-    top: Spacing.md,
-    right: Spacing.lg,
-    zIndex: 10,
-    padding: 4,
+  /** Karanlık modda cardBorder (#505060) üstte parlak beyazımsı çizgi yapıyordu;
+      koyu sheet zaten dimmed backdrop + kulpla ayrışıyor → üst kenarlığı kaldır. */
+  sheetDark: {
+    borderTopWidth: 0,
   },
   header: {
     flexDirection: 'row',
@@ -619,6 +626,19 @@ const getStyles = () => StyleSheet.create({
     letterSpacing: 0.6,
     marginBottom: 2,
   },
+  /** Geçmiş detayında borç notu (varsa) — ödeme dökümünün üstünde. */
+  noteRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 6,
+    marginBottom: Spacing.sm,
+  },
+  noteText: {
+    ...Typography.bodySmall,
+    color: Colors.textSecondary,
+    flex: 1,
+    fontStyle: 'italic',
+  },
   paymentEmpty: {
     ...Typography.bodySmall,
     color: Colors.textMuted,
@@ -667,6 +687,13 @@ const getStyles = () => StyleSheet.create({
   debtMeta: {
     ...Typography.labelSmall,
     color: Colors.textSecondary,
+    marginTop: 2,
+  },
+  /** Açık satırda borç notu (varsa) — küçük, soluk. */
+  debtNote: {
+    ...Typography.labelSmall,
+    color: Colors.textMuted,
+    fontStyle: 'italic',
     marginTop: 2,
   },
   debtRight: {
@@ -820,6 +847,14 @@ const getStyles = () => StyleSheet.create({
     ...Typography.bodyLarge,
     color: Colors.textPrimary,
     fontFamily: FontFamily.semiBold,
+  },
+  repayNote: {
+    ...Typography.bodySmall,
+    color: Colors.textSecondary,
+    fontStyle: 'italic',
+    textAlign: 'center',
+    marginTop: 4,
+    paddingHorizontal: Spacing.lg,
   },
   repayRemainingLabel: {
     ...Typography.labelSmall,

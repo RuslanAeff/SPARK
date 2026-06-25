@@ -107,11 +107,7 @@ export default function ItemAnalyticsModal({ visible, itemName, onClose }: ItemA
   return (
     <BottomSheetModal visible={visible} onClose={onClose} sheetStyle={styles.sheet} showHandle>
 
-          {/* Close Button */}
-          <Pressable style={styles.closeBtn} onPress={onClose}>
-            <MaterialCommunityIcons name="close" size={22} color={Colors.textSecondary} />
-          </Pressable>
-
+          {/* Kapat (X) yok — sürükle-kapat kulpu zaten var (gereksiz tekrar). */}
           <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
             {loading ? (
               <View style={styles.loadingContainer}>
@@ -269,13 +265,6 @@ const getStyles = () => StyleSheet.create({
     backgroundColor: Colors.border,
     alignSelf: 'center',
     marginBottom: Spacing.sm,
-  },
-  closeBtn: {
-    position: 'absolute',
-    top: Spacing.md,
-    right: Spacing.lg,
-    zIndex: 10,
-    padding: 4,
   },
   scrollContent: {
     paddingHorizontal: ScreenPadding.horizontal,
