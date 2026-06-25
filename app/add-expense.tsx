@@ -24,6 +24,7 @@ import GlassDeleteModal from '../src/components/GlassDeleteModal';
 import { useLanguage } from '../src/i18n/LanguageContext';
 import { useCurrency, CURRENCY_META } from '../src/context/CurrencyContext';
 import { formatCurrency } from '../src/utils/formatCurrency';
+import { itemDisplayName } from '../src/utils/itemDisplayName';
 import { getVendorPlaceholderExamples } from '../src/utils/vendorPlaceholders';
 import { takePendingReceiptDraft } from '../src/services/pendingReceiptDraft';
 import { getPrefillFromParsedReceipt } from '../src/services/receiptParser';
@@ -506,16 +507,26 @@ export default function AddExpenseScreen() {
               Fiş tarayıp kaydedilen ürünler burada görünür; boşsa kalem yok demektir. */}
           {isEditing && existingItems.length > 0 && (
             <View style={styles.itemsPreview}>
-              {existingItems.map((it) => (
+              {existingItems.map((it) => {
+                const display = itemDisplayName(it);
+                return (
                 <View key={it.id} style={styles.itemPreviewRow}>
-                  <Text style={styles.itemPreviewName} numberOfLines={1}>
-                    {it.turkish_name || it.name}
-                  </Text>
+                  <View style={styles.itemPreviewNameCol}>
+                    <Text style={styles.itemPreviewName} numberOfLines={1}>
+                      {display.primary}
+                    </Text>
+                    {display.secondary && (
+                      <Text style={styles.itemPreviewNameOriginal} numberOfLines={1}>
+                        {display.secondary}
+                      </Text>
+                    )}
+                  </View>
                   <Text style={styles.itemPreviewPrice}>
                     {formatCurrency(it.total_price, currency, false)}
                   </Text>
                 </View>
-              ))}
+                );
+              })}
             </View>
           )}
 
@@ -765,11 +776,18 @@ const getStyles = () => StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 5,
   },
+  itemPreviewNameCol: {
+    flex: 1,
+    paddingRight: Spacing.sm,
+  },
   itemPreviewName: {
     ...Typography.bodySmall,
     color: Colors.textPrimary,
-    flex: 1,
-    paddingRight: Spacing.sm,
+  },
+  itemPreviewNameOriginal: {
+    ...Typography.labelSmall,
+    color: Colors.textMuted,
+    marginTop: 1,
   },
   itemPreviewPrice: {
     ...Typography.labelMedium,

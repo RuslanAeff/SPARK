@@ -18,6 +18,7 @@ import { formatCurrency } from '../src/utils/formatCurrency';
 import { useCurrency } from '../src/context/CurrencyContext';
 import { useLanguage } from '../src/i18n/LanguageContext';
 import { effectiveLineDiscount, lineHasDiscount } from '../src/utils/receiptLineDiscountUi';
+import { itemDisplayName } from '../src/utils/itemDisplayName';
 import {
   susevarButton,
   susevarButtonPressed,
@@ -67,7 +68,8 @@ export default function EditItemsScreen() {
 
   function handleEditClick(item: ExpenseItem) {
     setEditingItemId(item.id);
-    setItemName(item.name);
+    // Kullanıcı listede çeviriyi (birincil) görüyor → düzenlemeye de ondan başlasın.
+    setItemName(itemDisplayName(item).primary);
     setQuantity(item.quantity.toString());
     // Düzenlemede ETİKET (indirim öncesi) birim fiyatı göster; indirim ayrı alanda.
     // Net birim yerine etiket gösterilir ki tekrar kaydetmede indirim çift düşmesin.
@@ -186,10 +188,14 @@ export default function EditItemsScreen() {
               const hasDisc = lineHasDiscount(item);
               const discAmt = effectiveLineDiscount(item);
               const listAmt = item.list_line_total_before_discount;
+              const display = itemDisplayName(item);
               return (
               <View key={item.id} style={styles.itemCard}>
                 <View style={styles.itemInfo}>
-                  <Text style={styles.itemName} numberOfLines={2}>{item.name}</Text>
+                  <Text style={styles.itemName} numberOfLines={2}>{display.primary}</Text>
+                  {display.secondary && (
+                    <Text style={styles.itemNameOriginal} numberOfLines={1}>{display.secondary}</Text>
+                  )}
                   {hasDisc && (
                     <View style={styles.discountMeta}>
                       {listAmt != null && listAmt > item.total_price + 0.001 && (
@@ -375,6 +381,11 @@ const getStyles = () => StyleSheet.create({
     ...Typography.bodyMedium,
     color: Colors.textPrimary,
     fontFamily: FontFamily.medium,
+  },
+  itemNameOriginal: {
+    ...Typography.labelSmall,
+    color: Colors.textMuted,
+    marginTop: 1,
   },
   itemWasPrice: {
     ...Typography.labelSmall,

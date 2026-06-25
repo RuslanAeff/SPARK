@@ -6,6 +6,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import AnimatedCard from '../AnimatedCard';
 import { Colors } from '../../theme/colors';
 import { formatCurrency } from '../../utils/formatCurrency';
+import { itemDisplayName } from '../../utils/itemDisplayName';
 import type { BaseCardProps, SilentSpendInfo } from './shared';
 
 interface SilentSpendCardProps extends BaseCardProps {
@@ -62,7 +63,7 @@ function SilentSpendCard({ styles, t, currency, silentSpendInfo, onSelectItem }:
       {/* Item list */}
       <View style={styles.silentList}>
         {items.map((it, i) => {
-          const displayName = it.turkish_name || it.name;
+          const displayName = itemDisplayName(it).primary;
           const catColor = it.category_color || Colors.warning;
           const icon = (it.category_icon as any) || 'water-outline';
           return (

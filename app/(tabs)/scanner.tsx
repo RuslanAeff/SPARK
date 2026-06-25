@@ -24,6 +24,7 @@ import { useRefresh } from '../../src/context/RefreshContext';
 import { useCurrency } from '../../src/context/CurrencyContext';
 import { setScanSessionError } from '../../src/services/scanSession';
 import { effectiveLineDiscount, lineHasDiscount } from '../../src/utils/receiptLineDiscountUi';
+import { itemDisplayName } from '../../src/utils/itemDisplayName';
 import { compressImageToBase64 } from '../../src/utils/imageCompressor';
 import {
   susevarButton,
@@ -302,10 +303,14 @@ export default function ScannerScreen() {
                 const hasDisc = lineHasDiscount(item);
                 const discAmt = effectiveLineDiscount(item);
                 const listAmt = item.list_line_total_before_discount;
+                const display = itemDisplayName(item);
                 return (
                 <View key={i} style={styles.lineItem}>
                   <View style={styles.lineItemLeft}>
-                    <Text style={styles.itemName}>{item.name}</Text>
+                    <Text style={styles.itemName}>{display.primary}</Text>
+                    {display.secondary && (
+                      <Text style={styles.itemNameOriginal} numberOfLines={1}>{display.secondary}</Text>
+                    )}
                     <Text style={styles.itemCategory}>{item.suggested_category}</Text>
                     {hasDisc && discAmt > 0.001 && (
                       <Text style={styles.itemDiscountHint}>
@@ -560,6 +565,10 @@ const getStyles = () => StyleSheet.create({
   itemName: {
     ...Typography.bodyMedium,
     color: Colors.textPrimary,
+  },
+  itemNameOriginal: {
+    ...Typography.labelSmall,
+    color: Colors.textMuted,
   },
   itemCategory: {
     ...Typography.labelSmall,

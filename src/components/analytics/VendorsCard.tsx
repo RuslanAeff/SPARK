@@ -10,6 +10,7 @@ import DonutChart from '../DonutChart';
 import { Colors, ChartColorArray } from '../../theme/colors';
 import { Spacing } from '../../theme/spacing';
 import { formatCurrency } from '../../utils/formatCurrency';
+import { itemDisplayName } from '../../utils/itemDisplayName';
 import type { VendorSpending } from '../../db/schema';
 import { CountUpText, type BaseCardProps } from './shared';
 
@@ -179,8 +180,9 @@ function VendorsCard({
                     const needsItemScroll = itemsToRender.length > 3;
                     const filteredItems = itemsToRender.filter(Boolean);
                     const itemsList = filteredItems.map((item: any, j: number) => {
-                      const primaryName = item.turkish_name || item.name;
-                      const secondaryName = item.turkish_name ? item.name : '';
+                      const nameDisplay = itemDisplayName(item);
+                      const primaryName = nameDisplay.primary;
+                      const secondaryName = nameDisplay.secondary ?? '';
                       const isExpense = item.total_spent >= 0;
                       return (
                         <Pressable key={j} style={styles.microItem} onPress={() => onSelectItem(item.name)}>
