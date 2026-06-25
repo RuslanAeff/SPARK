@@ -237,7 +237,7 @@ export default function DebtSheet({ visible, onClose, currency, onChanged }: Deb
         <Text style={styles.emptyTitle}>{t('empty')}</Text>
       </View>
     ) : (
-      <ScrollView style={styles.listScroll} contentContainerStyle={styles.listContent}>
+      <ScrollView style={[styles.listScroll, styles.listScrollHistory]} contentContainerStyle={styles.listContent}>
         {allDebts.map((d) => {
           const settled = d.status === 'settled';
           const expanded = expandedDebtId === d.id;
@@ -327,15 +327,18 @@ export default function DebtSheet({ visible, onClose, currency, onChanged }: Deb
 
       {listTab === 'open' ? renderOpenList() : renderHistoryList()}
 
-      <Pressable
-        onPress={openAdd}
-        style={({ pressed }) => [styles.primaryBtn, pressed && susevarButtonPressed]}
-      >
-        <View style={styles.primaryBtnRow}>
-          <MaterialCommunityIcons name="plus" size={20} color="#FFFFFF" />
-          <Text style={styles.primaryBtnText}>{t('debt_add_title')}</Text>
-        </View>
-      </Pressable>
+      {/* "Borç Aldım" yalnız Açık sekmesinde — geçmiş salt görüntüleme bağlamı. */}
+      {listTab === 'open' ? (
+        <Pressable
+          onPress={openAdd}
+          style={({ pressed }) => [styles.primaryBtn, pressed && susevarButtonPressed]}
+        >
+          <View style={styles.primaryBtnRow}>
+            <MaterialCommunityIcons name="plus" size={20} color="#FFFFFF" />
+            <Text style={styles.primaryBtnText}>{t('debt_add_title')}</Text>
+          </View>
+        </Pressable>
+      ) : null}
     </>
   );
 
@@ -637,6 +640,10 @@ const getStyles = () => StyleSheet.create({
   // Liste
   listScroll: {
     maxHeight: SCREEN_H * 0.46,
+  },
+  // Geçmiş sekmesinde "Borç Aldım" butonu olmadığından liste daha uzun olabilir.
+  listScrollHistory: {
+    maxHeight: SCREEN_H * 0.6,
   },
   listContent: {
     gap: Spacing.sm,
