@@ -589,6 +589,10 @@ const getStyles = () => StyleSheet.create({
     ...Typography.labelLarge,
     color: Colors.textSecondary,
     fontFamily: FontFamily.semiBold,
+    // Column + alignItems:center'da Text içeriğe göre ölçülüp Android'de son glifi
+    // ("Açık"→"Açı") kırpıyordu; tam genişlik + ortala → kırpılma yok.
+    alignSelf: 'stretch',
+    textAlign: 'center',
   },
   segmentTextActive: {
     color: Colors.primary,
