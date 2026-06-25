@@ -59,6 +59,8 @@ export const translations = {
     debt_status_settled: 'Ödendi',
     debt_payment_history: 'Ödeme geçmişi',
     debt_no_payments: 'Henüz ödeme yok',
+    debt_delete_msg: 'Bu borç kaydı ve ödemeleri kalıcı olarak silinecek.',
+    debt_deleted_toast: 'Borç silindi',
 
     // Tarayıcı / AI
     stop_scan: 'Durdur',
@@ -824,6 +826,8 @@ export const translations = {
     debt_status_settled: 'Settled',
     debt_payment_history: 'Payment history',
     debt_no_payments: 'No payments yet',
+    debt_delete_msg: 'This debt and its payments will be permanently deleted.',
+    debt_deleted_toast: 'Debt deleted',
 
     // Scanner / AI
     stop_scan: 'Stop',

@@ -707,6 +707,8 @@
   "debt_status_settled": "Bağlanıb",
   "debt_payment_history": "Ödəniş tarixçəsi",
   "debt_no_payments": "Hələ ödəniş yoxdur",
+  "debt_delete_msg": "Bu borc və ödənişləri həmişəlik silinəcək.",
+  "debt_deleted_toast": "Borc silindi",
   "stop_scan": "Dayandır",
   "delete_api_key_msg": "Gemini API açarını silmək istəyirsən?",
   "api_key_deleted": "API açarı silindi"

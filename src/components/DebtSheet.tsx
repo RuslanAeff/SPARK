@@ -11,6 +11,7 @@ import * as Haptics from 'expo-haptics';
 
 import BottomSheetModal from './BottomSheetModal';
 import CustomDatePicker from './CustomDatePicker';
+import GlassDeleteModal from './GlassDeleteModal';
 import { SparkToast } from './SparkToast';
 import { Colors } from '../theme/colors';
 import { useAppTheme } from '../theme/themeStore';
@@ -70,6 +71,9 @@ export default function DebtSheet({ visible, onClose, currency, onChanged }: Deb
   const [activeDebt, setActiveDebt] = useState<Debt | null>(null);
   const [repayAmount, setRepayAmount] = useState('');
   const [repayDate, setRepayDate] = useState(getToday());
+
+  // Silme onayı — kazara eklenen/yanlış borcu kaldırmak için (ödemeleri CASCADE).
+  const [deleteId, setDeleteId] = useState<number | null>(null);
 
   const reload = useCallback(async () => {
     const [open, all] = await Promise.all([
@@ -190,6 +194,23 @@ export default function DebtSheet({ visible, onClose, currency, onChanged }: Deb
     }
   }
 
+  async function handleDelete() {
+    if (deleteId == null) return;
+    try {
+      await DebtDao.remove(deleteId);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      SparkToast.show(t('debt_deleted_toast'), 'success');
+      onChanged?.();
+      await reload();
+      setActiveDebt(null);
+      setView('list');
+    } catch {
+      SparkToast.show(t('error_saving_data'), 'error');
+    } finally {
+      setDeleteId(null);
+    }
+  }
+
   // ── Görünümler ────────────────────────────────────────────────
   const renderOpenList = () =>
     debts.length === 0 ? (
@@ -292,6 +313,10 @@ export default function DebtSheet({ visible, onClose, currency, onChanged }: Deb
                       </View>
                     ))
                   )}
+                  <Pressable onPress={() => setDeleteId(d.id)} style={styles.histDeleteBtn} hitSlop={8}>
+                    <MaterialCommunityIcons name="trash-can-outline" size={15} color={Colors.danger} />
+                    <Text style={styles.histDeleteText}>{t('delete')}</Text>
+                  </Pressable>
                 </View>
               ) : null}
             </View>
@@ -455,6 +480,14 @@ export default function DebtSheet({ visible, onClose, currency, onChanged }: Deb
           <MaterialCommunityIcons name="arrow-left" size={22} color={Colors.textPrimary} />
         </Pressable>
         <Text style={styles.formTitle}>{t('debt_repay_title')}</Text>
+        <Pressable
+          onPress={() => activeDebt && setDeleteId(activeDebt.id)}
+          hitSlop={10}
+          style={styles.headerDeleteBtn}
+          accessibilityLabel={t('delete')}
+        >
+          <MaterialCommunityIcons name="trash-can-outline" size={22} color={Colors.danger} />
+        </Pressable>
       </View>
 
       <ScrollView style={styles.formScroll} contentContainerStyle={styles.formContent} keyboardShouldPersistTaps="handled">
@@ -518,6 +551,13 @@ export default function DebtSheet({ visible, onClose, currency, onChanged }: Deb
         onClose={() => setDatePickerVisible(false)}
         initialDate={view === 'repay' ? repayDate : date}
         onSelectDate={(d) => (view === 'repay' ? setRepayDate(d) : setDate(d))}
+      />
+
+      <GlassDeleteModal
+        visible={deleteId !== null}
+        message={t('debt_delete_msg')}
+        onCancel={() => setDeleteId(null)}
+        onDelete={handleDelete}
       />
     </BottomSheetModal>
   );
@@ -661,6 +701,19 @@ const getStyles = () => StyleSheet.create({
     color: Colors.textPrimary,
     fontFamily: FontFamily.semiBold,
   },
+  /** Geçmiş detayında "Sil" — kazara/yanlış borcu kaldır. */
+  histDeleteBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    alignSelf: 'flex-start',
+    marginTop: Spacing.md,
+  },
+  histDeleteText: {
+    ...Typography.labelSmall,
+    color: Colors.danger,
+    fontFamily: FontFamily.semiBold,
+  },
   // Liste
   listScroll: {
     maxHeight: SCREEN_H * 0.46,
@@ -753,6 +806,10 @@ const getStyles = () => StyleSheet.create({
     marginBottom: Spacing.lg,
   },
   backBtn: {
+    padding: Spacing.xs,
+  },
+  headerDeleteBtn: {
+    marginLeft: 'auto',
     padding: Spacing.xs,
   },
   formTitle: {

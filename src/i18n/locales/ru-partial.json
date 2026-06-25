@@ -707,6 +707,8 @@
   "debt_status_settled": "Погашен",
   "debt_payment_history": "История платежей",
   "debt_no_payments": "Платежей пока нет",
+  "debt_delete_msg": "Этот долг и его платежи будут удалены безвозвратно.",
+  "debt_deleted_toast": "Долг удалён",
   "stop_scan": "Остановить",
   "delete_api_key_msg": "Удалить ключ Gemini API?",
   "api_key_deleted": "Ключ API удалён"

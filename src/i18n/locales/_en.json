@@ -47,6 +47,8 @@
   "debt_status_settled": "Settled",
   "debt_payment_history": "Payment history",
   "debt_no_payments": "No payments yet",
+  "debt_delete_msg": "This debt and its payments will be permanently deleted.",
+  "debt_deleted_toast": "Debt deleted",
   "stop_scan": "Stop",
   "delete_api_key_msg": "Delete the Gemini API key?",
   "api_key_deleted": "API key deleted",
