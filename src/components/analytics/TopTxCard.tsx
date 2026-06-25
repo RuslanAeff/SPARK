@@ -1,6 +1,6 @@
 // S.P.A.R.K. — Analiz kartı: En yüksek tutarlı işlemler (top transactions)
-import React from 'react';
-import { View, Text } from 'react-native';
+import React, { useState } from 'react';
+import { View, Text, Pressable } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import AnimatedCard from '../AnimatedCard';
 import { Colors } from '../../theme/colors';
@@ -12,11 +12,18 @@ interface TopTxCardProps extends BaseCardProps {
   topTx: ExpenseWithDetails[];
 }
 
+const TOP_TX_VISIBLE = 3;
+
 function TopTxCard({ styles, t, tc, currency, topTx }: TopTxCardProps) {
+  // Varsayılan ilk 3'ü göster + "Daha çok" ile satır içi genişlet (iç içe
+  // ScrollView yerine → pull-to-refresh çakışması yok, kart kısa kalır).
+  const [expanded, setExpanded] = useState(false);
   if (topTx.length === 0) return null;
+  const canCollapse = topTx.length > TOP_TX_VISIBLE;
+  const visibleTx = canCollapse && !expanded ? topTx.slice(0, TOP_TX_VISIBLE) : topTx;
   const txList = (
     <>
-      {topTx.map((tx, i) => (
+      {visibleTx.map((tx, i) => (
         <View key={tx.id} style={styles.topTxRow}>
           <View style={[styles.topTxRank, { backgroundColor: i === 0 ? Colors.warning : Colors.surfaceLight }]}>
             <Text style={[styles.topTxRankText, i === 0 && { color: Colors.background }]}>{i + 1}</Text>
@@ -38,9 +45,23 @@ function TopTxCard({ styles, t, tc, currency, topTx }: TopTxCardProps) {
   return (
     <AnimatedCard delay={350} style={styles.section}>
       <Text style={styles.sectionTitle}>{t('top_transactions')}</Text>
-      {/* İç içe dikey ScrollView yok — dış sayfanın pull-to-refresh'i ile çakışır.
-          Liste 8 ile sınırlı (useTopTransactions), satır içi render dış sayfayla kayar. */}
       {txList}
+      {canCollapse && (
+        <Pressable
+          onPress={() => setExpanded((v) => !v)}
+          style={styles.showMoreBtn}
+          accessibilityRole="button"
+        >
+          <Text style={styles.showMoreText}>
+            {expanded ? t('show_less') : t('show_more_top_tx', { count: (topTx.length - TOP_TX_VISIBLE).toString() })}
+          </Text>
+          <MaterialCommunityIcons
+            name={expanded ? 'chevron-up' : 'chevron-down'}
+            size={18}
+            color={Colors.primary}
+          />
+        </Pressable>
+      )}
     </AnimatedCard>
   );
 }

@@ -319,6 +319,20 @@ export const getAnalyticsStyles = () => StyleSheet.create({
     ...Typography.bodyMedium,
     fontFamily: FontFamily.bold,
   },
+  /** "Tümünü göster / Daha az" satır içi genişletme butonu (iç scroll yerine) */
+  showMoreBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+    paddingVertical: Spacing.md,
+    marginTop: Spacing.xs,
+  },
+  showMoreText: {
+    ...Typography.labelMedium,
+    color: Colors.primary,
+    fontFamily: FontFamily.semiBold,
+  },
   // Vendor rows
   vendorRow: {
     flexDirection: 'row',

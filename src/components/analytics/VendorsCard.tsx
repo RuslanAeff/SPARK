@@ -1,6 +1,6 @@
 // S.P.A.R.K. — Analiz kartı: Satıcılar/mağazalar + seçili satıcı detay paneli
 // (ürün donut'u, 2 sütun lejant ve en çok alınan ürünler listesi)
-import React, { type Dispatch, type SetStateAction } from 'react';
+import React, { useState, useEffect, type Dispatch, type SetStateAction } from 'react';
 import { View, Text, Pressable } from 'react-native';
 import Animated, { FadeInDown, FadeOutUp, LinearTransition } from 'react-native-reanimated';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -29,14 +29,26 @@ function VendorsCard({
   styles, t, currency, vendors, prevVendorTotals, selectedVendor, vendorItems,
   selectedDonutIdx, handleVendorPress, setSelectedDonutIdx, onSelectItem,
 }: VendorsCardProps) {
+  // Uzun listeleri varsayılan daralt; "Tümünü göster" ile satır içi genişlet
+  // (iç içe ScrollView yerine → pull-to-refresh çakışması yok).
+  const [vendorsExpanded, setVendorsExpanded] = useState(false);
+  const [itemsExpanded, setItemsExpanded] = useState(false);
+  // Başka satıcı seçilince ürün listesi tekrar daralsın.
+  useEffect(() => { setItemsExpanded(false); }, [selectedVendor]);
+
   return (
     <AnimatedCard delay={400} style={styles.section}>
       <Text style={styles.sectionTitle}>{t('vendors_stores')}</Text>
       <Animated.View layout={LinearTransition.duration(320)}>
       {(() => {
+          const VENDORS_COLLAPSED = 4;
+          const canCollapseVendors = vendors.length > VENDORS_COLLAPSED;
+          const visibleVendors = canCollapseVendors && !vendorsExpanded
+            ? vendors.slice(0, VENDORS_COLLAPSED)
+            : vendors;
           const vendorsContent = (
         <>
-        {vendors.map((v, i) => {
+        {visibleVendors.map((v, i) => {
           const prevVTotal = prevVendorTotals.get(v.vendor_id);
           const isNewVendor = prevVTotal === undefined && prevVendorTotals.size > 0;
           const vendorDelta = prevVTotal && prevVTotal > 0
@@ -172,11 +184,20 @@ function VendorsCard({
                     : t('top_bought_products')}
                 </Text>
 
-                {/* Rendering the items list - scroll when > 3 */}
+                {/* "En çok alınanlar" listesi — iç içe ScrollView KULLANMA (dış sayfanın
+                    pull-to-refresh'i ile çakışıp kaydırmayı kapatıyordu). Bunun yerine
+                    varsayılan ilk N ürünü göster + "Tümünü göster" ile satır içi genişlet:
+                    panel kısa kalır, çakışma olmaz. */}
                 {(() => {
                     const itemsToRender = selectedDonutIdx !== null ? [vendorItems[selectedDonutIdx]] : vendorItems;
                     const filteredItems = itemsToRender.filter(Boolean);
-                    const itemsList = filteredItems.map((item: any, j: number) => {
+                    const ITEMS_COLLAPSED = 5;
+                    // Donut'tan tek ürün seçiliyse zaten 1 satır → daraltma yok.
+                    const canCollapseItems = selectedDonutIdx === null && filteredItems.length > ITEMS_COLLAPSED;
+                    const visibleItems = canCollapseItems && !itemsExpanded
+                      ? filteredItems.slice(0, ITEMS_COLLAPSED)
+                      : filteredItems;
+                    const itemsList = visibleItems.map((item: any, j: number) => {
                       const nameDisplay = itemDisplayName(item);
                       const primaryName = nameDisplay.primary;
                       const secondaryName = nameDisplay.secondary ?? '';
@@ -197,15 +218,34 @@ function VendorsCard({
                               <MaterialCommunityIcons name="chevron-right" size={16} color={Colors.borderLight} />
                             </View>
                           </View>
-                          {j < filteredItems.length - 1 && <View style={styles.microItemDivider} />}
+                          {j < visibleItems.length - 1 && <View style={styles.microItemDivider} />}
                         </Pressable>
                       );
                     });
 
-                    // İç içe dikey ScrollView KULLANMA — dış sayfa ScrollView'unun
-                    // pull-to-refresh'i ile çakışıp listeyi kaydırılamaz yapıyordu.
-                    // Satır içi render; uzun liste dış sayfayla birlikte kayar.
-                    return <>{itemsList}</>;
+                    return (
+                      <>
+                        {itemsList}
+                        {canCollapseItems && (
+                          <Pressable
+                            onPress={() => setItemsExpanded((v) => !v)}
+                            style={styles.showMoreBtn}
+                            accessibilityRole="button"
+                          >
+                            <Text style={styles.showMoreText}>
+                              {itemsExpanded
+                                ? t('show_less')
+                                : t('show_all', { count: (filteredItems.length - ITEMS_COLLAPSED).toString() })}
+                            </Text>
+                            <MaterialCommunityIcons
+                              name={itemsExpanded ? 'chevron-up' : 'chevron-down'}
+                              size={18}
+                              color={Colors.primary}
+                            />
+                          </Pressable>
+                        )}
+                      </>
+                    );
                 })()}
               </Animated.View>
             )}
@@ -213,7 +253,29 @@ function VendorsCard({
         ); })}
         </>
           );
-          return vendorsContent;
+          return (
+            <>
+              {vendorsContent}
+              {canCollapseVendors && (
+                <Pressable
+                  onPress={() => setVendorsExpanded((v) => !v)}
+                  style={styles.showMoreBtn}
+                  accessibilityRole="button"
+                >
+                  <Text style={styles.showMoreText}>
+                    {vendorsExpanded
+                      ? t('show_less_vendors')
+                      : t('show_all_vendors', { count: vendors.length.toString() })}
+                  </Text>
+                  <MaterialCommunityIcons
+                    name={vendorsExpanded ? 'chevron-up' : 'chevron-down'}
+                    size={18}
+                    color={Colors.primary}
+                  />
+                </Pressable>
+              )}
+            </>
+          );
         })()}
       </Animated.View>
     </AnimatedCard>
