@@ -62,6 +62,16 @@ async function discoverModels(apiKey: string): Promise<string[]> {
   return _modelCachePromise;
 }
 
+// Fiş ayrıştırma METİN (JSON) çıktısı ister. Bazı modeller `generateContent`
+// destekler ama görüntü/ses/video/gömme ÜRETİR (ör. gemini-*-flash-image JSON
+// yerine görüntü döndürür) → aday listesinde olmamalı; yoksa boşa bir kota/429
+// denemesi harcanır ve yanıt ayrıştırması bozulabilir.
+const UNSUITABLE_MODEL_KEYWORDS = ['image', 'imagen', 'tts', 'audio', 'live', 'veo', 'embedding', 'aqa'];
+export function isUnsuitableForReceiptParsing(modelId: string): boolean {
+  const lower = modelId.toLowerCase();
+  return UNSUITABLE_MODEL_KEYWORDS.some((k) => lower.includes(k));
+}
+
 async function _discoverModelsImpl(apiKey: string): Promise<string[]> {
   const versions = ['v1beta', 'v1'];
   
@@ -83,7 +93,7 @@ async function _discoverModelsImpl(apiKey: string): Promise<string[]> {
           id: m.name?.replace('models/', '') || '',
           ver,
         }))
-        .filter((m: any) => m.id)
+        .filter((m: any) => m.id && !isUnsuitableForReceiptParsing(m.id))
         .map((m: any) => `${m.ver}:${m.id}`);
       
       if (models.length > 0) {

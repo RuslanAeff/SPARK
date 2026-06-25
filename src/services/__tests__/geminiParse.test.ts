@@ -6,7 +6,19 @@ jest.mock('../secureKeyStore', () => ({
   hasSecureApiKey: jest.fn(),
 }));
 
-import { coerceParsedReceipt, tryJsonToReceipt } from '../geminiService';
+import { coerceParsedReceipt, tryJsonToReceipt, isUnsuitableForReceiptParsing } from '../geminiService';
+
+describe('isUnsuitableForReceiptParsing', () => {
+  it('görüntü/ses/gömme üreten modelleri eler', () => {
+    ['gemini-3.1-flash-image', 'imagen-3.0', 'gemini-2.5-flash-tts', 'gemini-live-2.5-flash', 'text-embedding-004', 'veo-2.0']
+      .forEach((id) => expect(isUnsuitableForReceiptParsing(id)).toBe(true));
+  });
+
+  it('metin (fiş) modellerini tutar', () => {
+    ['gemini-2.5-flash', 'gemini-3.5-flash', 'gemini-2.0-flash-001', 'gemini-1.5-pro']
+      .forEach((id) => expect(isUnsuitableForReceiptParsing(id)).toBe(false));
+  });
+});
 
 describe('coerceParsedReceipt', () => {
   it('items dizi değilse null döner', () => {
