@@ -7,7 +7,7 @@
 
 ## Proje özeti
 
-**S.P.A.R.K** — kişisel harcama takibi mobil uygulaması (mağaza sürümü örn. **2.2.0** — `app.json` / `package.json`).
+**S.P.A.R.K** — kişisel harcama takibi mobil uygulaması (mağaza sürümü örn. **2.7.0** — `app.json` / `package.json`).
 - **Yığın:** Expo SDK ~55, expo-router (file-based), React 19, RN 0.83
 - **Veri:** expo-sqlite (`spark.db`, WAL, FK on)
 - **Yapay zekâ:** Google Gemini (fiş ayrıştırma)
