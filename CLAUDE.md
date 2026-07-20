@@ -74,7 +74,7 @@ src/
 npm start              # expo start
 npm run android        # expo run:android
 npm run ios            # expo run:ios
-npm test               # jest (139 test) — değişiklik sonrası çalıştır
+npm test               # jest (175 test) — değişiklik sonrası çalıştır
 npm run typecheck      # tsc --noEmit — commit öncesi zorunlu
 ```
 

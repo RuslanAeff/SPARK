@@ -898,6 +898,16 @@ export const getAnalyticsStyles = () => StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  projHeaderTitleWrap: {
+    flex: 1,
+    minWidth: 0,
+  },
+  projPeriodLabel: {
+    ...Typography.labelSmall,
+    color: Colors.textMuted,
+    fontSize: 11,
+    marginTop: 1,
+  },
   projDaysChip: {
     flexDirection: 'row',
     alignItems: 'center',

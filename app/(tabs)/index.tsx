@@ -23,6 +23,7 @@ import SavingsGoalCard from '../../src/components/SavingsGoalCard';
 import CategoryLimitsSection from '../../src/components/CategoryLimitsSection';
 import BudgetCard from '../../src/components/BudgetCard';
 import DebtSheet from '../../src/components/DebtSheet';
+import IncomeSheet from '../../src/components/IncomeSheet';
 import AnimatedCard from '../../src/components/AnimatedCard';
 import CategoryPill from '../../src/components/CategoryPill';
 import VendorAvatar from '../../src/components/VendorAvatar';
@@ -68,6 +69,7 @@ export default function DashboardScreen() {
   const [selectedIndex, setSelectedIndex] = React.useState<number | null>(null);
   // Borç yönetim alt sayfası (açık borç rozetine dokununca açılır — Faz 4a).
   const [debtSheetVisible, setDebtSheetVisible] = React.useState(false);
+  const [incomeSheetVisible, setIncomeSheetVisible] = React.useState(false);
   const { refreshKey } = useRefresh();
   const { currency } = useCurrency();
   const { unreadCount, sync } = useNotifications();
@@ -303,19 +305,54 @@ export default function DashboardScreen() {
           </Animated.View>
         )}
 
-        {/* Borç işlemleri girişi — ilk borcu eklemek + borçları yönetmek için
-            her zaman erişilebilir (kırmızı rozet yalnızca açık borç varken çıkar). */}
+        {/* Borç + Ek gelir girişleri — YAN YANA (dikey yer kazanmak için; ikisi
+            alt alta pill iken kart yığınını gereksiz uzatıyordu). Her ikisi de
+            bütçenin harcanabilir tutarını etkileyen nakit kaynakları olduğundan
+            aynı satırda durmaları anlamsal olarak da doğru.
+            Metin iki satıra bölünür (ikon solda): yarım genişlikte Rusça
+            "Операции с долгами" / AZ "Əlavə gəlir" tek satıra sığmıyor. */}
         {budget.monthlyBudget > 0 && (
-          <Animated.View layout={LinearTransition.duration(750)}>
+          <Animated.View layout={LinearTransition.duration(750)} style={styles.cashEntryRow}>
             <Pressable
               onPress={() => setDebtSheetVisible(true)}
-              style={({ pressed }) => [styles.debtEntryBtn, pressed && { opacity: 0.9 }]}
+              style={({ pressed }) => [styles.cashEntryTile, pressed && { opacity: 0.9 }]}
               accessibilityRole="button"
               accessibilityLabel={t('debt_manage_cta')}
             >
-              <MaterialCommunityIcons name="hand-coin-outline" size={18} color={Colors.textSecondary} />
-              <Text style={styles.debtEntryText}>{t('debt_manage_cta')}</Text>
-              <MaterialCommunityIcons name="chevron-right" size={18} color={Colors.textMuted} style={{ marginLeft: 'auto' }} />
+              <View style={[styles.cashEntryIcon, { backgroundColor: Colors.danger + '1A' }]}>
+                <MaterialCommunityIcons name="hand-coin-outline" size={17} color={Colors.danger} />
+              </View>
+              <View style={styles.cashEntryTextWrap}>
+                <Text style={styles.cashEntryLabel} numberOfLines={1}>{t('debt_tile_label')}</Text>
+                {budget.outstandingDebt > 0 ? (
+                  <Text style={[styles.cashEntryValue, { color: Colors.danger }]} numberOfLines={1}>
+                    {formatCurrency(budget.outstandingDebt, currency, false)}
+                  </Text>
+                ) : (
+                  <Text style={styles.cashEntryValueEmpty}>—</Text>
+                )}
+              </View>
+            </Pressable>
+
+            <Pressable
+              onPress={() => setIncomeSheetVisible(true)}
+              style={({ pressed }) => [styles.cashEntryTile, pressed && { opacity: 0.9 }]}
+              accessibilityRole="button"
+              accessibilityLabel={t('income_manage_cta')}
+            >
+              <View style={[styles.cashEntryIcon, { backgroundColor: Colors.success + '1A' }]}>
+                <MaterialCommunityIcons name="cash-plus" size={17} color={Colors.success} />
+              </View>
+              <View style={styles.cashEntryTextWrap}>
+                <Text style={styles.cashEntryLabel} numberOfLines={1}>{t('income_tile_label')}</Text>
+                {budget.extraIncomeIn > 0 ? (
+                  <Text style={[styles.cashEntryValue, { color: Colors.success }]} numberOfLines={1}>
+                    +{formatCurrency(budget.extraIncomeIn, currency, false)}
+                  </Text>
+                ) : (
+                  <Text style={styles.cashEntryValueEmpty}>—</Text>
+                )}
+              </View>
             </Pressable>
           </Animated.View>
         )}
@@ -496,6 +533,15 @@ export default function DashboardScreen() {
         currency={currency}
         onChanged={refreshAll}
       />
+
+      <IncomeSheet
+        visible={incomeSheetVisible}
+        onClose={() => setIncomeSheetVisible(false)}
+        currency={currency}
+        cycleStart={budget.periodStart}
+        cycleEnd={budget.periodEnd}
+        onChanged={refreshAll}
+      />
     </SafeAreaView>
   );
 }
@@ -581,23 +627,53 @@ const getStyles = () => StyleSheet.create({
     fontFamily: FontFamily.bold,
     marginTop: 2,
   },
-  /** Borç işlemleri giriş butonu (nötr cam pill) */
-  debtEntryBtn: {
+  /** Borç + Ek gelir giriş kutuları — yan yana, eşit genişlikte. */
+  cashEntryRow: {
+    flexDirection: 'row',
+    gap: Spacing.sm,
+    marginTop: Spacing.sm,
+  },
+  cashEntryTile: {
+    flex: 1,
+    minWidth: 0,
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.sm,
     backgroundColor: Colors.surface,
-    borderRadius: BorderRadius.round,
-    paddingHorizontal: Spacing.lg,
+    borderRadius: BorderRadius.lg,
+    paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.md,
-    marginTop: Spacing.sm,
     borderWidth: 1,
     borderColor: Colors.border,
   },
-  debtEntryText: {
-    ...Typography.labelMedium,
+  cashEntryIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  cashEntryTextWrap: {
+    flex: 1,
+    minWidth: 0,
+  },
+  cashEntryLabel: {
+    ...Typography.labelSmall,
     color: Colors.textSecondary,
     fontFamily: FontFamily.semiBold,
+  },
+  /** Kutunun ikinci satırı: açık borç / dönemin ek geliri. */
+  cashEntryValue: {
+    ...Typography.labelMedium,
+    fontFamily: FontFamily.bold,
+    marginTop: 1,
+  },
+  /** Değer yokken em-dash — iki kutu eşit yükseklikte kalsın (i18n gerektirmez). */
+  cashEntryValueEmpty: {
+    ...Typography.labelMedium,
+    color: Colors.textMuted,
+    fontFamily: FontFamily.bold,
+    marginTop: 1,
   },
   /** Aylık bütçe kartı ile birikim kartı arasında nefes payı */
   goalBlockSpacing: {

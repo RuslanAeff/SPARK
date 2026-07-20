@@ -31,7 +31,10 @@ function ProjectionCard({ styles, t, currency, projectionInfo }: ProjectionCardP
     );
   }
 
-  const { projected, currentSpent, dailyPace, daysLeft, monthlyBudget, status, hasOutlier } = projectionInfo;
+  const { projected, currentSpent, dailyPace, daysLeft, effectiveBudget, status, hasOutlier, periodLabel, isCycle } = projectionInfo;
+  // Döngü başlangıcı 1 değilse pencere takvim ayı değil → metinler "dönem" der.
+  const titleKey = isCycle ? 'projection_title_cycle' : 'projection_title';
+  const estimatedKey = isCycle ? 'projection_estimated_cycle' : 'projection_estimated';
   const accent =
     status === 'over' ? Colors.danger :
     status === 'warn' ? Colors.warning :
@@ -39,10 +42,10 @@ function ProjectionCard({ styles, t, currency, projectionInfo }: ProjectionCardP
     Colors.primary;
 
   // Pist üzerinde işaretler — bütçe varsa bütçe = %100 gibi normalize edilir.
-  const refValue = Math.max(monthlyBudget, projected, currentSpent, 1);
+  const refValue = Math.max(effectiveBudget, projected, currentSpent, 1);
   const currentPct = Math.min(100, (currentSpent / refValue) * 100);
   const projectedPct = Math.min(100, (projected / refValue) * 100);
-  const budgetPct = monthlyBudget > 0 ? Math.min(100, (monthlyBudget / refValue) * 100) : null;
+  const budgetPct = effectiveBudget > 0 ? Math.min(100, (effectiveBudget / refValue) * 100) : null;
 
   // Outcome metni: yüzde yerine somut TL — kullanıcı için çok daha net.
   const outcomeIcon =
@@ -53,16 +56,16 @@ function ProjectionCard({ styles, t, currency, projectionInfo }: ProjectionCardP
   let outcomeTitle: string;
   let outcomeSub: string;
   if (status === 'safe') {
-    const remaining = monthlyBudget - projected;
+    const remaining = effectiveBudget - projected;
     outcomeTitle = t('projection_outcome_save_title');
     outcomeSub = t('projection_outcome_save_sub', { amount: formatCurrency(remaining, currency, false) });
   } else if (status === 'over') {
-    const overBy = projected - monthlyBudget;
+    const overBy = projected - effectiveBudget;
     outcomeTitle = t('projection_outcome_over_title');
     outcomeSub = t('projection_outcome_over_sub', { amount: formatCurrency(overBy, currency, false) });
   } else if (status === 'warn') {
     outcomeTitle = t('projection_outcome_warn_title');
-    outcomeSub = t('projection_outcome_warn_sub');
+    outcomeSub = t(isCycle ? 'projection_outcome_warn_sub_cycle' : 'projection_outcome_warn_sub');
   } else {
     outcomeTitle = t('projection_outcome_nobudget_title');
     outcomeSub = t('projection_outcome_nobudget_sub');
@@ -75,7 +78,10 @@ function ProjectionCard({ styles, t, currency, projectionInfo }: ProjectionCardP
           <View style={[styles.projHeaderIcon, { backgroundColor: accent + '1F' }]}>
             <MaterialCommunityIcons name="crystal-ball" size={16} color={accent} />
           </View>
-          <Text style={styles.sectionTitle}>{t('projection_title')}</Text>
+          <View style={styles.projHeaderTitleWrap}>
+            <Text style={styles.sectionTitle}>{t(titleKey)}</Text>
+            {periodLabel && <Text style={styles.projPeriodLabel}>{periodLabel}</Text>}
+          </View>
         </View>
         <View style={[styles.projDaysChip, { backgroundColor: Colors.surfaceLight }]}>
           <MaterialCommunityIcons name="calendar-blank-outline" size={12} color={Colors.textSecondary} />
@@ -84,7 +90,7 @@ function ProjectionCard({ styles, t, currency, projectionInfo }: ProjectionCardP
       </View>
 
       {/* Hero: tahmini ay sonu */}
-      <Text style={styles.projHeroLabel}>{t('projection_estimated')}</Text>
+      <Text style={styles.projHeroLabel}>{t(estimatedKey)}</Text>
       <Text style={[styles.projHeroValue, { color: accent }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>
         {formatCurrency(projected, currency)}
       </Text>
@@ -118,7 +124,7 @@ function ProjectionCard({ styles, t, currency, projectionInfo }: ProjectionCardP
           </View>
           <View style={styles.projLegendItem}>
             <View style={[styles.projLegendDot, { backgroundColor: accent + '4D' }]} />
-            <Text style={styles.projLegendText}>{t('projection_estimated')}</Text>
+            <Text style={styles.projLegendText}>{t(estimatedKey)}</Text>
           </View>
           {budgetPct !== null && (
             <View style={styles.projLegendItem}>

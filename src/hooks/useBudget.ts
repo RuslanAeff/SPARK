@@ -6,6 +6,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { BudgetDao } from '../db/budgetDao';
 import { ExpenseDao } from '../db/expenseDao';
 import { DebtDao } from '../db/debtDao';
+import { IncomeDao } from '../db/incomeDao';
 import { getCycleStartDay } from '../services/budgetCycleSettings';
 import { getCurrentCycle, getCycleForKey, getCycleProgress } from '../utils/budgetCycle';
 import { computeDebtAdjustedBudget } from '../utils/debtMath';
@@ -33,7 +34,9 @@ export interface BudgetInfo {
   repaidIn: number;
   /** borrowedIn − repaidIn (döngünün net borç nakit akışı; +/−). */
   netDebtFlow: number;
-  /** monthlyBudget + netDebtFlow (remaining/percentage bunun üzerinden). */
+  /** Bu döngüde elde edilen ek gelir toplamı (extra_incomes.date ∈ döngü; yalnız +). */
+  extraIncomeIn: number;
+  /** monthlyBudget + netDebtFlow + extraIncomeIn (remaining/percentage bunun üzerinden). */
   effectiveBudget: number;
   /** Global açık borç toplamı (kırmızı rozet) — döngü bağımsız, Σ open remaining. */
   outstandingDebt: number;
@@ -56,6 +59,7 @@ export function useBudget(specificMonth?: string) {
     borrowedIn: 0,
     repaidIn: 0,
     netDebtFlow: 0,
+    extraIncomeIn: 0,
     effectiveBudget: 0,
     outstandingDebt: 0,
   });
@@ -91,6 +95,10 @@ export function useBudget(specificMonth?: string) {
       const borrowedIn = await DebtDao.getBorrowedTotalByDateRange(cycle.start, cycle.end);
       const repaidIn = await DebtDao.getRepaidTotalByDateRange(cycle.start, cycle.end);
       const outstandingDebt = await DebtDao.getOutstandingTotal();
+      // Ek gelir (banka bonusu, hediye...) — borç DEĞİL, geri ödenmez; yalnız
+      // düştüğü döngünün harcanabilir tutarını artırır. Kayıt yoksa 0 döner →
+      // effectiveBudget eski davranışıyla birebir aynı kalır.
+      const extraIncomeIn = await IncomeDao.getTotalByDateRange(cycle.start, cycle.end);
 
       // Döngü içindeki ilerleme: güncel döngüde bugüne göre; geçmiş döngüde tam
       // dolmuş, gelecek döngüde hiç başlamamış kabul edilir.
@@ -109,7 +117,7 @@ export function useBudget(specificMonth?: string) {
       // Bütçe etkisi = nakit akışı: remaining/percentage/isOverBudget
       // effectiveBudget (= plan + borrowedIn − repaidIn) üzerinden hesaplanır.
       const { effectiveBudget, netDebtFlow, remaining, percentage, isOverBudget } =
-        computeDebtAdjustedBudget({ monthlyBudget: budgetAmount, totalSpent, borrowedIn, repaidIn });
+        computeDebtAdjustedBudget({ monthlyBudget: budgetAmount, totalSpent, borrowedIn, repaidIn, extraIncomeIn });
 
       const dailyAverage = dayOfCycle > 0 ? totalSpent / dayOfCycle : 0;
       const dailyBudget = daysRemaining > 0 ? Math.max(0, remaining) / daysRemaining : 0;
@@ -131,6 +139,7 @@ export function useBudget(specificMonth?: string) {
           borrowedIn,
           repaidIn,
           netDebtFlow,
+          extraIncomeIn,
           effectiveBudget,
           outstandingDebt,
         });

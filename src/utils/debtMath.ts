@@ -6,7 +6,12 @@
 // İki döngü toplamında borç + ödeme birbirini götürür (+100 −100 = 0) → hayalî
 // para oluşmaz; tüketim (totalSpent) her zaman gerçek fiş toplamıdır.
 //
-// effectiveBudget = monthlyBudget + borrowedIn − repaidIn
+// EK GELİR (extra_incomes — banka bonusu, hediye, tek seferlik ek iş) aynı
+// nakit-akışı modelinin + yönlü tek terimidir: borçtan farkı geri ödenmemesidir,
+// bu yüzden hiç eksilmez ve "açık borç" rozetine girmez. Düştüğü döngüyü `date`
+// belirler → sonraki döngüye sarkmaz (bütçe planı temiz kalır).
+//
+// effectiveBudget = monthlyBudget + borrowedIn − repaidIn + extraIncomeIn
 // remaining       = effectiveBudget − totalSpent
 // isOverBudget    = remaining < 0
 // percentage      = effectiveBudget'a göre (kullanıcı kararı: remaining ile
@@ -23,12 +28,20 @@ export interface DebtCashFlowInput {
   borrowedIn: number;
   /** Bu döngüde yapılan geri ödeme toplamı (payment.date ∈ döngü). */
   repaidIn: number;
+  /**
+   * Bu döngüde elde edilen **ek gelir** toplamı (extra_incomes.date ∈ döngü).
+   * Borçtan farkı: geri ödenmez, hiç eksilmez → yalnız + yönlü tek terim.
+   * Opsiyonel; verilmezse 0 (ek gelir öncesi davranış birebir korunur).
+   */
+  extraIncomeIn?: number;
 }
 
 export interface DebtCashFlowResult {
   /** borrowedIn − repaidIn (döngünün net borç nakit akışı; +/−). */
   netDebtFlow: number;
-  /** monthlyBudget + netDebtFlow. */
+  /** Döngünün ek gelir toplamı (yalnız +; geri ödeme yok). */
+  extraIncomeIn: number;
+  /** monthlyBudget + netDebtFlow + extraIncomeIn. */
   effectiveBudget: number;
   /** effectiveBudget − totalSpent. */
   remaining: number;
@@ -44,9 +57,10 @@ export function computeDebtAdjustedBudget(input: DebtCashFlowInput): DebtCashFlo
   const totalSpent = Number.isFinite(input.totalSpent) ? input.totalSpent : 0;
   const borrowedIn = Number.isFinite(input.borrowedIn) ? input.borrowedIn : 0;
   const repaidIn = Number.isFinite(input.repaidIn) ? input.repaidIn : 0;
+  const extraIncomeIn = Number.isFinite(input.extraIncomeIn) ? (input.extraIncomeIn as number) : 0;
 
   const netDebtFlow = borrowedIn - repaidIn;
-  const effectiveBudget = monthlyBudget + netDebtFlow;
+  const effectiveBudget = monthlyBudget + netDebtFlow + extraIncomeIn;
   const remaining = effectiveBudget - totalSpent;
   const percentage =
     effectiveBudget > 0
@@ -55,6 +69,7 @@ export function computeDebtAdjustedBudget(input: DebtCashFlowInput): DebtCashFlo
 
   return {
     netDebtFlow,
+    extraIncomeIn,
     effectiveBudget,
     remaining,
     percentage,

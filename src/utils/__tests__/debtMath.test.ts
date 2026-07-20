@@ -97,6 +97,70 @@ describe('computeDebtAdjustedBudget — nakit-akışı modeli', () => {
     expect(r.percentage).toBe(0);
   });
 
+  // ── Ek Gelir (extra_incomes) — + yönlü tek terim ────────────────────
+  it('extraIncomeIn verilmezse davranış ek gelir öncesiyle birebir aynı', () => {
+    const withoutField = computeDebtAdjustedBudget({
+      monthlyBudget: 3368, totalSpent: 3362.24, borrowedIn: 100, repaidIn: 100,
+    });
+    const withZero = computeDebtAdjustedBudget({
+      monthlyBudget: 3368, totalSpent: 3362.24, borrowedIn: 100, repaidIn: 100, extraIncomeIn: 0,
+    });
+    expect(withoutField.effectiveBudget).toBe(3368);
+    expect(withoutField).toEqual(withZero);
+    expect(withoutField.extraIncomeIn).toBe(0);
+  });
+
+  // Kullanıcı senaryosu: 3368 zł temel bütçe + Credit Agricole 37 zł promosyonu.
+  it('banka bonusu harcanabilir tutarı artırır (temel bütçeye dokunmadan)', () => {
+    const r = computeDebtAdjustedBudget({
+      monthlyBudget: 3368,
+      totalSpent: 3362.24,
+      borrowedIn: 0,
+      repaidIn: 0,
+      extraIncomeIn: 37,
+    });
+    expect(r.extraIncomeIn).toBe(37);
+    expect(r.effectiveBudget).toBe(3405);
+    expect(r.remaining).toBeCloseTo(42.76, 2);
+    expect(r.isOverBudget).toBe(false);
+  });
+
+  // Ek gelirin borçtan farkı: geri ödenmez → sonraki döngüde İZ BIRAKMAZ.
+  // (Borçta +100/−100 iki döngüde sıfırlanırken, gelir yalnız kendi döngüsünde durur.)
+  it('ek gelir sonraki döngüye sarkmaz', () => {
+    const tem = computeDebtAdjustedBudget({
+      monthlyBudget: 3368, totalSpent: 0, borrowedIn: 0, repaidIn: 0, extraIncomeIn: 37,
+    });
+    // Sonraki döngüde gelir kaydı yok (date başka döngüye düşüyor) → 0 geçilir.
+    const agu = computeDebtAdjustedBudget({
+      monthlyBudget: 3368, totalSpent: 0, borrowedIn: 0, repaidIn: 0, extraIncomeIn: 0,
+    });
+    expect(tem.effectiveBudget).toBe(3405);
+    expect(agu.effectiveBudget).toBe(3368); // temel bütçe geri gelir
+  });
+
+  it('ek gelir + borç birlikte: her iki terim de effectiveBudget\'a girer', () => {
+    const r = computeDebtAdjustedBudget({
+      monthlyBudget: 1000, totalSpent: 200, borrowedIn: 300, repaidIn: 120, extraIncomeIn: 50,
+    });
+    expect(r.netDebtFlow).toBe(180);
+    expect(r.extraIncomeIn).toBe(50);
+    expect(r.effectiveBudget).toBe(1230);
+    expect(r.remaining).toBe(1030);
+  });
+
+  it('ek gelir yüzdeyi düşürür (bar şişmez)', () => {
+    const before = computeDebtAdjustedBudget({
+      monthlyBudget: 1000, totalSpent: 1000, borrowedIn: 0, repaidIn: 0,
+    });
+    const after = computeDebtAdjustedBudget({
+      monthlyBudget: 1000, totalSpent: 1000, borrowedIn: 0, repaidIn: 0, extraIncomeIn: 250,
+    });
+    expect(before.percentage).toBe(100);
+    expect(after.percentage).toBe(80); // 1000 / 1250
+    expect(after.isOverBudget).toBe(false);
+  });
+
   it('geçersiz (NaN/Infinity) girdiler 0 sayılır', () => {
     const r = computeDebtAdjustedBudget({
       monthlyBudget: NaN as unknown as number,

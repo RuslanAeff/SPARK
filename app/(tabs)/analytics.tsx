@@ -15,7 +15,9 @@ import { SubscriptionDao } from '../../src/db/subscriptionDao';
 import { CategoryLimitDao } from '../../src/db/categoryLimitDao';
 import { GoalDao, type SavingsGoalRow } from '../../src/db/goalDao';
 import type { SubscriptionWithDetails } from '../../src/db/schema';
-import { getStartOfMonth, getEndOfMonth, formatMonthYear, getDaysInMonth, getDayOfMonth } from '../../src/utils/dateUtils';
+import { getStartOfMonth, getEndOfMonth, formatMonthYear, formatDayMonth } from '../../src/utils/dateUtils';
+import { getCurrentCycle, getCycleProgress } from '../../src/utils/budgetCycle';
+import { computeSpendingProjection } from '../../src/utils/spendingProjection';
 
 import AnimatedCard from '../../src/components/AnimatedCard';
 import CustomDatePicker from '../../src/components/CustomDatePicker';
@@ -400,6 +402,14 @@ export default function AnalyticsScreen() {
   const { needsWants, weekWeekend, refresh: refreshBehavior } = useBehavioralAnalytics(dateRange.start, dateRange.end);
   
   const { budget, refresh: refreshBudget } = useBudget();
+  // Projeksiyon kartı BÜTÇE DÖNGÜSÜNDE yaşar (takvim ayında değil): kart bütçeyle
+  // karşılaştırma yaptığı için penceresi de bütçenin penceresi olmalı. Döngü
+  // başlangıcı 1 değilse (ör. 23) takvim ayı iki ayrı döngüye yayılır → takvim
+  // ayı harcamasını tek döngü bütçesiyle kıyaslamak yanlış sonuç verir.
+  const { data: cycleDailyData, refresh: refreshCycleDaily } = useDailySpending(
+    budget.periodStart || undefined,
+    budget.periodEnd || undefined,
+  );
   const [prevTotal, setPrevTotal] = useState(0);
   const [prevDailyData, setPrevDailyData] = useState<{ date: string; total: number }[]>([]);
   const [prevVendorTotals, setPrevVendorTotals] = useState<Map<number, number>>(new Map());
@@ -690,70 +700,55 @@ export default function AnalyticsScreen() {
     return Math.round(pct * 10) / 10;
   }, [currentTotal, prevTotal]);
 
-  // ── Ay sonu projeksiyonu ─────────────────────────────────────────
-  // currentTotal aktif dönemde harcanmışı verir; `month` modunda bu = ay başından
-  // bugüne kadar harcanan. Günlük ortalama × ayın toplam günü = projeksiyon.
-  // Yeterli geçmiş yoksa (ayın 1. günü vs.) 'too_early' duruma düşeriz.
+  // ── Dönem sonu projeksiyonu ──────────────────────────────────────
+  // DİKKAT: Bu kart bilerek BÜTÇE DÖNGÜSÜNÜ kullanır, ekranın geri kalanının
+  // takvim ayı penceresini DEĞİL. Kart "bütçeyi aşacak mısın?" sorusunu
+  // yanıtladığı için harcama ve bütçe aynı takvimden gelmek zorunda; aksi
+  // halde döngü başlangıcı ≠ 1 iken (ör. 23) takvim ayı harcaması, farklı bir
+  // pencereye ait bütçeyle kıyaslanır ve Dashboard'la çelişen sonuç çıkar.
+  // Karşılaştırma tabanı effectiveBudget (plan + borç nakit akışı) — Dashboard
+  // "Kalan" değeriyle birebir aynı taban.
   const projectionInfo = useMemo(() => {
     if (timeframe !== 'month') {
       return { available: false as const, reason: 'only_month' as const };
     }
-    const dayOfMonth = getDayOfMonth();
-    const totalDaysInMonth = getDaysInMonth();
-    if (dayOfMonth < 2) {
+    const cycle = getCurrentCycle(budget.cycleStartDay);
+    const { dayOfCycle, daysRemaining } = getCycleProgress(cycle);
+    if (dayOfCycle < 2) {
       return { available: false as const, reason: 'too_early' as const };
     }
-    // Outlier'a dirençli günlük tempo hesabı:
-    // Naive `currentTotal / dayOfMonth` tek seferlik büyük harcamalardan
-    // (kira, fatura, elektronik) çok etkilenir → projeksiyon abartılı çıkar.
-    // Çözüm: bu ay'a kadar olan günlük dizide üst %20'lik dilimi (en yüksek
-    // değerleri) kırp, kalan günlerin ortalamasını "kalan gün için tempo"
-    // olarak kullan. `currentSpent` (gerçek harcanan) değişmez; sadece **gelecek**
-    // tahmini gürültüden arındırılır. Projected = currentSpent + daysLeft × trimmedPace.
     const dailyByDate = new Map<string, number>();
-    for (const d of dailyData) dailyByDate.set(d.date, d.total);
+    for (const d of cycleDailyData) dailyByDate.set(d.date, d.total);
     const dailyTotals: number[] = [];
-    const monthStart = new Date(dateRange.start);
-    for (let i = 0; i < dayOfMonth; i++) {
-      const d = new Date(monthStart);
-      d.setDate(monthStart.getDate() + i);
+    const cycleStart = new Date(cycle.start + 'T12:00:00');
+    for (let i = 0; i < dayOfCycle; i++) {
+      const d = new Date(cycleStart);
+      d.setDate(cycleStart.getDate() + i);
       const ymd = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
       dailyTotals.push(dailyByDate.get(ymd) ?? 0);
     }
-    const sorted = [...dailyTotals].sort((a, b) => a - b);
-    const trimCount = Math.floor(sorted.length * 0.2);
-    const trimmed = trimCount > 0 ? sorted.slice(0, sorted.length - trimCount) : sorted;
-    const trimmedSum = trimmed.reduce((s, v) => s + v, 0);
-    const trimmedPace = trimmed.length > 0 ? trimmedSum / trimmed.length : 0;
-    const naivePace = currentTotal / dayOfMonth;
-    const daysLeft = Math.max(0, totalDaysInMonth - dayOfMonth);
-    // Projection: gerçek harcanan + outlier'sız tempo × kalan gün.
-    const projected = currentTotal + daysLeft * trimmedPace;
-    // Görsellerde kullanıcıya "günlük ortalama" satırında trimmed pace gösterilir
-    // (hedef: gerçekçi olmak). Naive değer şimdilik gizli — ileride bir tooltip için.
-    const monthlyBudget = budget.monthlyBudget;
-    let status: 'safe' | 'warn' | 'over' | 'no_budget' = 'no_budget';
-    let deltaPct: number | null = null;
-    if (monthlyBudget > 0) {
-      const pct = ((projected - monthlyBudget) / monthlyBudget) * 100;
-      deltaPct = Math.round(pct * 10) / 10;
-      if (projected > monthlyBudget * 1.02) status = 'over';
-      else if (projected < monthlyBudget * 0.98) status = 'safe';
-      else status = 'warn';
-    }
+    // Harcanan = döngünün DAO toplamı (budget.totalSpent) — kartın "şu ana kadar"
+    // değeri Dashboard'daki "Harcanan" ile aynı sayı olmalı.
+    const currentSpent = budget.totalSpent;
+    const daysLeft = daysRemaining;
+    const effectiveBudget = budget.effectiveBudget;
+    const calc = computeSpendingProjection({ dailyTotals, currentSpent, daysLeft, effectiveBudget });
+    const isCycle = budget.cycleStartDay !== 1;
     return {
       available: true as const,
-      projected,
-      currentSpent: currentTotal,
-      dailyPace: trimmedPace,
-      naiveDailyPace: naivePace,
+      projected: calc.projected,
+      currentSpent,
+      dailyPace: calc.dailyPace,
+      naiveDailyPace: calc.naiveDailyPace,
       daysLeft,
-      monthlyBudget,
-      status,
-      deltaPct,
-      hasOutlier: trimmedPace > 0 && naivePace > trimmedPace * 1.5,
+      effectiveBudget,
+      status: calc.status,
+      deltaPct: calc.deltaPct,
+      hasOutlier: calc.hasOutlier,
+      periodLabel: isCycle ? `${formatDayMonth(cycle.start, t)} – ${formatDayMonth(cycle.end, t)}` : null,
+      isCycle,
     };
-  }, [timeframe, currentTotal, budget.monthlyBudget, dailyData, dateRange.start]);
+  }, [timeframe, budget.cycleStartDay, budget.totalSpent, budget.effectiveBudget, cycleDailyData, t]);
 
   // ── Abonelik özeti ───────────────────────────────────────────────
   // Her abonelik period_days'a göre 30 günlük döneme normalize edilir.
@@ -863,7 +858,7 @@ export default function AnalyticsScreen() {
   const onRefresh = async () => {
     setRefreshing(true);
     await Promise.all([
-      refreshCats(), refreshVendors(), refreshDaily(),
+      refreshCats(), refreshVendors(), refreshDaily(), refreshCycleDaily(),
       refreshTop(), refreshSubcats(), refreshBehavior(),
       refreshBudget(), loadPrevTotal(), loadPriceChanges(),
       loadActiveSubscriptions(), loadCategoryLimits(),
@@ -929,6 +924,7 @@ export default function AnalyticsScreen() {
     refreshCats();
     refreshVendors();
     refreshDaily();
+    refreshCycleDaily();
     refreshTop();
     refreshSubcats();
     refreshBehavior();

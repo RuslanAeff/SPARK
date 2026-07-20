@@ -128,6 +128,17 @@ export const CREATE_TABLES_SQL = `
   );
   CREATE INDEX IF NOT EXISTS idx_debt_payments_debt ON debt_payments(debt_id);
   CREATE INDEX IF NOT EXISTS idx_debt_payments_date ON debt_payments(date);
+
+  CREATE TABLE IF NOT EXISTS extra_incomes (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    source      TEXT NOT NULL DEFAULT '',            -- "Credit Agricole bonus", "Ek iş" ...
+    amount      REAL NOT NULL,                        -- >0 (harcanabilir tutarı ARTIRIR)
+    currency    TEXT NOT NULL DEFAULT 'PLN',
+    date        TEXT NOT NULL,                        -- YYYY-MM-DD (döngü bundan hesaplanır)
+    note        TEXT,
+    created_at  TEXT NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS idx_extra_incomes_date ON extra_incomes(date);
 `;
 
 export const DEFAULT_CATEGORIES = [
@@ -305,6 +316,23 @@ export interface DebtPayment {
   amount: number;
   /** YYYY-MM-DD; ödemenin düştüğü bütçe döngüsü bu tarihten hesaplanır. */
   date: string;
+  created_at: string;
+}
+
+/** Ek Gelir — bütçe dışı, harcanabilir tutarı ARTIRAN nakit girişi (banka bonusu,
+ *  hediye, tek seferlik ek iş...). Borçtan farkı: geri ödeme yükümlülüğü YOKTUR →
+ *  `remaining`/`status`/ödeme tablosu yok, "açık borç" rozetine girmez. Düştüğü
+ *  döngüyü `date` belirler; sonraki döngüye sarkmaz (bkz. src/utils/debtMath.ts). */
+export interface ExtraIncome {
+  id: number;
+  /** Kaynak (banka, kişi, iş) — serbest metin. */
+  source: string;
+  /** Tutar (>0). */
+  amount: number;
+  currency: string;
+  /** YYYY-MM-DD; gelirin düştüğü bütçe döngüsü bu tarihten hesaplanır. */
+  date: string;
+  note: string | null;
   created_at: string;
 }
 

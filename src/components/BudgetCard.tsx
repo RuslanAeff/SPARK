@@ -104,6 +104,21 @@ function BudgetCard({ budget }: BudgetCardProps) {
         </View>
       ) : null}
 
+      {/* Ek gelir — bütçe planı dışında gelen, harcanabilir tutarı artıran nakit
+          (banka bonusu, hediye). Borç değildir: geri ödenmez, açık borç rozetine
+          girmez ve yalnız düştüğü döngüde görünür. */}
+      {budget.extraIncomeIn > 0 ? (
+        <View style={styles.debtImpactRow}>
+          <MaterialCommunityIcons name="cash-plus" size={14} color={Colors.textSecondary} />
+          <Text style={styles.debtImpactLabel}>{t('income_impact_label')}</Text>
+          <View style={styles.debtImpactValues}>
+            <Text style={[styles.debtImpactValue, { color: Colors.success }]}>
+              +{formatCurrency(budget.extraIncomeIn, currency, false)}
+            </Text>
+          </View>
+        </View>
+      ) : null}
+
       <View style={styles.divider} />
 
       <View style={styles.row}>

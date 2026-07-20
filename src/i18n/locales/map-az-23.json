@@ -1,0 +1,20 @@
+{
+  "projection_title_cycle": "DÖVR SONU PROQNOZU",
+  "projection_estimated_cycle": "Təxmini dövr sonu",
+  "projection_outcome_warn_sub_cycle": "Bu dövr büdcənə çox yaxın olacaq",
+  "income_impact_label": "Əlavə gəlir",
+  "income_manage_cta": "Əlavə gəlir",
+  "income_sheet_title": "Əlavə Gəlir",
+  "income_add_title": "Əlavə Gəlir Əlavə Et",
+  "income_source": "Mənbə",
+  "income_source_ph": "Bank bonusu, hədiyyə…",
+  "income_source_required": "Mənbə daxil et",
+  "income_tab_cycle": "Bu dövr",
+  "income_tab_all": "Hamısı",
+  "income_empty_title": "Əlavə gəlir yoxdur",
+  "income_empty_desc": "Büdcədən kənar pul daxil olanda (bank bonusu, hədiyyə) buraya əlavə et — həmin dövrün xərclənə bilən məbləği artır.",
+  "income_cycle_hint": "Gəlir tarixinin düşdüyü büdcə dövrünə yazılır; növbəti dövrə keçmir.",
+  "income_created_toast": "Əlavə gəlir əlavə edildi",
+  "income_deleted_toast": "Əlavə gəlir silindi",
+  "income_delete_msg": "Bu əlavə gəlir qeydi silinsin?"
+}

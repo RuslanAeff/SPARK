@@ -60,10 +60,15 @@ export type ProjectionInfo =
       dailyPace: number;
       naiveDailyPace: number;
       daysLeft: number;
-      monthlyBudget: number;
+      /** Borç nakit akışıyla düzeltilmiş döngü bütçesi (Dashboard ile aynı taban). */
+      effectiveBudget: number;
       status: 'safe' | 'warn' | 'over' | 'no_budget';
       deltaPct: number | null;
       hasOutlier: boolean;
+      /** Döngü aralığı etiketi ("23 Haz – 22 Tem"); anchor=1 ise null. */
+      periodLabel: string | null;
+      /** anchor≠1 → metinler "ay sonu" yerine "dönem sonu" der. */
+      isCycle: boolean;
     };
 
 export interface CategoryLimitItem {

@@ -141,6 +141,26 @@ export async function getDatabase(): Promise<SQLite.SQLiteDatabase> {
     } catch (_) {
       // Already applied
     }
+    // extra_incomes: Ek Gelir (banka bonusu, hediye, tek seferlik ek iş). Borç
+    // DEĞİLDİR — geri ödeme yok, "açık borç" rozetine girmez; yalnız düştüğü
+    // döngünün harcanabilir tutarını artırır. CREATE_TABLES_SQL bunu üretir;
+    // eski kurulumlar için burada da garanti ediyoruz (debts deseni).
+    try {
+      await instance.execAsync(`
+        CREATE TABLE IF NOT EXISTS extra_incomes (
+          id          INTEGER PRIMARY KEY AUTOINCREMENT,
+          source      TEXT NOT NULL DEFAULT '',
+          amount      REAL NOT NULL,
+          currency    TEXT NOT NULL DEFAULT 'PLN',
+          date        TEXT NOT NULL,
+          note        TEXT,
+          created_at  TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_extra_incomes_date ON extra_incomes(date);
+      `);
+    } catch (_) {
+      // Already applied
+    }
     // İlk kurulum tohumlaması init promise'in İÇİNDE: getDatabase() çağıran her
     // tüketici (onboarding/tema okuması vb.) tohumlama BİTENE kadar bekler.
     // Aksi halde seed transaction'ı (ensureDefaultCategoryTree) ile eşzamanlı bir
