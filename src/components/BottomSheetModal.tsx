@@ -17,7 +17,7 @@
 //
 // NOT: SafeAreaProvider Animated.View IÇINDE değil, Modal'ın doğrudan çocuğu
 // olmalıdır — aksi hâlde ölçüm, transform'lu layout'ta hatalı olabilir.
-import React, { useEffect, useRef, useState, useMemo } from 'react';
+import React, { useEffect, useLayoutEffect, useRef, useState, useMemo } from 'react';
 import {
   Modal,
   Animated,
@@ -27,22 +27,26 @@ import {
   ViewStyle,
   StyleProp,
   Easing,
-  Platform,
   Dimensions,
   PanResponder,
 } from 'react-native';
-import { StatusBar } from 'expo-status-bar';
-import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
+import {
+  initialWindowMetrics,
+  SafeAreaProvider,
+  useSafeAreaInsets,
+} from 'react-native-safe-area-context';
+import { SparkToastContainer } from './SparkToast';
 
 interface BottomSheetModalProps {
   visible: boolean;
   onClose: () => void;
+  /** Çıkış animasyonu ve native Modal kapanışı tamamen bittikten sonra. */
+  onDismiss?: () => void;
   children: React.ReactNode;
   sheetStyle?: StyleProp<ViewStyle>;
   backdropColor?: string;
   slideDurationMs?: number;
   fadeDurationMs?: number;
-  statusBarStyle?: 'light' | 'dark' | 'auto' | 'inverted';
   /** Üstte sürükle-kapat tutamağı göster (dokununca yatay genişler). */
   showHandle?: boolean;
 }
@@ -69,10 +73,10 @@ interface ModalContentProps {
   children: React.ReactNode;
   sheetStyle?: StyleProp<ViewStyle>;
   backdropColor: string;
-  statusBarStyle: 'light' | 'dark' | 'auto' | 'inverted';
   overlayOpacity: Animated.Value;
   translateY: Animated.Value;
   showHandle: boolean;
+  interactive: boolean;
 }
 
 function ModalContent({
@@ -80,12 +84,14 @@ function ModalContent({
   children,
   sheetStyle,
   backdropColor,
-  statusBarStyle,
   overlayOpacity,
   translateY,
   showHandle,
+  interactive,
 }: ModalContentProps) {
   const { bottom } = useSafeAreaInsets();
+  const interactiveRef = useRef(interactive);
+  interactiveRef.current = interactive;
 
   // Tutamak: dokununca yatay genişlesin (scaleX), sürüklerken paneli aşağı taşı.
   const handleScaleX = useRef(new Animated.Value(1)).current;
@@ -93,9 +99,11 @@ function ModalContent({
   const panResponder = useMemo(
     () =>
       PanResponder.create({
-        onStartShouldSetPanResponder: () => true,
-        onMoveShouldSetPanResponder: (_e, g) => Math.abs(g.dy) > 2,
+        onStartShouldSetPanResponder: () => interactiveRef.current,
+        onMoveShouldSetPanResponder: (_e, g) =>
+          interactiveRef.current && Math.abs(g.dy) > 2,
         onPanResponderGrant: () => {
+          if (!interactiveRef.current) return;
           Animated.spring(handleScaleX, {
             toValue: 1.7,
             useNativeDriver: true,
@@ -104,9 +112,11 @@ function ModalContent({
           }).start();
         },
         onPanResponderMove: (_e, g) => {
+          if (!interactiveRef.current) return;
           if (g.dy > 0) translateY.setValue(g.dy);
         },
         onPanResponderRelease: (_e, g) => {
+          if (!interactiveRef.current) return;
           Animated.spring(handleScaleX, {
             toValue: 1,
             useNativeDriver: true,
@@ -126,6 +136,7 @@ function ModalContent({
           }
         },
         onPanResponderTerminate: () => {
+          if (!interactiveRef.current) return;
           Animated.spring(handleScaleX, { toValue: 1, useNativeDriver: true, speed: 20, bounciness: 6 }).start();
           Animated.spring(translateY, { toValue: 0, useNativeDriver: true, speed: 18, bounciness: 4 }).start();
         },
@@ -159,9 +170,6 @@ function ModalContent({
 
   return (
     <>
-      {Platform.OS === 'android' && (
-        <StatusBar style={statusBarStyle} backgroundColor="transparent" translucent />
-      )}
       {/* Karartma katmanı */}
       <Animated.View style={overlayAnimStyle}>
         <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
@@ -203,37 +211,68 @@ function ModalContent({
 export default function BottomSheetModal({
   visible,
   onClose,
+  onDismiss,
   children,
   sheetStyle,
   backdropColor = 'rgba(0,0,0,0.55)',
   slideDurationMs = 280,
   fadeDurationMs = 180,
-  statusBarStyle = 'light',
   showHandle = false,
 }: BottomSheetModalProps) {
   const [mounted, setMounted] = useState(visible);
+  const mountedRef = useRef(visible);
+  const visibleRef = useRef(visible);
+  const onDismissRef = useRef(onDismiss);
+  onDismissRef.current = onDismiss;
+  const transitionRef = useRef(0);
+  const frameRef = useRef<number | null>(null);
+  const animationRef = useRef<Animated.CompositeAnimation | null>(null);
   const overlayOpacity = useRef(new Animated.Value(0)).current;
   const translateY = useRef(new Animated.Value(SCREEN_H)).current;
 
-  useEffect(() => {
+  useLayoutEffect(() => {
+    const transition = ++transitionRef.current;
+    visibleRef.current = visible;
+
+    if (frameRef.current != null) {
+      cancelAnimationFrame(frameRef.current);
+      frameRef.current = null;
+    }
+    animationRef.current?.stop();
+    animationRef.current = null;
+
     if (visible) {
-      setMounted(true);
-      Animated.parallel([
-        Animated.timing(overlayOpacity, {
-          toValue: 1,
-          duration: fadeDurationMs,
-          easing: Easing.out(Easing.quad),
-          useNativeDriver: true,
-        }),
-        Animated.timing(translateY, {
-          toValue: 0,
-          duration: slideDurationMs,
-          easing: Easing.out(Easing.cubic),
-          useNativeDriver: true,
-        }),
-      ]).start();
-    } else if (mounted) {
-      Animated.parallel([
+      // Modal ilk kez mount edilmeden önce değerleri görünmez konumda kur.
+      // Böylece önceki açılıştan kalan "tam görünür" tek kare çizilmez.
+      if (!mountedRef.current) {
+        overlayOpacity.setValue(0);
+        translateY.setValue(SCREEN_H);
+        mountedRef.current = true;
+        setMounted(true);
+      }
+
+      frameRef.current = requestAnimationFrame(() => {
+        frameRef.current = null;
+        if (transitionRef.current !== transition || !visibleRef.current) return;
+        const animation = Animated.parallel([
+          Animated.timing(overlayOpacity, {
+            toValue: 1,
+            duration: fadeDurationMs,
+            easing: Easing.out(Easing.quad),
+            useNativeDriver: true,
+          }),
+          Animated.timing(translateY, {
+            toValue: 0,
+            duration: slideDurationMs,
+            easing: Easing.out(Easing.cubic),
+            useNativeDriver: true,
+          }),
+        ]);
+        animationRef.current = animation;
+        animation.start();
+      });
+    } else if (mountedRef.current) {
+      const animation = Animated.parallel([
         Animated.timing(overlayOpacity, {
           toValue: 0,
           duration: fadeDurationMs,
@@ -246,11 +285,36 @@ export default function BottomSheetModal({
           easing: Easing.in(Easing.cubic),
           useNativeDriver: true,
         }),
-      ]).start(({ finished }) => {
-        if (finished) setMounted(false);
+      ]);
+      animationRef.current = animation;
+      animation.start(({ finished }) => {
+        if (
+          finished &&
+          transitionRef.current === transition &&
+          !visibleRef.current
+        ) {
+          mountedRef.current = false;
+          setMounted(false);
+          onDismissRef.current?.();
+        }
       });
     }
-  }, [visible, mounted, overlayOpacity, translateY, fadeDurationMs, slideDurationMs]);
+  }, [
+    visible,
+    overlayOpacity,
+    translateY,
+    fadeDurationMs,
+    slideDurationMs,
+  ]);
+
+  useEffect(
+    () => () => {
+      transitionRef.current += 1;
+      if (frameRef.current != null) cancelAnimationFrame(frameRef.current);
+      animationRef.current?.stop();
+    },
+    [],
+  );
 
   if (!mounted) return null;
 
@@ -259,6 +323,8 @@ export default function BottomSheetModal({
       visible
       transparent
       animationType="none"
+      hardwareAccelerated
+      presentationStyle="overFullScreen"
       statusBarTranslucent
       navigationBarTranslucent
       onRequestClose={onClose}
@@ -269,18 +335,19 @@ export default function BottomSheetModal({
         ile genişlemiş pencerede `insets.bottom` = gesture/nav-bar yüksekliği.
         ModalContent bu değerle sheet'e paddingBottom ekler.
       */}
-      <SafeAreaProvider>
+      <SafeAreaProvider initialMetrics={initialWindowMetrics}>
         <ModalContent
           onClose={onClose}
           sheetStyle={sheetStyle}
           backdropColor={backdropColor}
-          statusBarStyle={statusBarStyle}
           overlayOpacity={overlayOpacity}
           translateY={translateY}
           showHandle={showHandle}
+          interactive={visible}
         >
           {children}
         </ModalContent>
+        <SparkToastContainer />
       </SafeAreaProvider>
     </Modal>
   );

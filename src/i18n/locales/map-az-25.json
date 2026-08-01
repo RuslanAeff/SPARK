@@ -1,0 +1,9 @@
+{
+  "notif_selected": "{count} bildiriş seçildi",
+  "notif_delete_selected_title": "Bildirişləri sil",
+  "notif_delete_selected_confirm": "Seçilmiş {count} bildiriş silinsin?",
+  "notif_deleted_bulk": "{count} bildiriş silindi",
+  "notif_select_hint": "Çoxlu seçim üçün basıb saxlayın",
+  "notif_mark_all": "Hamısını oxunmuş et",
+  "notif_mute_hint": "Aktiv: bu növdə yeni bildiriş yaradılmır. Deaktiv: adi qaydada."
+}

@@ -3,6 +3,7 @@ import React, { useCallback, useEffect, useState, useMemo, useRef } from 'react'
 import { View, Text, ScrollView, StyleSheet, Pressable, PanResponder, Animated as RNAnimated, Dimensions, RefreshControl, Platform } from 'react-native';
 import { useAppTheme } from '../../src/theme/themeStore';
 import { useFocusEffect, router } from 'expo-router';
+import { useIsFocused } from '@react-navigation/native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Animated, { FadeInDown, FadeIn } from 'react-native-reanimated';
@@ -45,7 +46,7 @@ import DonutCard from '../../src/components/analytics/DonutCard';
 import VendorsCard from '../../src/components/analytics/VendorsCard';
 import StreakCard from '../../src/components/analytics/StreakCard';
 import { useBudget } from '../../src/hooks/useBudget';
-import { useRefresh, useExpenseDataRefresh } from '../../src/context/RefreshContext';
+import { useExpenseDataRefresh } from '../../src/context/RefreshContext';
 import { useCurrency } from '../../src/context/CurrencyContext';
 
 const SCREEN_HEIGHT = Dimensions.get('window').height;
@@ -232,7 +233,7 @@ const DraggablePanel = ({
 
 export default function AnalyticsScreen() {
   // BÜTÇE DURUMU vb. kartlar sekme odakta değilken de tema güncellensin.
-  // Merkezi store Android'deki Appearance.setColorScheme() event kayıplarını da yakalar.
+  // Merkezi React tema store'u tüm analitik kartları aynı karede günceller.
   const scheme = useAppTheme();
   // P10: Büyük StyleSheet her render’da yeniden üretilmesin; yalnız tema
   // geçişlerinde yeniden oluştur.
@@ -457,7 +458,7 @@ export default function AnalyticsScreen() {
     totalCount: number;
     distinctItems: number;
   } | null>(null);
-  const { refreshKey } = useRefresh();
+  const isFocused = useIsFocused();
 
   const currentTotal = useMemo(() => dailyData.reduce((s, d) => s + d.total, 0), [dailyData]);
 
@@ -946,11 +947,7 @@ export default function AnalyticsScreen() {
     }, [runAnalyticsRefresh])
   );
 
-  useExpenseDataRefresh(runAnalyticsRefresh);
-
-  useEffect(() => {
-    if (refreshKey > 0) runAnalyticsRefresh();
-  }, [refreshKey, runAnalyticsRefresh]);
+  useExpenseDataRefresh(runAnalyticsRefresh, isFocused);
 
   async function loadYearlyData() {
     try {
@@ -1401,4 +1398,3 @@ export default function AnalyticsScreen() {
     </>
   );
 }
-

@@ -1,0 +1,9 @@
+{
+  "notif_selected": "Выбрано уведомлений: {count}",
+  "notif_delete_selected_title": "Удалить уведомления",
+  "notif_delete_selected_confirm": "Удалить выбранные уведомления ({count})?",
+  "notif_deleted_bulk": "Удалено уведомлений: {count}",
+  "notif_select_hint": "Нажмите и удерживайте для множественного выбора",
+  "notif_mark_all": "Отметить все как прочитанные",
+  "notif_mute_hint": "Вкл.: не создавать новые уведомления этого типа. Выкл.: разрешить как обычно."
+}

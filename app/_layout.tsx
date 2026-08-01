@@ -1,9 +1,18 @@
 import 'react-native-gesture-handler';
-import React, { useEffect, useState } from 'react';
-import { Stack, useRouter } from 'expo-router';
+import React, { useEffect, useRef, useState } from 'react';
+import { Stack, usePathname, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { View, ActivityIndicator, Text, StyleSheet } from 'react-native';
-import Animated, { FadeOut } from 'react-native-reanimated';
+import {
+  View,
+  Animated,
+  Easing,
+  Image,
+  Text,
+  StyleSheet,
+} from 'react-native';
+import * as SplashScreen from 'expo-splash-screen';
+import * as SystemUI from 'expo-system-ui';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import ThemeScheduler from '../src/components/ThemeScheduler';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { DarkTheme, LightTheme } from '../src/theme/colors';
@@ -12,164 +21,349 @@ import { FontFamily } from '../src/theme/typography';
 import { useDatabase } from '../src/hooks/useDatabase';
 import { SparkToastContainer } from '../src/components/SparkToast';
 import { ErrorBoundary } from '../src/components/ErrorBoundary';
-import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { LanguageProvider } from '../src/i18n/LanguageContext';
+import {
+  SafeAreaProvider,
+  initialWindowMetrics,
+} from 'react-native-safe-area-context';
+import { LanguageProvider, useLanguage } from '../src/i18n/LanguageContext';
 import { RefreshProvider } from '../src/context/RefreshContext';
-import { CurrencyProvider } from '../src/context/CurrencyContext';
+import { CurrencyProvider, useCurrency } from '../src/context/CurrencyContext';
 import { NotificationsProvider } from '../src/context/NotificationsContext';
 import { ensureAndroidNotificationSetup } from '../src/services/androidNotificationsSetup';
 import { useOnboardingStatus } from '../src/hooks/useOnboardingStatus';
 
-function AndroidNotificationBootstrap() {
+const BOOT_BACKGROUND = '#050505';
+
+// Native splash, veritabanı/tema/dil/rota hazır olmadan kendiliğinden
+// kapanmamalı. Global scope çağrısı Expo'nun önerdiği şekilde mümkün olan en
+// erken anda çalışır.
+void SplashScreen.preventAutoHideAsync().catch(() => {});
+SplashScreen.setOptions({ duration: 220, fade: true });
+void SystemUI.setBackgroundColorAsync(BOOT_BACKGROUND).catch(() => {});
+
+function AndroidNotificationBootstrap({ enabled }: { enabled: boolean }) {
   useEffect(() => {
+    if (!enabled) return;
     void ensureAndroidNotificationSetup();
-  }, []);
+  }, [enabled]);
   return null;
 }
 
+/** Native splash ile birebir koyu yüzey. Native splash desteklenmeyen geliştirme
+ * istemcilerinde de hiçbir sağlayıcı/pencere boşluğu beyaz kare gösteremez. */
+function BootSurface({ animatedStyle }: { animatedStyle?: object }) {
+  return (
+    <Animated.View
+      pointerEvents="auto"
+      style={[StyleSheet.absoluteFill, bootStyles.surface, animatedStyle]}
+    >
+      <Image
+        source={require('../assets/spark-icon.png')}
+        style={bootStyles.logo}
+        resizeMode="contain"
+        fadeDuration={0}
+      />
+    </Animated.View>
+  );
+}
+
+interface AppShellProps {
+  onboardingLoading: boolean;
+  onboardingCompleted: boolean;
+}
+
+/** Provider'lar mount edilmişken çalışır. Dil + para birimi + hedef rota hazır
+ * olana kadar sabit perdeyi tutar; ardından tek, kontrollü fade ile açar. */
+function AppShell({ onboardingLoading, onboardingCompleted }: AppShellProps) {
+  const scheme = useAppTheme();
+  const theme = scheme === 'light' ? LightTheme : DarkTheme;
+  const { isLoaded: languageLoaded } = useLanguage();
+  const { isLoaded: currencyLoaded } = useCurrency();
+  const router = useRouter();
+  const pathname = usePathname();
+  const [rootLaidOut, setRootLaidOut] = useState(false);
+  const [curtainMounted, setCurtainMounted] = useState(true);
+  const curtainOpacity = useRef(new Animated.Value(1)).current;
+  const revealStartedRef = useRef(false);
+  const revealGenerationRef = useRef(0);
+  const onboardingRouteRequestedRef = useRef(false);
+  const startupRouteGuardRef = useRef(true);
+
+  useEffect(() => {
+    if (onboardingLoading) return;
+
+    if (pathname === '/onboarding') {
+      onboardingRouteRequestedRef.current = true;
+      // Yalnız boot koruması: onboarding tamamlandıktan sonraki hedefi
+      // onboarding ekranının kendi handler'ı seçer (örn. "kaydet ve tara").
+      if (onboardingCompleted && startupRouteGuardRef.current) {
+        router.replace('/(tabs)');
+      }
+      return;
+    }
+
+    if (!onboardingCompleted && !onboardingRouteRequestedRef.current) {
+      onboardingRouteRequestedRef.current = true;
+      router.replace('/onboarding');
+    }
+  }, [onboardingLoading, onboardingCompleted, pathname, router]);
+
+  useEffect(() => {
+    if (
+      revealStartedRef.current ||
+      !rootLaidOut ||
+      onboardingLoading ||
+      !languageLoaded ||
+      !currencyLoaded ||
+      (onboardingCompleted
+        ? pathname === '/onboarding'
+        : pathname !== '/onboarding')
+    ) {
+      return;
+    }
+    revealStartedRef.current = true;
+    startupRouteGuardRef.current = false;
+    const generation = ++revealGenerationRef.current;
+    curtainOpacity.setValue(1);
+
+    let cancelled = false;
+    let completed = false;
+    let frameOne = 0;
+    let frameTwo = 0;
+    frameOne = requestAnimationFrame(() => {
+      frameTwo = requestAnimationFrame(() => {
+        void SplashScreen.hideAsync()
+          .catch(() => {})
+          .finally(() => {
+            if (cancelled || revealGenerationRef.current !== generation) return;
+            Animated.timing(curtainOpacity, {
+              toValue: 0,
+              duration: 300,
+              easing: Easing.out(Easing.cubic),
+              useNativeDriver: true,
+            }).start(({ finished }) => {
+              if (
+                finished &&
+                !cancelled &&
+                revealGenerationRef.current === generation
+              ) {
+                completed = true;
+                setCurtainMounted(false);
+              }
+            });
+          });
+      });
+    });
+
+    return () => {
+      cancelled = true;
+      cancelAnimationFrame(frameOne);
+      cancelAnimationFrame(frameTwo);
+      curtainOpacity.stopAnimation();
+      if (!completed && revealGenerationRef.current === generation) {
+        revealStartedRef.current = false;
+      }
+    };
+  }, [
+    rootLaidOut,
+    onboardingLoading,
+    onboardingCompleted,
+    pathname,
+    languageLoaded,
+    currencyLoaded,
+    curtainOpacity,
+  ]);
+
+  return (
+    <View
+      style={{ flex: 1, backgroundColor: theme.background }}
+      onLayout={() => setRootLaidOut(true)}
+    >
+      <StatusBar
+        animated
+        style={curtainMounted ? 'light' : scheme === 'light' ? 'dark' : 'light'}
+      />
+      <Stack
+        screenOptions={{
+          headerShown: false,
+          contentStyle: { backgroundColor: theme.background },
+        }}
+      >
+        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+        <Stack.Screen
+          name="onboarding"
+          options={{
+            presentation: 'card',
+            animation: curtainMounted ? 'none' : 'fade',
+            gestureEnabled: false,
+          }}
+        />
+        <Stack.Screen
+          name="add-expense"
+          options={{ presentation: 'modal', animation: 'slide_from_bottom' }}
+        />
+        <Stack.Screen
+          name="categories"
+          options={{ presentation: 'modal', animation: 'slide_from_bottom' }}
+        />
+        <Stack.Screen
+          name="edit-items"
+          options={{ presentation: 'modal', animation: 'slide_from_bottom' }}
+        />
+        <Stack.Screen
+          name="goal-settings"
+          options={{ presentation: 'modal', animation: 'slide_from_bottom' }}
+        />
+        <Stack.Screen
+          name="notifications"
+          options={{
+            presentation: 'card',
+            animation: 'slide_from_right',
+            contentStyle: { backgroundColor: theme.background },
+          }}
+        />
+        <Stack.Screen
+          name="subscriptions"
+          options={{
+            presentation: 'card',
+            animation: 'slide_from_right',
+            contentStyle: { backgroundColor: theme.background },
+          }}
+        />
+        <Stack.Screen
+          name="settings-general"
+          options={{
+            presentation: 'card',
+            animation: 'slide_from_right',
+            contentStyle: { backgroundColor: theme.background },
+          }}
+        />
+        <Stack.Screen
+          name="settings-budget"
+          options={{
+            presentation: 'card',
+            animation: 'slide_from_right',
+            contentStyle: { backgroundColor: theme.background },
+          }}
+        />
+        <Stack.Screen
+          name="settings-data"
+          options={{
+            presentation: 'card',
+            animation: 'slide_from_right',
+            contentStyle: { backgroundColor: theme.background },
+          }}
+        />
+        <Stack.Screen
+          name="settings-ai"
+          options={{
+            presentation: 'card',
+            animation: 'slide_from_right',
+            contentStyle: { backgroundColor: theme.background },
+          }}
+        />
+      </Stack>
+      <SparkToastContainer />
+      <AndroidNotificationBootstrap enabled={!curtainMounted} />
+      {curtainMounted ? <BootSurface animatedStyle={{ opacity: curtainOpacity }} /> : null}
+    </View>
+  );
+}
+
 function RootLayoutContent() {
-  // Tek doğruluk kaynağı: hem OS değişimi hem manuel setColorScheme'i dinler.
   const scheme = useAppTheme();
   const theme = scheme === 'light' ? LightTheme : DarkTheme;
   const styles = React.useMemo(() => getStyles(theme), [theme]);
   const { isReady, error } = useDatabase();
-  const { isLoading: onboardingLoading, completed: onboardingCompleted } = useOnboardingStatus();
-  const router = useRouter();
-  const onboardingHandledRef = React.useRef(false);
+  const {
+    isLoading: onboardingLoading,
+    completed: onboardingCompleted,
+  } = useOnboardingStatus();
 
-  // Stack mount edildikten sonra route'a yönlendir — yoksa router.replace
-  // henüz tanımlanmamış route'u arıyor ve splash'te kilit oluyor.
   useEffect(() => {
-    if (!isReady || onboardingLoading || onboardingHandledRef.current) return;
-    onboardingHandledRef.current = true;
-    if (!onboardingCompleted) {
-      router.replace('/onboarding');
-    }
-  }, [isReady, onboardingLoading, onboardingCompleted, router]);
+    if (error) void SplashScreen.hideAsync().catch(() => {});
+  }, [error]);
 
   if (error) {
     return (
       <View style={styles.center}>
+        <StatusBar style={scheme === 'light' ? 'dark' : 'light'} />
         <MaterialCommunityIcons name="alert-circle" size={48} color={theme.danger} />
         <Text style={styles.errorText}>{error}</Text>
       </View>
     );
   }
 
-  // Tema senkronlanmadan Stack mount edilirse `(tabs)` ekranı OS şemasıyla
-  // doğar; modül seviyesi `Colors` proxy çağrıları dark değerini hash'leyip
-  // dondurur → aydınlık modda "flash of dark". `applyThemeFromDatabase()`
-  // `isReady=true` öncesinde await edildiği için Stack'i bu kapının
-  // arkasında tutmak P12 regresyonunu önler (DESIGN_BRIEF §6.1.2).
   if (!isReady) {
     return (
-      <View style={styles.center}>
-        <ActivityIndicator size="large" color={theme.primary} />
-        <Text style={styles.loadingText}>S.P.A.R.K.</Text>
+      <View style={bootStyles.root}>
+        <StatusBar style="light" />
+        <BootSurface />
       </View>
     );
   }
 
-  const showSplash = onboardingLoading;
-
   return (
-    <SafeAreaProvider>
     <LanguageProvider>
       <CurrencyProvider>
-      <RefreshProvider>
-      <NotificationsProvider>
-      <AndroidNotificationBootstrap />
-      <ThemeScheduler />
-      <View style={{ flex: 1, backgroundColor: theme.background }}>
-        <StatusBar style={scheme === 'light' ? 'dark' : 'light'} />
-        <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: theme.background } }}>
-          <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-          <Stack.Screen name="onboarding" options={{ presentation: 'card', animation: 'fade', gestureEnabled: false }} />
-          <Stack.Screen name="add-expense" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
-          <Stack.Screen name="categories" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
-          <Stack.Screen name="edit-items" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
-          <Stack.Screen name="goal-settings" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
-          <Stack.Screen
-            name="notifications"
-            options={{ presentation: 'card', animation: 'slide_from_right', contentStyle: { backgroundColor: theme.background } }}
-          />
-          <Stack.Screen
-            name="subscriptions"
-            options={{ presentation: 'card', animation: 'slide_from_right', contentStyle: { backgroundColor: theme.background } }}
-          />
-          <Stack.Screen
-            name="settings-general"
-            options={{ presentation: 'card', animation: 'slide_from_right', contentStyle: { backgroundColor: theme.background } }}
-          />
-          <Stack.Screen
-            name="settings-budget"
-            options={{ presentation: 'card', animation: 'slide_from_right', contentStyle: { backgroundColor: theme.background } }}
-          />
-          <Stack.Screen
-            name="settings-data"
-            options={{ presentation: 'card', animation: 'slide_from_right', contentStyle: { backgroundColor: theme.background } }}
-          />
-          <Stack.Screen
-            name="settings-ai"
-            options={{ presentation: 'card', animation: 'slide_from_right', contentStyle: { backgroundColor: theme.background } }}
-          />
-        </Stack>
-        <SparkToastContainer />
-        {showSplash && (
-          // Yalnız KAPANIŞTA fade — overlay tema uygulandıktan (isReady) sonra
-          // gösterildiği için P12 "flash of dark" tetiklenmez. Giriş animasyonu
-          // YOK: aksi halde altındaki içerik bir an görünüp flash olurdu.
-          <Animated.View style={styles.splashOverlay} pointerEvents="auto" exiting={FadeOut.duration(320)}>
-            <ActivityIndicator size="large" color={theme.primary} />
-            <Text style={styles.loadingText}>S.P.A.R.K.</Text>
-          </Animated.View>
-        )}
-      </View>
-      </NotificationsProvider>
-      </RefreshProvider>
+        <RefreshProvider>
+          <NotificationsProvider>
+            <ThemeScheduler />
+            <AppShell
+              onboardingLoading={onboardingLoading}
+              onboardingCompleted={onboardingCompleted}
+            />
+          </NotificationsProvider>
+        </RefreshProvider>
       </CurrencyProvider>
     </LanguageProvider>
-    </SafeAreaProvider>
   );
 }
 
-// Kök hata sınırı: herhangi bir ekran ya da sağlayıcı render sırasında hata
-// fırlatırsa, tüm uygulamanın boş/siyah ekrana düşmesi yerine kullanıcı dostu bir
-// kurtarma ekranı gösterilir (üretimde sade "Tekrar Dene", geliştirmede tam stack).
 export default function RootLayout() {
   return (
-    <ErrorBoundary>
-      <RootLayoutContent />
-    </ErrorBoundary>
+    <GestureHandlerRootView style={bootStyles.root}>
+      <ErrorBoundary>
+        <SafeAreaProvider initialMetrics={initialWindowMetrics}>
+          <RootLayoutContent />
+        </SafeAreaProvider>
+      </ErrorBoundary>
+    </GestureHandlerRootView>
   );
 }
 
-const getStyles = (theme: typeof DarkTheme) => StyleSheet.create({
-  center: {
+const bootStyles = StyleSheet.create({
+  root: {
     flex: 1,
+    backgroundColor: BOOT_BACKGROUND,
+  },
+  surface: {
+    zIndex: 100_000,
+    elevation: 100_000,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: theme.background,
-    gap: 16,
+    backgroundColor: BOOT_BACKGROUND,
   },
-  splashOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: theme.background,
-    gap: 16,
-    zIndex: 100,
-  },
-  loadingText: {
-    color: theme.textSecondary,
-    fontFamily: FontFamily.medium,
-    fontSize: 16,
-  },
-  errorText: {
-    color: theme.danger,
-    fontFamily: FontFamily.medium,
-    fontSize: 14,
-    textAlign: 'center',
-    paddingHorizontal: 32,
+  logo: {
+    width: 160,
+    height: 160,
   },
 });
+
+const getStyles = (theme: typeof DarkTheme) =>
+  StyleSheet.create({
+    center: {
+      flex: 1,
+      justifyContent: 'center',
+      alignItems: 'center',
+      backgroundColor: theme.background,
+      gap: 16,
+    },
+    errorText: {
+      color: theme.danger,
+      fontFamily: FontFamily.medium,
+      fontSize: 14,
+      textAlign: 'center',
+      paddingHorizontal: 32,
+    },
+  });

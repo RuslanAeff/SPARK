@@ -37,7 +37,7 @@ interface IncomeSheetProps {
   cycleStart: string;
   cycleEnd: string;
   /** Ekleme/silme sonrası dashboard'ı tazelemek için. */
-  onChanged?: () => void;
+  onChanged?: () => void | Promise<void>;
 }
 
 type IncomeView = 'list' | 'add';
@@ -126,8 +126,8 @@ export default function IncomeSheet({
       });
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       SparkToast.show(t('income_created_toast'), 'success', formatCurrency(parsed, currency, false));
-      onChanged?.();
       await reload();
+      await onChanged?.();
       setView('list');
     } catch {
       SparkToast.show(t('error_saving_data'), 'error');
@@ -142,8 +142,8 @@ export default function IncomeSheet({
       await IncomeDao.remove(deleteId);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       SparkToast.show(t('income_deleted_toast'), 'success');
-      onChanged?.();
       await reload();
+      await onChanged?.();
     } catch {
       SparkToast.show(t('error_saving_data'), 'error');
     } finally {

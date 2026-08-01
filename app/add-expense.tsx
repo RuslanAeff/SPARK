@@ -28,7 +28,7 @@ import { itemDisplayName } from '../src/utils/itemDisplayName';
 import { getVendorPlaceholderExamples } from '../src/utils/vendorPlaceholders';
 import { takePendingReceiptDraft } from '../src/services/pendingReceiptDraft';
 import { getPrefillFromParsedReceipt } from '../src/services/receiptParser';
-import { useRefresh } from '../src/context/RefreshContext';
+import { useRefreshActions } from '../src/context/RefreshContext';
 import {
   susevarButton,
   susevarButtonMarginTop,
@@ -41,7 +41,7 @@ export default function AddExpenseScreen() {
   const router = useRouter();
   const { t, tc } = useLanguage();
   const { currency } = useCurrency();
-  const { triggerRefresh } = useRefresh();
+  const { triggerRefresh } = useRefreshActions();
   const { id, fromScan } = useLocalSearchParams<{ id?: string; fromScan?: string }>();
   const isEditing = !!id;
   const scanPrefillAppliedRef = useRef(false);
@@ -244,7 +244,6 @@ export default function AddExpenseScreen() {
 
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       triggerRefresh();
-      queueMicrotask(() => triggerRefresh());
       SparkToast.show(id ? t('expense_updated') : t('expense_added'), 'success', formatCurrency(parsedAmount, currency, false));
       setTimeout(() => router.back(), 150);
     } catch (e) {
@@ -283,7 +282,6 @@ export default function AddExpenseScreen() {
       });
 
       triggerRefresh();
-      queueMicrotask(() => triggerRefresh());
       
       SparkToast.show(t('draft_created'), 'info');
       // Convert current screen to 'editing' mode for the newly saved draft
@@ -304,7 +302,6 @@ export default function AddExpenseScreen() {
     setShowDeleteConfirm(false);
     await ExpenseDao.delete(parseInt(id));
     triggerRefresh();
-    queueMicrotask(() => triggerRefresh());
     SparkToast.show(t('record_deleted'), 'success', t('removed_from_system'));
     setTimeout(() => router.back(), 150);
   }

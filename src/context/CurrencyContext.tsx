@@ -26,6 +26,8 @@ export type { DisplayCurrency };
 
 interface CurrencyContextType {
   currency: DisplayCurrency;
+  /** Kalıcı görüntüleme para birimi SQLite'dan okundu. */
+  isLoaded: boolean;
   setCurrency: (c: DisplayCurrency) => Promise<void>;
 }
 
@@ -33,6 +35,7 @@ const CurrencyContext = createContext<CurrencyContextType | undefined>(undefined
 
 export function CurrencyProvider({ children }: { children: ReactNode }) {
   const [currency, setCurrencyState] = useState<DisplayCurrency>('PLN');
+  const [isLoaded, setIsLoaded] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -47,6 +50,8 @@ export function CurrencyProvider({ children }: { children: ReactNode }) {
         }
       } catch (e) {
         console.warn('[Currency] load failed', e);
+      } finally {
+        setIsLoaded(true);
       }
     })();
   }, []);
@@ -66,7 +71,10 @@ export function CurrencyProvider({ children }: { children: ReactNode }) {
 
   // P7: Provider value memoize — currency / setCurrency referansı sabit kalırken
   // üst katmandaki her render’da tüketicilerin yeniden çalışmasını engeller.
-  const value = useMemo(() => ({ currency, setCurrency }), [currency, setCurrency]);
+  const value = useMemo(
+    () => ({ currency, isLoaded, setCurrency }),
+    [currency, isLoaded, setCurrency],
+  );
 
   return <CurrencyContext.Provider value={value}>{children}</CurrencyContext.Provider>;
 }
@@ -85,6 +93,7 @@ export function useCurrencySafe(): CurrencyContextType {
   if (!ctx) {
     return {
       currency: 'PLN',
+      isLoaded: true,
       setCurrency: async () => {},
     };
   }

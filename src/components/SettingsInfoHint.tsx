@@ -32,7 +32,16 @@ export function SettingsInfoHintModal({ visible, onClose, title, paragraphs }: I
   const styles = useMemo(() => getModalStyles(), [scheme]);
 
   return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+    <Modal
+      visible={visible}
+      transparent
+      animationType="fade"
+      hardwareAccelerated
+      presentationStyle="overFullScreen"
+      statusBarTranslucent
+      navigationBarTranslucent
+      onRequestClose={onClose}
+    >
       <Pressable style={styles.overlay} onPress={onClose}>
         <Pressable style={styles.sheet} onPress={(e) => e.stopPropagation()}>
           <Text style={styles.sheetTitle}>{title}</Text>

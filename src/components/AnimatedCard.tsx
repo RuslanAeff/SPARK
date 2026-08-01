@@ -21,13 +21,12 @@ export default function AnimatedCard({
   onPress,
   elevated = false,
 }: AnimatedCardProps) {
-  // Tek doğruluk kaynağı: hem OS hem manuel Appearance.setColorScheme() değişiminde re-render.
+  // Tek doğruluk kaynağı: OS ve uygulama içi tema değişimlerinde re-render.
   const scheme = useAppTheme();
   const styles = React.useMemo(() => getStyles(), [scheme]);
   const content = (
     <Animated.View
-      entering={FadeInDown.delay(delay).duration(500).springify()}
-      renderToHardwareTextureAndroid
+      entering={FadeInDown.delay(delay).duration(360)}
       style={[
         styles.card,
         elevated && styles.elevated,

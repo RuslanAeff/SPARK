@@ -13,10 +13,8 @@ export function useDatabase() {
     async function init() {
       try {
         await initializeDatabase();
-        // Tema DB'den yüklenip Appearance'a yazılmadan UI çizilirse
-        // `Colors` proxy'si OS'un temasını döndürüp yanlış `StyleSheet`
-        // üretebiliyordu (aydınlık modda siyah kart bug'ı). Bu yüzden
-        // isReady=true'dan ÖNCE temayı senkron uyguluyoruz.
+        // `Colors` proxy'si yanlış temayla StyleSheet üretmesin diye kayıtlı
+        // tema isReady=true'dan önce React store'una uygulanır.
         await applyThemeFromDatabase();
         if (mounted) setIsReady(true);
       } catch (e) {

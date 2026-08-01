@@ -20,13 +20,14 @@ import { loadBackupMeta, isBackupOverdue } from '../services/backupMeta';
 import { syncSubscriptions } from '../services/subscriptionDetector';
 import type { InAppNotification, RulesState, NotificationSeverity } from './types';
 import {
-  loadFeed,
+  loadFeedStrict,
   saveFeed,
-  loadRulesState,
-  saveRulesState,
+  loadRulesStateStrict,
+  saveNotificationSnapshot,
   mergeFeedItem,
-  loadMutes,
+  loadMutesStrict,
   stripLegacyDevDemoNotifications,
+  enqueueNotificationMutation,
 } from './storage';
 
 function daysToDate(isoDate: string): number {
@@ -90,8 +91,8 @@ async function getDisplayCurrencySetting(): Promise<string> {
 export async function runNotificationSync(
   mutes: Partial<Record<string, boolean>>
 ): Promise<{ feed: InAppNotification[]; unreadCount: number }> {
-  let feed = stripLegacyDevDemoNotifications(await loadFeed());
-  let rules: RulesState = await loadRulesState();
+  let feed = stripLegacyDevDemoNotifications(await loadFeedStrict());
+  let rules: RulesState = await loadRulesStateStrict();
 
   // Bütçe dönemi takvim ayı değil, kullanıcının döngü başlangıç gününe göredir.
   // anchor=1'de cycle = takvim ayı → tüm aşağıdaki bölümler eski davranışı korur.
@@ -357,8 +358,7 @@ export async function runNotificationSync(
     }
   }
 
-  await saveRulesState(rules);
-  await saveFeed(feed);
+  await saveNotificationSnapshot(feed, rules);
 
   const unreadCount = feed.filter((f) => !f.read).length;
   return { feed, unreadCount };
@@ -366,18 +366,20 @@ export async function runNotificationSync(
 
 /** Fiş kaydedildiğinde çağır (tarayıcı hızlı kayıt). */
 export async function appendReceiptSavedNotification(vendorName: string, expenseId: number): Promise<void> {
-  const mutes = await loadMutes();
-  if (mutes.receipt) return;
+  await enqueueNotificationMutation(async () => {
+    const mutes = await loadMutesStrict();
+    if (mutes.receipt) return;
 
-  let feed = await loadFeed();
-  feed = mergeFeedItem(feed, {
-    id: `receipt-saved-${expenseId}`,
-    severity: 'info',
-    titleKey: 'notif_receipt_saved_t',
-    bodyKey: 'notif_receipt_saved_b',
-    params: { vendor: vendorName },
-    createdAt: Date.now(),
-    read: false,
+    let feed = await loadFeedStrict();
+    feed = mergeFeedItem(feed, {
+      id: `receipt-saved-${expenseId}`,
+      severity: 'info',
+      titleKey: 'notif_receipt_saved_t',
+      bodyKey: 'notif_receipt_saved_b',
+      params: { vendor: vendorName },
+      createdAt: Date.now(),
+      read: false,
+    });
+    await saveFeed(feed);
   });
-  await saveFeed(feed);
 }

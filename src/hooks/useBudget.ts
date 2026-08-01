@@ -65,9 +65,14 @@ export function useBudget(specificMonth?: string) {
   });
   const [loading, setLoading] = useState(true);
   const mounted = useRef(true);
+  // Aynı anda birden fazla yenileme tetiklenebilir (focus, pull-to-refresh,
+  // borç mutasyonu). Daha eski sorgu zinciri geç biterse yeni bütçe sonucunu
+  // ezmemeli; yalnız son başlatılan refresh state yazabilir.
+  const refreshSequence = useRef(0);
   useEffect(() => () => { mounted.current = false; }, []);
 
   const refresh = useCallback(async () => {
+    const sequence = ++refreshSequence.current;
     setLoading(true);
     try {
       const anchor = await getCycleStartDay();
@@ -122,7 +127,7 @@ export function useBudget(specificMonth?: string) {
       const dailyAverage = dayOfCycle > 0 ? totalSpent / dayOfCycle : 0;
       const dailyBudget = daysRemaining > 0 ? Math.max(0, remaining) / daysRemaining : 0;
 
-      if (mounted.current) {
+      if (mounted.current && sequence === refreshSequence.current) {
         setBudget({
           monthlyBudget: budgetAmount,
           totalSpent,
@@ -147,7 +152,7 @@ export function useBudget(specificMonth?: string) {
     } catch (e) {
       console.error('Error loading budget:', e);
     }
-    if (mounted.current) setLoading(false);
+    if (mounted.current && sequence === refreshSequence.current) setLoading(false);
   }, [specificMonth]);
 
   useEffect(() => {

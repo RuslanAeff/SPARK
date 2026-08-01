@@ -9,6 +9,7 @@ import React, {
 } from 'react';
 import { Language, loadLocale, getDict } from './translations';
 import { getDatabase } from '../db/database';
+import { suggestLanguageFromDevice } from './languageOptions';
 
 const VALID_LANGS: Language[] = ['tr', 'en', 'az', 'ru'];
 
@@ -18,6 +19,8 @@ function isLanguage(v: string): v is Language {
 
 interface LanguageContextType {
   language: Language;
+  /** Kalıcı dil tercihi ve gerekiyorsa dinamik sözlük hazır. */
+  isLoaded: boolean;
   setLanguage: (lang: Language) => Promise<void>;
   t: (key: string, params?: Record<string, string | number>) => string;
   tc: (categoryName: string) => string;
@@ -37,7 +40,10 @@ export const LanguageProvider = ({ children }: { children: ReactNode }) => {
         const result = await db.getFirstAsync<{ value: string }>(
           "SELECT value FROM settings WHERE key = 'app_language'",
         );
-        if (result && isLanguage(result.value)) lang = result.value;
+        lang =
+          result && isLanguage(result.value)
+            ? result.value
+            : suggestLanguageFromDevice();
       } catch (e) {
         if (__DEV__) console.warn('[Language] load failed', e);
       }
@@ -110,13 +116,13 @@ export const LanguageProvider = ({ children }: { children: ReactNode }) => {
   // P7: Context value nesnesi memoize — aksi halde her provider render’ında tüm
   // tüketici bileşenler gereksiz re-render yiyordu.
   const value = useMemo(
-    () => ({ language, setLanguage, t, tc }),
-    [language, setLanguage, t, tc],
+    () => ({ language, isLoaded, setLanguage, t, tc }),
+    [language, isLoaded, setLanguage, t, tc],
   );
 
-  // Prevent flicker during load
-  if (!isLoaded) return null;
-
+  // Çocukları hiçbir zaman null döndürme. Kök açılış perdesi `isLoaded`
+  // tamamlanana kadar ekranı kapatır; böylece provider yüklenirken native
+  // pencerenin bir kare görünmesi engellenir.
   return <LanguageContext.Provider value={value}>{children}</LanguageContext.Provider>;
 };
 

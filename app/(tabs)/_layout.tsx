@@ -31,8 +31,10 @@ export default function TabLayout() {
         },
       }}
       screenOptions={({ route }) => ({
-        // Tüm sekmeler mount kalsın; yoksa fiş kaydı sonrası refreshKey diğer ekranlara gitmez
-        lazy: false,
+        // Soğuk açılışta yalnız görünür sekmeyi mount et. Diğer sekmeler ilk
+        // focus'ta güncel veriyi çeker; startup sırasında gizli analytics
+        // sorguları/animasyonları ana ekranın ilk karesiyle yarışmaz.
+        lazy: true,
         swipeEnabled: true,
         tabBarActiveTintColor: theme.tabActive,
         tabBarInactiveTintColor: theme.tabInactive,

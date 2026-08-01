@@ -1,5 +1,6 @@
 import React, { Component, ErrorInfo, ReactNode } from "react";
 import { View, Text, ScrollView, SafeAreaView, Pressable } from "react-native";
+import * as SplashScreen from "expo-splash-screen";
 import { Colors } from "../theme/colors";
 
 interface Props {
@@ -24,6 +25,9 @@ export class ErrorBoundary extends Component<Props, State> {
   }
 
   public componentDidCatch(error: Error, errorInfo: ErrorInfo) {
+    // Kök başlangıç perdesi manuel tutuluyor olabilir. Kurtarma ekranının
+    // sonsuza dek native splash arkasında kalmasına izin verme.
+    void SplashScreen.hideAsync().catch(() => {});
     this.setState({ errorInfo });
     console.error("Uncaught error:", error, errorInfo);
   }

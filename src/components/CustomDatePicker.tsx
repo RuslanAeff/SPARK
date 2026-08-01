@@ -1,5 +1,5 @@
 // S.P.A.R.K. — Custom Modern Date Picker
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useLayoutEffect, useMemo } from 'react';
 import {
   View,
   Text,
@@ -35,9 +35,10 @@ export default function CustomDatePicker({
   const [currentDate, setCurrentDate] = useState(new Date());
   const [showYearPicker, setShowYearPicker] = useState(false);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (visible && initialDate) {
       setCurrentDate(new Date(initialDate));
+      setShowYearPicker(false);
     }
   }, [visible, initialDate]);
 
@@ -262,7 +263,16 @@ export default function CustomDatePicker({
   );
 
   return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+    <Modal
+      visible={visible}
+      transparent
+      animationType="fade"
+      hardwareAccelerated
+      presentationStyle="overFullScreen"
+      statusBarTranslucent
+      navigationBarTranslucent
+      onRequestClose={onClose}
+    >
       <Pressable style={styles.overlay} onPress={onClose}>
         <Pressable style={[styles.modal, { backgroundColor: modalBg }]} onPress={() => {}}>
 

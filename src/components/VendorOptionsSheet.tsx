@@ -1,7 +1,7 @@
 // S.P.A.R.K. — Satıcı Seçenekleri Sheet
 // Bir satıcı için: logo değiştir, varsayılan kategori belirle, satıcıyı sil.
 // Settings → Satıcı Yönetimi'nde tile'a dokunulduğunda açılır.
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -45,6 +45,19 @@ export default function VendorOptionsSheet({
   const [categories, setCategories] = useState<Category[]>([]);
   const [picking, setPicking] = useState(false);
   const [currentDefault, setCurrentDefault] = useState<number | null>(null);
+  // Parent kapanışta hedefi null yapar; çıkış animasyonu bitene kadar son
+  // satıcıyı tut ki sheet tek karede unmount olmasın.
+  const [retainedVendor, setRetainedVendor] = useState<Vendor | null>(vendor);
+  const pendingActionRef = useRef<
+    | { type: 'logo'; vendorId: number }
+    | { type: 'delete'; vendor: Vendor }
+    | null
+  >(null);
+  const activeVendor = vendor ?? retainedVendor;
+
+  useEffect(() => {
+    if (vendor) setRetainedVendor(vendor);
+  }, [vendor]);
 
   useEffect(() => {
     if (!visible) return;
@@ -53,13 +66,13 @@ export default function VendorOptionsSheet({
       const cats = await CategoryDao.getAll();
       if (!alive) return;
       setCategories(cats);
-      setCurrentDefault(vendor?.default_category_id ?? null);
+      setCurrentDefault(activeVendor?.default_category_id ?? null);
       setPicking(false);
     })();
     return () => {
       alive = false;
     };
-  }, [visible, vendor]);
+  }, [visible, activeVendor]);
 
   // Kategori seçici: alt kategoriler ile birlikte düz liste — kullanıcı yaprak
   // veya kök seçebilir. Kök = "tüm alt kategoriler için tek varsayılan".
@@ -73,12 +86,20 @@ export default function VendorOptionsSheet({
     }));
   }, [categories]);
 
-  if (!vendor) return null;
+  const handleDismiss = useCallback(() => {
+    const action = pendingActionRef.current;
+    pendingActionRef.current = null;
+    setRetainedVendor(null);
+    if (action?.type === 'logo') onChangeLogo(action.vendorId);
+    if (action?.type === 'delete') onDelete(action.vendor);
+  }, [onChangeLogo, onDelete]);
+
+  if (!activeVendor) return null;
 
   async function handleSetDefault(categoryId: number | null) {
-    if (!vendor) return;
+    if (!activeVendor) return;
     try {
-      await VendorDao.setDefaultCategory(vendor.id, categoryId);
+      await VendorDao.setDefaultCategory(activeVendor.id, categoryId);
       setCurrentDefault(categoryId);
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       onChanged();
@@ -95,24 +116,25 @@ export default function VendorOptionsSheet({
     <BottomSheetModal
       visible={visible}
       onClose={onClose}
+      onDismiss={handleDismiss}
       backdropColor={scheme === 'light' ? 'rgba(0,0,0,0.35)' : 'rgba(0,0,0,0.55)'}
       sheetStyle={styles.sheet}
       showHandle
     >
       {/* Header — satıcı kimliği */}
       <View style={styles.header}>
-        <View style={[styles.avatar, !vendor.logo_uri && { backgroundColor: Colors.primary + '33' }]}>
-          {vendor.logo_uri ? (
-            <Image source={{ uri: vendor.logo_uri }} style={styles.avatarImg} />
+        <View style={[styles.avatar, !activeVendor.logo_uri && { backgroundColor: Colors.primary + '33' }]}>
+          {activeVendor.logo_uri ? (
+            <Image source={{ uri: activeVendor.logo_uri }} style={styles.avatarImg} />
           ) : (
             <Text style={styles.avatarInitial}>
-              {vendor.name.trim().charAt(0).toUpperCase()}
+              {activeVendor.name.trim().charAt(0).toUpperCase()}
             </Text>
           )}
         </View>
         <View style={{ flex: 1 }}>
           <Text style={styles.vendorName} numberOfLines={2}>
-            {vendor.name}
+            {activeVendor.name}
           </Text>
           <Text style={styles.vendorMeta} numberOfLines={1}>
             {currentCat
@@ -127,8 +149,8 @@ export default function VendorOptionsSheet({
           <Pressable
             style={({ pressed }) => [styles.actionRow, pressed && styles.actionRowPressed]}
             onPress={() => {
+              pendingActionRef.current = { type: 'logo', vendorId: activeVendor.id };
               onClose();
-              setTimeout(() => onChangeLogo(vendor.id), 120);
             }}
           >
             <View style={[styles.actionIcon, { backgroundColor: Colors.chartBlue + '22' }]}>
@@ -137,7 +159,7 @@ export default function VendorOptionsSheet({
             <View style={{ flex: 1 }}>
               <Text style={styles.actionLabel}>{t('vendor_action_change_logo')}</Text>
               <Text style={styles.actionSub} numberOfLines={1}>
-                {vendor.logo_uri ? t('vendor_action_change_logo_has') : t('vendor_action_change_logo_none')}
+                {activeVendor.logo_uri ? t('vendor_action_change_logo_has') : t('vendor_action_change_logo_none')}
               </Text>
             </View>
             <MaterialCommunityIcons name="chevron-right" size={20} color={Colors.textMuted} />
@@ -164,8 +186,8 @@ export default function VendorOptionsSheet({
           <Pressable
             style={({ pressed }) => [styles.actionRow, pressed && styles.actionRowPressed]}
             onPress={() => {
+              pendingActionRef.current = { type: 'delete', vendor: activeVendor };
               onClose();
-              setTimeout(() => onDelete(vendor), 120);
             }}
           >
             <View style={[styles.actionIcon, { backgroundColor: Colors.danger + '22' }]}>

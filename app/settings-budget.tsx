@@ -122,7 +122,6 @@ export default function SettingsBudgetScreen() {
       await persistGoalFeatureEnabled(next);
       setGoalFeatureOn(next);
       triggerRefresh();
-      queueMicrotask(() => triggerRefresh());
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       SparkToast.show(t('goal_feature_saved'), 'success');
     } catch (e) {

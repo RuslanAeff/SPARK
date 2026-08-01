@@ -17,7 +17,7 @@ import { useAppTheme } from '../theme/themeStore';
 import { Typography, FontFamily } from '../theme/typography';
 import { Spacing, BorderRadius } from '../theme/spacing';
 import { useLanguage } from '../i18n/LanguageContext';
-import { useRefresh } from '../context/RefreshContext';
+import { useRefreshActions } from '../context/RefreshContext';
 import { SparkToast } from './SparkToast';
 import ConfirmModal from './ConfirmModal';
 import CustomDatePicker from './CustomDatePicker';
@@ -67,7 +67,7 @@ export default function BackupSection() {
   const { t, language } = useLanguage();
   const scheme = useAppTheme();
   const styles = useMemo(() => getStyles(), [scheme]);
-  const { triggerRefresh } = useRefresh();
+  const { triggerRefresh } = useRefreshActions();
 
   const [startDate, setStartDate] = useState<string>(startOfMonth(0));
   const [endDate, setEndDate] = useState<string>(ymd(new Date()));
@@ -215,7 +215,6 @@ export default function BackupSection() {
       const s: ImportSummary = res.summary;
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       triggerRefresh();
-      queueMicrotask(() => triggerRefresh());
       SparkToast.show(
         t('backup_import_success_title'),
         'success',

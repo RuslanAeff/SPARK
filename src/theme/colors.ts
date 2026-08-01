@@ -111,10 +111,9 @@ export function getEffectiveColorScheme(): 'light' | 'dark' {
   return 'light';
 }
 
-// Colors proxy okuma kaynağı: önce themeStore (programatik tema değişimleri için
-// güvenilir), olmazsa Appearance fallback. Bu, P12 regresyonunun nüksetmesini
-// engeller — Android'de `Appearance.setColorScheme()` sonrası `Appearance
-// .getColorScheme()` stale döndüğünde bile themeStore güncel kalır.
+// Colors proxy okuma kaynağı: önce uygulamanın React tema store'u, yalnız modül
+// ilk yüklenirken gerekirse Appearance fallback. Böylece manuel/zamanlanmış tema
+// native uiMode'a dokunmadan tüm StyleSheet üretimlerinde aynı değeri kullanır.
 let _themeSnapshot: (() => 'light' | 'dark') | null = null;
 function readActiveScheme(): 'light' | 'dark' {
   if (!_themeSnapshot) {

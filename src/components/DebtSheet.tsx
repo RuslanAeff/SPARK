@@ -32,7 +32,7 @@ interface DebtSheetProps {
   onClose: () => void;
   currency: string;
   /** Ekleme/ödeme sonrası dashboard'ı tazelemek için. */
-  onChanged?: () => void;
+  onChanged?: () => void | Promise<void>;
 }
 
 type DebtView = 'list' | 'add' | 'repay';
@@ -76,10 +76,11 @@ export default function DebtSheet({ visible, onClose, currency, onChanged }: Deb
   const [deleteId, setDeleteId] = useState<number | null>(null);
 
   const reload = useCallback(async () => {
-    const [open, all] = await Promise.all([
-      DebtDao.listOpen('borrowed'),
-      DebtDao.listAll('borrowed'),
-    ]);
+    // expo-sqlite tek bağlantıda eşzamanlı prepareAsync çağrılarında kararsız
+    // davranabiliyor. Özellikle silme sonrası dashboard bütçesi de yenilenirken
+    // Promise.all yarış yaratıp bütçenin eski borç etkisiyle kalmasına yol açıyordu.
+    const open = await DebtDao.listOpen('borrowed');
+    const all = await DebtDao.listAll('borrowed');
     setDebts(open);
     setAllDebts(all);
     // Veri değişti → ödeme önbelleği ve açık satır bayatlamasın.
@@ -159,8 +160,10 @@ export default function DebtSheet({ visible, onClose, currency, onChanged }: Deb
       });
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       SparkToast.show(t('debt_created_toast'), 'success', formatCurrency(parsed, currency, false));
-      onChanged?.();
       await reload();
+      // Yerel borç sorguları bittikten sonra bütçeyi yenile: aynı SQLite
+      // bağlantısında iki bağımsız okuma zinciri üst üste binmesin.
+      await onChanged?.();
       setView('list');
     } catch {
       SparkToast.show(t('error_saving_data'), 'error');
@@ -183,8 +186,8 @@ export default function DebtSheet({ visible, onClose, currency, onChanged }: Deb
       // Ödeme kalanı kapatıyorsa "kapandı", değilse "kaydedildi".
       const settled = parsed >= activeDebt.remaining;
       SparkToast.show(settled ? t('debt_settled_toast') : t('debt_repaid_toast'), 'success');
-      onChanged?.();
       await reload();
+      await onChanged?.();
       setActiveDebt(null);
       setView('list');
     } catch {
@@ -200,8 +203,8 @@ export default function DebtSheet({ visible, onClose, currency, onChanged }: Deb
       await DebtDao.remove(deleteId);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       SparkToast.show(t('debt_deleted_toast'), 'success');
-      onChanged?.();
       await reload();
+      await onChanged?.();
       setActiveDebt(null);
       setView('list');
     } catch {

@@ -2,10 +2,11 @@
 // S10: EAS projectId YALNIZCA ortam değişkeninden okunur; kaynak kodda sabit literal yok.
 // Kullanım: yerelde `.env` (EAS_PROJECT_ID=...) — bkz. .env.example; EAS/CI'da secret olarak tanımlanır.
 
-const baseConfig = require('./app.json');
-
-module.exports = () => {
-  const config = { ...baseConfig.expo };
+module.exports = ({ config: staticConfig }) => {
+  // Expo'nun app.json'dan çözdüğü config'i temel al. Bu, static + dynamic
+  // config zincirini resmi akışta tutar ve expo-doctor'ın iki kaynağı ayrı
+  // sanmasını engeller.
+  const config = { ...staticConfig };
 
   const easProjectId = process.env.EAS_PROJECT_ID;
   if (easProjectId) {

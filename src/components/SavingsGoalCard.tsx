@@ -14,7 +14,7 @@ import { SavingsGoalRow, GoalDao } from '../db/goalDao';
 import { useLanguage } from '../i18n/LanguageContext';
 import { useCurrency } from '../context/CurrencyContext';
 import { formatDateFull } from '../utils/dateUtils';
-import { useRefresh } from '../context/RefreshContext';
+import { useRefreshActions } from '../context/RefreshContext';
 import { SparkToast } from './SparkToast';
 import BottomSheetModal from './BottomSheetModal';
 import AnimatedCard from './AnimatedCard';
@@ -29,7 +29,7 @@ export default function SavingsGoalCard({ goal }: Props) {
   const router = useRouter();
   const { t } = useLanguage();
   const { currency } = useCurrency();
-  const { triggerRefresh } = useRefresh();
+  const { triggerRefresh } = useRefreshActions();
   const [contribOpen, setContribOpen] = useState(false);
   const [contribAmountStr, setContribAmountStr] = useState('');
   const [contribSign, setContribSign] = useState<1 | -1>(1);

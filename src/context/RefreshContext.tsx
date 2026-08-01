@@ -1,6 +1,7 @@
-// S.P.A.R.K. — Global refresh: fiş / işlem kaydı sonrası tüm ekranları güncelle
-// Not: Tab navigator lazy ise bazı ekranlar unmount olur; refreshKey sadece mount
-// olanlara gider. Bu yüzden listener listesi ile her kayıtta doğrudan çağrı yapılır.
+// S.P.A.R.K. — Global refresh: fiş / işlem kaydı sonrası veriyi geçersiz kıl.
+// Yalnızca odaktaki ağır ekranlar doğrudan yenilenir; gizli sekmeler bir sonraki
+// focus'ta kendi useFocusEffect'leriyle güncellenir. Böylece tek bir kayıt onlarca
+// eşzamanlı sorgu ve render başlatmaz.
 import React, {
   createContext,
   useContext,
@@ -18,7 +19,10 @@ interface RefreshContextType {
   subscribe: (fn: () => void) => () => void;
 }
 
-const RefreshContext = createContext<RefreshContextType | null>(null);
+type RefreshActions = Pick<RefreshContextType, 'triggerRefresh' | 'subscribe'>;
+
+const RefreshActionsContext = createContext<RefreshActions | null>(null);
+const RefreshKeyContext = createContext(0);
 
 export function RefreshProvider({ children }: { children: React.ReactNode }) {
   const [refreshKey, setRefreshKey] = useState(0);
@@ -44,34 +48,45 @@ export function RefreshProvider({ children }: { children: React.ReactNode }) {
 
   // P7: Provider value memoize — refreshKey değişmediği sürece tüketicilerin
   // context değişikliği algılamasını engeller.
-  const value = useMemo(
-    () => ({ refreshKey, triggerRefresh, subscribe }),
-    [refreshKey, triggerRefresh, subscribe],
+  const actions = useMemo(
+    () => ({ triggerRefresh, subscribe }),
+    [triggerRefresh, subscribe],
   );
 
-  return <RefreshContext.Provider value={value}>{children}</RefreshContext.Provider>;
+  return (
+    <RefreshActionsContext.Provider value={actions}>
+      <RefreshKeyContext.Provider value={refreshKey}>
+        {children}
+      </RefreshKeyContext.Provider>
+    </RefreshActionsContext.Provider>
+  );
 }
 
 export function useRefresh() {
-  const ctx = useContext(RefreshContext);
-  if (!ctx) {
-    return {
-      refreshKey: 0,
-      triggerRefresh: () => {},
-      subscribe: () => () => {},
-    };
-  }
-  return ctx;
+  const refreshKey = useContext(RefreshKeyContext);
+  const actions = useRefreshActions();
+  return { refreshKey, ...actions };
 }
 
-/** Fiş / manuel işlem kaydı sonrası tüm abone ekranları anında yeniler */
-export function useExpenseDataRefresh(onRefresh: () => void) {
-  const { subscribe } = useRefresh();
+/** refreshKey değişiminde yeniden render gerektirmeyen komut/listener kanalı. */
+export function useRefreshActions(): RefreshActions {
+  return (
+    useContext(RefreshActionsContext) ?? {
+      triggerRefresh: () => {},
+      subscribe: () => () => {},
+    }
+  );
+}
+
+/** Fiş / manuel işlem kaydı sonrası yalnız etkin ekranı anında yeniler. */
+export function useExpenseDataRefresh(onRefresh: () => void, enabled = true) {
+  const { subscribe } = useRefreshActions();
   const ref = useRef(onRefresh);
   ref.current = onRefresh;
 
   useEffect(() => {
+    if (!enabled) return;
     const run = () => ref.current();
     return subscribe(run);
-  }, [subscribe]);
+  }, [enabled, subscribe]);
 }

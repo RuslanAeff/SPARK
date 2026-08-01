@@ -19,7 +19,7 @@ interface BudgetCardProps {
 
 function BudgetCard({ budget }: BudgetCardProps) {
   // React.memo + üst sekme yeniden çizilmeyince tema takılı kalmasın + Android'de
-  // Appearance.setColorScheme() bazen useColorScheme()'ı tetiklemediği için merkezi store.
+  // OS ve uygulama içi tema için merkezi store.
   const scheme = useAppTheme();
   const styles = React.useMemo(() => getStyles(), [scheme]);
   const { t } = useLanguage();

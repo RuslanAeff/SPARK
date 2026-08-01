@@ -1,6 +1,14 @@
 // S.P.A.R.K. — Bildirimler (tam ekran, tema uyumlu)
-import React, { useMemo, useState, useCallback, type ComponentProps } from 'react';
+import React, {
+  useMemo,
+  useState,
+  useCallback,
+  useEffect,
+  useRef,
+  type ComponentProps,
+} from 'react';
 import {
+  BackHandler,
   View,
   Text,
   StyleSheet,
@@ -16,15 +24,24 @@ import {
 import { useRouter, useFocusEffect } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import type { SwipeableMethods } from 'react-native-gesture-handler/ReanimatedSwipeable';
+import * as Haptics from 'expo-haptics';
 
 import BottomSheetModal from '../src/components/BottomSheetModal';
+import GlassDeleteModal from '../src/components/GlassDeleteModal';
+import NotificationSwipeCard from '../src/components/NotificationSwipeCard';
+import { SparkToast } from '../src/components/SparkToast';
 import { Colors } from '../src/theme/colors';
 import { useAppTheme } from '../src/theme/themeStore';
 import { Typography, FontFamily } from '../src/theme/typography';
 import { Spacing, ScreenPadding, BorderRadius } from '../src/theme/spacing';
 import { useLanguage } from '../src/i18n/LanguageContext';
 import { useNotifications } from '../src/context/NotificationsContext';
-import type { InAppNotification, NotificationMuteChannel } from '../src/notifications/types';
+import type {
+  InAppNotification,
+  NotificationMuteChannel,
+  NotificationSeverity,
+} from '../src/notifications/types';
 import { formatDate, formatMonthYear } from '../src/utils/dateUtils';
 const MUTE_CHANNELS: { key: NotificationMuteChannel; labelKey: string }[] = [
   { key: 'budget', labelKey: 'notif_mute_budget' },
@@ -90,6 +107,19 @@ function notificationIconName(id: string): MciName {
   }
 }
 
+/** Büyük dolu renk diskleri yerine önem seviyesini sakin, tonal bir vurguyla gösterir. */
+function notificationAccent(severity: NotificationSeverity, isDark: boolean): string {
+  switch (severity) {
+    case 'critical':
+      return isDark ? '#FF6666' : '#D92D20';
+    case 'warning':
+      return isDark ? '#F6C453' : '#A86400';
+    case 'info':
+    default:
+      return isDark ? Colors.primaryLight : '#007A33';
+  }
+}
+
 function formatTime(ts: number): string {
   const d = new Date(ts);
   const h = d.getHours().toString().padStart(2, '0');
@@ -138,16 +168,180 @@ export default function NotificationsScreen() {
   const styles = useMemo(() => getStyles(scheme === 'dark'), [scheme]);
   const router = useRouter();
   const { t } = useLanguage();
-  const { feed, unreadCount, markRead, markAllRead, dismiss, setMute, mutes, sync, syncing } = useNotifications();
+  const {
+    feed,
+    unreadCount,
+    markRead,
+    markAllRead,
+    dismiss,
+    dismissMany,
+    setMute,
+    mutes,
+    sync,
+    syncing,
+  } = useNotifications();
   const [filter, setFilter] = useState<FilterKey>('all');
   const [muteModal, setMuteModal] = useState(false);
   const [detailNotif, setDetailNotif] = useState<InAppNotification | null>(null);
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkDeleteVisible, setBulkDeleteVisible] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const openSwipeRef = useRef<SwipeableMethods | null>(null);
+  const deletingRef = useRef(false);
+
+  const closeOpenSwipe = useCallback(() => {
+    openSwipeRef.current?.close();
+    openSwipeRef.current = null;
+  }, []);
+
+  const registerOpenSwipe = useCallback((methods: SwipeableMethods) => {
+    if (openSwipeRef.current && openSwipeRef.current !== methods) {
+      openSwipeRef.current.close();
+    }
+    openSwipeRef.current = methods;
+  }, []);
+
+  const unregisterOpenSwipe = useCallback((methods: SwipeableMethods) => {
+    if (openSwipeRef.current === methods) {
+      openSwipeRef.current = null;
+    }
+  }, []);
+
+  const exitSelection = useCallback(() => {
+    closeOpenSwipe();
+    setSelectionMode(false);
+    setSelectedIds(new Set());
+    setBulkDeleteVisible(false);
+  }, [closeOpenSwipe]);
+
+  const toggleSelection = useCallback((id: string) => {
+    setSelectedIds((previous) => {
+      const next = new Set(previous);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }, []);
+
+  const handleCardLongPress = useCallback(
+    (id: string) => {
+      closeOpenSwipe();
+      void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      if (selectionMode) {
+        toggleSelection(id);
+      } else {
+        setSelectionMode(true);
+        setSelectedIds(new Set([id]));
+      }
+    },
+    [closeOpenSwipe, selectionMode, toggleSelection],
+  );
+
+  const handleCardPress = useCallback(
+    (item: InAppNotification) => {
+      closeOpenSwipe();
+
+      if (selectionMode) {
+        void Haptics.selectionAsync();
+        toggleSelection(item.id);
+        return;
+      }
+
+      if (!item.read) {
+        void markRead(item.id).catch((error) => {
+          console.warn('[notifications] mark read failed', error);
+        });
+      }
+      setDetailNotif(item);
+    },
+    [closeOpenSwipe, markRead, selectionMode, toggleSelection],
+  );
+
+  const handleSingleDelete = useCallback(
+    async (id: string) => {
+      try {
+        const result = await dismiss(id);
+        if (result.removedCount > 0) {
+          void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        }
+      } catch (error) {
+        console.warn('[notifications] swipe dismiss failed', error);
+        SparkToast.show(t('delete_failed'), 'error');
+        throw error;
+      }
+    },
+    [dismiss, t],
+  );
+
+  const openBulkDelete = useCallback(() => {
+    if (selectedIds.size > 0 && !deletingRef.current) {
+      setBulkDeleteVisible(true);
+    }
+  }, [selectedIds.size]);
+
+  const runBulkDelete = useCallback(async () => {
+    if (deletingRef.current) return;
+    const ids = Array.from(selectedIds);
+    if (ids.length === 0) {
+      setBulkDeleteVisible(false);
+      return;
+    }
+
+    deletingRef.current = true;
+    setDeleting(true);
+    try {
+      const result = await dismissMany(ids);
+      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      exitSelection();
+      SparkToast.show(
+        t('notif_deleted_bulk', { count: result.removedCount.toString() }),
+        'success',
+      );
+    } catch (error) {
+      console.warn('[notifications] bulk dismiss failed', error);
+      SparkToast.show(t('delete_failed'), 'error');
+      setBulkDeleteVisible(false);
+    } finally {
+      deletingRef.current = false;
+      setDeleting(false);
+    }
+  }, [dismissMany, exitSelection, selectedIds, t]);
 
   useFocusEffect(
     useCallback(() => {
       void sync();
     }, [sync])
   );
+
+  useEffect(() => {
+    const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
+      if (openSwipeRef.current) {
+        closeOpenSwipe();
+        return true;
+      }
+      if (selectionMode) {
+        exitSelection();
+        return true;
+      }
+      return false;
+    });
+    return () => subscription.remove();
+  }, [closeOpenSwipe, exitSelection, selectionMode]);
+
+  useEffect(() => {
+    closeOpenSwipe();
+  }, [closeOpenSwipe, filter, selectionMode]);
+
+  useEffect(() => {
+    if (!selectionMode) return;
+    const existing = new Set(feed.map((item) => item.id));
+    setSelectedIds((previous) => {
+      const next = new Set(Array.from(previous).filter((id) => existing.has(id)));
+      if (next.size === previous.size) return previous;
+      return next;
+    });
+  }, [feed, selectionMode]);
 
   const filtered = useMemo(() => {
     if (filter === 'all') return feed;
@@ -156,57 +350,107 @@ export default function NotificationsScreen() {
 
   const sections = useMemo(() => groupFeedByDay(filtered, t), [filtered, t]);
   const isEmpty = sections.length === 0 || filtered.length === 0;
-  const hasAnyNotifications = feed.length > 0;
   const isDark = scheme === 'dark';
+  const selectedCount = selectedIds.size;
 
   return (
     <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
-      {/* Üst bar — ek padding: ikonlar çok yukarı yapışmasın */}
-      <View style={styles.topBar}>
+      <View style={styles.header}>
         <Pressable
-          onPress={() => router.back()}
-          style={styles.circleBtn}
+          onPress={selectionMode ? exitSelection : () => router.back()}
+          style={({ pressed }) => [styles.circleBtn, pressed && styles.circleBtnPressed]}
+          hitSlop={4}
           accessibilityRole="button"
-          accessibilityLabel={t('notif_go_back')}
+          accessibilityLabel={selectionMode ? t('cancel') : t('notif_go_back')}
+          testID={selectionMode ? 'notifications-selection-cancel' : undefined}
         >
-          <MaterialCommunityIcons name="chevron-left" size={26} color={Colors.textPrimary} />
+          <MaterialCommunityIcons
+            name={selectionMode ? 'close' : 'chevron-left'}
+            size={selectionMode ? 20 : 23}
+            color={Colors.textPrimary}
+          />
         </Pressable>
-        <Pressable
-          onPress={() => setMuteModal(true)}
-          style={styles.circleBtn}
-          accessibilityRole="button"
-          accessibilityLabel={t('notif_prefs_title')}
-        >
-          <MaterialCommunityIcons name="tune-variant" size={22} color={Colors.textPrimary} />
-        </Pressable>
+
+        <View style={styles.headerTitleWrap}>
+          <Text style={styles.pageTitle} numberOfLines={1} accessibilityRole="header">
+            {selectionMode
+              ? t('notif_selected', { count: selectedCount.toString() })
+              : t('notif_center_title')}
+          </Text>
+          {!selectionMode && unreadCount > 0 && (
+            <View style={styles.badge}>
+              <Text style={styles.badgeText}>{unreadCount > 99 ? '99+' : unreadCount}</Text>
+            </View>
+          )}
+        </View>
+
+        <View style={styles.headerActions}>
+          {selectionMode ? (
+            <Pressable
+              onPress={openBulkDelete}
+              disabled={selectedCount === 0 || deleting}
+              style={({ pressed }) => [
+                styles.bulkDeleteBtn,
+                (selectedCount === 0 || deleting) && styles.headerActionDisabled,
+                pressed && selectedCount > 0 && !deleting && styles.bulkDeleteBtnPressed,
+              ]}
+              hitSlop={4}
+              accessibilityRole="button"
+              accessibilityLabel={t('notif_delete_selected_title')}
+              accessibilityState={{ disabled: selectedCount === 0 || deleting }}
+              testID="notifications-selection-delete"
+            >
+              <MaterialCommunityIcons
+                name="trash-can-outline"
+                size={19}
+                color={Colors.danger}
+              />
+            </Pressable>
+          ) : (
+            <>
+              {unreadCount > 0 && (
+                <Pressable
+                  onPress={() => {
+                    void markAllRead().catch((error) => {
+                      console.warn('[notifications] mark all read failed', error);
+                      SparkToast.show(t('operation_failed'), 'error');
+                    });
+                  }}
+                  style={({ pressed }) => [styles.markReadBtn, pressed && styles.markReadBtnPressed]}
+                  hitSlop={4}
+                  accessibilityRole="button"
+                  accessibilityLabel={t('notif_mark_all')}
+                  testID="notifications-mark-all"
+                >
+                  <MaterialCommunityIcons
+                    name="check-all"
+                    size={19}
+                    color={isDark ? Colors.primaryLight : '#007A33'}
+                  />
+                </Pressable>
+              )}
+              <Pressable
+                onPress={() => setMuteModal(true)}
+                style={({ pressed }) => [styles.circleBtn, pressed && styles.circleBtnPressed]}
+                hitSlop={4}
+                accessibilityRole="button"
+                accessibilityLabel={t('notif_prefs_title')}
+              >
+                <MaterialCommunityIcons name="tune-variant" size={19} color={Colors.textPrimary} />
+              </Pressable>
+            </>
+          )}
+        </View>
       </View>
 
-      <View style={[styles.titleRow, hasAnyNotifications ? styles.titleRowWithList : styles.titleRowNoFeed]}>
-        <Text style={styles.pageTitle}>{t('notif_center_title')}</Text>
-        {unreadCount > 0 && (
-          <View style={styles.badge}>
-            <Text style={styles.badgeText}>{unreadCount > 99 ? '99+' : unreadCount}</Text>
-          </View>
-        )}
-        {feed.length > 0 && (
-          <Pressable
-            onPress={() => markAllRead()}
-            style={({ pressed }) => [styles.markReadBtn, pressed && styles.markReadBtnPressed]}
-          >
-            <Text style={[styles.markReadBtnText, isDark && styles.markReadBtnTextDark]}>
-              {t('notif_mark_all')}
-            </Text>
-          </Pressable>
-        )}
-      </View>
-
-      {/* Filtre çipleri — dolu listede üstten kırpılmayı önlemek için dikey dolgu */}
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
         removeClippedSubviews={false}
-        style={styles.chipsScroll}
-        contentContainerStyle={[styles.chipsRow, hasAnyNotifications ? styles.chipsRowWithList : styles.chipsRowEmpty]}
+        scrollEnabled={!selectionMode}
+        pointerEvents={selectionMode ? 'none' : 'auto'}
+        style={[styles.chipsScroll, selectionMode && styles.chipsScrollDisabled]}
+        contentContainerStyle={styles.chipsRow}
       >
         {FILTER_DEF.map(({ key, labelKey }) => {
           const active = filter === key;
@@ -214,7 +458,17 @@ export default function NotificationsScreen() {
             <Pressable
               key={key}
               onPress={() => setFilter(key)}
-              style={[styles.chip, active && styles.chipActive]}
+              disabled={selectionMode}
+              style={({ pressed }) => [
+                styles.chip,
+                active && styles.chipActive,
+                pressed && styles.chipPressed,
+              ]}
+              accessibilityRole="tab"
+              accessibilityState={{ selected: active }}
+              accessibilityLabel={t(labelKey)}
+              hitSlop={{ top: 4, bottom: 4 }}
+              testID={`notifications-filter-${key}`}
             >
               <Text style={[styles.chipText, active && styles.chipTextActive]}>{t(labelKey)}</Text>
             </Pressable>
@@ -227,69 +481,145 @@ export default function NotificationsScreen() {
         sections={sections}
         keyExtractor={(item) => item.id}
         stickySectionHeadersEnabled={false}
+        extraData={{ selectionMode, selectedIds }}
+        onScrollBeginDrag={closeOpenSwipe}
         contentContainerStyle={[
           styles.listContent,
+          { paddingBottom: Math.max(insets.bottom, Spacing.xl) + Spacing.lg },
           isEmpty ? styles.listContentWhenEmpty : styles.listContentWhenFilled,
           isEmpty && styles.listContentEmpty,
         ]}
         refreshControl={
-          <RefreshControl refreshing={syncing} onRefresh={sync} tintColor={Colors.primary} colors={[Colors.primary]} />
+          <RefreshControl
+            refreshing={syncing}
+            onRefresh={sync}
+            enabled={!selectionMode}
+            tintColor={Colors.primary}
+            colors={[Colors.primary]}
+          />
         }
         renderSectionHeader={({ section }) => {
           const isFirst = sections.length > 0 && section.title === sections[0].title;
-          return <Text style={[styles.sectionHeader, isFirst && styles.sectionHeaderFirst]}>{section.title}</Text>;
+          return (
+            <View style={[styles.sectionHeader, isFirst && styles.sectionHeaderFirst]}>
+              <Text style={styles.sectionHeaderText}>{section.title}</Text>
+              <View style={styles.sectionHeaderRule} />
+            </View>
+          );
         }}
         ListEmptyComponent={
           <View style={styles.empty}>
-            <MaterialCommunityIcons name="bell-off-outline" size={56} color={Colors.textMuted} />
+            <View style={styles.emptyIcon}>
+              <MaterialCommunityIcons name="bell-off-outline" size={26} color={Colors.textMuted} />
+            </View>
             <Text style={styles.emptyText}>{t('notif_empty')}</Text>
           </View>
         }
         renderItem={({ item }) => {
           const iconName = notificationIconName(item.id);
+          const accent = notificationAccent(item.severity, isDark);
           const p = localizeNotifParams(item.params, t);
           const title = t(item.titleKey, p);
           const body = t(item.bodyKey, p);
+          const time = formatTime(item.createdAt);
+          const selected = selectedIds.has(item.id);
           return (
-            <View style={[styles.card, !item.read && styles.cardUnread]}>
-              <View style={styles.iconCircle}>
-                <View style={styles.iconCircleAlign}>
-                  <MaterialCommunityIcons
-                    name={iconName}
-                    size={20}
-                    color={Colors.textInverse}
-                    style={styles.iconGlyph}
-                  />
-                </View>
-              </View>
-              <Pressable
-                style={styles.cardBody}
-                onPress={() => {
-                  if (!item.read) void markRead(item.id);
-                  setDetailNotif(item);
-                }}
+            <NotificationSwipeCard
+              enabled={!selectionMode}
+              deleteLabel={t('delete')}
+              onDelete={() => handleSingleDelete(item.id)}
+              onWillOpen={registerOpenSwipe}
+              onDidClose={unregisterOpenSwipe}
+              testID={`notification-swipe-${item.id}`}
+            >
+              <View
+                style={[
+                  styles.card,
+                  !selectionMode && !item.read && styles.cardUnread,
+                  !selectionMode &&
+                    !item.read && {
+                      borderColor: `${accent}${isDark ? '66' : '3D'}`,
+                      backgroundColor: `${accent}${isDark ? '0F' : '08'}`,
+                    },
+                  selectionMode && styles.cardSelection,
+                  selectionMode && selected && styles.cardSelected,
+                ]}
               >
-                <View style={styles.cardTitleRow}>
-                  <Text style={styles.cardTitle} numberOfLines={LIST_PREVIEW_LINES} ellipsizeMode="tail">
-                    {title}
-                  </Text>
-                  <MaterialCommunityIcons name="information-outline" size={16} color={Colors.textMuted} />
-                </View>
-                <Text
-                  style={styles.cardBodyText}
-                  numberOfLines={LIST_PREVIEW_LINES}
-                  ellipsizeMode="tail"
+                {!selectionMode && !item.read && (
+                  <View style={[styles.unreadRail, { backgroundColor: accent }]} />
+                )}
+                <Pressable
+                  style={({ pressed }) => [styles.cardMain, pressed && styles.cardMainPressed]}
+                  onPress={() => handleCardPress(item)}
+                  onLongPress={() => handleCardLongPress(item.id)}
+                  delayLongPress={380}
+                  accessibilityRole={selectionMode ? 'checkbox' : 'button'}
+                  accessibilityState={selectionMode ? { checked: selected } : undefined}
+                  accessibilityLabel={`${title}. ${body}. ${time}`}
+                  accessibilityHint={selectionMode ? undefined : t('notif_select_hint')}
+                  testID={`notification-card-${item.id}`}
                 >
-                  {body}
-                </Text>
-                <Text style={styles.cardTime}>{formatTime(item.createdAt)}</Text>
-              </Pressable>
-              <Pressable onPress={() => dismiss(item.id)} hitSlop={10} style={styles.archiveBtn}>
-                <MaterialCommunityIcons name="archive-outline" size={22} color={Colors.textMuted} />
-              </Pressable>
-            </View>
+                  {selectionMode && (
+                    <View style={styles.selectionCheck} pointerEvents="none">
+                      <MaterialCommunityIcons
+                        name={selected ? 'checkbox-marked-circle' : 'checkbox-blank-circle-outline'}
+                        size={22}
+                        color={selected ? Colors.primary : Colors.textMuted}
+                      />
+                    </View>
+                  )}
+
+                  <View
+                    style={[
+                      styles.iconCircle,
+                      { backgroundColor: `${accent}${isDark ? '26' : '16'}` },
+                    ]}
+                  >
+                    <MaterialCommunityIcons
+                      name={iconName}
+                      size={18}
+                      color={accent}
+                      style={styles.iconGlyph}
+                    />
+                  </View>
+
+                  <View style={styles.cardBody}>
+                    <Text style={styles.cardTitle} numberOfLines={LIST_PREVIEW_LINES} ellipsizeMode="tail">
+                      {title}
+                    </Text>
+                    <Text
+                      style={styles.cardBodyText}
+                      numberOfLines={LIST_PREVIEW_LINES}
+                      ellipsizeMode="tail"
+                    >
+                      {body}
+                    </Text>
+                    <View style={styles.cardTimeRow}>
+                      <MaterialCommunityIcons
+                        name="clock-outline"
+                        size={12}
+                        color={isDark ? Colors.textSecondary : Colors.textMuted}
+                      />
+                      <Text style={styles.cardTime}>{time}</Text>
+                    </View>
+                  </View>
+                </Pressable>
+              </View>
+            </NotificationSwipeCard>
           );
         }}
+      />
+
+      <GlassDeleteModal
+        visible={bulkDeleteVisible}
+        title={t('notif_delete_selected_title')}
+        message={t('notif_delete_selected_confirm', {
+          count: selectedCount.toString(),
+        })}
+        onCancel={() => {
+          if (!deletingRef.current) setBulkDeleteVisible(false);
+        }}
+        onDelete={() => void runBulkDelete()}
       />
 
       <BottomSheetModal
@@ -304,7 +634,7 @@ export default function NotificationsScreen() {
         {detailNotif && (
           <>
             <View style={styles.detailHandle} />
-            <Text style={styles.detailTitle}>
+            <Text style={styles.detailTitle} accessibilityRole="header">
               {t(detailNotif.titleKey, localizeNotifParams(detailNotif.params, t))}
             </Text>
             <ScrollView
@@ -321,6 +651,8 @@ export default function NotificationsScreen() {
             <Pressable
               style={({ pressed }) => [styles.detailCloseBtn, pressed && styles.detailCloseBtnPressed]}
               onPress={() => setDetailNotif(null)}
+              accessibilityRole="button"
+              accessibilityLabel={t('close')}
             >
               <Text style={styles.detailCloseBtnText}>{t('close')}</Text>
             </Pressable>
@@ -332,31 +664,43 @@ export default function NotificationsScreen() {
         visible={muteModal}
         animationType="fade"
         transparent
+        hardwareAccelerated
         presentationStyle="overFullScreen"
         statusBarTranslucent
+        navigationBarTranslucent
         onRequestClose={() => setMuteModal(false)}
       >
         <Pressable style={styles.modalOverlay} onPress={() => setMuteModal(false)}>
           <Pressable style={styles.modalSheet} onPress={(e) => e.stopPropagation()}>
-            <Text style={styles.modalTitle}>{t('notif_prefs_title')}</Text>
+            <Text style={styles.modalTitle} accessibilityRole="header">
+              {t('notif_prefs_title')}
+            </Text>
             <Text style={styles.modalHint}>{t('notif_mute_hint')}</Text>
             {MUTE_CHANNELS.map(({ key, labelKey }) => (
               <View key={key} style={styles.muteRow}>
                 <Text style={styles.muteLabel}>{t(labelKey)}</Text>
                 <Switch
                   value={!!mutes[key]}
-                  onValueChange={(v) => setMute(key, v)}
+                  onValueChange={(v) => {
+                    void setMute(key, v).catch((error) => {
+                      console.warn('[notifications] mute update failed', error);
+                      SparkToast.show(t('operation_failed'), 'error');
+                    });
+                  }}
                   trackColor={{
                     false: Colors.surfaceLight,
                     true: isDark ? 'rgba(0, 235, 100, 0.5)' : 'rgba(0, 178, 72, 0.55)',
                   }}
                   thumbColor={mutes[key] ? Colors.primary : Colors.textMuted}
+                  accessibilityLabel={t(labelKey)}
                 />
               </View>
             ))}
             <Pressable
               style={({ pressed }) => [styles.modalPrimaryBtn, pressed && styles.modalPrimaryBtnPressed]}
               onPress={() => setMuteModal(false)}
+              accessibilityRole="button"
+              accessibilityLabel={t('ok')}
             >
               <Text style={styles.modalPrimaryBtnText}>{t('ok')}</Text>
             </Pressable>
@@ -384,157 +728,146 @@ const getStyles = (isDark: boolean) => {
       flex: 1,
       backgroundColor: Colors.background,
     },
-    topBar: {
+    header: {
       flexDirection: 'row',
-      justifyContent: 'space-between',
       alignItems: 'center',
       paddingHorizontal: ScreenPadding.horizontal,
-      paddingTop: Spacing.md,
-      paddingBottom: Spacing.xs,
+      paddingTop: Spacing.sm,
+      paddingBottom: Spacing.sm,
+      minHeight: 56,
+      gap: Spacing.md,
     },
     circleBtn: {
-      width: 44,
-      height: 44,
-      borderRadius: 22,
+      width: 40,
+      height: 40,
+      borderRadius: 20,
       backgroundColor: Colors.surface,
       borderWidth: 1,
       borderColor: Colors.border,
       alignItems: 'center',
       justifyContent: 'center',
     },
-    titleRow: {
+    circleBtnPressed: {
+      backgroundColor: Colors.surfaceLight,
+      opacity: 0.82,
+    },
+    headerTitleWrap: {
+      flex: 1,
+      minWidth: 0,
       flexDirection: 'row',
       alignItems: 'center',
-      paddingHorizontal: ScreenPadding.horizontal,
-      paddingTop: 0,
-      paddingBottom: 0,
       gap: Spacing.sm,
-      flexWrap: 'wrap',
     },
-    /** Bildirim yokken: başlık «Bildirimler» ↔ seçim kartları — taban ~Spacing.sm, %9 artış ≈ sm×1.09 */
-    titleRowNoFeed: {
-      marginBottom: Math.round(Spacing.sm * 1.09),
-    },
-    /** Liste varken başlık satırı ile çipler arasında nefes */
-    titleRowWithList: {
-      marginBottom: Spacing.xs,
+    headerActions: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: Spacing.sm,
     },
     pageTitle: {
       ...Typography.headlineLarge,
-      /** Görsel boşluğu azalt: varsayılan lineHeight (32) çiplerden çok uzak gösteriyordu */
-      lineHeight: 26,
+      lineHeight: 30,
       color: Colors.textPrimary,
       fontFamily: FontFamily.extraBold,
       flexShrink: 1,
+      letterSpacing: -0.35,
       ...Platform.select({
         android: { includeFontPadding: false },
       }),
     },
     badge: {
-      minWidth: 24,
-      height: 24,
-      borderRadius: 12,
+      minWidth: 20,
+      height: 20,
+      borderRadius: 10,
       backgroundColor: Colors.danger,
       alignItems: 'center',
       justifyContent: 'center',
-      paddingHorizontal: 6,
+      paddingHorizontal: 5,
     },
     badgeText: {
       color: '#fff',
-      fontSize: 12,
+      fontSize: 10,
+      lineHeight: 13,
       fontFamily: FontFamily.bold,
+      ...Platform.select({
+        android: { includeFontPadding: false },
+      }),
     },
-    /** Şüşevar — cam yeşil (solid yerine); susevar.ts ile aynı beyaz kenar + gölge dili */
     markReadBtn: {
-      marginLeft: 'auto',
-      backgroundColor: glassFill,
-      borderRadius: BorderRadius.round,
-      paddingVertical: 6,
-      paddingHorizontal: 7,
+      width: 40,
+      height: 40,
+      borderRadius: 20,
+      backgroundColor: Colors.primaryGlow,
       alignItems: 'center',
       justifyContent: 'center',
       borderWidth: 1,
-      borderColor: glassBorder,
-      ...Platform.select({
-        ios: {
-          shadowColor: Colors.primary,
-          shadowOffset: { width: 0, height: 5 },
-          shadowOpacity: 0.38,
-          shadowRadius: 10,
-        },
-        android: {
-          elevation: 8,
-          shadowColor: Colors.primary,
-        },
-      }),
+      borderColor: `${Colors.primary}4D`,
     },
     markReadBtnPressed: {
-      opacity: 0.9,
+      backgroundColor: `${Colors.primary}24`,
+      opacity: 0.82,
     },
-    markReadBtnText: {
-      color: '#FFFFFF',
-      fontFamily: FontFamily.extraBold,
-      fontSize: 12,
-      letterSpacing: 0.45,
-      textTransform: 'uppercase',
+    bulkDeleteBtn: {
+      width: 40,
+      height: 40,
+      borderRadius: 20,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: `${Colors.danger}12`,
+      borderWidth: 1,
+      borderColor: `${Colors.danger}52`,
     },
-    /** Karanlık mod: Okundu bir tık daha okunaklı */
-    markReadBtnTextDark: {
-      fontSize: 13,
-      letterSpacing: 0.58,
+    bulkDeleteBtnPressed: {
+      backgroundColor: `${Colors.danger}24`,
+      opacity: 0.82,
+    },
+    headerActionDisabled: {
+      opacity: 0.38,
     },
     chipsScroll: {
       flexGrow: 0,
       width: '100%',
     },
+    chipsScrollDisabled: {
+      opacity: 0.48,
+    },
     chipsRow: {
       paddingHorizontal: ScreenPadding.horizontal,
+      paddingTop: Spacing.xs,
+      paddingBottom: Spacing.md,
       gap: Spacing.sm,
       flexDirection: 'row',
       alignItems: 'center',
     },
-    chipsRowEmpty: {
-      paddingTop: 0,
-      paddingBottom: Spacing.xs,
-    },
-    chipsRowWithList: {
-      paddingTop: Spacing.sm,
-      paddingBottom: Spacing.sm,
-    },
     chip: {
-      paddingHorizontal: Spacing.md,
-      paddingVertical: Spacing.sm,
+      minHeight: 36,
+      paddingHorizontal: 14,
+      paddingVertical: 7,
       borderRadius: BorderRadius.round,
       backgroundColor: Colors.surface,
       borderWidth: 1,
       borderColor: Colors.border,
-      minHeight: 40,
       justifyContent: 'center',
     },
     chipActive: {
-      backgroundColor: glassFill,
-      borderColor: glassBorder,
-      ...Platform.select({
-        ios: {
-          shadowColor: Colors.primary,
-          shadowOffset: { width: 0, height: 3 },
-          shadowOpacity: 0.28,
-          shadowRadius: 8,
-        },
-        android: {
-          elevation: 5,
-          shadowColor: Colors.primary,
-        },
-      }),
+      backgroundColor: Colors.primaryGlow,
+      borderColor: `${Colors.primary}66`,
+    },
+    chipPressed: {
+      opacity: 0.76,
     },
     chipText: {
-      fontSize: 15,
+      fontSize: 13,
+      lineHeight: 18,
       color: Colors.textSecondary,
-      fontFamily: FontFamily.bold,
-      letterSpacing: 0.2,
+      fontFamily: FontFamily.semiBold,
+      letterSpacing: 0.1,
+      ...Platform.select({
+        android: { includeFontPadding: false },
+      }),
     },
     chipTextActive: {
-      color: '#FFFFFF',
+      color: isDark ? Colors.primaryLight : Colors.primaryDark,
+      fontFamily: FontFamily.bold,
     },
     sectionList: {
       flex: 1,
@@ -547,50 +880,90 @@ const getStyles = (isDark: boolean) => {
       paddingTop: Spacing.xs,
     },
     listContentWhenFilled: {
-      paddingTop: Spacing.md,
+      paddingTop: Spacing.xs,
     },
-    /** Boş liste: içeriği üstte tut (ortaya yığılmasın) */
     listContentEmpty: {
       flexGrow: 1,
       justifyContent: 'flex-start',
     },
     sectionHeader: {
-      ...Typography.labelMedium,
-      color: Colors.textMuted,
-      marginTop: Spacing.sm,
-      marginBottom: Spacing.xs,
-      textTransform: 'capitalize',
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: Spacing.md,
+      marginTop: Spacing.lg,
+      marginBottom: Spacing.sm,
     },
     sectionHeaderFirst: {
-      marginTop: 0,
+      marginTop: Spacing.xs,
+    },
+    sectionHeaderText: {
+      fontSize: 12,
+      lineHeight: 17,
+      color: isDark ? Colors.textSecondary : Colors.textMuted,
+      fontFamily: FontFamily.semiBold,
+      letterSpacing: 0.35,
+      flexShrink: 0,
+      ...Platform.select({
+        android: { includeFontPadding: false },
+      }),
+    },
+    sectionHeaderRule: {
+      flex: 1,
+      height: StyleSheet.hairlineWidth,
+      backgroundColor: Colors.divider,
     },
     card: {
       flexDirection: 'row',
       alignItems: 'flex-start',
-      gap: Spacing.md,
-      padding: Spacing.md,
+      position: 'relative',
       borderRadius: BorderRadius.lg,
       backgroundColor: Colors.surface,
       borderWidth: 1,
       borderColor: Colors.border,
-      marginBottom: Spacing.sm,
     },
     cardUnread: {
-      borderColor: Colors.primary + '55',
+      borderWidth: 1,
+    },
+    cardSelection: {
+      backgroundColor: Colors.surface,
+      borderColor: Colors.border,
+    },
+    cardSelected: {
       backgroundColor: Colors.primaryGlow,
+      borderColor: `${Colors.primary}80`,
+    },
+    unreadRail: {
+      position: 'absolute',
+      left: -1,
+      top: Spacing.md,
+      bottom: Spacing.md,
+      width: 3,
+      borderRadius: BorderRadius.round,
+    },
+    cardMain: {
+      flex: 1,
+      minWidth: 0,
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      gap: Spacing.md,
+      paddingLeft: 14,
+      paddingVertical: 14,
+      paddingRight: 14,
+    },
+    cardMainPressed: {
+      opacity: 0.7,
     },
     iconCircle: {
-      width: 40,
-      height: 40,
-      borderRadius: 20,
-      backgroundColor: Colors.primary,
+      width: 36,
+      height: 36,
+      borderRadius: 18,
       alignItems: 'center',
       justifyContent: 'center',
       overflow: 'hidden',
     },
-    iconCircleAlign: {
+    selectionCheck: {
       width: 24,
-      height: 24,
+      height: 36,
       alignItems: 'center',
       justifyContent: 'center',
     },
@@ -604,39 +977,60 @@ const getStyles = (isDark: boolean) => {
     },
     cardBody: {
       flex: 1,
-      gap: 4,
+      gap: 3,
       minWidth: 0,
     },
-    cardTitleRow: {
-      flexDirection: 'row',
-      alignItems: 'flex-start',
-      gap: 6,
-    },
     cardTitle: {
-      ...Typography.labelLarge,
+      fontSize: 15,
+      lineHeight: 20,
       color: Colors.textPrimary,
-      fontFamily: FontFamily.bold,
-      flex: 1,
+      fontFamily: FontFamily.semiBold,
+      letterSpacing: 0,
+      ...Platform.select({
+        android: { includeFontPadding: false },
+      }),
     },
     cardBodyText: {
-      ...Typography.bodySmall,
+      fontSize: 13,
       color: Colors.textSecondary,
-      lineHeight: 20,
+      lineHeight: 19,
+      fontFamily: FontFamily.regular,
+      letterSpacing: 0.1,
+      ...Platform.select({
+        android: { includeFontPadding: false },
+      }),
+    },
+    cardTimeRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: Spacing.xs,
+      marginTop: 5,
     },
     cardTime: {
-      ...Typography.labelSmall,
-      color: Colors.textMuted,
-      marginTop: Spacing.xs,
-    },
-    archiveBtn: {
-      padding: Spacing.xs,
-      marginTop: -4,
+      fontSize: 11,
+      lineHeight: 14,
+      color: isDark ? Colors.textSecondary : Colors.textMuted,
+      fontFamily: FontFamily.medium,
+      letterSpacing: 0.2,
+      ...Platform.select({
+        android: { includeFontPadding: false },
+      }),
     },
     empty: {
       alignItems: 'center',
-      paddingTop: Spacing.lg,
+      paddingTop: Spacing.xxxl,
       paddingBottom: Spacing.xl,
-      gap: Spacing.md,
+      gap: Spacing.lg,
+    },
+    emptyIcon: {
+      width: 52,
+      height: 52,
+      borderRadius: 26,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: Colors.surface,
+      borderWidth: 1,
+      borderColor: Colors.border,
     },
     emptyText: {
       ...Typography.bodyMedium,

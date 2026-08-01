@@ -1,93 +1,21 @@
-# CLAUDE.md — S.P.A.R.K için yönlendirme
+# CLAUDE.md — Claude Code başlangıç adaptörü
 
-> Bu dosya Claude Code tarafından her oturum başında otomatik okunur.
-> Detaylı teknik/tasarım rehberi için **`DESIGN_BRIEF.md`** ana kaynaktır — bir görev başlamadan önce ilgili bölümlerini oku.
+Bu depo için ortak ve kanonik ajan kuralları `AGENTS.md` içindedir. Her görevin başında önce onu oku ve uygula.
 
----
+Ardından görevin kapsamına göre:
 
-## Proje özeti
+- Ürün ve UX niyeti: `DESIGN_BRIEF.md`
+- Sistem mimarisi ve domain sınırları: `docs/ARCHITECTURE.md`
+- Uygulama kalıpları ve komutlar: `docs/DEVELOPMENT_GUIDE.md`
+- Test, cihaz doğrulaması ve güvenlik: `docs/QUALITY_AND_SECURITY.md`
+- Karar gerekçeleri: `docs/decisions/README.md`
 
-**S.P.A.R.K** — kişisel harcama takibi mobil uygulaması (mağaza sürümü örn. **2.7.0** — `app.json` / `package.json`).
-- **Yığın:** Expo SDK ~55, expo-router (file-based), React 19, RN 0.83
-- **Veri:** expo-sqlite (`spark.db`, WAL, FK on)
-- **Yapay zekâ:** Google Gemini (fiş ayrıştırma)
-- **Diller:** TR (varsayılan), EN, AZ, RU
+## Claude Code için kısa çalışma sırası
 
-## Mimari özet
+1. Mevcut kullanıcı değişikliklerini `git status --short` ile belirle; ilgisiz değişiklikleri geri alma.
+2. İlgili belgeyi ve gerçek kod/config kaynağını birlikte incele.
+3. Türkçe iletişim kur ve kapsamı küçük, doğrulanabilir parçalarda uygula.
+4. Değişiklikten sonra `npm run typecheck` ile ilgili Jest testlerini çalıştır; native davranış gerekiyorsa cihaz doğrulamasını ayrıca belirt.
+5. Mimari veya tez açısından önemli bir karar oluştuysa `AGENTS.md` içindeki izlenebilirlik kurallarını uygula.
 
-```
-app/                    # Ekranlar (expo-router)
-  (tabs)/               # Dashboard, İşlemler, Tarayıcı, Analiz (`analytics.tsx` — orkestratör; kartlar src/components/analytics §5.8), Ayarlar
-src/
-  components/           # Ortak UI
-    analytics/          # Analiz kart bileşenleri (16 React.memo kart) + analyticsStyles.ts + shared.tsx (§5.8)
-  context/              # Currency, Refresh, Notifications, Language
-  db/                   # schema, database, DAO'lar
-  hooks/                # useExpenses, useBudget, useDatabase, ...
-  i18n/                 # locales/ (TR inline + EN/AZ/RU JSON)
-  services/             # gemini, receiptParser, backupService, subscriptionDetector, ...
-  notifications/        # feed + kural motoru
-  theme/                # colors, spacing, typography, susevar, themeStore
-  utils/                # tarih, para, validation, imageCompressor, ...
-```
-
-## Kritik kurallar (bunları **mutlaka** uygula)
-
-### 1. Tema (en sık unutulan)
-- **Asla** modül seviyesinde `StyleSheet.create({ ...Colors.x })` yazma — tema değişiminde donar.
-- Tema duyarlı her component şu kalıbı kullanmalı:
-  ```ts
-  const scheme = useAppTheme();              // src/theme/themeStore
-  const styles = useMemo(() => getStyles(scheme), [scheme]);
-  ```
-- Detay: `DESIGN_BRIEF.md` §6.1.2 (P12 regresyonu).
-
-### 2. Güvenlik
-- Gemini API anahtarı **sadece** `expo-secure-store` (OS keychain) — SQLite'a yazma.
-- Tüm dış girdi (fiş JSON, backup JSON) `src/utils/inputValidation.ts` (`stripDangerousKeys` + sanitize) üzerinden geçer.
-- Gemini header: `x-goog-api-key` (URL'e koyma).
-
-### 3. Veritabanı işlemleri
-- Çoklu yazma her zaman `db.withTransactionAsync(...)` içinde — yarım import/güncelleme yok.
-- Şema değişikliğinde migration ekle (`src/db/database.ts`).
-
-### 4. i18n
-- TR varsayılan; tüm metinler `t('...')` ile çevirilebilir olmalı.
-- Dört dilin tamamına anahtar eklenmeli: `src/i18n/locales/{en,az,ru}.json` (TR inline `translations.ts`).
-
-### 5. Tasarım
-- Birincil CTA: **şüşevar** (`src/theme/susevar`). Cam kart hissi (glass).
-- Animasyon: **react-native-reanimated 4** (eski `Animated`'ı yenisinde kullanma).
-
-### 6. Bildirimler
-- Expo Go Android'de `expo-notifications` push API yüklenmez → `isRunningInExpoGo()` guard'ı zorunlu.
-- Yeni kural eklerken: tür bazlı sessize alma (mute channel) eklemeyi unutma.
-
-### 7. Alt sayfalar (bottom-sheet)
-- Yeni alt sayfa = **ortak `src/components/BottomSheetModal.tsx`** (kendi `Modal`'ını yazma). Detay: `DESIGN_BRIEF.md` §5.12.
-- Tutamak için `showHandle` prop'unu ver — kendi statik handle'ını render etme (dokunmada genişler + sürükle-kapat ortak bileşende).
-- Alt kenar boşluğu/gri perde sorunu yüzey overshoot ile çözülür; `sheetStyle`'a manuel `paddingBottom = inset` ekleme.
-
-## Komutlar
-
-```powershell
-npm start              # expo start
-npm run android        # expo run:android
-npm run ios            # expo run:ios
-npm test               # jest (175 test) — değişiklik sonrası çalıştır
-npm run typecheck      # tsc --noEmit — commit öncesi zorunlu
-```
-
-> **Test notu (detay: `DESIGN_BRIEF.md` §9):** Saf fonksiyonlar doğrudan test edilir; native/DB modülleri (`expo-secure-store`, `expo-sqlite`, `db/*Dao`) `jest.mock(...)` ile değiştirilir. Kart bileşen testlerinde `render` **async**'tir (`await render(<X/>)`); `react-native-reanimated` kök `__mocks__/` ile otomatik stub'lanır.
-
-## İletişim
-
-- Kullanıcı **Türkçe** konuşuyor — cevapları Türkçe ver.
-- Detaylı kural/akış sorulduğunda `DESIGN_BRIEF.md`'nin ilgili bölümünü oku, ezberden cevap verme (rehber kod tabanıyla senkron).
-
-## Bir göreve başlamadan önce
-
-1. Görev hangi alana giriyor? → `DESIGN_BRIEF.md` ilgili bölümünü oku (içindekiler tablosuna bak).
-2. Tema/güvenlik/DB dokunan iş mi? → Yukarıdaki "Kritik kurallar"a tekrar göz at.
-3. UI değişikliği mi? → şüşevar + cam kart + dört dil + tema kalıbı.
-4. Analiz sekmesi / yeni kart / `analytics_card_order` mi? → `DESIGN_BRIEF.md` §5.8 (ALL_CARDS, DEFAULT_ACTIVE, `loadCardConfig`, i18n). Her kart `src/components/analytics/<X>Card.tsx`'te ayrı `React.memo` bileşeni; stiller `analyticsStyles.ts`, tipler `shared.tsx`. Kart **kendi içinde `getAnalyticsStyles()` çağırmaz** (parent `styles` prop'u geçer — P12); memo'lu karta verilen prop'lar parent'ta `useMemo`/`useCallback` ile sabitlenir (P11).
+Bu dosyada paket sürümü, test sayısı, mimari ağaç veya domain kuralı tekrarlanmaz. Bunların sahipleri yukarıdaki kanonik kaynaklardır.

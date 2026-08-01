@@ -1,7 +1,6 @@
 // S.P.A.R.K. — Saate göre aydınlık / karanlık (sabit pencere)
-import { Appearance } from 'react-native';
 import { getDatabase } from '../db/database';
-import { notifyThemeChanged } from '../theme/themeStore';
+import { setAppThemeScheme } from '../theme/themeStore';
 
 /** Gün ışığı: bu saatler arası aydınlık (dahil başlangıç, bitiş hariç) */
 export const LIGHT_START_HOUR = 6; // 06:00
@@ -9,6 +8,7 @@ export const LIGHT_END_HOUR = 18; // 18:00 → 06:00’a kadar karanlık
 
 const KEY_AUTO = 'auto_theme_schedule';
 const KEY_MANUAL = 'theme_manual';
+let applyGeneration = 0;
 
 export function getScheduledColorScheme(): 'light' | 'dark' {
   const h = new Date().getHours();
@@ -16,41 +16,49 @@ export function getScheduledColorScheme(): 'light' | 'dark' {
   return 'dark';
 }
 
-/** Ayarlardan okuyup Appearance uygula (otomatik açıksa saat, kapalıysa manuel) */
+/** Ayarlardan okuyup React tema store'una uygula (otomatikse saat, değilse manuel). */
 export async function applyThemeFromDatabase(): Promise<void> {
+  const generation = ++applyGeneration;
   try {
     const db = await getDatabase();
-    const auto = await db.getFirstAsync<{ value: string }>(
-      `SELECT value FROM settings WHERE key = ?`,
-      [KEY_AUTO]
+    const rows = await db.getAllAsync<{ key: string; value: string }>(
+      `SELECT key, value FROM settings WHERE key IN (?, ?)`,
+      [KEY_AUTO, KEY_MANUAL],
     );
-    if (auto?.value === '1') {
-      Appearance.setColorScheme(getScheduledColorScheme());
-      notifyThemeChanged();
-      return;
-    }
-    const manual = await db.getFirstAsync<{ value: string }>(
-      `SELECT value FROM settings WHERE key = ?`,
-      [KEY_MANUAL]
-    );
-    const mode = manual?.value === 'light' || manual?.value === 'dark' ? manual.value : 'dark';
-    Appearance.setColorScheme(mode);
-    notifyThemeChanged();
+    if (generation !== applyGeneration) return;
+
+    const values = new Map(rows.map((row) => [row.key, row.value]));
+    const manual = values.get(KEY_MANUAL);
+    const next =
+      values.get(KEY_AUTO) === '1'
+        ? getScheduledColorScheme()
+        : manual === 'light' || manual === 'dark'
+          ? manual
+          : 'dark';
+    setAppThemeScheme(next);
   } catch (e) {
     console.warn('[themeSchedule] apply failed', e);
   }
 }
 
 export async function setAutoThemeSchedule(enabled: boolean): Promise<void> {
+  // Başlamış eski scheduler okumalarını yazma tamamlanmadan geçersiz kıl.
+  const generation = ++applyGeneration;
   const db = await getDatabase();
   await db.runAsync(
     `INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)`,
     [KEY_AUTO, enabled ? '1' : '0']
   );
-  await applyThemeFromDatabase();
+  if (generation !== applyGeneration) return;
+  if (enabled) {
+    setAppThemeScheme(getScheduledColorScheme());
+  } else {
+    await applyThemeFromDatabase();
+  }
 }
 
 export async function setManualTheme(mode: 'light' | 'dark'): Promise<void> {
+  ++applyGeneration;
   const db = await getDatabase();
   await db.runAsync(
     `INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)`,

@@ -19,6 +19,7 @@ import {
 } from 'react-native';
 import { useAppTheme } from '../../src/theme/themeStore';
 import { useFocusEffect, useRouter } from 'expo-router';
+import { useIsFocused } from '@react-navigation/native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Animated, { FadeInDown, FadeIn } from 'react-native-reanimated';
@@ -32,7 +33,10 @@ import { usePaginatedExpenses } from '../../src/hooks/useExpenses';
 import { formatDate, groupByDate } from '../../src/utils/dateUtils';
 import TransactionRow from '../../src/components/TransactionRow';
 import { useLanguage } from '../../src/i18n/LanguageContext';
-import { useRefresh, useExpenseDataRefresh } from '../../src/context/RefreshContext';
+import {
+  useExpenseDataRefresh,
+  useRefreshActions,
+} from '../../src/context/RefreshContext';
 import GlassDeleteModal from '../../src/components/GlassDeleteModal';
 import { SparkToast } from '../../src/components/SparkToast';
 import { ExpenseDao } from '../../src/db/expenseDao';
@@ -50,12 +54,17 @@ export default function TransactionsScreen() {
   const { items: expenses, loadingMore, hasMore, loadMore, refresh } = usePaginatedExpenses(60);
   const [searchQuery, setSearchQuery] = useState('');
   const [refreshing, setRefreshing] = useState(false);
-  const { refreshKey, triggerRefresh } = useRefresh();
+  const { triggerRefresh } = useRefreshActions();
+  const isFocused = useIsFocused();
 
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [bulkDeleteVisible, setBulkDeleteVisible] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const bulkDeleteToastRef = useRef<{
+    message: string;
+    type: 'success' | 'error';
+  } | null>(null);
 
   // ── Drag-to-multiselect + auto-scroll (Word'deki çoklu seçim hissi) ──
   // Long-press → seçim modu + ilk satır seçilir; parmak basılı tutulup
@@ -96,11 +105,7 @@ export default function TransactionsScreen() {
 
   useFocusEffect(useCallback(() => { refresh(); }, [refresh]));
 
-  useExpenseDataRefresh(refresh);
-
-  useEffect(() => {
-    if (refreshKey > 0) refresh();
-  }, [refreshKey, refresh]);
+  useExpenseDataRefresh(refresh, isFocused);
 
   const exitSelection = useCallback(() => {
     setSelectionMode(false);
@@ -255,21 +260,23 @@ export default function TransactionsScreen() {
     try {
       await ExpenseDao.deleteMany(ids);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      SparkToast.show(
-        t('transactions_deleted_bulk', { count: ids.length.toString() }),
-        'success',
-      );
+      bulkDeleteToastRef.current = {
+        message: t('transactions_deleted_bulk', { count: ids.length.toString() }),
+        type: 'success',
+      };
       triggerRefresh();
-      await refresh();
       exitSelection();
     } catch (e) {
       console.error(e);
-      SparkToast.show(t('delete_failed'), 'error');
+      bulkDeleteToastRef.current = {
+        message: t('delete_failed'),
+        type: 'error',
+      };
     } finally {
       setDeleting(false);
       setBulkDeleteVisible(false);
     }
-  }, [selectedIds, t, triggerRefresh, refresh, exitSelection]);
+  }, [selectedIds, t, triggerRefresh, exitSelection]);
 
   const filtered = useMemo(() => {
     if (!searchQuery.trim()) return expenses;
@@ -533,6 +540,11 @@ export default function TransactionsScreen() {
         message={t('confirm_delete_transactions', { count: selectedCount.toString() })}
         onCancel={() => !deleting && setBulkDeleteVisible(false)}
         onDelete={runBulkDelete}
+        onDismiss={() => {
+          const pending = bulkDeleteToastRef.current;
+          bulkDeleteToastRef.current = null;
+          if (pending) SparkToast.show(pending.message, pending.type);
+        }}
       />
     </SafeAreaView>
   );

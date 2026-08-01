@@ -7,12 +7,11 @@ const TICK_MS = 60_000;
 
 export default function ThemeScheduler() {
   useEffect(() => {
-    applyThemeFromDatabase();
     const interval = setInterval(() => {
-      applyThemeFromDatabase();
+      void applyThemeFromDatabase();
     }, TICK_MS);
     const sub = AppState.addEventListener('change', (state) => {
-      if (state === 'active') applyThemeFromDatabase();
+      if (state === 'active') void applyThemeFromDatabase();
     });
     return () => {
       clearInterval(interval);

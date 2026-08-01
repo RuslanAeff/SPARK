@@ -1,0 +1,241 @@
+import React from 'react';
+import { fireEvent, render, waitFor } from '@testing-library/react-native';
+
+import NotificationsScreen from '../../../app/notifications';
+
+const mockMarkRead = jest.fn(async () => undefined);
+const mockMarkAllRead = jest.fn(async () => undefined);
+const dismissResult = (ids: readonly string[]) => ({
+  removedIds: [...ids],
+  removedCount: ids.length,
+  feed: [],
+  unreadCount: 0,
+});
+const mockDismiss = jest.fn(async (id: string) => dismissResult([id]));
+const mockDismissMany = jest.fn(async (ids: readonly string[]) => dismissResult(ids));
+const mockSetMute = jest.fn(async () => undefined);
+const mockSync = jest.fn(async () => undefined);
+
+const receiptNotification = {
+  id: 'receipt-visual-test',
+  severity: 'info' as const,
+  titleKey: 'test_receipt_title',
+  bodyKey: 'test_receipt_body',
+  createdAt: new Date(2026, 6, 25, 17, 52).getTime(),
+  read: false,
+};
+
+const budgetNotification = {
+  id: 'budget-visual-test',
+  severity: 'warning' as const,
+  titleKey: 'test_budget_title',
+  bodyKey: 'test_budget_body',
+  createdAt: new Date(2026, 6, 25, 14, 32).getTime(),
+  read: true,
+};
+
+let mockNotifications = {
+  feed: [receiptNotification, budgetNotification],
+  unreadCount: 1,
+  markRead: mockMarkRead,
+  markAllRead: mockMarkAllRead,
+  dismiss: mockDismiss,
+  dismissMany: mockDismissMany,
+  setMute: mockSetMute,
+  mutes: {},
+  sync: mockSync,
+  syncing: false,
+};
+
+jest.mock('expo-router', () => ({
+  useRouter: () => ({ back: jest.fn() }),
+  useFocusEffect: jest.fn(),
+}));
+
+jest.mock('react-native-safe-area-context', () => {
+  const { View } = require('react-native');
+  return {
+    SafeAreaView: View,
+    useSafeAreaInsets: () => ({ top: 0, right: 0, bottom: 0, left: 0 }),
+  };
+});
+
+jest.mock('../../theme/themeStore', () => ({
+  useAppTheme: () => 'light',
+}));
+
+jest.mock('../../i18n/LanguageContext', () => ({
+  useLanguage: () => ({
+    t: (key: string, params?: Record<string, string | number>) => {
+      const translations: Record<string, string> = {
+        notif_center_title: 'Bildirimler',
+        notif_mark_all: 'Tümünü okundu yap',
+        notif_selected: '{count} bildirim seçildi',
+        notif_delete_selected_title: 'Bildirimleri sil',
+        notif_delete_selected_confirm: '{count} bildirim silinsin mi?',
+        notif_deleted_bulk: '{count} bildirim silindi',
+        notif_select_hint: 'Çoklu seçim için basılı tutun',
+        notif_filter_all: 'Tümü',
+        notif_filter_budget: 'Bütçe',
+        notif_filter_category: 'Kategori',
+        notif_filter_goal: 'Hedef',
+        notif_filter_receipt: 'Fiş',
+        notif_filter_subscription: 'Abonelik',
+        notif_filter_backup: 'Yedek',
+        notif_filter_system: 'Sistem',
+        test_receipt_title: 'Fiş işlendi',
+        test_receipt_body: 'İşlem kaydedildi.',
+        test_budget_title: 'Bütçe uyarısı',
+        test_budget_body: 'Bütçene yaklaştın.',
+      };
+      let text = translations[key] ?? key;
+      for (const [param, value] of Object.entries(params ?? {})) {
+        text = text.replace(new RegExp(`{${param}}`, 'g'), String(value));
+      }
+      return text;
+    },
+  }),
+}));
+
+jest.mock('../../context/NotificationsContext', () => ({
+  useNotifications: () => mockNotifications,
+}));
+
+jest.mock('../BottomSheetModal', () => ({
+  __esModule: true,
+  default: ({ visible, children }: { visible: boolean; children: React.ReactNode }) =>
+    visible ? <>{children}</> : null,
+}));
+
+jest.mock('../NotificationSwipeCard', () => {
+  const React = require('react');
+  const { Pressable, View } = require('react-native');
+  return {
+    __esModule: true,
+    default: ({
+      children,
+      enabled,
+      onDelete,
+      testID,
+    }: {
+      children: React.ReactNode;
+      enabled: boolean;
+      onDelete: () => Promise<void>;
+      testID: string;
+    }) => (
+      <View testID={testID} accessibilityState={{ disabled: !enabled }}>
+        {children}
+        <Pressable
+          testID={`${testID}-delete-action`}
+          onPress={() => void onDelete()}
+        />
+      </View>
+    ),
+  };
+});
+
+jest.mock('../GlassDeleteModal', () => {
+  const React = require('react');
+  const { Pressable, Text, View } = require('react-native');
+  return {
+    __esModule: true,
+    default: ({
+      visible,
+      message,
+      onDelete,
+    }: {
+      visible: boolean;
+      message: string;
+      onDelete: () => void;
+    }) =>
+      visible ? (
+        <View testID="notifications-bulk-delete-modal">
+          <Text>{message}</Text>
+          <Pressable testID="notifications-bulk-delete-confirm" onPress={onDelete} />
+        </View>
+      ) : null,
+  };
+});
+
+describe('NotificationsScreen', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockNotifications = {
+      ...mockNotifications,
+      feed: [receiptNotification, budgetNotification],
+      unreadCount: 1,
+    };
+  });
+
+  it('shows mark-all only while unread notifications exist', async () => {
+    const view = await render(<NotificationsScreen />);
+    expect(view.getByTestId('notifications-mark-all')).toBeTruthy();
+
+    mockNotifications = { ...mockNotifications, unreadCount: 0 };
+    await view.rerender(<NotificationsScreen />);
+
+    expect(view.queryByTestId('notifications-mark-all')).toBeNull();
+  });
+
+  it('keeps the detail and swipe-delete actions separate', async () => {
+    const view = await render(<NotificationsScreen />);
+
+    await fireEvent.press(
+      view.getByTestId(`notification-swipe-${receiptNotification.id}-delete-action`),
+    );
+    expect(mockDismiss).toHaveBeenCalledWith(receiptNotification.id);
+    expect(mockMarkRead).not.toHaveBeenCalled();
+
+    await fireEvent.press(view.getByTestId(`notification-card-${receiptNotification.id}`));
+    expect(mockMarkRead).toHaveBeenCalledWith(receiptNotification.id);
+  });
+
+  it('filters notification channels and exposes the selected tab state', async () => {
+    const view = await render(<NotificationsScreen />);
+    const allFilter = view.getByTestId('notifications-filter-all');
+    const budgetFilter = view.getByTestId('notifications-filter-budget');
+
+    expect(allFilter.props.accessibilityState).toMatchObject({ selected: true });
+    expect(view.getByTestId(`notification-card-${receiptNotification.id}`)).toBeTruthy();
+
+    await fireEvent.press(budgetFilter);
+
+    expect(
+      view.getByTestId('notifications-filter-budget').props.accessibilityState,
+    ).toMatchObject({ selected: true });
+    expect(view.queryByTestId(`notification-card-${receiptNotification.id}`)).toBeNull();
+    expect(view.getByTestId(`notification-card-${budgetNotification.id}`)).toBeTruthy();
+  });
+
+  it('disables swipe while selecting and deletes all selected IDs in one call', async () => {
+    const view = await render(<NotificationsScreen />);
+    const receiptCard = view.getByTestId(`notification-card-${receiptNotification.id}`);
+
+    await fireEvent(receiptCard, 'longPress');
+
+    expect(mockMarkRead).not.toHaveBeenCalled();
+    expect(view.getByTestId('notifications-selection-delete')).toBeTruthy();
+    expect(
+      view.getByTestId(`notification-card-${receiptNotification.id}`).props.accessibilityState,
+    ).toMatchObject({ checked: true });
+    expect(
+      view.getByTestId(`notification-swipe-${receiptNotification.id}`).props.accessibilityState,
+    ).toMatchObject({ disabled: true });
+
+    await fireEvent.press(view.getByTestId(`notification-card-${budgetNotification.id}`));
+    expect(
+      view.getByTestId(`notification-card-${budgetNotification.id}`).props.accessibilityState,
+    ).toMatchObject({ checked: true });
+
+    await fireEvent.press(view.getByTestId('notifications-selection-delete'));
+    expect(view.getByTestId('notifications-bulk-delete-modal')).toBeTruthy();
+    await fireEvent.press(view.getByTestId('notifications-bulk-delete-confirm'));
+
+    await waitFor(() => {
+      expect(mockDismissMany).toHaveBeenCalledTimes(1);
+    });
+    expect(new Set(mockDismissMany.mock.calls[0][0])).toEqual(
+      new Set([receiptNotification.id, budgetNotification.id]),
+    );
+  });
+});

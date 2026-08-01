@@ -20,7 +20,7 @@ import { processReceipt } from '../../src/services/receiptParser';
 import AnimatedCard from '../../src/components/AnimatedCard';
 import { SparkToast } from '../../src/components/SparkToast';
 import { useLanguage } from '../../src/i18n/LanguageContext';
-import { useRefresh } from '../../src/context/RefreshContext';
+import { useRefreshActions } from '../../src/context/RefreshContext';
 import { useCurrency } from '../../src/context/CurrencyContext';
 import { setScanSessionError } from '../../src/services/scanSession';
 import { effectiveLineDiscount, lineHasDiscount } from '../../src/utils/receiptLineDiscountUi';
@@ -39,7 +39,7 @@ export default function ScannerScreen() {
   const styles = getStyles();
   const router = useRouter();
   const { t, language } = useLanguage();
-  const { triggerRefresh } = useRefresh();
+  const { triggerRefresh } = useRefreshActions();
   const { currency } = useCurrency();
   const [state, setState] = useState<ScanState>('idle');
   const [imageUri, setImageUri] = useState<string | null>(null);
@@ -141,7 +141,6 @@ export default function ScannerScreen() {
       timersRef.current.forEach(clearTimeout);
       timersRef.current = [];
       triggerRefresh();
-      queueMicrotask(() => triggerRefresh());
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       SparkToast.show(t('receipt_parsed'), 'success', `${receiptToSave.vendor_name} • ${receiptToSave.items?.length || 0}`);
       setState('idle');
@@ -163,7 +162,6 @@ export default function ScannerScreen() {
       timersRef.current.forEach(clearTimeout);
       timersRef.current = [];
       triggerRefresh();
-      queueMicrotask(() => triggerRefresh());
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       setState('idle');
       setResult(null);

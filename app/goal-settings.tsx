@@ -17,7 +17,7 @@ import { CategoryDao } from '../src/db/categoryDao';
 import { Category } from '../src/db/schema';
 import { useLanguage } from '../src/i18n/LanguageContext';
 import { useCurrency } from '../src/context/CurrencyContext';
-import { useRefresh } from '../src/context/RefreshContext';
+import { useRefreshActions } from '../src/context/RefreshContext';
 import { SparkToast } from '../src/components/SparkToast';
 import GlassDeleteModal from '../src/components/GlassDeleteModal';
 import CustomDatePicker from '../src/components/CustomDatePicker';
@@ -33,7 +33,7 @@ export default function GoalSettingsScreen() {
   const router = useRouter();
   const { t, tc } = useLanguage();
   const { currency } = useCurrency();
-  const { triggerRefresh } = useRefresh();
+  const { triggerRefresh } = useRefreshActions();
   const styles = getStyles();
 
   const [title, setTitle] = useState('');
@@ -140,7 +140,6 @@ export default function GoalSettingsScreen() {
       }
 
       triggerRefresh();
-      queueMicrotask(() => triggerRefresh());
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       SparkToast.show(t('goal_settings_saved'), 'success');
       router.back();
@@ -162,7 +161,6 @@ export default function GoalSettingsScreen() {
       setTargetDate(getToday());
       setLimits([]);
       triggerRefresh();
-      queueMicrotask(() => triggerRefresh());
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       SparkToast.show(t('goal_settings_saved'), 'success');
       router.back();
@@ -305,7 +303,16 @@ export default function GoalSettingsScreen() {
           onDelete={performClearGoal}
         />
 
-        <Modal visible={addModal} transparent animationType="fade">
+        <Modal
+          visible={addModal}
+          transparent
+          animationType="fade"
+          hardwareAccelerated
+          presentationStyle="overFullScreen"
+          statusBarTranslucent
+          navigationBarTranslucent
+          onRequestClose={() => setAddModal(false)}
+        >
           <Pressable style={styles.modalBackdrop} onPress={() => setAddModal(false)}>
             <Pressable style={styles.modalCard} onPress={e => e.stopPropagation()}>
               <Text style={styles.modalTitle}>{t('goal_settings_pick_category')}</Text>

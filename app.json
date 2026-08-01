@@ -5,20 +5,16 @@
     "version": "2.7.0",
     "orientation": "portrait",
     "icon": "./assets/spark-icon.png",
-    "userInterfaceStyle": "dark",
+    "userInterfaceStyle": "automatic",
+    "backgroundColor": "#050505",
     "scheme": "spark",
-    "splash": {
-      "image": "./assets/spark-icon.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#0D0D0F"
-    },
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.spark.finance"
     },
     "android": {
       "adaptiveIcon": {
-        "backgroundColor": "#0D0D0F",
+        "backgroundColor": "#050505",
         "foregroundImage": "./assets/spark-icon.png"
       },
       "package": "com.spark.finance",
@@ -35,6 +31,20 @@
     },
     "plugins": [
       "expo-router",
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#050505",
+          "image": "./assets/spark-icon.png",
+          "imageWidth": 160,
+          "resizeMode": "contain",
+          "dark": {
+            "backgroundColor": "#050505",
+            "image": "./assets/spark-icon.png"
+          }
+        }
+      ],
+      "expo-system-ui",
       "expo-font",
       "expo-sqlite",
       [

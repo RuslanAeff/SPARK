@@ -1,6 +1,6 @@
 // S.P.A.R.K. — Glassmorphism Delete Confirmation Modal
 // Reusable HUD-style modal with red-tinted frosted glass effect
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { View, Text, StyleSheet, Pressable, Modal, Animated, Easing } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
@@ -8,6 +8,7 @@ import { Colors } from '../theme/colors';
 import { Typography, FontFamily } from '../theme/typography';
 import { Spacing, BorderRadius } from '../theme/spacing';
 import { useLanguage } from '../i18n/LanguageContext';
+import { SparkToastContainer } from './SparkToast';
 
 interface GlassDeleteModalProps {
   visible: boolean;
@@ -15,6 +16,7 @@ interface GlassDeleteModalProps {
   message: string;
   onCancel: () => void;
   onDelete: () => void;
+  onDismiss?: () => void;
 }
 
 /** HUD köşe braketi — border hack yerine iki segment; 4 köşede aynı kalınlık ve yön (Android uyumlu). */
@@ -72,6 +74,7 @@ export default function GlassDeleteModal({
   message,
   onCancel,
   onDelete,
+  onDismiss,
 }: GlassDeleteModalProps) {
   const { t } = useLanguage();
   const scaleAnim = useRef(new Animated.Value(0.85)).current;
@@ -79,54 +82,118 @@ export default function GlassDeleteModal({
   const glowAnim = useRef(new Animated.Value(0)).current;
   const scanline = useRef(new Animated.Value(0)).current;
   const scanLoopRef = useRef<Animated.CompositeAnimation | null>(null);
+  const [mounted, setMounted] = useState(visible);
+  const mountedRef = useRef(visible);
+  const visibleRef = useRef(visible);
+  const generationRef = useRef(0);
+  const frameRef = useRef<number | null>(null);
+  const animationRef = useRef<Animated.CompositeAnimation | null>(null);
+  const onDismissRef = useRef(onDismiss);
+  onDismissRef.current = onDismiss;
 
-  useEffect(() => {
+  useLayoutEffect(() => {
+    const generation = ++generationRef.current;
+    visibleRef.current = visible;
+    if (frameRef.current != null) {
+      cancelAnimationFrame(frameRef.current);
+      frameRef.current = null;
+    }
+    animationRef.current?.stop();
+    scanLoopRef.current?.stop();
+    scanLoopRef.current = null;
+
     if (visible) {
-      scaleAnim.setValue(0.85);
-      opacityAnim.setValue(0);
-      glowAnim.setValue(0);
-      scanline.setValue(0);
+      if (!mountedRef.current) {
+        scaleAnim.setValue(0.85);
+        opacityAnim.setValue(0);
+        glowAnim.setValue(0);
+        scanline.setValue(0);
+        mountedRef.current = true;
+        setMounted(true);
+      }
 
-      Animated.parallel([
-        Animated.spring(scaleAnim, {
-          toValue: 1,
-          friction: 8,
-          tension: 100,
+      frameRef.current = requestAnimationFrame(() => {
+        frameRef.current = null;
+        if (generationRef.current !== generation || !visibleRef.current) return;
+        const entrance = Animated.parallel([
+          Animated.spring(scaleAnim, {
+            toValue: 1,
+            friction: 8,
+            tension: 100,
+            useNativeDriver: true,
+          }),
+          Animated.timing(opacityAnim, {
+            toValue: 1,
+            duration: 250,
+            useNativeDriver: true,
+          }),
+          Animated.timing(glowAnim, {
+            toValue: 1,
+            duration: 800,
+            easing: Easing.out(Easing.cubic),
+            useNativeDriver: false,
+          }),
+        ]);
+        animationRef.current = entrance;
+        entrance.start();
+
+        const loop = Animated.loop(
+          Animated.timing(scanline, {
+            toValue: 1,
+            duration: 3000,
+            easing: Easing.linear,
+            useNativeDriver: true,
+          }),
+        );
+        scanLoopRef.current = loop;
+        loop.start();
+      });
+    } else if (mountedRef.current) {
+      const exit = Animated.parallel([
+        Animated.timing(scaleAnim, {
+          toValue: 0.96,
+          duration: 170,
+          easing: Easing.in(Easing.quad),
           useNativeDriver: true,
         }),
         Animated.timing(opacityAnim, {
-          toValue: 1,
-          duration: 250,
+          toValue: 0,
+          duration: 170,
+          easing: Easing.in(Easing.quad),
           useNativeDriver: true,
         }),
         Animated.timing(glowAnim, {
-          toValue: 1,
-          duration: 800,
-          easing: Easing.out(Easing.cubic),
+          toValue: 0,
+          duration: 140,
           useNativeDriver: false,
         }),
-      ]).start();
-
-      const loop = Animated.loop(
-        Animated.timing(scanline, {
-          toValue: 1,
-          duration: 3000,
-          easing: Easing.linear,
-          useNativeDriver: true,
-        })
-      );
-      scanLoopRef.current = loop;
-      loop.start();
-    } else {
-      scanLoopRef.current?.stop();
-      scanLoopRef.current = null;
+      ]);
+      animationRef.current = exit;
+      exit.start(({ finished }) => {
+        if (
+          finished &&
+          generationRef.current === generation &&
+          !visibleRef.current
+        ) {
+          mountedRef.current = false;
+          setMounted(false);
+          onDismissRef.current?.();
+        }
+      });
     }
+  }, [visible, glowAnim, opacityAnim, scaleAnim, scanline]);
 
-    return () => {
+  useEffect(
+    () => () => {
+      generationRef.current += 1;
+      if (frameRef.current != null) cancelAnimationFrame(frameRef.current);
+      animationRef.current?.stop();
       scanLoopRef.current?.stop();
-      scanLoopRef.current = null;
-    };
-  }, [visible]);
+    },
+    [],
+  );
+
+  if (!mounted) return null;
 
   const scanTranslateY = scanline.interpolate({
     inputRange: [0, 1],
@@ -141,7 +208,16 @@ export default function GlassDeleteModal({
   const displayTitle = title ?? t('system_warning');
 
   return (
-    <Modal visible={visible} transparent animationType="none">
+    <Modal
+      visible
+      transparent
+      animationType="none"
+      hardwareAccelerated
+      presentationStyle="overFullScreen"
+      statusBarTranslucent
+      navigationBarTranslucent
+      onRequestClose={onCancel}
+    >
       <Animated.View style={[styles.overlay, { opacity: opacityAnim }]}>
         <Pressable style={StyleSheet.absoluteFill} onPress={onCancel} />
 
@@ -211,6 +287,7 @@ export default function GlassDeleteModal({
           <View style={styles.bottomBar} />
         </Animated.View>
       </Animated.View>
+      <SparkToastContainer />
     </Modal>
   );
 }

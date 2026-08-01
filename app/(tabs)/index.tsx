@@ -3,6 +3,7 @@ import React, { useCallback } from 'react';
 import { View, Text, ScrollView, StyleSheet, RefreshControl, Pressable } from 'react-native';
 import { useAppTheme } from '../../src/theme/themeStore';
 import { useFocusEffect, useRouter } from 'expo-router';
+import { useIsFocused } from '@react-navigation/native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import Animated, { FadeInDown, FadeIn, FadeOut, LinearTransition } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -28,13 +29,12 @@ import AnimatedCard from '../../src/components/AnimatedCard';
 import CategoryPill from '../../src/components/CategoryPill';
 import VendorAvatar from '../../src/components/VendorAvatar';
 import { useLanguage } from '../../src/i18n/LanguageContext';
-import { useRefresh, useExpenseDataRefresh } from '../../src/context/RefreshContext';
+import { useExpenseDataRefresh } from '../../src/context/RefreshContext';
 import { useCurrency } from '../../src/context/CurrencyContext';
 import { useNotifications } from '../../src/context/NotificationsContext';
 
 export default function DashboardScreen() {
-  // İlk açılışta tema DB'den gelince tüm kartlar (istatistik vb.) senkronlensin.
-  // Merkezi store Android/Expo Go'daki Appearance.setColorScheme() event kayıplarına karşı dayanıklı.
+  // İlk açılışta DB teması gelince tüm kartlar aynı React store'undan senkronlensin.
   const scheme = useAppTheme();
   const styles = React.useMemo(() => getStyles(), [scheme]);
   const router = useRouter();
@@ -70,7 +70,7 @@ export default function DashboardScreen() {
   // Borç yönetim alt sayfası (açık borç rozetine dokununca açılır — Faz 4a).
   const [debtSheetVisible, setDebtSheetVisible] = React.useState(false);
   const [incomeSheetVisible, setIncomeSheetVisible] = React.useState(false);
-  const { refreshKey } = useRefresh();
+  const isFocused = useIsFocused();
   const { currency } = useCurrency();
   const { unreadCount, sync } = useNotifications();
 
@@ -103,11 +103,7 @@ export default function DashboardScreen() {
     }, [])
   );
 
-  useExpenseDataRefresh(refreshAll);
-
-  React.useEffect(() => {
-    if (refreshKey > 0) refreshAll();
-  }, [refreshKey, refreshAll]);
+  useExpenseDataRefresh(refreshAll, isFocused);
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -531,7 +527,9 @@ export default function DashboardScreen() {
         visible={debtSheetVisible}
         onClose={() => setDebtSheetVisible(false)}
         currency={currency}
-        onChanged={refreshAll}
+        // Borç mutasyonu yalnız bütçe/borç özetini değiştirir. Tüm dashboard
+        // sorgularını paralel başlatmak yerine hedefli ve await edilebilir yenile.
+        onChanged={refreshBudget}
       />
 
       <IncomeSheet
@@ -540,7 +538,7 @@ export default function DashboardScreen() {
         currency={currency}
         cycleStart={budget.periodStart}
         cycleEnd={budget.periodEnd}
-        onChanged={refreshAll}
+        onChanged={refreshBudget}
       />
     </SafeAreaView>
   );

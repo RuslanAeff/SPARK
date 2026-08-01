@@ -26,7 +26,7 @@
   "budget_days_left": "Дней осталось",
   "notif_go_back": "Назад",
   "notif_center_title": "Уведомления",
-  "notif_mark_all": "Прочитано",
+  "notif_mark_all": "Отметить все как прочитанные",
   "notif_empty": "Пока нет уведомлений",
   "notif_filter_all": "Все",
   "notif_filter_budget": "Бюджет",
@@ -35,7 +35,7 @@
   "notif_filter_receipt": "Чек",
   "notif_filter_system": "Система",
   "notif_prefs_title": "Отключить по типу",
-  "notif_mute_hint": "Вкл.: скрыть этот тип. Выкл.: показывать как обычно.",
+  "notif_mute_hint": "Вкл.: не создавать новые уведомления этого типа. Выкл.: разрешить как обычно.",
   "notif_mute_budget": "Месячный бюджет",
   "notif_mute_category": "Лимиты категорий",
   "notif_mute_goal": "Накопительная цель",
@@ -731,5 +731,10 @@
   "income_deleted_toast": "Доход удалён",
   "income_delete_msg": "Удалить эту запись о доходе?",
   "debt_tile_label": "Долги",
-  "income_tile_label": "Доход"
+  "income_tile_label": "Доход",
+  "notif_selected": "Выбрано уведомлений: {count}",
+  "notif_delete_selected_title": "Удалить уведомления",
+  "notif_delete_selected_confirm": "Удалить выбранные уведомления ({count})?",
+  "notif_deleted_bulk": "Удалено уведомлений: {count}",
+  "notif_select_hint": "Нажмите и удерживайте для множественного выбора"
 }

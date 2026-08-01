@@ -203,6 +203,12 @@ export default function LanguagePickerSheet({
   const sheetAnimatedStyle = useAnimatedStyle(() => ({
     transform: [{ translateY: translateY.value }],
   }));
+  const backdropAnimatedStyle = useAnimatedStyle(() => ({
+    opacity: Math.max(
+      0,
+      Math.min(1, 1 - translateY.value / Math.max(1, openSlideDistance)),
+    ),
+  }));
 
   const pan = useMemo(
     () =>
@@ -248,18 +254,23 @@ export default function LanguagePickerSheet({
       transparent
       animationType="none"
       onRequestClose={closeWithAnimation}
+      hardwareAccelerated
       statusBarTranslucent
+      navigationBarTranslucent
       presentationStyle="overFullScreen"
     >
       <GestureHandlerRootView style={styles.root}>
-        <View style={styles.backdrop} pointerEvents="box-none">
+        <Animated.View
+          style={[styles.backdrop, backdropAnimatedStyle]}
+          pointerEvents="box-none"
+        >
           <Pressable
             style={StyleSheet.absoluteFillObject}
             onPress={closeWithAnimation}
             accessibilityRole="button"
             accessibilityLabel="Kapat"
           />
-        </View>
+        </Animated.View>
         <Animated.View style={[styles.sheetWrap, sheetAnimatedStyle]}>
           <View style={styles.sheetShell}>
             <GestureDetector gesture={pan}>

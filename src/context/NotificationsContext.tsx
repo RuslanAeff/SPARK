@@ -10,7 +10,15 @@ import React, {
 } from 'react';
 import type { InAppNotification, NotificationMuteChannel } from '../notifications/types';
 import { runNotificationSync } from '../notifications/buildNotifications';
-import { loadFeed, saveFeed, loadMutes, saveMutes, loadRulesState, saveRulesState } from '../notifications/storage';
+import {
+  dismissFeedItems,
+  enqueueNotificationMutation,
+  loadFeedStrict,
+  saveFeed,
+  loadMutesStrict,
+  saveMutes,
+  type DismissNotificationsResult,
+} from '../notifications/storage';
 import { useRefresh } from './RefreshContext';
 
 interface NotificationsContextValue {
@@ -20,7 +28,8 @@ interface NotificationsContextValue {
   sync: () => Promise<void>;
   markRead: (id: string) => Promise<void>;
   markAllRead: () => Promise<void>;
-  dismiss: (id: string) => Promise<void>;
+  dismiss: (id: string) => Promise<DismissNotificationsResult>;
+  dismissMany: (ids: readonly string[]) => Promise<DismissNotificationsResult>;
   setMute: (channel: NotificationMuteChannel, muted: boolean) => Promise<void>;
   mutes: Partial<Record<NotificationMuteChannel, boolean>>;
 }
@@ -34,21 +43,34 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
   const [syncing, setSyncing] = useState(false);
   const [mutes, setMutes] = useState<Partial<Record<NotificationMuteChannel, boolean>>>({});
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingSyncCountRef = useRef(0);
 
   const loadMutesState = useCallback(async () => {
-    setMutes(await loadMutes());
+    try {
+      await enqueueNotificationMutation(async () => {
+        setMutes(await loadMutesStrict());
+      });
+    } catch (error) {
+      console.warn('[notifications] initial mutes load failed', error);
+    }
   }, []);
 
   const sync = useCallback(async () => {
+    pendingSyncCountRef.current += 1;
     setSyncing(true);
     try {
-      const m = await loadMutes();
-      setMutes(m);
-      const { feed: next, unreadCount: uc } = await runNotificationSync(m);
-      setFeed(next);
-      setUnreadCount(uc);
+      await enqueueNotificationMutation(async () => {
+        const m = await loadMutesStrict();
+        setMutes(m);
+        const { feed: next, unreadCount: uc } = await runNotificationSync(m);
+        setFeed(next);
+        setUnreadCount(uc);
+      });
+    } catch (error) {
+      console.warn('[notifications] sync failed', error);
     } finally {
-      setSyncing(false);
+      pendingSyncCountRef.current = Math.max(0, pendingSyncCountRef.current - 1);
+      if (pendingSyncCountRef.current === 0) setSyncing(false);
     }
   }, []);
 
@@ -60,7 +82,7 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => {
-      sync();
+      void sync();
     }, 300);
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
@@ -68,39 +90,48 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
   }, [refreshKey, sync]);
 
   const markRead = useCallback(async (id: string) => {
-    const cur = await loadFeed();
-    const next = cur.map((f) => (f.id === id ? { ...f, read: true } : f));
-    setFeed(next);
-    await saveFeed(next);
-    setUnreadCount(next.filter((f) => !f.read).length);
+    await enqueueNotificationMutation(async () => {
+      const cur = await loadFeedStrict();
+      const next = cur.map((f) => (f.id === id ? { ...f, read: true } : f));
+      await saveFeed(next);
+      setFeed(next);
+      setUnreadCount(next.filter((f) => !f.read).length);
+    });
   }, []);
 
   const markAllRead = useCallback(async () => {
-    const cur = await loadFeed();
-    const next = cur.map((f) => ({ ...f, read: true }));
-    setFeed(next);
-    await saveFeed(next);
-    setUnreadCount(0);
+    await enqueueNotificationMutation(async () => {
+      const cur = await loadFeedStrict();
+      const next = cur.map((f) => ({ ...f, read: true }));
+      await saveFeed(next);
+      setFeed(next);
+      setUnreadCount(0);
+    });
   }, []);
 
-  const dismiss = useCallback(async (id: string) => {
-    const cur = await loadFeed();
-    let next = cur.filter((f) => f.id !== id);
-    const rules = await loadRulesState();
-    if (id === 'sys-no-api-key') rules.apiDismissed = true;
-    if (id === 'sys-scan-err') rules.scanErrorDismissed = true;
-    await saveRulesState(rules);
-    setFeed(next);
-    await saveFeed(next);
-    setUnreadCount(next.filter((f) => !f.read).length);
+  const dismissMany = useCallback(async (ids: readonly string[]) => {
+    return enqueueNotificationMutation(async () => {
+      const result = await dismissFeedItems(ids);
+      setFeed(result.feed);
+      setUnreadCount(result.unreadCount);
+      return result;
+    });
   }, []);
+
+  const dismiss = useCallback(
+    async (id: string) => dismissMany([id]),
+    [dismissMany],
+  );
 
   const setMute = useCallback(async (channel: NotificationMuteChannel, muted: boolean) => {
-    const m = { ...mutes, [channel]: muted };
-    setMutes(m);
-    await saveMutes(m);
+    await enqueueNotificationMutation(async () => {
+      const current = await loadMutesStrict();
+      const next = { ...current, [channel]: muted };
+      await saveMutes(next);
+      setMutes(next);
+    });
     await sync();
-  }, [mutes, sync]);
+  }, [sync]);
 
   const value = useMemo(
     () => ({
@@ -111,10 +142,11 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
       markRead,
       markAllRead,
       dismiss,
+      dismissMany,
       setMute,
       mutes,
     }),
-    [feed, unreadCount, syncing, sync, markRead, markAllRead, dismiss, setMute, mutes]
+    [feed, unreadCount, syncing, sync, markRead, markAllRead, dismiss, dismissMany, setMute, mutes]
   );
 
   return (
