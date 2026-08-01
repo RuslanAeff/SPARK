@@ -6,7 +6,7 @@ import SpendingHeatmap from '../SpendingHeatmap';
 import type { BaseCardProps } from './shared';
 
 interface HeatmapCardProps extends BaseCardProps {
-  heatmapInfo: { year: number; month: number } | null;
+  heatmapInfo: { start: string; end: string } | null;
   dailyData: { date: string; total: number }[];
 }
 
@@ -16,7 +16,11 @@ function HeatmapCard({ styles, t, heatmapInfo, dailyData }: HeatmapCardProps) {
   return (
     <AnimatedCard delay={350} style={styles.section}>
       <Text style={styles.sectionTitle}>{t('spending_calendar')}</Text>
-      <SpendingHeatmap data={dailyData} year={heatmapInfo.year} month={heatmapInfo.month} />
+      <SpendingHeatmap
+        data={dailyData}
+        startDate={heatmapInfo.start}
+        endDate={heatmapInfo.end}
+      />
     </AnimatedCard>
   );
 }

@@ -29,6 +29,7 @@ oturumun amacı, kararları, çıktıları, kanıtları ve sınırlamaları kayd
 | Oturum | Tarih | Amaç | İnsan onayı | AI katkısı | Ürün kodu değişti mi? | Kanıt/çıktı | Durum |
 |---|---|---|---|---|---|---|---|
 | `AI-2026-08-01-DOCS-001` | 2026-08-01 | SPARK belgelerini profesyonelleştirmek; akademik izlenebilirlik ve taşınabilir şablonlar oluşturmak | Kullanıcı önce ayrıntılı plan istedi, mevcut rehberi yedeklediğini bildirdi ve planı açıkça onayladı | `analiz`, `plan`, `inceleme`, `dokümantasyon` | Hayır | Kök belge sistemi, `docs/` rehberleri, ADR/tarihçe/evidence ve şablonlar | Uygulandı ve yerel doğrulama geçti; insan incelemesi bekleniyor |
+| `AI-2026-08-01-ANALYTICS-001` | 2026-08-01 | Kayıtlar varken boş görünen Analiz kartlarının dönem/veri akışını düzeltmek | Kullanıcı ekran görüntüleriyle sorunu bildirdi ve doğrudan düzenleme istedi | `analiz`, `kod`, `test`, `dokümantasyon` | Evet | Ortak bütçe-döngüsü aralığı, önceki dönem çözümü, latest-wins sorgu koruması ve çapraz-ay heatmap | Uygulandı ve yerel doğrulama geçti; cihaz kabulü bekleniyor |
 
 > Yukarıdaki oturum girdisi eşzamanlı olarak yazılmıştır; ancak doğrudan konuşma
 > dışa aktarımı veya kalıcı bir oturum kimliği henüz bağlanmamıştır. İnsan onayı
@@ -55,6 +56,24 @@ oturumun amacı, kararları, çıktıları, kanıtları ve sınırlamaları kayd
 | Gizlilik | Şablonlara secret/kişisel veri eklenmedi; yerel mutlak yollar kanonik belge içeriğine taşınmadı; ekran görüntüleri repoya kopyalanmadı |
 | Retrospektif sınırlama | Önceki SPARK olaylarına ilişkin örnekler Git ve yaşayan rehberden çıkarılmıştır; olay zamanındaki tüm konuşmaları veya alternatifleri temsil etmez |
 | Nihai durum | Belge uygulaması ve yerel doğrulama tamamlandı; insan doküman incelemesi ve isteğe bağlı commit bekleniyor |
+
+### AI-2026-08-01-ANALYTICS-001
+
+| Alan | Kayıt |
+|---|---|
+| Tarih / saat dilimi | 2026-08-01 / Europe/Warsaw |
+| Başlangıç çalışma ağacı | `main`, HEAD `a3e1299`; görev başlangıcında temiz |
+| İnsan hedefi | Dashboard'da harcamalar görünürken Analiz'deki dönem karşılaştırması, günlük grafik ve diğer veri kartlarının boş/0 görünmesini düzeltmek; stabil açılış ve bildirim davranışını korumak |
+| Sağlanan kanıt | Biri Analiz, biri Dashboard durumunu gösteren iki kullanıcı ekran görüntüsü; cihaz veritabanı bu oturumda doğrudan okunmadı |
+| AI katkısı | Kod ve mimari akış incelemesi; takvim ayı ile bütçe döngüsü ayrışmasının teşhisi; ortak tarih aralığı helper'ı, önceki döngü hesabı, geç sorgu sonucu koruması, seri odak/yenileme okumaları, çapraz-ay ısı haritası ve regresyon testlerinin uygulanması |
+| İnsan katkısı | Hata senaryosunu, beklenen mevcut veriyi ve korunması gereken stabil UX davranışını belirledi; cihaz kabulü kullanıcıda kalır |
+| Karar | `DESIGN_BRIEF.md` ve `docs/ARCHITECTURE.md` değişmezine göre aylık Analiz 1–31 takvim ayını değil Dashboard'un `budget.periodStart/periodEnd` aralığını kullanır. Kategori limitlerinin takvim-aylı kalıcılık modeli migration gerektirdiği için bu çalışmada değiştirilmedi |
+| Değiştirilen dosyalar | `app/(tabs)/analytics.tsx`; `src/utils/analyticsPeriod.ts`; `src/hooks/useExpenses.ts`; `src/components/SpendingHeatmap.tsx`; `src/components/analytics/HeatmapCard.tsx`; iki yeni regresyon testi; evidence kayıtları |
+| Otomatik doğrulama | `npm run typecheck` exit 0; `npm test -- --runInBand --coverage=false` exit 0, 32/32 suite ve 207/207 test; hedefli iki yeni suite 6/6 test; `expo export --platform android` ile 1.917 modüllük Android bundle başarıyla üretildi (geçici dizin, repoya eklenmedi) |
+| Cihaz doğrulaması | Bekleniyor: başlangıç günü 23, dönem 23 Tem–22 Ağu; Dashboard ve Analiz toplamı/kategori/satıcı/grafik verileri karşılaştırılmalı |
+| Gizlilik | Kullanıcı ekran görüntüleri repoya kopyalanmadı; kişisel dosya yolu veya ham finans verisi belgeye eklenmedi |
+| Kalan risk | Jest gerçek SQLite/gesture/render yaşam döngüsünü kanıtlamaz. Kategori limitleri mevcut takvim-aylı ürün modelini sürdürür; ayrı migration/ürün kararı olmadan döngü anahtarına çevrilmedi |
+| Nihai durum | Kod ve yerel otomatik doğrulama tamamlandı; commit/build ve hedef cihaz kabulü bekleniyor |
 
 ## 5. Yeni kayıt ekleme şablonu
 

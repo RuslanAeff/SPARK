@@ -1,6 +1,6 @@
 // S.P.A.R.K. — Advanced Analytics Screen
 import React, { useCallback, useEffect, useState, useMemo, useRef } from 'react';
-import { View, Text, ScrollView, StyleSheet, Pressable, PanResponder, Animated as RNAnimated, Dimensions, RefreshControl, Platform } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, Pressable, PanResponder, Animated as RNAnimated, Dimensions, RefreshControl, Platform, ActivityIndicator } from 'react-native';
 import { useAppTheme } from '../../src/theme/themeStore';
 import { useFocusEffect, router } from 'expo-router';
 import { useIsFocused } from '@react-navigation/native';
@@ -18,6 +18,10 @@ import { GoalDao, type SavingsGoalRow } from '../../src/db/goalDao';
 import type { SubscriptionWithDetails } from '../../src/db/schema';
 import { getStartOfMonth, getEndOfMonth, formatMonthYear, formatDayMonth } from '../../src/utils/dateUtils';
 import { getCurrentCycle, getCycleProgress } from '../../src/utils/budgetCycle';
+import {
+  resolveAnalyticsDateRange,
+  resolvePreviousAnalyticsDateRange,
+} from '../../src/utils/analyticsPeriod';
 import { computeSpendingProjection } from '../../src/utils/spendingProjection';
 
 import AnimatedCard from '../../src/components/AnimatedCard';
@@ -250,35 +254,54 @@ export default function AnalyticsScreen() {
   const [customEnd, setCustomEnd] = useState(() => new Date().toISOString().split('T')[0]);
   const [showStartPicker, setShowStartPicker] = useState(false);
   const [showEndPicker, setShowEndPicker] = useState(false);
+  const { budget, loading: budgetLoading, refresh: refreshBudget } = useBudget();
 
   const dateRange = useMemo(() => {
-    const today = new Date();
-    let start = '';
-    let end = today.toISOString().split('T')[0];
+    const resolved = resolveAnalyticsDateRange({
+      timeframe,
+      customStart,
+      customEnd,
+      budgetPeriodStart: budget.periodStart,
+      budgetPeriodEnd: budget.periodEnd,
+    });
     let label = '';
 
     if (timeframe === 'week') {
-      const lastWeek = new Date(today);
-      lastWeek.setDate(today.getDate() - 6);
-      start = lastWeek.toISOString().split('T')[0];
       label = t('last_7_days');
     } else if (timeframe === 'month') {
-      start = getStartOfMonth();
-      end = getEndOfMonth();
-      label = formatMonthYear(start, t);
+      label = budget.cycleStartDay === 1
+        ? formatMonthYear(resolved.start, t)
+        : `${formatDayMonth(resolved.start, t)} – ${formatDayMonth(resolved.end, t)}`;
     } else if (timeframe === 'year') {
-      start = '2000-01-01';
-      end = '2099-12-31';
       label = t('all_time');
     } else if (timeframe === 'custom') {
-      start = customStart;
-      end = customEnd;
       const s = customStart.split('-').reverse().slice(0, 2).join('.');
       const e = customEnd.split('-').reverse().slice(0, 2).join('.');
       label = `${s} — ${e}`;
     }
-    return { start, end, label };
-  }, [timeframe, t, customStart, customEnd]);
+    return { ...resolved, label };
+  }, [
+    timeframe,
+    t,
+    customStart,
+    customEnd,
+    budget.periodStart,
+    budget.periodEnd,
+    budget.cycleStartDay,
+  ]);
+  const budgetPeriodReady = Boolean(budget.periodStart && budget.periodEnd);
+  // useBudget ilk otomatik DB okumasını bitirmeden hiçbir Analiz sorgusu başlama.
+  // Bu, ilk görünür karede yanlış takvim ayı verisini ve SQLite okuma çakışmasını önler.
+  const analyticsPeriodReady = budgetPeriodReady;
+  const activeAnalyticsKey = `${timeframe}:${dateRange.start}:${dateRange.end}`;
+  const analyticsQueryOptions = useMemo(
+    () => ({ enabled: analyticsPeriodReady, autoLoad: false }),
+    [analyticsPeriodReady],
+  );
+  const cycleQueryOptions = useMemo(
+    () => ({ enabled: budgetPeriodReady, autoLoad: false }),
+    [budgetPeriodReady],
+  );
 
   const [selectedCategory, setSelectedCategory] = useState<number | null>(null);
   const [isEditing, setIsEditing] = useState(false);
@@ -395,26 +418,57 @@ export default function AnalyticsScreen() {
     });
   }
 
-  const { data: categories, refresh: refreshCats } = useCategorySpending(dateRange.start, dateRange.end);
-  const { data: vendors, refresh: refreshVendors } = useVendorSpending(dateRange.start, dateRange.end);
-  const { data: dailyData, refresh: refreshDaily } = useDailySpending(dateRange.start, dateRange.end);
-  const { data: topTx, refresh: refreshTop } = useTopTransactions(dateRange.start, dateRange.end, 8);
-  const { data: subcats, refresh: refreshSubcats } = useSubcategorySpending(selectedCategory, dateRange.start, dateRange.end);
-  const { needsWants, weekWeekend, refresh: refreshBehavior } = useBehavioralAnalytics(dateRange.start, dateRange.end);
-  
-  const { budget, refresh: refreshBudget } = useBudget();
-  // Projeksiyon kartı BÜTÇE DÖNGÜSÜNDE yaşar (takvim ayında değil): kart bütçeyle
-  // karşılaştırma yaptığı için penceresi de bütçenin penceresi olmalı. Döngü
-  // başlangıcı 1 değilse (ör. 23) takvim ayı iki ayrı döngüye yayılır → takvim
-  // ayı harcamasını tek döngü bütçesiyle kıyaslamak yanlış sonuç verir.
+  const { data: categories, refresh: refreshCats } = useCategorySpending(
+    dateRange.start,
+    dateRange.end,
+    analyticsQueryOptions,
+  );
+  const { data: vendors, refresh: refreshVendors } = useVendorSpending(
+    dateRange.start,
+    dateRange.end,
+    analyticsQueryOptions,
+  );
+  const { data: dailyData, refresh: refreshDaily } = useDailySpending(
+    dateRange.start,
+    dateRange.end,
+    analyticsQueryOptions,
+  );
+  const { data: topTx, refresh: refreshTop } = useTopTransactions(
+    dateRange.start,
+    dateRange.end,
+    8,
+    analyticsQueryOptions,
+  );
+  const { data: subcats, refresh: refreshSubcats } = useSubcategorySpending(
+    selectedCategory,
+    dateRange.start,
+    dateRange.end,
+    analyticsQueryOptions,
+  );
+  const { needsWants, weekWeekend, refresh: refreshBehavior } = useBehavioralAnalytics(
+    dateRange.start,
+    dateRange.end,
+    analyticsQueryOptions,
+  );
+  // Haftalık/özel filtreye geçildiğinde projeksiyonun kısa süreliğine o filtrenin
+  // dailyData'sını kullanmaması için bütçe döngüsü datasını bağımsız tut.
   const { data: cycleDailyData, refresh: refreshCycleDaily } = useDailySpending(
     budget.periodStart || undefined,
     budget.periodEnd || undefined,
+    cycleQueryOptions,
   );
+
   const [prevTotal, setPrevTotal] = useState(0);
   const [prevDailyData, setPrevDailyData] = useState<{ date: string; total: number }[]>([]);
   const [prevVendorTotals, setPrevVendorTotals] = useState<Map<number, number>>(new Map());
   const [priceChanges, setPriceChanges] = useState<PriceChange[]>([]);
+  const prevRangeSequence = useRef(0);
+  const timeOfDaySequence = useRef(0);
+  const silentSpendSequence = useRef(0);
+  const vendorItemsSequence = useRef(0);
+  const refreshQueueRef = useRef<Promise<void>>(Promise.resolve());
+  const hasCompletedAnalyticsLoad = useRef(false);
+  const [loadedAnalyticsKey, setLoadedAnalyticsKey] = useState('');
 
   const [yearlyData, setYearlyData] = useState<{ label: string; value: number }[]>([]);
   const [selectedVendor, setSelectedVendor] = useState<number | null>(null);
@@ -460,44 +514,46 @@ export default function AnalyticsScreen() {
   } | null>(null);
   const isFocused = useIsFocused();
 
-  const currentTotal = useMemo(() => dailyData.reduce((s, d) => s + d.total, 0), [dailyData]);
+  // Aylık görünümde Dashboard ile aynı kanonik aggregate'i göster; grafik
+  // satırları yüklenirken karşılaştırma kartının kısa süreliğine 0'a düşmesini
+  // önler. Diğer filtrelerde toplam seçili dailyData aralığından hesaplanır.
+  const currentTotal = useMemo(
+    () => timeframe === 'month' ? budget.totalSpent : dailyData.reduce((sum, day) => sum + day.total, 0),
+    [timeframe, budget.totalSpent, dailyData],
+  );
 
   const prevDateRange = useMemo(() => {
-    const today = new Date();
-    if (timeframe === 'week') {
-      const prevEnd = new Date(today); prevEnd.setDate(today.getDate() - 7);
-      const prevStart = new Date(prevEnd); prevStart.setDate(prevEnd.getDate() - 6);
-      return { start: prevStart.toISOString().split('T')[0], end: prevEnd.toISOString().split('T')[0] };
-    } else if (timeframe === 'month') {
-      const y = today.getFullYear(), m = today.getMonth();
-      const prevStart = new Date(y, m - 1, 1);
-      const prevEnd = new Date(y, m, 0);
-      return { start: prevStart.toISOString().split('T')[0], end: prevEnd.toISOString().split('T')[0] };
-    } else if (timeframe === 'custom') {
-      const s = new Date(customStart);
-      const e = new Date(customEnd);
-      const span = e.getTime() - s.getTime();
-      const prevEnd = new Date(s.getTime() - 86400000);
-      const prevStart = new Date(prevEnd.getTime() - span);
-      return { start: prevStart.toISOString().split('T')[0], end: prevEnd.toISOString().split('T')[0] };
-    }
-    return null;
-  }, [timeframe, customStart, customEnd]);
+    return resolvePreviousAnalyticsDateRange(timeframe, dateRange, budget.cycleStartDay);
+  }, [timeframe, dateRange.start, dateRange.end, budget.cycleStartDay]);
 
   async function loadPrevTotal() {
-    if (!prevDateRange) { setPrevTotal(0); setPrevDailyData([]); setPrevVendorTotals(new Map()); return; }
+    const sequence = ++prevRangeSequence.current;
+    if (!prevDateRange) {
+      setPrevTotal(0);
+      setPrevDailyData([]);
+      setPrevVendorTotals(new Map());
+      return;
+    }
     try {
-      const [total, daily, vSpending] = await Promise.all([
-        ExpenseDao.getTotalByDateRange(prevDateRange.start, prevDateRange.end),
-        ExpenseDao.getSpendingByDays(prevDateRange.start, prevDateRange.end),
-        ExpenseDao.getVendorSpending(prevDateRange.start, prevDateRange.end) as Promise<any[]>,
-      ]);
+      // ADR-002: aynı SQLite bağlantısındaki prepared okumaları seri tut.
+      const total = await ExpenseDao.getTotalByDateRange(prevDateRange.start, prevDateRange.end);
+      const daily = await ExpenseDao.getSpendingByDays(prevDateRange.start, prevDateRange.end);
+      const vSpending = await ExpenseDao.getVendorSpending(
+        prevDateRange.start,
+        prevDateRange.end,
+      ) as any[];
+      if (sequence !== prevRangeSequence.current) return;
       setPrevTotal(total);
       setPrevDailyData(daily);
       const vMap = new Map<number, number>();
       vSpending.forEach((v: any) => vMap.set(v.vendor_id, v.total));
       setPrevVendorTotals(vMap);
-    } catch { setPrevTotal(0); setPrevDailyData([]); setPrevVendorTotals(new Map()); }
+    } catch {
+      if (sequence !== prevRangeSequence.current) return;
+      setPrevTotal(0);
+      setPrevDailyData([]);
+      setPrevVendorTotals(new Map());
+    }
   }
 
   async function loadPriceChanges() {
@@ -546,21 +602,27 @@ export default function AnalyticsScreen() {
   }
 
   async function loadTimeOfDay() {
+    const sequence = ++timeOfDaySequence.current;
     try {
       const data = await ExpenseDao.getTimeOfDayMatrix(dateRange.start, dateRange.end);
-      setTimeOfDayData(data);
-    } catch { setTimeOfDayData(null); }
+      if (sequence === timeOfDaySequence.current) setTimeOfDayData(data);
+    } catch {
+      if (sequence === timeOfDaySequence.current) setTimeOfDayData(null);
+    }
   }
 
   async function loadSilentSpend() {
+    const sequence = ++silentSpendSequence.current;
     try {
       const data = await ExpenseDao.getSilentSpendItems(dateRange.start, dateRange.end, {
         minOccurrences: 3,
         maxAvgPrice: 30,
         limit: 5,
       });
-      setSilentSpendData(data);
-    } catch { setSilentSpendData(null); }
+      if (sequence === silentSpendSequence.current) setSilentSpendData(data);
+    } catch {
+      if (sequence === silentSpendSequence.current) setSilentSpendData(null);
+    }
   }
 
   async function loadCategoryLimits() {
@@ -691,9 +753,8 @@ export default function AnalyticsScreen() {
 
   const heatmapInfo = useMemo(() => {
     if (timeframe !== 'month') return null;
-    const d = new Date(dateRange.start + 'T12:00:00Z');
-    return { year: d.getFullYear(), month: d.getMonth() + 1 };
-  }, [timeframe, dateRange.start]);
+    return { start: dateRange.start, end: dateRange.end };
+  }, [timeframe, dateRange.start, dateRange.end]);
 
   const comparisonDelta = useMemo(() => {
     if (prevTotal === 0) return null;
@@ -702,11 +763,9 @@ export default function AnalyticsScreen() {
   }, [currentTotal, prevTotal]);
 
   // ── Dönem sonu projeksiyonu ──────────────────────────────────────
-  // DİKKAT: Bu kart bilerek BÜTÇE DÖNGÜSÜNÜ kullanır, ekranın geri kalanının
-  // takvim ayı penceresini DEĞİL. Kart "bütçeyi aşacak mısın?" sorusunu
-  // yanıtladığı için harcama ve bütçe aynı takvimden gelmek zorunda; aksi
-  // halde döngü başlangıcı ≠ 1 iken (ör. 23) takvim ayı harcaması, farklı bir
-  // pencereye ait bütçeyle kıyaslanır ve Dashboard'la çelişen sonuç çıkar.
+  // Kart "bütçeyi aşacak mısın?" sorusunu yanıtladığı için harcama ve bütçe
+  // aynı döngüden gelir. Aylık Analiz filtresi de bu kanonik pencereyi kullanır;
+  // ayrı cycleDailyData ise filtre geçişinde projeksiyonu geçici veriden korur.
   // Karşılaştırma tabanı effectiveBudget (plan + borç nakit akışı) — Dashboard
   // "Kalan" değeriyle birebir aynı taban.
   const projectionInfo = useMemo(() => {
@@ -856,19 +915,6 @@ export default function AnalyticsScreen() {
     };
   }, [silentSpendData]);
 
-  const onRefresh = async () => {
-    setRefreshing(true);
-    await Promise.all([
-      refreshCats(), refreshVendors(), refreshDaily(), refreshCycleDaily(),
-      refreshTop(), refreshSubcats(), refreshBehavior(),
-      refreshBudget(), loadPrevTotal(), loadPriceChanges(),
-      loadActiveSubscriptions(), loadCategoryLimits(),
-      loadSavingsGoal(), loadTimeOfDay(), loadSilentSpend(),
-      timeframe === 'year' ? loadYearlyData() : Promise.resolve(),
-    ]);
-    setRefreshing(false);
-  };
-
   async function loadCardConfig() {
     if (configLoaded.current) return;
     try {
@@ -921,33 +967,82 @@ export default function AnalyticsScreen() {
   }
 
   const runAnalyticsRefresh = useCallback(() => {
-    loadCardConfig();
-    refreshCats();
-    refreshVendors();
-    refreshDaily();
-    refreshCycleDaily();
-    refreshTop();
-    refreshSubcats();
-    refreshBehavior();
-    refreshBudget();
-    loadPrevTotal();
-    loadPriceChanges();
-    loadActiveSubscriptions();
-    loadCategoryLimits();
-    loadSavingsGoal();
-    loadTimeOfDay();
-    loadSilentSpend();
-    if (timeframe === 'year') loadYearlyData();
-  }, [dateRange.start, dateRange.end, timeframe, selectedCategory]);
+    // Aylık görünümün ilk takvim-ay fallback sorgusunu, useBudget gerçek döngüyü
+    // çözmeden toplu focus yenilemesine dönüştürme. Hook'ların yeni aralık effect'i
+    // period hazır olur olmaz doğru sorguyu başlatır.
+    if (!analyticsPeriodReady) return Promise.resolve();
+
+    const targetKey = activeAnalyticsKey;
+    // İlk run, useBudget'ın az önce tamamladığı bootstrap sonucunu kullanır.
+    // Sonraki focus/pull/global yenilemeler bütçeyi de tekrar okur.
+    const shouldRefreshBudget = hasCompletedAnalyticsLoad.current;
+    const execute = async () => {
+      try {
+        // Aynı process-wide SQLite bağlantısında büyük Promise.all dalgası
+        // üretme. Focus, global invalidation ve pull-to-refresh çağrıları da bu
+        // ekran kuyruğunda birbirini bekler.
+        await loadCardConfig();
+        if (shouldRefreshBudget) await refreshBudget();
+        await refreshCats();
+        await refreshVendors();
+        await refreshDaily();
+        await refreshCycleDaily();
+        await refreshTop();
+        await refreshSubcats();
+        await refreshBehavior();
+        await loadPrevTotal();
+        await loadPriceChanges();
+        await loadActiveSubscriptions();
+        await loadCategoryLimits();
+        await loadSavingsGoal();
+        await loadTimeOfDay();
+        await loadSilentSpend();
+        if (timeframe === 'year') await loadYearlyData();
+      } finally {
+        hasCompletedAnalyticsLoad.current = true;
+        setLoadedAnalyticsKey(targetKey);
+      }
+    };
+
+    const queued = refreshQueueRef.current.then(execute, execute);
+    refreshQueueRef.current = queued.catch(() => undefined);
+    return queued;
+  }, [
+    dateRange.start,
+    dateRange.end,
+    timeframe,
+    selectedCategory,
+    analyticsPeriodReady,
+    activeAnalyticsKey,
+  ]);
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    try {
+      if (analyticsPeriodReady) await runAnalyticsRefresh();
+      else if (!budgetLoading) await refreshBudget();
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
+  const refreshAnalyticsOrBootstrap = useCallback(
+    () => {
+      if (analyticsPeriodReady) return runAnalyticsRefresh();
+      if (budgetLoading) return Promise.resolve();
+      return refreshBudget();
+    },
+    [analyticsPeriodReady, budgetLoading, runAnalyticsRefresh, refreshBudget],
+  );
 
   useFocusEffect(
     useCallback(() => {
-      runAnalyticsRefresh();
+      void runAnalyticsRefresh();
       return () => setIsEditing(false);
     }, [runAnalyticsRefresh])
   );
 
-  useExpenseDataRefresh(runAnalyticsRefresh, isFocused);
+  useExpenseDataRefresh(refreshAnalyticsOrBootstrap, isFocused);
 
   async function loadYearlyData() {
     try {
@@ -961,6 +1056,7 @@ export default function AnalyticsScreen() {
 
   // useCallback: VendorsCard React.memo'su için referans-kararlı (P11).
   const handleVendorPress = useCallback(async (vendorId: number) => {
+    const sequence = ++vendorItemsSequence.current;
     if (selectedVendor === vendorId) {
       setSelectedVendor(null);
       setVendorItems([]);
@@ -969,13 +1065,14 @@ export default function AnalyticsScreen() {
     }
     setSelectedVendor(vendorId);
     setSelectedDonutIdx(null);
+    setVendorItems([]);
     try {
       const items = await ExpenseDao.getVendorItems(
         vendorId,
         dateRange.start,
         dateRange.end
       );
-      setVendorItems(items as any[]);
+      if (sequence === vendorItemsSequence.current) setVendorItems(items as any[]);
     } catch (e) {
       console.error('Error loading vendor items:', e);
     }
@@ -1212,7 +1309,11 @@ export default function AnalyticsScreen() {
           <View style={styles.header}>
             <View style={{ flex: 1 }}>
               <Text style={styles.title}>{isEditing ? t('card_management_hint') : t('analytics_title')}</Text>
-              {!isEditing && <Text style={styles.dateRange}>{dateRange.label}</Text>}
+              {!isEditing && (
+                <Text style={styles.dateRange}>
+                  {analyticsPeriodReady ? dateRange.label : ' '}
+                </Text>
+              )}
             </View>
             <Pressable
               onPress={() => {
@@ -1348,6 +1449,22 @@ export default function AnalyticsScreen() {
 
               <Text style={styles.editHint}>{t('card_management_hint')}</Text>
             </>
+          ) : !analyticsPeriodReady || loadedAnalyticsKey !== activeAnalyticsKey ? (
+            <View style={{ minHeight: 260, alignItems: 'center', justifyContent: 'center' }}>
+              {budgetLoading || analyticsPeriodReady ? (
+                <ActivityIndicator size="small" color={Colors.primary} />
+              ) : (
+                <Pressable
+                  onPress={() => { void refreshBudget(); }}
+                  style={{ alignItems: 'center', gap: Spacing.sm, padding: Spacing.lg }}
+                  accessibilityRole="button"
+                  accessibilityLabel={t('analytics_retry')}
+                >
+                  <MaterialCommunityIcons name="refresh" size={24} color={Colors.primary} />
+                  <Text style={{ color: Colors.primary }}>{t('analytics_retry')}</Text>
+                </Pressable>
+              )}
+            </View>
           ) : (
             <>
               {cardOrder.map((id, index) => (

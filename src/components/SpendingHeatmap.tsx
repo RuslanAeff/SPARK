@@ -10,19 +10,30 @@ import { useAppTheme } from '../theme/themeStore';
 
 interface HeatmapProps {
   data: { date: string; total: number }[];
-  year: number;
-  month: number;
+  startDate: string;
+  endDate: string;
 }
 
-export default function SpendingHeatmap({ data, year, month }: HeatmapProps) {
+function parseLocalYmd(value: string): Date {
+  const [year, month, day] = value.split('-').map(Number);
+  return new Date(year, month - 1, day, 12, 0, 0, 0);
+}
+
+function toLocalYmd(value: Date): string {
+  return `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, '0')}-${String(
+    value.getDate(),
+  ).padStart(2, '0')}`;
+}
+
+export default function SpendingHeatmap({ data, startDate, endDate }: HeatmapProps) {
   const { t } = useLanguage();
   const { currency } = useCurrency();
   const scheme = useAppTheme();
   const styles = useMemo(() => getStyles(), [scheme]);
 
   const { rows, maxTotal, spendingMap, todayStr } = useMemo(() => {
-    const firstDay = new Date(year, month - 1, 1);
-    const daysInMonth = new Date(year, month, 0).getDate();
+    const firstDay = parseLocalYmd(startDate);
+    const lastDay = parseLocalYmd(endDate);
     const startDow = (firstDay.getDay() + 6) % 7;
 
     const sMap = new Map<string, number>();
@@ -34,9 +45,12 @@ export default function SpendingHeatmap({ data, year, month }: HeatmapProps) {
 
     const cells: ({ day: number; date: string } | null)[] = [];
     for (let i = 0; i < startDow; i++) cells.push(null);
-    for (let d = 1; d <= daysInMonth; d++) {
-      const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-      cells.push({ day: d, date: dateStr });
+    for (
+      let cursor = firstDay;
+      cursor <= lastDay;
+      cursor = new Date(cursor.getFullYear(), cursor.getMonth(), cursor.getDate() + 1, 12)
+    ) {
+      cells.push({ day: cursor.getDate(), date: toLocalYmd(cursor) });
     }
     while (cells.length % 7 !== 0) cells.push(null);
 
@@ -49,7 +63,7 @@ export default function SpendingHeatmap({ data, year, month }: HeatmapProps) {
     const tStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
 
     return { rows: r, maxTotal: mx, spendingMap: sMap, todayStr: tStr };
-  }, [data, year, month]);
+  }, [data, startDate, endDate]);
 
   const [selected, setSelected] = React.useState<string | null>(null);
 

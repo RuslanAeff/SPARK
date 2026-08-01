@@ -195,6 +195,7 @@ export const translations = {
 
     // Analytics
     analytics_title: 'Harcama Analizi',
+    analytics_retry: 'Tekrar dene',
     last_7_days: 'Son 7 Gün',
     all_time: 'Tüm Zamanlar',
     tab_weekly: 'Haftalık',
@@ -986,6 +987,7 @@ export const translations = {
 
     // Analytics
     analytics_title: 'Spending Analytics',
+    analytics_retry: 'Try again',
     last_7_days: 'Last 7 Days',
     all_time: 'All Time',
     tab_weekly: 'Weekly',

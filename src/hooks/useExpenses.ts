@@ -10,6 +10,23 @@ function useMounted() {
   return mounted;
 }
 
+export interface ExpenseQueryOptions {
+  /** false iken manuel refresh dahil DAO sorgusu başlatılmaz. */
+  enabled?: boolean;
+  /** false iken hook mount/range değişiminde otomatik sorgu başlatmaz. */
+  autoLoad?: boolean;
+}
+
+function useAutoRefresh(
+  refresh: () => Promise<void>,
+  enabled: boolean,
+  autoLoad: boolean,
+) {
+  useEffect(() => {
+    if (enabled && autoLoad) void refresh();
+  }, [refresh, enabled, autoLoad]);
+}
+
 export function useExpenses(startDate?: string, endDate?: string) {
   const [expenses, setExpenses] = useState<ExpenseWithDetails[]>([]);
   const [loading, setLoading] = useState(true);
@@ -133,15 +150,30 @@ export function useMonthlyTotal(startDate?: string, endDate?: string) {
   return { total, loading, refresh };
 }
 
-export function useCategorySpending(startDate?: string, endDate?: string) {
+export function useCategorySpending(
+  startDate?: string,
+  endDate?: string,
+  options: ExpenseQueryOptions = {},
+) {
   const [data, setData] = useState<CategorySpending[]>([]);
   const [loading, setLoading] = useState(true);
   const mounted = useMounted();
+  const refreshSequence = useRef(0);
+  const enabled = options.enabled ?? true;
+  const autoLoad = options.autoLoad ?? true;
+  useEffect(() => {
+    if (!enabled) {
+      refreshSequence.current += 1;
+      setLoading(false);
+    }
+  }, [enabled]);
 
   const start = startDate || getStartOfMonth();
   const end = endDate || getEndOfMonth();
 
   const refresh = useCallback(async () => {
+    if (!enabled) return;
+    const sequence = ++refreshSequence.current;
     setLoading(true);
     try {
       const raw: any[] = await ExpenseDao.getCategorySpending(start, end) as any[];
@@ -154,30 +186,48 @@ export function useCategorySpending(startDate?: string, endDate?: string) {
         total: r.total,
         percentage: totalSpent > 0 ? Math.round((r.total / totalSpent) * 100) : 0,
       }));
-      if (mounted.current) setData(mapped);
+      if (mounted.current && sequence === refreshSequence.current) setData(mapped);
     } catch (e) {
       console.error('Error loading category spending:', e);
     }
-    if (mounted.current) setLoading(false);
-  }, [start, end]);
+    if (mounted.current && sequence === refreshSequence.current) setLoading(false);
+  }, [start, end, enabled]);
 
-  useEffect(() => { refresh(); }, [refresh]);
+  useAutoRefresh(refresh, enabled, autoLoad);
 
   return { data, loading, refresh };
 }
 
-export function useSubcategorySpending(parentId: number | null, startDate?: string, endDate?: string) {
+export function useSubcategorySpending(
+  parentId: number | null,
+  startDate?: string,
+  endDate?: string,
+  options: ExpenseQueryOptions = {},
+) {
   const [data, setData] = useState<CategorySpending[]>([]);
   const [loading, setLoading] = useState(true);
   const mounted = useMounted();
+  const refreshSequence = useRef(0);
+  const enabled = options.enabled ?? true;
+  const autoLoad = options.autoLoad ?? true;
+  useEffect(() => {
+    if (!enabled) {
+      refreshSequence.current += 1;
+      setLoading(false);
+    }
+  }, [enabled]);
 
   const start = startDate || getStartOfMonth();
   const end = endDate || getEndOfMonth();
 
   const refresh = useCallback(async () => {
+    if (!enabled) return;
+    const sequence = ++refreshSequence.current;
     if (!parentId) {
-      setData([]);
-      setLoading(false);
+      if (mounted.current && sequence === refreshSequence.current) {
+        setData([]);
+        setLoading(false);
+      }
       return;
     }
     setLoading(true);
@@ -192,27 +242,42 @@ export function useSubcategorySpending(parentId: number | null, startDate?: stri
         total: r.total,
         percentage: totalSpent > 0 ? Math.round((r.total / totalSpent) * 100) : 0,
       }));
-      if (mounted.current) setData(mapped);
+      if (mounted.current && sequence === refreshSequence.current) setData(mapped);
     } catch (e) {
       console.error('Error loading subcategory spending:', e);
     }
-    if (mounted.current) setLoading(false);
-  }, [parentId, start, end]);
+    if (mounted.current && sequence === refreshSequence.current) setLoading(false);
+  }, [parentId, start, end, enabled]);
 
-  useEffect(() => { refresh(); }, [refresh]);
+  useAutoRefresh(refresh, enabled, autoLoad);
 
   return { data, loading, refresh };
 }
 
-export function useVendorSpending(startDate?: string, endDate?: string) {
+export function useVendorSpending(
+  startDate?: string,
+  endDate?: string,
+  options: ExpenseQueryOptions = {},
+) {
   const [data, setData] = useState<VendorSpending[]>([]);
   const [loading, setLoading] = useState(true);
   const mounted = useMounted();
+  const refreshSequence = useRef(0);
+  const enabled = options.enabled ?? true;
+  const autoLoad = options.autoLoad ?? true;
+  useEffect(() => {
+    if (!enabled) {
+      refreshSequence.current += 1;
+      setLoading(false);
+    }
+  }, [enabled]);
 
   const start = startDate || getStartOfMonth();
   const end = endDate || getEndOfMonth();
 
   const refresh = useCallback(async () => {
+    if (!enabled) return;
+    const sequence = ++refreshSequence.current;
     setLoading(true);
     try {
       const raw: any[] = await ExpenseDao.getVendorSpending(start, end) as any[];
@@ -224,27 +289,42 @@ export function useVendorSpending(startDate?: string, endDate?: string) {
         total: r.total,
         percentage: totalSpent > 0 ? Math.round((r.total / totalSpent) * 100) : 0,
       }));
-      if (mounted.current) setData(mapped);
+      if (mounted.current && sequence === refreshSequence.current) setData(mapped);
     } catch (e) {
       console.error('Error loading vendor spending:', e);
     }
-    if (mounted.current) setLoading(false);
-  }, [start, end]);
+    if (mounted.current && sequence === refreshSequence.current) setLoading(false);
+  }, [start, end, enabled]);
 
-  useEffect(() => { refresh(); }, [refresh]);
+  useAutoRefresh(refresh, enabled, autoLoad);
 
   return { data, loading, refresh };
 }
 
-export function useDailySpending(startDate?: string, endDate?: string) {
+export function useDailySpending(
+  startDate?: string,
+  endDate?: string,
+  options: ExpenseQueryOptions = {},
+) {
   const [data, setData] = useState<{ date: string; total: number }[]>([]);
   const [loading, setLoading] = useState(true);
   const mounted = useMounted();
+  const refreshSequence = useRef(0);
+  const enabled = options.enabled ?? true;
+  const autoLoad = options.autoLoad ?? true;
+  useEffect(() => {
+    if (!enabled) {
+      refreshSequence.current += 1;
+      setLoading(false);
+    }
+  }, [enabled]);
 
   const start = startDate || getStartOfMonth();
   const end = endDate || getEndOfMonth();
 
   const refresh = useCallback(async () => {
+    if (!enabled) return;
+    const sequence = ++refreshSequence.current;
     setLoading(true);
     try {
       const raw = await ExpenseDao.getSpendingByDays(start, end);
@@ -257,7 +337,10 @@ export function useDailySpending(startDate?: string, endDate?: string) {
       const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
       
       if (diffDays > 60) {
-        if (mounted.current) { setData(raw); setLoading(false); }
+        if (mounted.current && sequence === refreshSequence.current) {
+          setData(raw);
+          setLoading(false);
+        }
         return;
       }
       
@@ -273,48 +356,77 @@ export function useDailySpending(startDate?: string, endDate?: string) {
         currentDate.setDate(currentDate.getDate() + 1);
       }
       
-      if (mounted.current) setData(result);
+      if (mounted.current && sequence === refreshSequence.current) setData(result);
     } catch (e) {
       console.error('Error loading daily spending:', e);
     }
-    if (mounted.current) setLoading(false);
-  }, [start, end]);
+    if (mounted.current && sequence === refreshSequence.current) setLoading(false);
+  }, [start, end, enabled]);
 
-  useEffect(() => { refresh(); }, [refresh]);
+  useAutoRefresh(refresh, enabled, autoLoad);
 
   return { data, loading, refresh };
 }
 
-export function useTopTransactions(startDate?: string, endDate?: string, limit: number = 3) {
+export function useTopTransactions(
+  startDate?: string,
+  endDate?: string,
+  limit: number = 3,
+  options: ExpenseQueryOptions = {},
+) {
   const [data, setData] = useState<ExpenseWithDetails[]>([]);
   const [loading, setLoading] = useState(true);
   const mounted = useMounted();
+  const refreshSequence = useRef(0);
+  const enabled = options.enabled ?? true;
+  const autoLoad = options.autoLoad ?? true;
+  useEffect(() => {
+    if (!enabled) {
+      refreshSequence.current += 1;
+      setLoading(false);
+    }
+  }, [enabled]);
 
   const start = startDate || getStartOfMonth();
   const end = endDate || getEndOfMonth();
 
   const refresh = useCallback(async () => {
+    if (!enabled) return;
+    const sequence = ++refreshSequence.current;
     setLoading(true);
     try {
       const raw = await ExpenseDao.getTopTransactions(start, end, limit);
-      if (mounted.current) setData(raw);
+      if (mounted.current && sequence === refreshSequence.current) setData(raw);
     } catch (e) {
       console.error('Error loading top transactions:', e);
     }
-    if (mounted.current) setLoading(false);
-  }, [start, end, limit]);
+    if (mounted.current && sequence === refreshSequence.current) setLoading(false);
+  }, [start, end, limit, enabled]);
 
-  useEffect(() => { refresh(); }, [refresh]);
+  useAutoRefresh(refresh, enabled, autoLoad);
 
   return { data, loading, refresh };
 }
 
-export function useBehavioralAnalytics(startDate?: string, endDate?: string) {
+export function useBehavioralAnalytics(
+  startDate?: string,
+  endDate?: string,
+  options: ExpenseQueryOptions = {},
+) {
   const [needsWants, setNeedsWants] = useState<{ segment: string; total: number; percentage: number; color: string }[]>([]);
   const [weekWeekend, setWeekWeekend] = useState<{ segment: string; total: number; percentage: number; color: string }[]>([]);
   const [loading, setLoading] = useState(true);
   const { t } = useLanguage();
   const mounted = useMounted();
+  const refreshSequence = useRef(0);
+  const enabled = options.enabled ?? true;
+  const autoLoad = options.autoLoad ?? true;
+  useEffect(() => {
+    if (!enabled) {
+      refreshSequence.current += 1;
+      setLoading(false);
+    }
+  }, [enabled]);
   const tRef = useRef(t);
   tRef.current = t;
 
@@ -322,6 +434,8 @@ export function useBehavioralAnalytics(startDate?: string, endDate?: string) {
   const end = endDate || getEndOfMonth();
 
   const refresh = useCallback(async () => {
+    if (!enabled) return;
+    const sequence = ++refreshSequence.current;
     setLoading(true);
     const translate = tRef.current;
     try {
@@ -340,7 +454,7 @@ export function useBehavioralAnalytics(startDate?: string, endDate?: string) {
           color: item.segment === 'Zorunlu İhtiyaçlar' ? '#FF6B6B' : item.segment === 'Keyfi Harcamalar' ? '#4ECDC4' : '#FFE66D'
         };
       });
-      if (mounted.current) setNeedsWants(mappedNW);
+      if (mounted.current && sequence === refreshSequence.current) setNeedsWants(mappedNW);
 
       const wwData = await ExpenseDao.getWeekdayVsWeekend(start, end);
       const wwTotal = wwData.reduce((sum, item) => sum + item.total, 0);
@@ -356,14 +470,14 @@ export function useBehavioralAnalytics(startDate?: string, endDate?: string) {
           color: item.segment === 'Hafta Sonu' ? '#FF9F1C' : '#2EC4B6'
         };
       });
-      if (mounted.current) setWeekWeekend(mappedWW);
+      if (mounted.current && sequence === refreshSequence.current) setWeekWeekend(mappedWW);
     } catch (e) {
       console.error('Error loading behavioral analytics:', e);
     }
-    if (mounted.current) setLoading(false);
-  }, [start, end]);
+    if (mounted.current && sequence === refreshSequence.current) setLoading(false);
+  }, [start, end, enabled]);
 
-  useEffect(() => { refresh(); }, [refresh]);
+  useAutoRefresh(refresh, enabled, autoLoad);
 
   return { needsWants, weekWeekend, loading, refresh };
 }
