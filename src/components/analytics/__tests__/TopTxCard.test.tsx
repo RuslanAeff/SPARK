@@ -1,6 +1,6 @@
 // react-native-reanimated → __mocks__/react-native-reanimated.js (otomatik)
 import React from 'react';
-import { render } from '@testing-library/react-native';
+import { fireEvent, render } from '@testing-library/react-native';
 import TopTxCard from '../TopTxCard';
 import { getAnalyticsStyles } from '../analyticsStyles';
 
@@ -21,5 +21,41 @@ describe('TopTxCard', () => {
     expect(getByText('top_transactions')).toBeTruthy();
     expect(getByText('Migros')).toBeTruthy();
     expect(getByText('Shell')).toBeTruthy();
+  });
+
+  it('satıcı başına seçim modunu kullanıcıya açık başlık ve açıklamayla bildirir', async () => {
+    const topTx = [
+      { id: 1, vendor_name: 'Satıcı A', date: '2026-05-04', category_name: 'Kategori A', total_amount: 200 } as any,
+      { id: 2, vendor_name: 'Satıcı B', date: '2026-12-29', category_name: 'Kategori B', total_amount: 120 } as any,
+    ];
+    const screen = await render(
+      <TopTxCard {...base} topTx={topTx} selection="per-vendor" />,
+    );
+
+    expect(screen.getByText('top_transactions_per_vendor')).toBeTruthy();
+    expect(screen.getByText('top_transactions_per_vendor_hint')).toBeTruthy();
+    expect(screen.queryByText('top_transactions')).toBeNull();
+    expect(screen.getByText('Satıcı A')).toBeTruthy();
+    expect(screen.getByText('04-05 • Kategori A')).toBeTruthy();
+  });
+
+  it('genişletme gerçek işlem listesini açar ve erişilebilir durumunu günceller', async () => {
+    const topTx = Array.from({ length: 4 }, (_, index) => ({
+      id: index + 1,
+      vendor_name: `Satıcı ${index + 1}`,
+      date: `2026-06-${String(21 - index).padStart(2, '0')}`,
+      category_name: 'Market',
+      total_amount: 200 - index,
+    })) as any;
+    const screen = await render(<TopTxCard {...base} topTx={topTx} />);
+    const button = screen.getByRole('button');
+
+    expect(screen.queryByText('Satıcı 4')).toBeNull();
+    expect(button.props.accessibilityState).toEqual({ expanded: false });
+
+    await fireEvent.press(button);
+
+    expect(screen.getByText('Satıcı 4')).toBeTruthy();
+    expect(screen.getByRole('button').props.accessibilityState).toEqual({ expanded: true });
   });
 });

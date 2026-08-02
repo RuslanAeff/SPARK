@@ -19,6 +19,7 @@ import {
   RefreshControl,
   Modal,
   Platform,
+  Linking,
   Dimensions,
 } from 'react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
@@ -42,7 +43,12 @@ import type {
   NotificationMuteChannel,
   NotificationSeverity,
 } from '../src/notifications/types';
-import { formatDate, formatMonthYear } from '../src/utils/dateUtils';
+import { localizeNotificationParams } from '../src/notifications/presentation';
+import {
+  ensureAndroidNotificationSetup,
+  type AndroidNotificationSetupStatus,
+} from '../src/services/androidNotificationsSetup';
+import { formatDate } from '../src/utils/dateUtils';
 const MUTE_CHANNELS: { key: NotificationMuteChannel; labelKey: string }[] = [
   { key: 'budget', labelKey: 'notif_mute_budget' },
   { key: 'category_limit', labelKey: 'notif_mute_category' },
@@ -145,19 +151,6 @@ function groupFeedByDay(
   }));
 }
 
-/** Bildirim parametrelerindeki YYYY-MM 'month' değerini okunabilir aya çevirir
- *  ("2026-05" → "Mayıs 2026"). Builder'da `t` olmadığından render anında yapılır;
- *  böylece mevcut (eski) bildirimlerde de düzelir. */
-function localizeNotifParams(
-  params: Record<string, string | number> | undefined,
-  t: (k: string, p?: Record<string, string | number>) => string,
-): Record<string, string | number> | undefined {
-  if (params && typeof params.month === 'string' && /^\d{4}-\d{2}$/.test(params.month)) {
-    return { ...params, month: formatMonthYear(`${params.month}-01`, t) };
-  }
-  return params;
-}
-
 const LIST_PREVIEW_LINES = 2;
 const winH = Dimensions.get('window').height;
 const SCREEN = Dimensions.get('screen');
@@ -182,13 +175,26 @@ export default function NotificationsScreen() {
   } = useNotifications();
   const [filter, setFilter] = useState<FilterKey>('all');
   const [muteModal, setMuteModal] = useState(false);
-  const [detailNotif, setDetailNotif] = useState<InAppNotification | null>(null);
+  const [systemNotificationStatus, setSystemNotificationStatus] =
+    useState<AndroidNotificationSetupStatus | null>(null);
+  const [detailNotifId, setDetailNotifId] = useState<string | null>(null);
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkDeleteVisible, setBulkDeleteVisible] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const openSwipeRef = useRef<SwipeableMethods | null>(null);
   const deletingRef = useRef(false);
+
+  useEffect(() => {
+    if (!muteModal || Platform.OS !== 'android') return;
+    let cancelled = false;
+    void ensureAndroidNotificationSetup(false).then((status) => {
+      if (!cancelled) setSystemNotificationStatus(status);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [muteModal]);
 
   const closeOpenSwipe = useCallback(() => {
     openSwipeRef.current?.close();
@@ -253,7 +259,7 @@ export default function NotificationsScreen() {
           console.warn('[notifications] mark read failed', error);
         });
       }
-      setDetailNotif(item);
+      setDetailNotifId(item.id);
     },
     [closeOpenSwipe, markRead, selectionMode, toggleSelection],
   );
@@ -348,6 +354,17 @@ export default function NotificationsScreen() {
     return feed.filter((f) => channelFromId(f.id) === filter);
   }, [feed, filter]);
 
+  // Detay yüzeyi feed'deki güncel kaydı gösterir. Satıcı adı bir senkronla
+  // yenilenirse açık sheet eski notification snapshot'ında takılı kalmaz.
+  const detailNotif = useMemo(
+    () => (detailNotifId ? feed.find((item) => item.id === detailNotifId) ?? null : null),
+    [detailNotifId, feed],
+  );
+
+  useEffect(() => {
+    if (detailNotifId && !detailNotif) setDetailNotifId(null);
+  }, [detailNotif, detailNotifId]);
+
   const sections = useMemo(() => groupFeedByDay(filtered, t), [filtered, t]);
   const isEmpty = sections.length === 0 || filtered.length === 0;
   const isDark = scheme === 'dark';
@@ -435,6 +452,7 @@ export default function NotificationsScreen() {
                 hitSlop={4}
                 accessibilityRole="button"
                 accessibilityLabel={t('notif_prefs_title')}
+                testID="notifications-preferences"
               >
                 <MaterialCommunityIcons name="tune-variant" size={19} color={Colors.textPrimary} />
               </Pressable>
@@ -518,7 +536,7 @@ export default function NotificationsScreen() {
         renderItem={({ item }) => {
           const iconName = notificationIconName(item.id);
           const accent = notificationAccent(item.severity, isDark);
-          const p = localizeNotifParams(item.params, t);
+          const p = localizeNotificationParams(item.params, t);
           const title = t(item.titleKey, p);
           const body = t(item.bodyKey, p);
           const time = formatTime(item.createdAt);
@@ -538,16 +556,13 @@ export default function NotificationsScreen() {
                   !selectionMode && !item.read && styles.cardUnread,
                   !selectionMode &&
                     !item.read && {
-                      borderColor: `${accent}${isDark ? '66' : '3D'}`,
-                      backgroundColor: `${accent}${isDark ? '0F' : '08'}`,
+                      borderColor: `${accent}${isDark ? '4D' : '33'}`,
+                      backgroundColor: `${accent}${isDark ? '0D' : '08'}`,
                     },
                   selectionMode && styles.cardSelection,
                   selectionMode && selected && styles.cardSelected,
                 ]}
               >
-                {!selectionMode && !item.read && (
-                  <View style={[styles.unreadRail, { backgroundColor: accent }]} />
-                )}
                 <Pressable
                   style={({ pressed }) => [styles.cardMain, pressed && styles.cardMainPressed]}
                   onPress={() => handleCardPress(item)}
@@ -555,7 +570,7 @@ export default function NotificationsScreen() {
                   delayLongPress={380}
                   accessibilityRole={selectionMode ? 'checkbox' : 'button'}
                   accessibilityState={selectionMode ? { checked: selected } : undefined}
-                  accessibilityLabel={`${title}. ${body}. ${time}`}
+                  accessibilityLabel={`${!item.read ? `${t('notif_unread_label')}. ` : ''}${title}. ${body}. ${time}`}
                   accessibilityHint={selectionMode ? undefined : t('notif_select_hint')}
                   testID={`notification-card-${item.id}`}
                 >
@@ -584,7 +599,14 @@ export default function NotificationsScreen() {
                   </View>
 
                   <View style={styles.cardBody}>
-                    <Text style={styles.cardTitle} numberOfLines={LIST_PREVIEW_LINES} ellipsizeMode="tail">
+                    <Text
+                      style={[
+                        styles.cardTitle,
+                        !selectionMode && !item.read && styles.cardTitleUnread,
+                      ]}
+                      numberOfLines={LIST_PREVIEW_LINES}
+                      ellipsizeMode="tail"
+                    >
                       {title}
                     </Text>
                     <Text
@@ -595,6 +617,13 @@ export default function NotificationsScreen() {
                       {body}
                     </Text>
                     <View style={styles.cardTimeRow}>
+                      {!selectionMode && !item.read && (
+                        <View
+                          testID={`notification-unread-indicator-${item.id}`}
+                          style={[styles.unreadDot, { backgroundColor: accent }]}
+                          accessible={false}
+                        />
+                      )}
                       <MaterialCommunityIcons
                         name="clock-outline"
                         size={12}
@@ -624,7 +653,7 @@ export default function NotificationsScreen() {
 
       <BottomSheetModal
         visible={detailNotif !== null}
-        onClose={() => setDetailNotif(null)}
+        onClose={() => setDetailNotifId(null)}
         backdropColor={scheme === 'dark' ? 'rgba(0,0,0,0.82)' : 'rgba(0,0,0,0.45)'}
         sheetStyle={[
           styles.detailSheet,
@@ -635,7 +664,7 @@ export default function NotificationsScreen() {
           <>
             <View style={styles.detailHandle} />
             <Text style={styles.detailTitle} accessibilityRole="header">
-              {t(detailNotif.titleKey, localizeNotifParams(detailNotif.params, t))}
+              {t(detailNotif.titleKey, localizeNotificationParams(detailNotif.params, t))}
             </Text>
             <ScrollView
               style={styles.detailScroll}
@@ -644,13 +673,13 @@ export default function NotificationsScreen() {
               bounces
             >
               <Text style={styles.detailBody}>
-                {t(detailNotif.bodyKey, localizeNotifParams(detailNotif.params, t))}
+                {t(detailNotif.bodyKey, localizeNotificationParams(detailNotif.params, t))}
               </Text>
             </ScrollView>
             <Text style={styles.detailTime}>{formatTime(detailNotif.createdAt)}</Text>
             <Pressable
               style={({ pressed }) => [styles.detailCloseBtn, pressed && styles.detailCloseBtnPressed]}
-              onPress={() => setDetailNotif(null)}
+              onPress={() => setDetailNotifId(null)}
               accessibilityRole="button"
               accessibilityLabel={t('close')}
             >
@@ -676,6 +705,57 @@ export default function NotificationsScreen() {
               {t('notif_prefs_title')}
             </Text>
             <Text style={styles.modalHint}>{t('notif_mute_hint')}</Text>
+            {Platform.OS === 'android' &&
+              (systemNotificationStatus === 'ready' ||
+                systemNotificationStatus === 'denied' ||
+                systemNotificationStatus === 'error') && (
+                <View
+                  style={styles.systemNotificationRow}
+                  testID="notifications-system-status"
+                >
+                  <View
+                    style={[
+                      styles.systemNotificationIcon,
+                      systemNotificationStatus === 'ready'
+                        ? styles.systemNotificationIconReady
+                        : styles.systemNotificationIconDisabled,
+                    ]}
+                  >
+                    <MaterialCommunityIcons
+                      name={systemNotificationStatus === 'ready' ? 'bell-check-outline' : 'bell-off-outline'}
+                      size={18}
+                      color={systemNotificationStatus === 'ready' ? Colors.primary : Colors.warning}
+                    />
+                  </View>
+                  <Text style={styles.systemNotificationText}>
+                    {t(
+                      systemNotificationStatus === 'ready'
+                        ? 'notif_system_permission_ready'
+                        : 'notif_system_permission_disabled',
+                    )}
+                  </Text>
+                  {systemNotificationStatus !== 'ready' && (
+                    <Pressable
+                      onPress={() => {
+                        void Linking.openSettings().catch(() => {
+                          SparkToast.show(t('operation_failed'), 'error');
+                        });
+                      }}
+                      style={({ pressed }) => [
+                        styles.systemNotificationSettingsBtn,
+                        pressed && styles.systemNotificationSettingsBtnPressed,
+                      ]}
+                      accessibilityRole="button"
+                      accessibilityLabel={t('notif_open_system_settings')}
+                      testID="notifications-open-system-settings"
+                    >
+                      <Text style={styles.systemNotificationSettingsText}>
+                        {t('notif_open_system_settings')}
+                      </Text>
+                    </Pressable>
+                  )}
+                </View>
+              )}
             {MUTE_CHANNELS.map(({ key, labelKey }) => (
               <View key={key} style={styles.muteRow}>
                 <Text style={styles.muteLabel}>{t(labelKey)}</Text>
@@ -932,14 +1012,6 @@ const getStyles = (isDark: boolean) => {
       backgroundColor: Colors.primaryGlow,
       borderColor: `${Colors.primary}80`,
     },
-    unreadRail: {
-      position: 'absolute',
-      left: -1,
-      top: Spacing.md,
-      bottom: Spacing.md,
-      width: 3,
-      borderRadius: BorderRadius.round,
-    },
     cardMain: {
       flex: 1,
       minWidth: 0,
@@ -990,6 +1062,9 @@ const getStyles = (isDark: boolean) => {
         android: { includeFontPadding: false },
       }),
     },
+    cardTitleUnread: {
+      fontFamily: FontFamily.bold,
+    },
     cardBodyText: {
       fontSize: 13,
       color: Colors.textSecondary,
@@ -1005,6 +1080,11 @@ const getStyles = (isDark: boolean) => {
       alignItems: 'center',
       gap: Spacing.xs,
       marginTop: 5,
+    },
+    unreadDot: {
+      width: 6,
+      height: 6,
+      borderRadius: 3,
     },
     cardTime: {
       fontSize: 11,
@@ -1163,6 +1243,53 @@ const getStyles = (isDark: boolean) => {
       fontFamily: FontFamily.bold,
       flex: 1,
       paddingRight: Spacing.md,
+    },
+    systemNotificationRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: Spacing.sm,
+      padding: Spacing.sm,
+      marginBottom: Spacing.sm,
+      borderRadius: BorderRadius.md,
+      borderWidth: 1,
+      borderColor: Colors.border,
+      backgroundColor: Colors.surfaceLight,
+    },
+    systemNotificationIcon: {
+      width: 32,
+      height: 32,
+      borderRadius: 16,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    systemNotificationIconReady: {
+      backgroundColor: Colors.primary + '18',
+    },
+    systemNotificationIconDisabled: {
+      backgroundColor: Colors.warning + '18',
+    },
+    systemNotificationText: {
+      flex: 1,
+      minWidth: 0,
+      color: Colors.textSecondary,
+      fontFamily: FontFamily.medium,
+      fontSize: 12,
+      lineHeight: 17,
+    },
+    systemNotificationSettingsBtn: {
+      minHeight: 34,
+      justifyContent: 'center',
+      paddingHorizontal: Spacing.sm,
+      borderRadius: BorderRadius.sm,
+      backgroundColor: Colors.primary + '18',
+    },
+    systemNotificationSettingsBtnPressed: {
+      opacity: 0.72,
+    },
+    systemNotificationSettingsText: {
+      color: Colors.primary,
+      fontFamily: FontFamily.semiBold,
+      fontSize: 11,
     },
     modalPrimaryBtn: {
       marginTop: Spacing.lg,

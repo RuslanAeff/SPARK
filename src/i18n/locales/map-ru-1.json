@@ -27,6 +27,7 @@
   "notif_go_back": "Назад",
   "notif_center_title": "Уведомления",
   "notif_mark_all": "Прочитано",
+  "notif_unread_label": "Непрочитанное",
   "notif_empty": "Пока нет уведомлений",
   "notif_filter_all": "Все",
   "notif_filter_budget": "Бюджет",
@@ -55,6 +56,6 @@
   "notif_goal_risk_b": "Дата цели близко ({days} дн.), расходы в этом месяце выглядят тугими к бюджету. Пересмотрите цель.",
   "notif_receipt_pending_t": "Черновик чека ждёт",
   "notif_receipt_pending_b": "«{vendor}» — завершите редактирование и сохраните.",
-  "notif_receipt_saved_t": "Чек сохранён",
-  "notif_receipt_saved_b": "Операция сохранена для «{vendor}»."
+  "notif_receipt_saved_t": "{vendor}",
+  "notif_receipt_saved_b": "Чек обработан, операция сохранена."
 }

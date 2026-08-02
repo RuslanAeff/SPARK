@@ -9,15 +9,31 @@ import { CountUpText, type BaseCardProps, type StreakData, type StreakVariant } 
 
 interface StreakCardProps extends BaseCardProps {
   streakData: StreakData;
-  dailyBudget: number;
   setStreakDetailVariant: Dispatch<SetStateAction<StreakVariant | null>>;
 }
 
-function StreakCard({ styles, t, streakData, dailyBudget, setStreakDetailVariant }: StreakCardProps) {
-  const { zeroSpendDays, currentStreak, underBudgetDays, totalDays } = streakData;
+function StreakCard({ styles, t, streakData, setStreakDetailVariant }: StreakCardProps) {
+  const {
+    status,
+    streakMode,
+    dailyTarget,
+    zeroSpendDays,
+    currentStreak,
+    underBudgetDays,
+    totalDays,
+  } = streakData;
   const streakType = currentStreak >= 3 ? 'great' : currentStreak >= 1 ? 'good' : 'start';
-  const streakMsg = streakType === 'great' ? t('streak_great') : streakType === 'good' ? t('streak_good') : t('streak_start');
+  const streakMsg = status === 'no_data'
+    ? t('streak_no_data')
+    : status === 'no_completed_days'
+      ? t('streak_no_completed_days')
+      : streakType === 'great'
+        ? t('streak_great')
+        : streakType === 'good'
+          ? t('streak_good')
+          : t('streak_start');
   const StreakIcon = streakType === 'great' ? 'fire' : streakType === 'good' ? 'thumb-up' : 'target';
+  const streakLabel = streakMode === 'current' ? t('current_streak') : t('period_end_streak');
 
   return (
     <AnimatedCard delay={250} style={styles.section}>
@@ -39,15 +55,15 @@ function StreakCard({ styles, t, streakData, dailyBudget, setStreakDetailVariant
           style={({ pressed }) => [styles.streakCard, pressed && styles.streakCardPressed]}
           onPress={() => setStreakDetailVariant('streak')}
           accessibilityRole="button"
-          accessibilityLabel={t('current_streak')}
+          accessibilityLabel={streakLabel}
         >
           <View style={[styles.streakIconBg, { backgroundColor: Colors.warning + '18' }]}>
             <MaterialCommunityIcons name="fire" size={22} color={Colors.warning} />
           </View>
           <CountUpText value={currentStreak} style={styles.streakNumber} duration={900} />
-          <Text style={styles.streakLabel}>{t('current_streak')}</Text>
+          <Text style={styles.streakLabel}>{streakLabel}</Text>
         </Pressable>
-        {dailyBudget > 0 && (
+        {dailyTarget !== null && (
           <Pressable
             style={({ pressed }) => [styles.streakCard, pressed && styles.streakCardPressed]}
             onPress={() => setStreakDetailVariant('under')}
@@ -63,23 +79,21 @@ function StreakCard({ styles, t, streakData, dailyBudget, setStreakDetailVariant
         )}
       </View>
       <View style={styles.streakMsg}>
-        <View style={styles.streakMsgRow}>
-          <View style={[styles.streakMsgIconWrap, { backgroundColor: (streakType === 'great' ? Colors.warning : streakType === 'good' ? Colors.primary : Colors.info) + '22' }]}>
-            <MaterialCommunityIcons
-              name={StreakIcon as any}
-              size={20}
-              color={streakType === 'great' ? Colors.warning : streakType === 'good' ? Colors.primary : Colors.info}
-            />
-          </View>
-          <MarqueeText text={streakMsg} style={styles.streakMsgTextInner} containerStyle={styles.streakMsgText} />
+        <View style={[styles.streakMsgIconWrap, { backgroundColor: (streakType === 'great' ? Colors.warning : streakType === 'good' ? Colors.primary : Colors.info) + '22' }]}>
+          <MaterialCommunityIcons
+            name={StreakIcon as any}
+            size={20}
+            color={streakType === 'great' ? Colors.warning : streakType === 'good' ? Colors.primary : Colors.info}
+          />
         </View>
-        {totalDays > 0 && (
-          <View style={styles.streakMsgSubWrap}>
+        <View style={styles.streakMsgBody}>
+          <MarqueeText text={streakMsg} style={styles.streakMsgTextInner} containerStyle={styles.streakMsgText} />
+          {totalDays > 0 && (
             <Text style={styles.streakMsgSub}>
-              {zeroSpendDays}/{totalDays} {t('days_label')}
+              {t('streak_scope_summary', { zero: zeroSpendDays, total: totalDays })}
             </Text>
-          </View>
-        )}
+          )}
+        </View>
       </View>
     </AnimatedCard>
   );

@@ -82,7 +82,7 @@ Bildirim tipleri, kural değerlendirmesi, feed kalıcılığı ve serileştirilm
 
 ### Saf politika ve biçimlendirme — `src/utils/`
 
-Tarih aralıkları, bütçe döngüsü matematiği, borca göre düzeltilmiş bütçe, para biçimlendirme, doğrulama, fiş onarımı, ürün normalizasyonu ve tema zamanlama yardımcıları burada bulunur. Saf iş kuralları React ve SQLite import'larından bağımsız kalmalı, böylece doğrudan test edilebilmelidir.
+Tarih aralıkları, bütçe döngüsü matematiği, borca göre düzeltilmiş bütçe, tamamlanmış-gün harcama istatistikleri, para biçimlendirme, doğrulama, fiş onarımı, ürün normalizasyonu ve tema zamanlama yardımcıları burada bulunur. Saf iş kuralları React ve SQLite import'larından bağımsız kalmalı, böylece doğrudan test edilebilmelidir.
 
 ### Çapraz kesen yapılandırma — `src/theme/` ve `src/i18n/`
 
@@ -135,6 +135,12 @@ Kolonlar, constraint'ler, index'ler ve silme davranışında [`src/db/schema.ts`
 
 Bütçe dönemi kullanıcının belirlediği döngü başlangıç gününden türetilir. Başlangıç günü bir olduğunda takvim ayıyla eşleşir; diğer değerler aylar arası aralık üretir. Dashboard, analiz, bildirimler ve DAO sorguları aynı çözümlenmiş dönem sınırlarını kullanmalıdır.
 
+### Harcama istatistikleri
+
+[`src/utils/spendingStats.ts`](../src/utils/spendingStats.ts), günlük toplamları takvim günü sıraları ve tam para birimi alt birimleriyle değerlendirir. Aynı güne ait kaynak satırları birleştirilir; bugün tamamlanmış gün sayılmaz ve sıfır-harcama, hedef-altı veya toplam gün hesabına girmez, fakat bugünkü gerçek harcama aktif sıfır-harcama serisini sıfırlar. Takip-temelli uzun dönem hesabı ilk gerçek kaynak kaydında başlar; veri yoksa sıfır değerli başarı sonucu yerine açık `no_data` durumu döner. Bugünü içermeyen aralığın serisi dönem sonunda ölçülür.
+
+Günlük hedef yalnız seçili aralık aktif bütçenin kanonik aylık döngüsüyle tam eşleştiğinde sağlanır. Bu durumda hedef, sabit `effectiveBudget / totalDays` planıdır ve yalnız açık hedef aralığındaki tamamlanmış, harcama bulunan günlerle karşılaştırılır. Yıllık, geçmiş veya özel aralıklarda aynı bütçe hedefi geriye dönük olarak uydurulmaz.
+
 ### Borç ve ek gelir
 
 Borç tüketim değil, nakit akışı düzeltmesidir. [`src/utils/debtMath.ts`](../src/utils/debtMath.ts) içindeki ortak hesap şu formülü tanımlar:
@@ -171,6 +177,12 @@ Yedekleme, kullanıcının seçtiği tarih aralığı için sürümlenmiş JSON 
 ### Bildirimler
 
 Bildirim kural motoru mevcut yerel durumdan feed girdileri türetir. Eşzamanlı yenileme, okuma, sessize alma ve silme işlemlerinin birbirini ezmemesi için feed ve dismissal-rule değişiklikleri serileştirilir. Çoklu silme paralel tekli yazmalar yerine tek depolama işlemi olmalıdır.
+
+Uygulama içi feed yetkili ve native teslimden bağımsız kalır. Android sistem bildirimi kök reveal kapısı kalktıktan sonra etkinleştirilir; Expo Go guard'ı native modül yüklenmeden önce çalışır. Standalone/development build'de rutin güncellemeler varsayılan ve sessiz `updates`, bütçe/hedef gibi dikkat gerektiren kayıtlar yüksek öncelikli sesli/titreşimli `alerts` kanalına gider. İki kanal da kilit ekranında `PRIVATE` görünürlük kullanır.
+
+Teslim idempotency'si, `settings` içindeki sınırlı yerel ledger ile korunur. Ledger yalnız feed kimliği, native kimlik ve zaman bilgisi taşır; başlık, gövde veya finansal içerik saklamaz. İlk aktivasyon eski feed'i topluca yeniden bildirim olarak üretmez; başarılı teslim kaydedilir, başarısız teslim sonraki senkronizasyonda yeniden denenebilir. Native planlama öncesinde kanonik feed varlığı, okunma durumu ve içerik revision'ı aynı mutasyon kuyruğunda yeniden doğrulanır; kullanıcı silme veya satıcı düzeltmesi sırasında eski snapshot diriltilmez. Kanal adları uygulama dilinde güncellenir; sistem izni Bildirimler tercihlerinde görünür ve ham tarama tanısı panel için jenerik metne çevrilir. Uygulamanın arka plandan dönmesi feed ve native teslimi yeniden senkronize eder. Uygulama içinden silme tray kopyasını kaldırır; warm/cold bildirim dokunuşu kaydı okunmuş sayıp bildirim rotasına yönlendirir.
+
+Android scheduling ve SQLite ledger yazımı tek OS transaction'ı değildir. Schedule sonrası ledger hatasında servis native kaydı geri kaldırıp retry yapar; kaldırma da başarısızsa süreç içi guard ikinci uyarıyı keser. Ani süreç ölümü sınırında mutlak exactly-once kanıtı verilemez; deterministik native kimlik, kalıcı ledger ve APK tekrar-teslim smoke testi bu küçük pencerenin azaltıcı kontrolleridir.
 
 ## Bağımlılık ve değişiklik sınırları
 

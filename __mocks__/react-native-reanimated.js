@@ -28,4 +28,11 @@ module.exports = {
   FadeIn: anim(),
   SlideInRight: anim(),
   LinearTransition: anim(),
+  useSharedValue: (value) => ({ value }),
+  useAnimatedStyle: (factory) => factory(),
+  withRepeat: (value) => value,
+  withTiming: (value) => value,
+  withDelay: (_delay, value) => value,
+  cancelAnimation: () => {},
+  Easing: { linear: (value) => value },
 };

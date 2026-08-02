@@ -40,6 +40,7 @@ export interface StreakDetailsSheetProps {
   /** 'under' için günlük bütçe hedefi. */
   dailyBudget?: number;
   totalDays: number;
+  streakMode?: 'current' | 'period_end';
   language: Language;
   currency: string;
   t: (key: string, params?: Record<string, string | number>) => string;
@@ -100,6 +101,7 @@ export default function StreakDetailsSheet({
   entries,
   dailyBudget = 0,
   totalDays,
+  streakMode = 'current',
   language,
   currency,
   t,
@@ -123,14 +125,14 @@ export default function StreakDetailsSheet({
     variant === 'zero'
       ? t('streak_details_zero_title')
       : variant === 'streak'
-      ? t('streak_details_streak_title')
+      ? t(streakMode === 'current' ? 'streak_details_streak_title' : 'streak_details_period_end_title')
       : t('streak_details_under_title');
 
   const emptyKey =
     variant === 'zero'
       ? 'streak_empty_zero'
       : variant === 'streak'
-      ? 'streak_empty_streak'
+      ? streakMode === 'current' ? 'streak_empty_streak' : 'streak_empty_period_end'
       : 'streak_empty_under';
 
   const weekdayFmt = useMemo(

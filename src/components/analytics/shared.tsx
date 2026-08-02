@@ -5,6 +5,7 @@ import { Text, Animated as RNAnimated } from 'react-native';
 import type { AnalyticsStyles } from './analyticsStyles';
 import type { DisplayCurrency } from '../../context/CurrencyContext';
 import type { SubscriptionWithDetails } from '../../db/schema';
+import type { SpendingStatsResult } from '../../utils/spendingStats';
 
 export type Timeframe = 'week' | 'month' | 'year' | 'custom';
 
@@ -122,16 +123,8 @@ export interface BehaviorSegment {
 
 export type StreakVariant = 'zero' | 'streak' | 'under';
 
-/** Harcama serisi özeti (streakData memo'su). */
-export interface StreakData {
-  zeroSpendDays: number;
-  currentStreak: number;
-  underBudgetDays: number;
-  totalDays: number;
-  zeroSpendDates: string[];
-  currentStreakDates: string[];
-  underBudgetEntries: { date: string; total: number }[];
-}
+/** Harcama serisi özeti (saf ve doğrudan test edilen domain sonucu). */
+export type StreakData = SpendingStatsResult;
 
 /**
  * Tüm analiz kartlarının paylaştığı temel prop'lar. Parent bunları tek seferde

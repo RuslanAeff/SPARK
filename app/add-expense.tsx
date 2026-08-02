@@ -29,6 +29,7 @@ import { getVendorPlaceholderExamples } from '../src/utils/vendorPlaceholders';
 import { takePendingReceiptDraft } from '../src/services/pendingReceiptDraft';
 import { getPrefillFromParsedReceipt } from '../src/services/receiptParser';
 import { useRefreshActions } from '../src/context/RefreshContext';
+import { refreshReceiptSavedNotification } from '../src/notifications/receiptNotifications';
 import {
   susevarButton,
   susevarButtonMarginTop,
@@ -222,7 +223,8 @@ export default function AddExpenseScreen() {
       }
 
       if (isEditing && id) {
-        await ExpenseDao.update(parseInt(id), {
+        const expenseId = parseInt(id, 10);
+        await ExpenseDao.update(expenseId, {
           total_amount: parsedAmount,
           currency,
           note: note || null,
@@ -230,6 +232,14 @@ export default function AddExpenseScreen() {
           vendor_id: vendorId,
           category_id: effectiveCategoryId,
         });
+
+        // Bu harcama fiş taramasından geldiyse mevcut bildirimi son kaydedilmiş
+        // satıcıyla yenile. Manuel harcamada eşleşen bildirim olmadığı için no-op.
+        try {
+          await refreshReceiptSavedNotification(expenseId);
+        } catch (error) {
+          if (__DEV__) console.warn('[add-expense] receipt notification refresh failed', error);
+        }
       } else {
         await ExpenseDao.create({
           total_amount: parsedAmount,

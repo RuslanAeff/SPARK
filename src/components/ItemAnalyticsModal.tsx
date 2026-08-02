@@ -12,7 +12,8 @@ import { Typography, FontFamily } from '../theme/typography';
 import { Spacing, BorderRadius, ScreenPadding } from '../theme/spacing';
 import { formatCurrency } from '../utils/formatCurrency';
 import { ExpenseDao } from '../db/expenseDao';
-import LineChart, { LinePoint } from './LineChart';
+import LineChart from './LineChart';
+import { buildAdaptivePriceHistorySeries } from '../utils/priceHistorySeries';
 import { useLanguage } from '../i18n/LanguageContext';
 import { useCurrency } from '../context/CurrencyContext';
 import { useAppTheme } from '../theme/themeStore';
@@ -48,38 +49,44 @@ export default function ItemAnalyticsModal({ visible, itemName, onClose }: ItemA
   const [history, setHistory] = useState<ItemHistoryEntry[]>([]);
   const [showAllHistory, setShowAllHistory] = useState(false);
   const mountedRef = useRef(true);
+  const requestSequenceRef = useRef(0);
 
   useEffect(() => () => { mountedRef.current = false; }, []);
 
   useEffect(() => {
     if (visible && itemName) {
-      loadData();
+      const sequence = ++requestSequenceRef.current;
+      setStats(null);
+      setHistory([]);
+      setShowAllHistory(false);
+      void loadData(itemName, sequence);
+    } else {
+      requestSequenceRef.current += 1;
+      setShowAllHistory(false);
     }
     return () => {
-      setShowAllHistory(false);
+      requestSequenceRef.current += 1;
     };
   }, [visible, itemName]);
 
-  async function loadData() {
+  async function loadData(targetItemName: string, sequence: number) {
     setLoading(true);
     try {
-      const result = await ExpenseDao.getItemAnalytics(itemName);
-      if (!mountedRef.current) return;
+      const result = await ExpenseDao.getItemAnalytics(targetItemName);
+      if (!mountedRef.current || sequence !== requestSequenceRef.current) return;
       setStats(result.stats);
       setHistory(result.history);
     } catch (e) {
       console.error('ItemAnalytics load error:', e);
     }
-    if (mountedRef.current) setLoading(false);
+    if (mountedRef.current && sequence === requestSequenceRef.current) setLoading(false);
   }
 
-  const chartData: LinePoint[] = useMemo(() =>
-    history.map(h => ({
-      label: h.date.split('-').slice(1).reverse().join('/'),
-      value: h.unit_price,
-      meta: h.vendor_name,
-    })),
-  [history]);
+  const chartSeries = useMemo(
+    () => buildAdaptivePriceHistorySeries(history),
+    [history],
+  );
+  const chartData = chartSeries.points;
 
   const { vendorPrices, cheapestPrice } = useMemo(() => {
     const vendorMap = new Map<string, { total: number; count: number }>();
@@ -167,7 +174,24 @@ export default function ItemAnalyticsModal({ visible, itemName, onClose }: ItemA
                       <MaterialCommunityIcons name="chart-timeline-variant" size={14} color={Colors.textSecondary} />
                       {'  '}{t('price_change')}
                     </Text>
-                    <LineChart data={chartData} height={160} color={Colors.primary} currency={currency} />
+                    <LineChart
+                      key={itemName}
+                      data={chartData}
+                      height={160}
+                      color={Colors.primary}
+                      currency={currency}
+                    />
+                    {chartSeries.simplified && (
+                      <View style={styles.chartDensityNote}>
+                        <MaterialCommunityIcons name="chart-timeline-variant-shimmer" size={13} color={Colors.textMuted} />
+                        <Text style={styles.chartDensityNoteText}>
+                          {t('price_chart_dense_summary', {
+                            shown: chartSeries.displayedCount.toString(),
+                            total: chartSeries.sourceCount.toString(),
+                          })}
+                        </Text>
+                      </View>
+                    )}
                   </View>
                 )}
 
@@ -344,6 +368,19 @@ const getStyles = () => StyleSheet.create({
     color: Colors.textSecondary,
     letterSpacing: 1.2,
     marginBottom: Spacing.md,
+  },
+  chartDensityNote: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: Spacing.xs,
+    marginTop: -Spacing.xs,
+    paddingHorizontal: Spacing.xs,
+  },
+  chartDensityNoteText: {
+    ...Typography.labelSmall,
+    color: Colors.textMuted,
+    flex: 1,
+    lineHeight: 16,
   },
 
   // Vendor Comparison

@@ -6,21 +6,24 @@ import AnimatedCard from '../AnimatedCard';
 import { Colors } from '../../theme/colors';
 import { formatCurrency } from '../../utils/formatCurrency';
 import type { ExpenseWithDetails } from '../../db/schema';
+import type { TopTransactionSelection } from '../../db/expenseDao';
 import type { BaseCardProps } from './shared';
 
 interface TopTxCardProps extends BaseCardProps {
   topTx: ExpenseWithDetails[];
+  selection?: TopTransactionSelection;
 }
 
 const TOP_TX_VISIBLE = 3;
 
-function TopTxCard({ styles, t, tc, currency, topTx }: TopTxCardProps) {
+function TopTxCard({ styles, t, tc, currency, topTx, selection = 'overall' }: TopTxCardProps) {
   // Varsayılan ilk 3'ü göster + "Daha çok" ile satır içi genişlet (iç içe
   // ScrollView yerine → pull-to-refresh çakışması yok, kart kısa kalır).
   const [expanded, setExpanded] = useState(false);
   if (topTx.length === 0) return null;
   const canCollapse = topTx.length > TOP_TX_VISIBLE;
   const visibleTx = canCollapse && !expanded ? topTx.slice(0, TOP_TX_VISIBLE) : topTx;
+  const isPerVendor = selection === 'per-vendor';
   const txList = (
     <>
       {visibleTx.map((tx, i) => (
@@ -44,13 +47,22 @@ function TopTxCard({ styles, t, tc, currency, topTx }: TopTxCardProps) {
   );
   return (
     <AnimatedCard delay={350} style={styles.section}>
-      <Text style={styles.sectionTitle}>{t('top_transactions')}</Text>
+      <Text style={[styles.sectionTitle, isPerVendor && styles.topTxTitleWithHint]}>
+        {t(isPerVendor ? 'top_transactions_per_vendor' : 'top_transactions')}
+      </Text>
+      {isPerVendor && (
+        <View style={styles.topTxHintRow}>
+          <MaterialCommunityIcons name="information-outline" size={13} color={Colors.textMuted} />
+          <Text style={styles.topTxHint}>{t('top_transactions_per_vendor_hint')}</Text>
+        </View>
+      )}
       {txList}
       {canCollapse && (
         <Pressable
           onPress={() => setExpanded((v) => !v)}
           style={styles.showMoreBtn}
           accessibilityRole="button"
+          accessibilityState={{ expanded }}
         >
           <Text style={styles.showMoreText}>
             {expanded ? t('show_less') : t('show_more_top_tx', { count: (topTx.length - TOP_TX_VISIBLE).toString() })}

@@ -5,8 +5,21 @@ import type { InAppNotification, RulesState, NotificationMuteChannel } from './t
 const K_FEED = 'notif_feed_v1';
 const K_RULES = 'notif_rules_state_v1';
 const K_MUTES = 'notif_mutes_v1';
+const K_ANDROID_DELIVERY = 'notif_android_delivery_v1';
 
 const MAX_FEED = 40;
+const MAX_ANDROID_DELIVERY_RECORDS = 160;
+
+export interface AndroidDeliveryRecord {
+  handledAt: number;
+  nativeIdentifier?: string;
+}
+
+export interface AndroidDeliveryState {
+  version: 1;
+  initializedAt: number;
+  records: Record<string, AndroidDeliveryRecord>;
+}
 
 export interface DismissNotificationsResult {
   removedIds: string[];
@@ -90,6 +103,73 @@ export async function loadMutes(): Promise<Partial<Record<NotificationMuteChanne
 
 export async function saveMutes(m: Partial<Record<NotificationMuteChannel, boolean>>): Promise<void> {
   await setSetting(K_MUTES, JSON.stringify(m));
+}
+
+/**
+ * Uygulama-içi feed ile Android notification tray arasındaki idempotency kaydı.
+ * Finansal veri veya çevrilmiş bildirim metni içermez; yalnız SPARK bildirim ID'si
+ * ile native request ID'sini tutar.
+ */
+export async function loadAndroidDeliveryStateStrict(): Promise<AndroidDeliveryState | null> {
+  const raw = await getSetting(K_ANDROID_DELIVERY);
+  if (!raw) return null;
+
+  const parsed: unknown = JSON.parse(raw);
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    throw new Error('Android notification delivery state is not an object');
+  }
+
+  const candidate = parsed as Partial<AndroidDeliveryState>;
+  if (
+    candidate.version !== 1 ||
+    !Number.isFinite(candidate.initializedAt) ||
+    !candidate.records ||
+    typeof candidate.records !== 'object' ||
+    Array.isArray(candidate.records)
+  ) {
+    throw new Error('Android notification delivery state is invalid');
+  }
+
+  const records: Record<string, AndroidDeliveryRecord> = {};
+  for (const [id, value] of Object.entries(candidate.records)) {
+    if (!id || id.length > 180 || !value || typeof value !== 'object' || Array.isArray(value)) {
+      continue;
+    }
+    const record = value as Partial<AndroidDeliveryRecord>;
+    if (!Number.isFinite(record.handledAt)) continue;
+    if (
+      record.nativeIdentifier !== undefined &&
+      (typeof record.nativeIdentifier !== 'string' || record.nativeIdentifier.length > 220)
+    ) {
+      continue;
+    }
+    records[id] = {
+      handledAt: Number(record.handledAt),
+      ...(record.nativeIdentifier ? { nativeIdentifier: record.nativeIdentifier } : {}),
+    };
+  }
+
+  return {
+    version: 1,
+    initializedAt: Number(candidate.initializedAt),
+    records,
+  };
+}
+
+export async function saveAndroidDeliveryState(state: AndroidDeliveryState): Promise<void> {
+  const records = Object.fromEntries(
+    Object.entries(state.records)
+      .sort(([, a], [, b]) => b.handledAt - a.handledAt)
+      .slice(0, MAX_ANDROID_DELIVERY_RECORDS),
+  );
+  await setSetting(
+    K_ANDROID_DELIVERY,
+    JSON.stringify({
+      version: 1,
+      initializedAt: state.initializedAt,
+      records,
+    } satisfies AndroidDeliveryState),
+  );
 }
 
 function parseStoredFeed(raw: string | null): InAppNotification[] {

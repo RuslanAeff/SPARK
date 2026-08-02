@@ -276,6 +276,21 @@ export const getAnalyticsStyles = () => StyleSheet.create({
     textAlign: 'center',
   },
   // Top Transactions
+  topTxTitleWithHint: {
+    marginBottom: Spacing.xs,
+  },
+  topTxHintRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: Spacing.xs,
+    marginBottom: Spacing.sm,
+  },
+  topTxHint: {
+    ...Typography.labelSmall,
+    color: Colors.textMuted,
+    flex: 1,
+    lineHeight: 16,
+  },
   topTxRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -829,21 +844,18 @@ export const getAnalyticsStyles = () => StyleSheet.create({
   },
   streakMsg: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
     marginTop: Spacing.md,
     paddingVertical: Spacing.md,
     paddingHorizontal: Spacing.lg,
     backgroundColor: Colors.surfaceLight,
     borderRadius: BorderRadius.md,
-    gap: Spacing.xxl,
-  },
-  streakMsgRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
     gap: Spacing.md,
+  },
+  streakMsgBody: {
     flex: 1,
     minWidth: 0,
+    gap: 3,
   },
   streakMsgIconWrap: {
     width: 36,
@@ -867,14 +879,12 @@ export const getAnalyticsStyles = () => StyleSheet.create({
     letterSpacing: 0.5,
     color: Colors.textPrimary,
   },
-  streakMsgSubWrap: {
-    flexShrink: 0,
-    paddingLeft: Spacing.md,
-  },
   streakMsgSub: {
     ...Typography.labelSmall,
     color: Colors.textSecondary,
     fontFamily: FontFamily.medium,
+    flexShrink: 1,
+    lineHeight: 18,
   },
 
   // ── A8: Month-end Projection ──

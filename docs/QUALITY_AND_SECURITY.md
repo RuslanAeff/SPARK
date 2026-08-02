@@ -34,8 +34,8 @@ CI bu kapıları çalıştırmadan önce lockfile üzerinden kurulum yapar. Yere
 
 Mevcut test paketi dört seviyeyi kapsar:
 
-- Saf domain yardımcıları: tarihler, bütçe döngüleri, borç nakit akışı, projeksiyonlar, normalizasyon, doğrulama, para birimi ve fiş onarımı.
-- Servis kuralları: Gemini yanıt coercion'ı, fiş satırı birleştirme ve abonelik tespiti.
+- Saf domain yardımcıları: tarihler, bütçe döngüleri, borç nakit akışı, tamamlanmış-gün harcama istatistikleri, projeksiyonlar, normalizasyon, doğrulama, para birimi ve fiş onarımı.
+- Servis kuralları: Gemini yanıt coercion'ı, fiş satırı birleştirme, abonelik tespiti ve Android bildirim kanal/teslim politikası.
 - Hook/context davranışı: eski sonuç koruması, refresh yayılımı, tema/dil readiness, bildirim serileştirme ve kalıcılık koordinasyonu.
 - Component/ekran davranışı: analiz kartları, toast yaşam döngüsü, bildirim işlemleri, swipe affordance'ları ve çoklu seçim akışları.
 
@@ -54,6 +54,8 @@ Değişiklik aşağıdaki alanlara dokunuyorsa development build veya APK smoke 
 - Uygulama metaverisi, Expo plugin'leri, native izinler veya EAS yapılandırması
 
 Sıcak navigasyonun yanında cold start da test edilmelidir. Expo Go her native açılış yüzeyini yeniden üretmediğinden startup görsel düzeltmeleri standalone build içinde doğrulanmalıdır.
+
+Android sistem bildirimi değişikliklerinin APK smoke testi en az şu senaryoları kaydetmelidir: cold start sırasında reveal tamamlanmadan izin yüzeyi açılmaması; Android 13+ izin akışı; sessiz güncelleme ve dikkat gerektiren uyarı kanallarının önem/ses/titreşim farkı; kilit ekranında özel içerik görünürlüğü; resume ve yeniden başlatmada çift teslim olmaması; uygulama içi silmenin tray kopyasını kaldırması; warm/cold dokunuşun doğru kaydı okuyup Bildirimler'e yönlendirmesi. Expo Go sonucu bu davranışlar için cihaz kanıtı sayılmaz.
 
 ## Güvenlik modeli
 
@@ -98,7 +100,7 @@ Aşağıdakilerin tümünü güvenilmez kabul edin:
 
 Native izinlerin sahibi `app.json` dosyasıdır; dokümantasyon bağımsız bir izin listesi tutmamalıdır. Her yeni izin somut özellik ihtiyacı, kullanıcıya dönük açıklama ve daha dar bir sistem API'sinin bulunup bulunmadığına dair inceleme gerektirir.
 
-Bildirim kurulumu Android sürüm davranışını ve Expo Go sınırlamalarını hesaba katmalıdır. Kullanılamayan push API'lerini mevcut ortam guard'ı olmadan import veya invoke etmeyin.
+Bildirim kurulumu Android sürüm davranışını ve Expo Go sınırlamalarını hesaba katmalıdır. Kullanılamayan push API'lerini mevcut ortam guard'ı olmadan import veya invoke etmeyin. Native aktivasyonu kök reveal kapısından önce başlatmayın; izin istemini ilk görünür kareyle yarıştırmayın. Rutin ve dikkat gerektiren kayıtları ayrı Android kanallarına ayırın ve finansal içerik için kilit ekranı görünürlüğünü `PRIVATE` tutun.
 
 ## Veri bütünlüğü
 
@@ -123,6 +125,8 @@ Bildirim kurulumu Android sürüm davranışını ve Expo Go sınırlamalarını
 ### Bildirim durumu
 
 Feed, okuma, mute, dismissal ve özel kural durumu birden fazla UI ve refresh yolundan güncellenebilir. Bu değişiklikleri ortak serileştirilmiş mutasyon mekanizması üzerinden kalıcılaştırın. Toplu işlemler tek atomik depolama değişikliği yapmalıdır; paralel tekli işlemlerden birleştirilmemelidir.
+
+Native teslim başarısızlığı uygulama içi feed'in kalıcılığını geri almamalıdır. Tekrar teslimi önleyen ledger sınırlı ve idempotent olmalı; yalnız feed/native kimlikleri ile zaman damgalarını taşımalı, bildirim metni veya finansal veri saklamamalıdır. Başarılı teslim ledger'a yazılır; başarısız teslim sonraki resume/senkronizasyonda güvenle yeniden denenebilir. İlk native aktivasyon, eski feed kayıtlarını topluca sistem bildirimi olarak canlandırmamalıdır. Planlama öncesi kanonik feed `id/read/revision` kontrolü yapılmalı; schedule başarılıyken ledger yazımı başarısız olursa native side-effect geri alınarak retry hazırlanmalıdır. OS scheduling ile SQLite arasında mutlak atomiklik varsaymayın; ani süreç ölümü penceresini fiziksel APK'da tekrar-teslim senaryosuyla ayrıca kaydedin.
 
 ## Güvenilirlik gereksinimleri
 

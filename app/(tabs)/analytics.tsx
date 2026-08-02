@@ -23,6 +23,7 @@ import {
   resolvePreviousAnalyticsDateRange,
 } from '../../src/utils/analyticsPeriod';
 import { computeSpendingProjection } from '../../src/utils/spendingProjection';
+import { computeSpendingStats } from '../../src/utils/spendingStats';
 
 import AnimatedCard from '../../src/components/AnimatedCard';
 import CustomDatePicker from '../../src/components/CustomDatePicker';
@@ -298,6 +299,13 @@ export default function AnalyticsScreen() {
     () => ({ enabled: analyticsPeriodReady, autoLoad: false }),
     [analyticsPeriodReady],
   );
+  const topTransactionsQueryOptions = useMemo(
+    () => ({
+      ...analyticsQueryOptions,
+      selection: timeframe === 'year' ? 'per-vendor' as const : 'overall' as const,
+    }),
+    [analyticsQueryOptions, timeframe],
+  );
   const cycleQueryOptions = useMemo(
     () => ({ enabled: budgetPeriodReady, autoLoad: false }),
     [budgetPeriodReady],
@@ -437,7 +445,7 @@ export default function AnalyticsScreen() {
     dateRange.start,
     dateRange.end,
     8,
-    analyticsQueryOptions,
+    topTransactionsQueryOptions,
   );
   const { data: subcats, refresh: refreshSubcats } = useSubcategorySpending(
     selectedCategory,
@@ -654,102 +662,47 @@ export default function AnalyticsScreen() {
     } catch { setCategoryLimits([]); }
   }
 
-  // Harcama İstatistikleri (streak) — dailyData yalnızca harcaması olan
-  // günleri içerdiğinden (SQL GROUP BY date), "sıfır harcama" günlerini
-  // direkt dailyData üzerinde sayamayız. Takvimsel aralığı yoğun bir diziye
-  // genişletip eksik günlere 0 dolduruyoruz. Çok uzun aralıklarda (ör. "Tüm
-  // zamanlar") istatistikleri anlamlı tutmak için son 365 güne kırpıyoruz.
+  // Harcama İstatistikleri — yalnız tamamlanmış takvim günleri değerlendirilir.
+  // "Tüm zamanlar" uygulamanın kullanılmadığı 2000–ilk işlem aralığını sıfır
+  // harcama saymaz. Bütçe metriği de değişken "kalan / kalan gün" hedefi yerine
+  // yalnız aktif bütçe döngüsündeki sabit günlük planı kullanır.
   const streakData = useMemo(() => {
-    // Yerel gün (timezone güvenli YYYY-MM-DD)
-    const toLocalYmd = (d: Date) =>
-      `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(
-        d.getDate()
-      ).padStart(2, '0')}`;
-    const addDays = (d: Date, n: number) => {
-      const r = new Date(d);
-      r.setDate(d.getDate() + n);
-      return r;
-    };
-
     const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const todayStr = toLocalYmd(today);
+    const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(
+      today.getDate(),
+    ).padStart(2, '0')}`;
 
-    const parseYmd = (s: string) => {
-      const [y, m, d] = s.split('-').map(Number);
-      return new Date(y, (m || 1) - 1, d || 1);
-    };
+    const cycle = getCurrentCycle(budget.cycleStartDay, today);
+    const isCanonicalCurrentCycle =
+      timeframe === 'month' &&
+      dateRange.start === budget.periodStart &&
+      dateRange.end === budget.periodEnd;
+    const stableDailyTarget =
+      isCanonicalCurrentCycle && budget.effectiveBudget > 0
+        ? budget.effectiveBudget / cycle.totalDays
+        : null;
 
-    const rawStart = parseYmd(dateRange.start);
-    const rawEnd = parseYmd(dateRange.end);
-    // Bitiş ≤ bugün (geleceği saymayız)
-    const rangeEnd = rawEnd > today ? today : rawEnd;
-    if (rangeEnd < rawStart) {
-      return {
-        zeroSpendDays: 0,
-        currentStreak: 0,
-        underBudgetDays: 0,
-        totalDays: 0,
-        zeroSpendDates: [] as string[],
-        currentStreakDates: [] as string[],
-        underBudgetEntries: [] as { date: string; total: number }[],
-      };
-    }
-
-    // Maks 365 güne kırp — "Tüm zamanlar" senaryosu için makul değerler.
-    const MAX_WINDOW_DAYS = 365;
-    const spanDays = Math.floor((rangeEnd.getTime() - rawStart.getTime()) / 86400000) + 1;
-    const rangeStart =
-      spanDays > MAX_WINDOW_DAYS ? addDays(rangeEnd, -(MAX_WINDOW_DAYS - 1)) : rawStart;
-
-    // sparse → lookup
-    const totalsMap = new Map<string, number>();
-    for (const d of dailyData) totalsMap.set(d.date, d.total);
-
-    const days: { date: string; total: number }[] = [];
-    for (let cur = new Date(rangeStart); cur <= rangeEnd; cur = addDays(cur, 1)) {
-      const key = toLocalYmd(cur);
-      days.push({ date: key, total: totalsMap.get(key) ?? 0 });
-    }
-
-    const zeroSpendDates: string[] = [];
-    for (const d of days) if (d.total === 0) zeroSpendDates.push(d.date);
-    const zeroSpendDays = zeroSpendDates.length;
-
-    // Güncel seri: bugünden geriye, art arda kaç sıfır harcama günü?
-    const currentStreakDates: string[] = [];
-    for (let i = days.length - 1; i >= 0; i--) {
-      if (days[i].date > todayStr) continue;
-      if (days[i].total === 0) currentStreakDates.push(days[i].date);
-      else break;
-    }
-    // En eski → en yeni sırayla göstermek için tersine çevir
-    currentStreakDates.reverse();
-    const currentStreak = currentStreakDates.length;
-
-    const dailyBudgetTarget = budget.dailyBudget > 0 ? budget.dailyBudget : 0;
-    const underBudgetEntries: { date: string; total: number }[] = [];
-    if (dailyBudgetTarget > 0) {
-      for (const d of days) {
-        if (d.total > 0 && d.total <= dailyBudgetTarget) {
-          underBudgetEntries.push({ date: d.date, total: d.total });
-        }
-      }
-    }
-    const underBudgetDays = underBudgetEntries.length;
-
-    const totalDays = days.length;
-
-    return {
-      zeroSpendDays,
-      currentStreak,
-      underBudgetDays,
-      totalDays,
-      zeroSpendDates,
-      currentStreakDates,
-      underBudgetEntries,
-    };
-  }, [dailyData, budget.dailyBudget, dateRange.start, dateRange.end]);
+    return computeSpendingStats({
+      dailyData,
+      startDate: dateRange.start,
+      endDate: dateRange.end,
+      today: todayStr,
+      trackingMode: timeframe === 'year',
+      dailyTarget: stableDailyTarget,
+      targetRange: stableDailyTarget
+        ? { start: budget.periodStart, end: budget.periodEnd }
+        : null,
+    });
+  }, [
+    dailyData,
+    timeframe,
+    dateRange.start,
+    dateRange.end,
+    budget.periodStart,
+    budget.periodEnd,
+    budget.cycleStartDay,
+    budget.effectiveBudget,
+  ]);
 
   const heatmapInfo = useMemo(() => {
     if (timeframe !== 'month') return null;
@@ -1156,7 +1109,11 @@ export default function AnalyticsScreen() {
       );
     } else if (id === 'top_tx') {
       content = (
-        <TopTxCard {...cardBase} topTx={topTx} />
+        <TopTxCard
+          {...cardBase}
+          topTx={topTx}
+          selection={topTransactionsQueryOptions.selection}
+        />
       );
     } else if (id === 'vendors') {
       content = (
@@ -1217,7 +1174,6 @@ export default function AnalyticsScreen() {
         <StreakCard
           {...cardBase}
           streakData={streakData}
-          dailyBudget={budget.dailyBudget}
           setStreakDetailVariant={setStreakDetailVariant}
         />
       );
@@ -1229,7 +1185,7 @@ export default function AnalyticsScreen() {
     // bile günlük tempo + kalan gün gösterilir.
     if (id === 'projection') {
       content = (
-        <ProjectionCard {...cardBase} projectionInfo={projectionInfo} />
+        <ProjectionCard {...cardBase} timeframe={timeframe} projectionInfo={projectionInfo} />
       );
     }
 
@@ -1494,8 +1450,9 @@ export default function AnalyticsScreen() {
           : streakData.zeroSpendDates
       }
       entries={streakData.underBudgetEntries}
-      dailyBudget={budget.dailyBudget}
+      dailyBudget={streakData.dailyTarget ?? 0}
       totalDays={streakData.totalDays}
+      streakMode={streakData.streakMode}
       language={language}
       currency={currency}
       t={t}

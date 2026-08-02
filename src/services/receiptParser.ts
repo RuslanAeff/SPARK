@@ -186,8 +186,8 @@ export async function processReceipt(receipt: ParsedReceipt): Promise<number> {
 
   // Bildirim transaction dışı (isteğe bağlı; kritik değil)
   try {
-    const { appendReceiptSavedNotification } = await import('../notifications/buildNotifications');
-    await appendReceiptSavedNotification(vendorName, expenseId);
+    const { appendReceiptSavedNotification } = await import('../notifications/receiptNotifications');
+    await appendReceiptSavedNotification(expenseId);
   } catch {
     /* bildirim isteğe bağlı */
   }

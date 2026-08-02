@@ -6,6 +6,8 @@
   "time_analysis": "Xərclərinizin %{percentage}-i {segment} zamanı baş verir.",
   "donut_hint_swipe_left": "Detallar üçün qrafikə toxunun • ⬅ Sürüşdürün",
   "top_transactions": "ƏN BÖYÜK ƏMƏLİYYATLAR",
+  "top_transactions_per_vendor": "HƏR SATICININ ƏN BÖYÜK ƏMƏLİYYATI",
+  "top_transactions_per_vendor_hint": "Hər satıcının bu dövrdəki yalnız ən böyük əməliyyatı.",
   "unknown": "Naməlum",
   "subcategories": "ALT KATEQORİYALAR",
   "vendors_stores": "SATICILAR / MAĞAZALAR",

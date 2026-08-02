@@ -28,8 +28,15 @@ import {
 import { LanguageProvider, useLanguage } from '../src/i18n/LanguageContext';
 import { RefreshProvider } from '../src/context/RefreshContext';
 import { CurrencyProvider, useCurrency } from '../src/context/CurrencyContext';
-import { NotificationsProvider } from '../src/context/NotificationsContext';
-import { ensureAndroidNotificationSetup } from '../src/services/androidNotificationsSetup';
+import {
+  NotificationsProvider,
+  useNotifications,
+} from '../src/context/NotificationsContext';
+import {
+  activateAndroidNotificationDelivery,
+  ensureAndroidNotificationSetup,
+  subscribeAndroidNotificationResponses,
+} from '../src/services/androidNotificationsSetup';
 import { useOnboardingStatus } from '../src/hooks/useOnboardingStatus';
 
 const BOOT_BACKGROUND = '#050505';
@@ -42,10 +49,52 @@ SplashScreen.setOptions({ duration: 220, fade: true });
 void SystemUI.setBackgroundColorAsync(BOOT_BACKGROUND).catch(() => {});
 
 function AndroidNotificationBootstrap({ enabled }: { enabled: boolean }) {
+  const router = useRouter();
+  const { markRead, sync } = useNotifications();
+  const { t } = useLanguage();
+  const channelCopy = React.useMemo(() => ({
+    updatesName: t('notif_android_updates_channel'),
+    updatesDescription: t('notif_android_updates_channel_desc'),
+    alertsName: t('notif_android_alerts_channel'),
+    alertsDescription: t('notif_android_alerts_channel_desc'),
+  }), [t]);
+
   useEffect(() => {
     if (!enabled) return;
-    void ensureAndroidNotificationSetup();
-  }, [enabled]);
+    activateAndroidNotificationDelivery();
+    void ensureAndroidNotificationSetup(true, channelCopy).then((status) => {
+      if (__DEV__ && status === 'error') {
+        console.warn('[notifications] Android setup failed');
+      }
+      if (status === 'ready') void sync();
+    });
+  }, [channelCopy, enabled, sync]);
+
+  useEffect(() => {
+    if (!enabled) return;
+    let disposed = false;
+    let unsubscribe: (() => void) | undefined;
+
+    void subscribeAndroidNotificationResponses(async (notificationId) => {
+      try {
+        await markRead(notificationId);
+      } catch {
+        // Feed öğesi daha önce silinmiş olabilir; route yine açılabilmelidir.
+      }
+      router.push('/notifications');
+    }).then((cleanup) => {
+      if (disposed) cleanup();
+      else unsubscribe = cleanup;
+    }).catch(() => {
+      if (__DEV__) console.warn('[notifications] response observer failed');
+    });
+
+    return () => {
+      disposed = true;
+      unsubscribe?.();
+    };
+  }, [enabled, markRead, router]);
+
   return null;
 }
 

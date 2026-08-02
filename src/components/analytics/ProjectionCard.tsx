@@ -5,13 +5,18 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import AnimatedCard from '../AnimatedCard';
 import { Colors } from '../../theme/colors';
 import { formatCurrency } from '../../utils/formatCurrency';
-import type { BaseCardProps, ProjectionInfo } from './shared';
+import type { BaseCardProps, ProjectionInfo, Timeframe } from './shared';
 
 interface ProjectionCardProps extends BaseCardProps {
   projectionInfo: ProjectionInfo;
+  timeframe: Timeframe;
 }
 
-function ProjectionCard({ styles, t, currency, projectionInfo }: ProjectionCardProps) {
+function ProjectionCard({ styles, t, currency, projectionInfo, timeframe }: ProjectionCardProps) {
+  // Yıllık analizde ay sonu projeksiyonu anlamlı bir kart değildir. Kart
+  // yapılandırmasını koruyup yalnızca bu görünümde render etmeyiz.
+  if (timeframe === 'year') return null;
+
   if (!projectionInfo.available) {
     const reasonKey = projectionInfo.reason === 'only_month' ? 'projection_only_month' : 'projection_too_early';
     const icon = projectionInfo.reason === 'only_month' ? 'calendar-month-outline' : 'progress-clock';

@@ -1,5 +1,6 @@
 import React from 'react';
 import { fireEvent, render, waitFor } from '@testing-library/react-native';
+import { Linking, Platform } from 'react-native';
 
 import NotificationsScreen from '../../../app/notifications';
 
@@ -15,12 +16,14 @@ const mockDismiss = jest.fn(async (id: string) => dismissResult([id]));
 const mockDismissMany = jest.fn(async (ids: readonly string[]) => dismissResult(ids));
 const mockSetMute = jest.fn(async () => undefined);
 const mockSync = jest.fn(async () => undefined);
+const mockEnsureAndroidNotificationSetup = jest.fn(async () => 'denied');
 
 const receiptNotification = {
   id: 'receipt-visual-test',
   severity: 'info' as const,
-  titleKey: 'test_receipt_title',
-  bodyKey: 'test_receipt_body',
+  titleKey: 'notif_receipt_saved_t',
+  bodyKey: 'notif_receipt_saved_b',
+  params: { vendor: 'Örnek Market' },
   createdAt: new Date(2026, 6, 25, 17, 52).getTime(),
   read: false,
 };
@@ -70,6 +73,7 @@ jest.mock('../../i18n/LanguageContext', () => ({
       const translations: Record<string, string> = {
         notif_center_title: 'Bildirimler',
         notif_mark_all: 'Tümünü okundu yap',
+        notif_unread_label: 'Okunmamış',
         notif_selected: '{count} bildirim seçildi',
         notif_delete_selected_title: 'Bildirimleri sil',
         notif_delete_selected_confirm: '{count} bildirim silinsin mi?',
@@ -83,8 +87,8 @@ jest.mock('../../i18n/LanguageContext', () => ({
         notif_filter_subscription: 'Abonelik',
         notif_filter_backup: 'Yedek',
         notif_filter_system: 'Sistem',
-        test_receipt_title: 'Fiş işlendi',
-        test_receipt_body: 'İşlem kaydedildi.',
+        notif_receipt_saved_t: '{vendor}',
+        notif_receipt_saved_b: 'Fiş başarıyla işlendi ve işlem kaydedildi.',
         test_budget_title: 'Bütçe uyarısı',
         test_budget_body: 'Bütçene yaklaştın.',
       };
@@ -99,6 +103,10 @@ jest.mock('../../i18n/LanguageContext', () => ({
 
 jest.mock('../../context/NotificationsContext', () => ({
   useNotifications: () => mockNotifications,
+}));
+
+jest.mock('../../services/androidNotificationsSetup', () => ({
+  ensureAndroidNotificationSetup: () => mockEnsureAndroidNotificationSetup(),
 }));
 
 jest.mock('../BottomSheetModal', () => ({
@@ -167,6 +175,28 @@ describe('NotificationsScreen', () => {
     };
   });
 
+  it('offers Android system settings when phone notifications are disabled', async () => {
+    const originalOs = Object.getOwnPropertyDescriptor(Platform, 'OS');
+    Object.defineProperty(Platform, 'OS', { configurable: true, value: 'android' });
+    const openSettings = jest.spyOn(Linking, 'openSettings').mockResolvedValue(undefined);
+
+    try {
+      const screen = await render(<NotificationsScreen />);
+      await fireEvent.press(screen.getByTestId('notifications-preferences'));
+
+      await waitFor(() => {
+        expect(mockEnsureAndroidNotificationSetup).toHaveBeenCalled();
+        expect(screen.getByTestId('notifications-system-status')).toBeTruthy();
+      });
+
+      await fireEvent.press(screen.getByTestId('notifications-open-system-settings'));
+      expect(openSettings).toHaveBeenCalledTimes(1);
+    } finally {
+      openSettings.mockRestore();
+      if (originalOs) Object.defineProperty(Platform, 'OS', originalOs);
+    }
+  });
+
   it('shows mark-all only while unread notifications exist', async () => {
     const view = await render(<NotificationsScreen />);
     expect(view.getByTestId('notifications-mark-all')).toBeTruthy();
@@ -175,6 +205,36 @@ describe('NotificationsScreen', () => {
     await view.rerender(<NotificationsScreen />);
 
     expect(view.queryByTestId('notifications-mark-all')).toBeNull();
+  });
+
+  it('uses the canonical vendor as the receipt headline with a calm unread marker', async () => {
+    const view = await render(<NotificationsScreen />);
+
+    expect(view.getByText('Örnek Market')).toBeTruthy();
+    expect(view.getByText('Fiş başarıyla işlendi ve işlem kaydedildi.')).toBeTruthy();
+    expect(
+      view.getByTestId(`notification-unread-indicator-${receiptNotification.id}`),
+    ).toBeTruthy();
+    expect(
+      view.queryByTestId(`notification-unread-indicator-${budgetNotification.id}`),
+    ).toBeNull();
+    expect(
+      view.getByTestId(`notification-card-${receiptNotification.id}`).props.accessibilityLabel,
+    ).toContain('Okunmamış');
+
+    mockNotifications = {
+      ...mockNotifications,
+      feed: [{ ...receiptNotification, read: true }, budgetNotification],
+      unreadCount: 0,
+    };
+    await view.rerender(<NotificationsScreen />);
+
+    expect(
+      view.queryByTestId(`notification-unread-indicator-${receiptNotification.id}`),
+    ).toBeNull();
+    expect(
+      view.getByTestId(`notification-card-${receiptNotification.id}`).props.accessibilityLabel,
+    ).not.toContain('Okunmamış');
   });
 
   it('keeps the detail and swipe-delete actions separate', async () => {
@@ -188,6 +248,28 @@ describe('NotificationsScreen', () => {
 
     await fireEvent.press(view.getByTestId(`notification-card-${receiptNotification.id}`));
     expect(mockMarkRead).toHaveBeenCalledWith(receiptNotification.id);
+  });
+
+  it('keeps an open detail sheet bound to the current feed item', async () => {
+    const view = await render(<NotificationsScreen />);
+    await fireEvent.press(view.getByTestId(`notification-card-${receiptNotification.id}`));
+
+    expect(view.getAllByText('Örnek Market')).toHaveLength(2);
+
+    mockNotifications = {
+      ...mockNotifications,
+      feed: [
+        {
+          ...receiptNotification,
+          params: { vendor: 'Güncel Market' },
+        },
+        budgetNotification,
+      ],
+    };
+    await view.rerender(<NotificationsScreen />);
+
+    expect(view.queryByText('Örnek Market')).toBeNull();
+    expect(view.getAllByText('Güncel Market')).toHaveLength(2);
   });
 
   it('filters notification channels and exposes the selected tab state', async () => {
@@ -214,6 +296,9 @@ describe('NotificationsScreen', () => {
     await fireEvent(receiptCard, 'longPress');
 
     expect(mockMarkRead).not.toHaveBeenCalled();
+    expect(
+      view.queryByTestId(`notification-unread-indicator-${receiptNotification.id}`),
+    ).toBeNull();
     expect(view.getByTestId('notifications-selection-delete')).toBeTruthy();
     expect(
       view.getByTestId(`notification-card-${receiptNotification.id}`).props.accessibilityState,

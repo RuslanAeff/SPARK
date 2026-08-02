@@ -11,6 +11,13 @@ import {
 } from '../utils/inputValidation';
 import { normalizeItemKey } from '../utils/itemNameNormalizer';
 
+/**
+ * `overall` gerçek işlemleri tutara göre doğrudan sıralar.
+ * `per-vendor` ise uzun dönem özetlerinde aynı satıcının listeyi kaplamaması
+ * için her satıcının en yüksek tek gerçek işlemini döndürür.
+ */
+export type TopTransactionSelection = 'overall' | 'per-vendor';
+
 export const ExpenseDao = {
   async getAll(limit: number = 50, offset: number = 0): Promise<ExpenseWithDetails[]> {
     const db = await getDatabase();
@@ -58,6 +65,28 @@ export const ExpenseDao = {
       expense.items = await ExpenseDao.getItems(id);
     }
     return expense;
+  },
+
+  /**
+   * Kalıcı fiş bildirimlerini mevcut harcama/satıcı gerçeğiyle tek sorguda
+   * uzlaştırmak için kullanılan küçük projection. Aynı SQLite bağlantısında
+   * bildirim başına ayrı sorgu çalıştırılmaz.
+   */
+  async getNotificationSubjectsByIds(
+    ids: readonly number[],
+  ): Promise<Array<{ expense_id: number; vendor_name: string | null }>> {
+    const safeIds = Array.from(new Set(sanitizeIdArray([...ids], 40)));
+    if (safeIds.length === 0) return [];
+
+    const db = await getDatabase();
+    const placeholders = safeIds.map(() => '?').join(',');
+    return db.getAllAsync<{ expense_id: number; vendor_name: string | null }>(
+      `SELECT e.id AS expense_id, v.name AS vendor_name
+       FROM expenses e
+       LEFT JOIN vendors v ON e.vendor_id = v.id
+       WHERE e.id IN (${placeholders})`,
+      safeIds,
+    );
   },
 
   async create(expense: Omit<Expense, 'id' | 'created_at'>): Promise<number> {
@@ -523,8 +552,39 @@ export const ExpenseDao = {
     );
   },
 
-  async getTopTransactions(startDate: string, endDate: string, limit: number = 3) {
+  async getTopTransactions(
+    startDate: string,
+    endDate: string,
+    limit: number = 3,
+    selection: TopTransactionSelection = 'overall',
+  ) {
     const db = await getDatabase();
+
+    if (selection === 'per-vendor') {
+      return db.getAllAsync<ExpenseWithDetails>(
+        `WITH ranked_expense_ids AS (
+           SELECT e.id,
+                  ROW_NUMBER() OVER (
+                    PARTITION BY e.vendor_id,
+                                 CASE WHEN e.vendor_id IS NULL THEN e.id ELSE 0 END
+                    ORDER BY e.total_amount DESC, e.date DESC, e.id DESC
+                  ) AS vendor_rank
+           FROM expenses e
+           WHERE e.date BETWEEN ? AND ?
+         )
+         SELECT e.*,
+                v.name as vendor_name, v.logo_uri as vendor_logo,
+                c.name as category_name, c.icon as category_icon, c.color as category_color
+         FROM expenses e
+         JOIN ranked_expense_ids ranked ON ranked.id = e.id AND ranked.vendor_rank = 1
+         LEFT JOIN vendors v ON e.vendor_id = v.id
+         LEFT JOIN categories c ON e.category_id = c.id
+         ORDER BY e.total_amount DESC, e.date DESC, e.id DESC
+         LIMIT ?`,
+        [startDate, endDate, limit]
+      );
+    }
+
     return db.getAllAsync<ExpenseWithDetails>(
       `SELECT e.*,
               v.name as vendor_name, v.logo_uri as vendor_logo,
@@ -533,7 +593,7 @@ export const ExpenseDao = {
        LEFT JOIN vendors v ON e.vendor_id = v.id
        LEFT JOIN categories c ON e.category_id = c.id
        WHERE e.date BETWEEN ? AND ?
-       ORDER BY e.total_amount DESC
+       ORDER BY e.total_amount DESC, e.date DESC, e.id DESC
        LIMIT ?`,
       [startDate, endDate, limit]
     );

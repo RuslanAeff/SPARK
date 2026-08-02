@@ -76,6 +76,8 @@ jest.mock('../../db/database', () => ({
 import {
   dismissFeedItems,
   enqueueNotificationMutation,
+  loadAndroidDeliveryStateStrict,
+  saveAndroidDeliveryState,
   saveNotificationSnapshot,
 } from '../storage';
 
@@ -215,5 +217,38 @@ describe('notification storage mutations', () => {
     await expect(second).rejects.toThrow('expected test failure');
     await third;
     expect(order).toEqual(['first:start', 'first:end', 'second', 'third']);
+  });
+
+  it('round-trips the Android delivery ledger without storing notification content', async () => {
+    await saveAndroidDeliveryState({
+      version: 1,
+      initializedAt: 100,
+      records: {
+        receipt: { handledAt: 120, nativeIdentifier: 'spark:receipt' },
+        baseline: { handledAt: 110 },
+      },
+    });
+
+    await expect(loadAndroidDeliveryStateStrict()).resolves.toEqual({
+      version: 1,
+      initializedAt: 100,
+      records: {
+        receipt: { handledAt: 120, nativeIdentifier: 'spark:receipt' },
+        baseline: { handledAt: 110 },
+      },
+    });
+    expect(settings.get('notif_android_delivery_v1')).not.toContain('title');
+    expect(settings.get('notif_android_delivery_v1')).not.toContain('body');
+  });
+
+  it('fails closed for an invalid Android delivery ledger', async () => {
+    settings.set(
+      'notif_android_delivery_v1',
+      JSON.stringify({ version: 99, initializedAt: 1, records: {} }),
+    );
+
+    await expect(loadAndroidDeliveryStateStrict()).rejects.toThrow(
+      'Android notification delivery state is invalid',
+    );
   });
 });

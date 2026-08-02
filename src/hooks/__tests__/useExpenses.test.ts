@@ -1,11 +1,12 @@
 import { act, renderHook, waitFor } from '@testing-library/react-native';
 
 import { ExpenseDao } from '../../db/expenseDao';
-import { useDailySpending } from '../useExpenses';
+import { useDailySpending, useTopTransactions } from '../useExpenses';
 
 jest.mock('../../db/expenseDao', () => ({
   ExpenseDao: {
     getSpendingByDays: jest.fn(),
+    getTopTransactions: jest.fn(),
   },
 }));
 
@@ -85,5 +86,79 @@ describe('useDailySpending tarih aralığı yenilemesi', () => {
     });
 
     expect(result.current.data.find((row) => row.date === '2026-07-23')?.total).toBe(526.82);
+  });
+});
+
+describe('useTopTransactions seçim modu', () => {
+  beforeEach(() => jest.clearAllMocks());
+
+  it('mevcut çağrılar için overall seçimini varsayılan tutar', async () => {
+    (ExpenseDao.getTopTransactions as jest.Mock).mockResolvedValue([]);
+    const { result } = await renderHook(() =>
+      useTopTransactions('2026-01-01', '2026-12-31', 8, { autoLoad: false }),
+    );
+
+    await act(async () => {
+      await result.current!.refresh();
+    });
+
+    expect(ExpenseDao.getTopTransactions).toHaveBeenCalledWith(
+      '2026-01-01',
+      '2026-12-31',
+      8,
+      'overall',
+    );
+  });
+
+  it('per-vendor seçimini DAO katmanına iletir', async () => {
+    (ExpenseDao.getTopTransactions as jest.Mock).mockResolvedValue([]);
+    const { result } = await renderHook(() =>
+      useTopTransactions('2026-01-01', '2026-12-31', 8, {
+        autoLoad: false,
+        selection: 'per-vendor',
+      }),
+    );
+
+    await act(async () => {
+      await result.current!.refresh();
+    });
+
+    expect(ExpenseDao.getTopTransactions).toHaveBeenCalledWith(
+      '2026-01-01',
+      '2026-12-31',
+      8,
+      'per-vendor',
+    );
+  });
+
+  it('geç tamamlanan overall sonucu yeni per-vendor listesini ezmez', async () => {
+    const overallQuery = deferred<any[]>();
+    const perVendorRows = [
+      { id: 2, vendor_name: 'Satıcı B', total_amount: 120 },
+    ];
+    (ExpenseDao.getTopTransactions as jest.Mock)
+      .mockImplementationOnce(() => overallQuery.promise)
+      .mockResolvedValueOnce(perVendorRows);
+
+    type Props = { selection: 'overall' | 'per-vendor' };
+    const { result, rerender } = await renderHook<ReturnType<typeof useTopTransactions>, Props>(
+      ({ selection }) => useTopTransactions('2026-01-01', '2026-12-31', 8, { selection }),
+      { initialProps: { selection: 'overall' } },
+    );
+
+    await waitFor(() => expect(ExpenseDao.getTopTransactions).toHaveBeenCalledTimes(1));
+    await rerender({ selection: 'per-vendor' });
+    await waitFor(() => {
+      expect(ExpenseDao.getTopTransactions).toHaveBeenCalledTimes(2);
+      expect(result.current.data).toEqual(perVendorRows);
+    });
+
+    await act(async () => {
+      overallQuery.resolve([{ id: 1, vendor_name: 'Satıcı A', total_amount: 200 }]);
+      await overallQuery.promise;
+      await Promise.resolve();
+    });
+
+    expect(result.current.data).toEqual(perVendorRows);
   });
 });

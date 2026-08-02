@@ -27,6 +27,7 @@
   "notif_go_back": "Geri",
   "notif_center_title": "Bildirişlər",
   "notif_mark_all": "Oxundu",
+  "notif_unread_label": "Oxunmamış",
   "notif_empty": "Hələ bildiriş yoxdur",
   "notif_filter_all": "Hamısı",
   "notif_filter_budget": "Büdcə",
@@ -55,6 +56,6 @@
   "notif_goal_risk_b": "Hədəf tarixiniz yaxınlaşır ({days} gün) və bu ay xərcləmə büdcəyə sıx görünür. Hədəfi nəzərdən keçirin.",
   "notif_receipt_pending_t": "Çek qaralaması gözləyir",
   "notif_receipt_pending_b": "«{vendor}» — redaktəni bitirib saxlayın.",
-  "notif_receipt_saved_t": "Çek saxlanıldı",
-  "notif_receipt_saved_b": "«{vendor}» üçün əməliyyat saxlanıldı."
+  "notif_receipt_saved_t": "{vendor}",
+  "notif_receipt_saved_b": "Çek uğurla emal edildi və əməliyyat saxlanıldı."
 }

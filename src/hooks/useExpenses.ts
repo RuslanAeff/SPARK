@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { ExpenseDao } from '../db/expenseDao';
+import { ExpenseDao, type TopTransactionSelection } from '../db/expenseDao';
 import { useLanguage } from '../i18n/LanguageContext';
 import { ExpenseWithDetails, CategorySpending, VendorSpending } from '../db/schema';
 import { getStartOfMonth, getEndOfMonth } from '../utils/dateUtils';
@@ -15,6 +15,11 @@ export interface ExpenseQueryOptions {
   enabled?: boolean;
   /** false iken hook mount/range değişiminde otomatik sorgu başlatmaz. */
   autoLoad?: boolean;
+}
+
+export interface TopTransactionsQueryOptions extends ExpenseQueryOptions {
+  /** Uzun dönem listelerinde satıcı başına tek temsilci işlem seçilebilir. */
+  selection?: TopTransactionSelection;
 }
 
 function useAutoRefresh(
@@ -372,7 +377,7 @@ export function useTopTransactions(
   startDate?: string,
   endDate?: string,
   limit: number = 3,
-  options: ExpenseQueryOptions = {},
+  options: TopTransactionsQueryOptions = {},
 ) {
   const [data, setData] = useState<ExpenseWithDetails[]>([]);
   const [loading, setLoading] = useState(true);
@@ -380,6 +385,7 @@ export function useTopTransactions(
   const refreshSequence = useRef(0);
   const enabled = options.enabled ?? true;
   const autoLoad = options.autoLoad ?? true;
+  const selection = options.selection ?? 'overall';
   useEffect(() => {
     if (!enabled) {
       refreshSequence.current += 1;
@@ -395,13 +401,13 @@ export function useTopTransactions(
     const sequence = ++refreshSequence.current;
     setLoading(true);
     try {
-      const raw = await ExpenseDao.getTopTransactions(start, end, limit);
+      const raw = await ExpenseDao.getTopTransactions(start, end, limit, selection);
       if (mounted.current && sequence === refreshSequence.current) setData(raw);
     } catch (e) {
       console.error('Error loading top transactions:', e);
     }
     if (mounted.current && sequence === refreshSequence.current) setLoading(false);
-  }, [start, end, limit, enabled]);
+  }, [start, end, limit, selection, enabled]);
 
   useAutoRefresh(refresh, enabled, autoLoad);
 

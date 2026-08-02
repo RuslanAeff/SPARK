@@ -97,6 +97,8 @@ AI sonucu doğrudan finansal gerçek kabul edilmez. Kullanıcı kontrol noktası
 
 Bütçe dönemi takvim ayıyla sınırlı değildir. Kullanıcının seçtiği başlangıç günü, Dashboard, analiz, kategori limitleri, bildirimler, borç etkisi ve ek gelir hesabında ortak dönem sınırı olmalıdır.
 
+Harcama istatistikleri yalnız tamamlanmış takvim günlerini değerlendirir; bugün sıfır-harcama günü, hedef-altı gün veya değerlendirme paydasına katılmaz, ancak bugünkü gerçek harcama aktif sıfır-harcama serisini keser. Takip-temelli uzun dönem görünümünde gözlem ilk gerçek işlemle başlar. Bugünü içermeyen geçmiş bir aralıkta gösterilen seri, güncel seri gibi değil dönem sonu serisi olarak adlandırılır. Sabit günlük plan hedefi yalnız aktif bütçenin kanonik aylık döngüsünde `etkin bütçe / toplam döngü günü` hesabıyla sunulur; diğer aralıklarda yapay bir hedef üretilmez.
+
 ### 5.4 Borç ve ek gelir
 
 Borç işlemleri harcama fişini parçalamaz. Borç alınması, borç verilmesi, geri ödeme ve ek gelir kendi türleriyle saklanır. Silinen veya düzeltilen bir kayıt bütçe etkisinde kalıcı artık bırakmamalıdır; sonuç mevcut kayıtlar üzerinden yeniden türetilmelidir.
@@ -104,6 +106,10 @@ Borç işlemleri harcama fişini parçalamaz. Borç alınması, borç verilmesi,
 ### 5.5 Bildirim yönetimi
 
 Kullanıcı bildirimleri kanala göre filtreleyebilir, okuyabilir, detayını açabilir, kaydırma hareketiyle silme eylemini ortaya çıkarabilir ve uzun basmayla çoklu seçim yapabilir. Tekli kaydırma ile seçim modu birbirinin jest alanını bozmamalıdır.
+
+Fiş bildirimi AI'ın ilk önerisini kalıcı bir metin kopyası olarak göstermemelidir. Kullanıcı satıcıyı düzenlediğinde bildirim, işlem kimliği üzerinden son kaydedilmiş satıcıyla uzlaşmalı; satıcı adı birincil başlık, kayıt sonucu ise kısa destek metni olarak sunulmalıdır.
+
+Uygulama içi feed finansal bildirim geçmişinin kalıcı yüzeyidir; Android sistem bildirimi bunun ikincil teslim kanalıdır. Native bildirim aktivasyonu ilk uygulama karesi gösterildikten sonra başlamalı, Expo Go'da desteklenmeyen API'lere girilmemeli ve tekrar açma/özgeçmişten dönme aynı kaydı ikinci kez teslim etmemelidir. Rutin güncellemeler ile dikkat gerektiren uyarılar ayrı ve yerelleştirilmiş önem kanallarında sunulmalı; kilit ekranı içeriği gizli kalmalıdır. Sistem izni kapalıysa Bildirimler tercihleri durumu açıkça göstermeli ve kullanıcıyı işletim sistemi ayarlarına taşımalıdır. Ham tarama/ağ tanısı sistem paneline çıkarılmamalı; ayrıntı yalnız uygulama içinde gösterilmelidir.
 
 ### 5.6 Yedekleme ve geri yükleme
 
@@ -121,6 +127,7 @@ Bu kurallar ürün davranışıdır; uygulama ayrıntısı gibi sessizce değiş
 6. **Çoklu veri yazımı atomiktir.** Fiş, restore ve ilişkili mutasyonlar yarım durumda kalmamalıdır.
 7. **Secret finansal ayarlardan ayrıdır.** Gemini anahtarı SQLite ayar tablosunda tutulmaz.
 8. **Üretilmiş locale dosyaları kaynak değildir.** Çeviri kaynağı değiştirilip çıktılar yeniden üretilir.
+9. **Tamamlanmamış gün kesin sonuç değildir.** Bugün, tamamlanmış-gün istatistiğinin paydasına veya sıfır/hedef-altı sayısına eklenmez; bugünkü harcama aktif sıfır-harcama serisini kesebilir ve geçmiş dönem serisi dönem sonuna göre açıklanır.
 
 Ayrıntılı teknik sözleşmeler için [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) ve karar kayıtları kullanılır.
 
@@ -139,11 +146,23 @@ Kod tarafındaki kesin renk, tipografi ve spacing değerlerinin kaynağı `src/t
 ### Etkileşim ilkeleri
 
 - Ana eylem ilk bakışta anlaşılmalı; ikincil eylemler görsel gürültü yaratmamalıdır.
+- Okunmamış bildirim, kalın bir yan şerit yerine hafif tonal yüzey, ince sınır, güçlendirilmiş başlık ve küçük durum noktasıyla belirtilmelidir; durum ekran okuyucu etiketinde de açıkça söylenmelidir.
 - Silme gibi geri alınması zor eylemler kasıtlı bir jest, seçim veya onay gerektirir.
 - Swipe, uzun basma, scroll ve pull-to-refresh aynı yüzeyde birbirini kilitlememelidir.
 - Toast ve popup geri bildirimi içeriği örterek veya ekranı karartarak cezalandırmamalıdır.
 - Animasyonun başlangıç ve bitiş yüzeyleri aynı tema bağlamında olmalıdır; beyaz/siyah ara kare kabul edilmez.
 - Safe area, sistem gesture alanı, font scaling ve dokunma hedefleri cihaz çeşitliliğiyle değerlendirilmelidir.
+
+### Veri görselleştirme
+
+- Etkileşimli grafiklerde seçilen gözlemin ayrıntısı veri noktalarını veya eksenleri örtmeyen ayrılmış bir alanda gösterilmelidir.
+- Seçim başka noktaya dokunma, seçili noktaya yeniden dokunma, açık bir kapatma eylemi veya ürün/veri bağlamının değişmesiyle öngörülebilir biçimde temizlenmelidir.
+- Grafik çizgileri gözlenmemiş tepe veya dipler üretmemeli; para değerleri karar için gerekli hassasiyeti ve aktif para birimi biçimini korumalıdır.
+- Yoğun veride dokunma alanları birbirinin eylemini çalmamalı; grafik etkileşimi bulunduğu scroll ve modal gesture'larını kilitlememelidir.
+- Yoğun seriler sadeleştirilecekse ham geçmiş erişilebilir kalmalı; ilk/son gözlem, kaynak gözlem konumu ve gerçek uç değerler korunmalı, ortalama veya yapay nokta üretilmemeli ve gösterilen/kaynak kayıt sayısı kullanıcıya açıklanmalıdır.
+- Sıralı analiz kartları seçim veya gruplama kuralını başlık ve kısa açıklamayla dürüstçe belirtmelidir; yıllık uzun dönem özetleri aynı satıcının tekrarları yerine satıcı başına en yüksek tek gerçek işlemi gösterebilir.
+- Yıllık görünümde anlamını kaybeden aylık projeksiyon kartları boş açıklama yüzeyi olarak yer kaplamamalıdır; kısa ve özel aralıklarda mevcut yönlendirici açıklama korunabilir.
+- Seçili durum yalnız renkle aktarılmamalı; tarih, değer ve bağlam için erişilebilir bir metin karşılığı bulunmalıdır.
 
 ### Erişilebilirlik
 

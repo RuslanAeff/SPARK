@@ -8,6 +8,7 @@ import React, {
   useState,
   ReactNode,
 } from 'react';
+import { AppState } from 'react-native';
 import type { InAppNotification, NotificationMuteChannel } from '../notifications/types';
 import { runNotificationSync } from '../notifications/buildNotifications';
 import {
@@ -20,6 +21,15 @@ import {
   type DismissNotificationsResult,
 } from '../notifications/storage';
 import { useRefresh } from './RefreshContext';
+import { useLanguage } from '../i18n/LanguageContext';
+import {
+  deliverAndroidSystemNotifications,
+  dismissAndroidSystemNotifications,
+} from '../services/androidNotificationsSetup';
+import {
+  localizeNotificationParams,
+  notificationPresentationRevision,
+} from '../notifications/presentation';
 
 interface NotificationsContextValue {
   feed: InAppNotification[];
@@ -38,6 +48,7 @@ const NotificationsContext = createContext<NotificationsContextValue | null>(nul
 
 export function NotificationsProvider({ children }: { children: ReactNode }) {
   const { refreshKey } = useRefresh();
+  const { t } = useLanguage();
   const [feed, setFeed] = useState<InAppNotification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [syncing, setSyncing] = useState(false);
@@ -59,20 +70,47 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
     pendingSyncCountRef.current += 1;
     setSyncing(true);
     try {
+      let delivery:
+        | {
+            feed: InAppNotification[];
+            createdIds: string[];
+          }
+        | undefined;
       await enqueueNotificationMutation(async () => {
         const m = await loadMutesStrict();
         setMutes(m);
-        const { feed: next, unreadCount: uc } = await runNotificationSync(m);
+        const result = await runNotificationSync(m);
+        const { feed: next, unreadCount: uc } = result;
         setFeed(next);
         setUnreadCount(uc);
+        delivery = { feed: next, createdIds: result.createdIds ?? [] };
       });
+
+      // Native teslimat finansal/feed transaction'ının parçası değildir. Android
+      // izni veya OS scheduling başarısız olsa bile uygulama-içi merkez korunur.
+      if (delivery) {
+        await deliverAndroidSystemNotifications(
+          delivery.feed.map((item) => ({
+            id: item.id,
+            title: t(item.titleKey, localizeNotificationParams(item.params, t)),
+            body: item.id === 'sys-scan-err'
+              ? t('notif_scan_err_native_b')
+              : t(item.bodyKey, localizeNotificationParams(item.params, t)),
+            severity: item.severity,
+            createdAt: item.createdAt,
+            read: item.read,
+            revision: notificationPresentationRevision(item),
+          })),
+          { newlyCreatedIds: delivery.createdIds },
+        );
+      }
     } catch (error) {
       console.warn('[notifications] sync failed', error);
     } finally {
       pendingSyncCountRef.current = Math.max(0, pendingSyncCountRef.current - 1);
       if (pendingSyncCountRef.current === 0) setSyncing(false);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     loadMutesState();
@@ -88,6 +126,19 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
       if (debounceRef.current) clearTimeout(debounceRef.current);
     };
   }, [refreshKey, sync]);
+
+  // Tarihe bağlı abonelik/yedek kuralları uygulama arka planda gün değiştirince
+  // eski kalmasın. Tam kapalı uygulamada yeni veri hesaplanamaz; yeniden açılışta
+  // ilk sync aynı yolu çalıştırır.
+  useEffect(() => {
+    let previous = AppState.currentState;
+    const subscription = AppState.addEventListener('change', (next) => {
+      const resumed = previous !== 'active' && next === 'active';
+      previous = next;
+      if (resumed) void sync();
+    });
+    return () => subscription.remove();
+  }, [sync]);
 
   const markRead = useCallback(async (id: string) => {
     await enqueueNotificationMutation(async () => {
@@ -110,12 +161,20 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const dismissMany = useCallback(async (ids: readonly string[]) => {
-    return enqueueNotificationMutation(async () => {
+    const result = await enqueueNotificationMutation(async () => {
       const result = await dismissFeedItems(ids);
       setFeed(result.feed);
       setUnreadCount(result.unreadCount);
       return result;
     });
+    try {
+      await dismissAndroidSystemNotifications(result.removedIds);
+    } catch (error) {
+      // Feed silme kanonik işlemdir. Native tray temizliği best-effort'tur;
+      // modül/OS hatası kullanıcıya "silinemedi" diye yanlış geri dönmemelidir.
+      if (__DEV__) console.warn('[notifications] tray dismissal failed', error);
+    }
+    return result;
   }, []);
 
   const dismiss = useCallback(

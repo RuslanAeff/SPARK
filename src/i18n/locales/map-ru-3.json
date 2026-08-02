@@ -6,6 +6,8 @@
   "time_analysis": "%{percentage} ваших расходов приходится на {segment}.",
   "donut_hint_swipe_left": "Нажмите на график для деталей • ⬅ Свайп",
   "top_transactions": "КРУПНЕЙШИЕ ОПЕРАЦИИ",
+  "top_transactions_per_vendor": "КРУПНЕЙШАЯ ОПЕРАЦИЯ ПО КАЖДОМУ ПРОДАВЦУ",
+  "top_transactions_per_vendor_hint": "По одной крупнейшей операции каждого продавца за этот период.",
   "unknown": "Неизвестно",
   "subcategories": "ПОДКАТЕГОРИИ",
   "vendors_stores": "ПРОДАВЦЫ / МАГАЗИНЫ",
