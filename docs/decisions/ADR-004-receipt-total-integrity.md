@@ -22,6 +22,9 @@ Eski edit-before-save yolu yalnız header alanlarını formda dolduruyor ve ür�
 6. Tarayıcıdaki “Düzenle” yolu önce tam fişi kalemleriyle kaydeder, sonra oluşturulan expense ID'sinin edit ekranını açar.
 7. Satır fiyat modeli: `total_price` net ödenen satır toplamıdır; `line_discount` indirimdir; mevcutsa `list_line_total_before_discount` net + indirimdir. Edit formunda kullanıcıya sunulan etiket fiyatı tekrar indirim düşülmesine yol açmamalıdır.
 8. Header/item farkı sessizce “düzeltilmez”. UI gerekirse farkı gösterir; gerçek toplamı ancak kullanıcı niyeti veya açık bir ürün düzenlemesi değiştirir.
+9. Parasal header, net satır toplamı, indirim ve indirim öncesi toplam iki ondalıklı minor-unit olarak normalize edilir. Hesaplar tamsayı minor-unit üzerinde yapılır; birim fiyat/ağırlık oranı gerektiğinde dört ondalığa kadar saklanabilir.
+10. Açık kalem ekleme, düzenleme veya silme ile `expenses.total_amount` senkronizasyonu tek transaction içinde yapılır. SQLite `SUM(REAL)` sonucu doğrudan kullanılmaz; yuvarlanmış satır minor-unit'leri toplanır.
+11. Eski binary float artıkları idempotent migration ile temizlenebilir; bu migration başlığı item toplamına eşitlemez ve basılı toplamı yeniden yorumlamaz.
 
 ## Değişmezler
 
@@ -43,6 +46,9 @@ Eski edit-before-save yolu yalnız header alanlarını formda dolduruyor ve ür�
 - Geçersiz basılı toplamda item toplamı fallback'i doğrulanmalı.
 - Item yazısında hata enjekte edildiğinde header da rollback olmalı.
 - Explicit item editinden sonra toplam item'lara eşitlenmeli ve indirim ikinci kez uygulanmamalı.
+- `9,49 − 3,17 = 6,32`; örnek fişin minor-unit toplamı `55,93` olmalı ve `0,20` indirim değişimi toplamı tam `0,20` değiştirmeli.
+- Ardışık iki indirim kümülatif uygulanmalı; tamamen indirimli satırın geçerli `0,00` toplamı fallback ile geri şişirilmemeli.
+- Eski `55.00000000000003` değeri düzenleme alanında `55.00` görünmeli ve migration sonrası `55,00` olarak kalmalı.
 - Scan “Düzenle” yolu ürünleri korumalı; AbortSignal iptali yarım kayıt bırakmamalı.
 
 ## Kanıt

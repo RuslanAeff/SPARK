@@ -35,6 +35,10 @@ oturumun amacı, kararları, çıktıları, kanıtları ve sınırlamaları kayd
 | `AI-2026-08-02-NOTIFICATION-QUALITY-001` | 2026-08-02 | Bildirim kartındaki baskın unread vurgusunu sakinleştirmek ve fiş bildirimini kullanıcının son satıcı düzeltmesiyle tutarlı kılmak | Kullanıcı SPARK ekranları ve üç harici finans uygulamasından görsel referanslarla iki sorunu gösterdi ve doğrudan düzenleme istedi | `analiz`, `kod`, `test`, `inceleme`, `dokümantasyon` | Evet | Kanonik satıcı uzlaştırması, merchant-first bildirim hiyerarşisi, sakin ve erişilebilir okunmamış durum, dört dil ve regresyon testleri | Uygulandı ve yerel doğrulama geçti; cihaz kabulü bekleniyor |
 | `AI-2026-08-02-SPENDING-STATS-001` | 2026-08-02 | Harcama serisi ve gün istatistiklerini tamamlanmış gün, takip başlangıcı ve bütçe hedefi açısından deterministik yapmak | Analiz doğruluğunu iyileştirme çalışması kapsamında ürün kodundaki sonuçların yanıltıcı olmaması istendi; bu kayıt için ayrı cihaz kabulü verilmedi | `analiz`, `kod`, `test`, `inceleme`, `dokümantasyon` | Evet | Saf istatistik politikası, kanonik aylık hedef kapısı, dönem sonu seri semantiği ve regresyon testleri | Uygulandı ve odaklı yerel test geçti; cihaz kabulü bekleniyor |
 | `AI-2026-08-02-ANDROID-SYSTEM-NOTIFICATIONS-001` | 2026-08-02 | Uygulama-içi bildirimleri Android sistem tepsisine açılış sürekliliğini ve gizliliği koruyarak teslim etmek | Kullanıcının flicker olmadan profesyonel bildirim deneyimi hedefi korundu; native APK kabulü bu kayıtta henüz verilmedi | `analiz`, `kod`, `test`, `inceleme`, `dokümantasyon` | Evet | Reveal-sonrası aktivasyon, Expo Go guard, iki özel kanal, idempotent ledger, resume/tap/silme koordinasyonu | Uygulandı ve odaklı yerel test geçti; fiziksel APK doğrulaması bekleniyor |
+| `AI-2026-08-09-RECEIPT-MONEY-001` | 2026-08-09 | Fiş indirimi gösterimindeki hassasiyet kaybını ve düzenleme sonrası kayan nokta toplamlarını kökten gidermek | Kullanıcı gerçek fiş ve uygulama ekranıyla sorunu bildirdi; AI ve manuel fiş akışlarının stabil ve kesin çalışmasını istedi | `analiz`, `kod`, `test`, `inceleme`, `dokümantasyon` | Evet | Minor-unit para matematiği, atomik item/header senkronu, basılı toplam otoritesi, eski veri onarımı, dört dil ve regresyon testleri | Uygulandı; otomatik doğrulama geçti, cihaz kabulü bekleniyor |
+| `AI-2026-08-09-THEME-CONTINUITY-001` | 2026-08-09 | Tarayıcı'nın açık temada koyu kalmasını ve uzak/lazy sekmeye geçişte görünen beyaz ara yüzeyi gidermek | Kullanıcı ekran ve geçiş kaydıyla sorunu bildirdi; tema altyapısının kökten incelenip stabil hâle getirilmesini istedi | `analiz`, `kod`, `test`, `inceleme`, `dokümantasyon` | Evet | Reactive Scanner stilleri, React Navigation tema köprüsü, opak lazy scene/placeholder ve regresyon testleri | Uygulandı; otomatik doğrulama geçti, standalone APK kabulü bekleniyor |
+| `AI-2026-08-09-GOAL-DELETE-001` | 2026-08-09 | Boş hedefte çalışan silme eylemini güvenli kılmak ve Dashboard hedef görünürlüğü ile hatırlatıcı önerilerini SPARK altyapısına göre değerlendirmek | Kullanıcı hedef-silme hatasını ekran görüntüsüyle bildirdi; arkadaş geri bildirimlerini ürün kararı için değerlendirmemi istedi | `analiz`, `kod`, `test`, `inceleme`, `dokümantasyon` | Evet | Kalıcı hedef-varlığı kapısı, gerçek DELETE sonucu, limitleri koruyan semantik, dört dil ve aşamalı ürün önerisi | Silme düzeltmesi uygulandı ve otomatik doğrulandı; yeni Dashboard/motivasyon/hatırlatıcı kapsamı insan seçimi bekliyor |
+| `AI-2026-08-09-GOAL-FOCUS-001` | 2026-08-09 | Aktif birikim hedefini kritik finansal öncelikleri bozmadan isteğe bağlı olarak Dashboard'da öne çıkarmak; borç ve düzenli ödeme hatırlatıcılarını ayrı fazlara ayırmak | Kullanıcı profesyonel Dashboard önerisini açıkça seçti; hatırlatıcılar için önce plan, sonra ayrıca onay istedi | `analiz`, `plan`, `kod`, `test`, `inceleme`, `dokümantasyon` | Evet | Varsayılan kapalı odak tercihi, borçtan sonra kompakt hedef, tekil kart, ortak katkı sheet'i, dört dil ve altı fazlı hatırlatıcı planı | Dashboard uygulandı ve otomatik doğrulandı; hatırlatıcı uygulaması insan onayı bekliyor |
 
 > Yukarıdaki oturum girdisi eşzamanlı olarak yazılmıştır; ancak doğrudan konuşma
 > dışa aktarımı veya kalıcı bir oturum kimliği henüz bağlanmamıştır. İnsan onayı
@@ -169,6 +173,99 @@ oturumun amacı, kararları, çıktıları, kanıtları ve sınırlamaları kayd
 | Gizlilik | Ledger sözleşmesi bildirim başlığı, gövdesi ve finansal içeriği saklamaz; bu belgeye gerçek bildirim içeriği veya kişisel dosya yolu eklenmedi |
 | Kalan risk | Expo Go native teslim kanıtı değildir. Jest mock'ları Android kanal davranışını, OS izin UI'ını, kilit ekranı gizliliğini, cold-start routing'i veya üretim Activity yaşam döngüsünü doğrulamaz |
 | Nihai durum | Mevcut çalışma ağacındaki kod ve odaklı otomatik test gözlemlendi; fiziksel APK, commit/CI ve insan kabulü bekleniyor |
+
+### AI-2026-08-09-RECEIPT-MONEY-001
+
+| Alan | Kayıt |
+|---|---|
+| Tarih ve saat dilimi | 2026-08-09 · Europe/Warsaw |
+| İnsan katılımcı/rol | Ürün sahibi ve geliştirici |
+| AI aracı, model ve sürüm | Codex; kesin model/sürüm bu kayıtta doğrulanmadı |
+| Repo/branch/başlangıç commit'i | `main` · `203cdde` |
+| Başlangıç çalışma ağacı | Clean |
+| İnsan hedefi | `3,17` indirimin `3` görünmesini ve item düzenlemesinden sonra `55.000000…` gibi toplam oluşmasını kökten düzeltmek; AI ve manuel fiş akışını küçük para değişikliklerinde stabil kılmak |
+| Açık insan onayı | Kullanıcı doğrudan inceleme ve uygulama istedi; dış yayın/commit yapılmadı |
+| Kısıtlar ve korunacak alanlar | Basılı fiş toplamı ingestion sırasında yetkili kalmalı; explicit item edit toplamı değiştirebilir; mevcut veri kaybolmamalı; ortak SQLite erişim ve dört dil sözleşmesi korunmalı |
+| AI'ya sağlanan kaynaklar | Uygulama tutar ekranı ve örnek mağaza fişi ekran görüntüleri; mevcut repo kodu ve ADR-004 |
+| AI katkısı | İndirim formatı, edit hesapları, DAO yazmaları, SQLite toplamı, AI coercion, fiş sonlandırma, backup import ve eski veri upgrade zincirinin incelenmesi; minor-unit helper, atomik mutasyon, migration, UI hassasiyeti ve testlerin uygulanması |
+| İnsan katkısı | Gerçek hata örneğini, beklenen kesinlik seviyesini ve AI/manüel kapsamını belirledi |
+| Değiştirilen ana alanlar | `app/{add-expense,edit-items}.tsx`, tarayıcı önizlemesi; `src/utils/{moneyMath,receiptMoney,receiptLineDiscountUi}.ts`; `src/db/{database,expenseDao}.ts`; fiş/Gemini/backup servisleri; i18n, testler ve mimari belgeler |
+| Otomatik doğrulama | `npm run typecheck` exit 0; `npm test -- --ci --coverage=false` ile 43/43 suite ve 310/310 test; Android Metro export 1.923 modülle başarılı; `git diff --check` exit 0 |
+| Cihaz doğrulaması | Bekleniyor: eski veritabanından upgrade; indirim `3,17`; fiş toplamı `55,93`; indirimi `0,20` değiştirip toplamın tam `0,20` değişmesi; kayıt, geri açma ve AI/manüel akış karşılaştırması |
+| Son commit/PR | Henüz yok |
+| Nihai insan kabulü | Bekleniyor |
+| Gizlilik incelemesi | Gerçek fiş içeriği veya yerel attachment yolu belgeye kopyalanmadı; yalnız hesap senaryosu ve anonim tutarlar kaydedildi |
+| Kalan risk | Jest DAO ve migration sözleşmesini mock ile doğrular; gerçek Expo SQLite `REAL` upgrade'i ve Android TextInput/render sonucu yalnız cihazda kabul edilebilir |
+
+### AI-2026-08-09-THEME-CONTINUITY-001
+
+| Alan | Kayıt |
+|---|---|
+| Tarih ve saat dilimi | 2026-08-09 · Europe/Warsaw |
+| İnsan katılımcı/rol | Ürün sahibi ve geliştirici |
+| AI aracı, model ve sürüm | Codex; kesin model/sürüm bu kayıtta doğrulanmadı |
+| Repo/branch/başlangıç commit'i | `main` · `203cdde` |
+| Başlangıç çalışma ağacı | Önceki kullanıcı onaylı fiş para hassasiyeti değişiklikleri vardı; korunarak devam edildi |
+| İnsan hedefi | Aydınlık temada koyu kalan Tarayıcı'yı düzeltmek; Dashboard'dan Tarayıcı'ya hızlı geçişte görünen beyaz/İşlemler benzeri ara kareyi kökten kaldırmak; otomatik ve manuel tema modlarını aynı stabil altyapıda tutmak |
+| Açık insan onayı | Kullanıcı tema sisteminin incelenmesini ve gerekli kod düzenlemesinin uygulanmasını doğrudan istedi; dış yayın/commit yapılmadı |
+| AI'ya sağlanan kaynaklar | Açık tema Tarayıcı ekran görüntüsü, geçiş videosundan alınmış kare, mevcut tema/startup ADR'si ve depo kodu |
+| AI katkısı | Tema store, root reveal, Expo config, React Navigation ve Material Top Tabs kaynak zincirinin incelenmesi; Scanner abonelik açığının ve DefaultTheme lazy scene kaçağının teşhisi; navigation theme bridge, opak lazy placeholder, test ve belge uygulaması |
+| İnsan katkısı | Görsel semptomları, hızlı geçiş rotasını, otomatik/manüel tema kapsamını ve profesyonel süreklilik beklentisini tanımladı |
+| Karar | `Appearance.setColorScheme` kullanılmaz ve lazy loading kapatılmaz. SPARK paleti React Navigation context'ine taşınır; scene ve lazy placeholder aktif temada opak kalır; mounted Scanner `useAppTheme` ile StyleSheet'i yeniden üretir |
+| Değiştirilen ana alanlar | `app/_layout.tsx`, `app/(tabs)/{_layout,scanner}.tsx`, `src/theme/navigationTheme.ts`, üç regresyon testi, ADR-001 ve evidence/rehber belgeleri |
+| Otomatik doğrulama | Odaklı 3/3 suite ve 4/4 test; `npm run typecheck` exit 0; tam `npm test -- --ci --coverage=false` ile 46/46 suite ve 314/314 test; Android Metro export 1.924 modülle başarılı; `git diff --check` exit 0 |
+| Cihaz doğrulaması | Bekleniyor: standalone APK'da dark/light cold start; Dashboard→Tarayıcı ve Tarayıcı→Dashboard doğrudan dokunma; ilk lazy İşlemler/Analiz/Ayarlar ziyareti; iki yönlü swipe; açık uygulamada manuel ve otomatik tema değişimi; yavaşlatılmış animasyon/video kare kontrolü |
+| Son commit/PR | Henüz yok |
+| Nihai insan kabulü | Bekleniyor |
+| Gizlilik incelemesi | Kullanıcı görselleri repoya kopyalanmadı; yerel attachment yolu, cihaz kimliği veya finansal içerik kanıt belgesine eklenmedi |
+| Kalan risk | Jest, React props ve tema eşlemesini doğrular; Android PagerView/native window kompozisyonunda tek karelik flicker olmadığını yalnız standalone cihaz kaydı kanıtlayabilir |
+
+### AI-2026-08-09-GOAL-DELETE-001
+
+| Alan | Kayıt |
+|---|---|
+| Tarih ve saat dilimi | 2026-08-09 · Europe/Warsaw |
+| İnsan katılımcı/rol | Ürün sahibi ve geliştirici |
+| AI aracı, model ve sürüm | Codex; kesin model/sürüm bu kayıtta doğrulanmadı |
+| Repo/branch/başlangıç commit'i | `main` · `203cdde` |
+| Başlangıç çalışma ağacı | Önceki kullanıcı onaylı fiş para hassasiyeti ve tema sürekliliği değişiklikleri vardı; korunarak devam edildi |
+| İnsan hedefi | Kayıtlı hedef yokken çalışan “Hedefi sil” eylemini düzeltmek; hedefi Dashboard'da öne çıkarma, motivasyon mesajları ve borç/tekrarlayan ödeme hatırlatıcılarını SPARK'a özel değerlendirmek |
+| Açık insan onayı | Kullanıcı hata düzeltmesini doğrudan istedi; daha büyük Dashboard ve hatırlatıcı kapsamı için karar sordu, bu özellikler sessizce uygulanmadı |
+| AI katkısı | Hedef ve kategori limiti yaşam döngülerinin incelenmesi; persisted-state ve DAO değişim korumasının uygulanması; dört dil ve regresyon testleri; Dashboard sırası, hedef mesajları, abonelik tahmini, borç şeması ve Android teslim sınırlarının salt-okunur analizi |
+| İnsan katkısı | Hata örneğini ve arkadaş kullanıcı geri bildirimlerini sağladı; sonraki ürün kapsamının nihai seçimi insanda kaldı |
+| AI önerileri | Serbest Dashboard drag/drop yerine isteğe bağlı kompakt “hedefi öne çıkar” modu; milestone tabanlı ve susturulabilir hedef motivasyonu; borç için ayrı son-tarih alanı; tekrarlayan ödeme için kullanıcı onaylı takvim kuralı ve daha sonra güvenilir scheduler |
+| İnsan tarafından seçilen/reddedilen öneriler | Hedef-silme güvenlik düzeltmesi istekte açıkça seçildi. Dashboard, motivasyon ve tarihli hatırlatıcı önerileri bu kayıt anında henüz seçilmedi |
+| Değiştirilen dosyalar | `app/goal-settings.tsx`; `src/db/{goalDao,categoryLimitDao}.ts`; i18n kaynak/üretilmiş sözlükleri; iki yeni test; ürün, mimari ve evidence belgeleri |
+| Otomatik doğrulama | `npm run typecheck` exit 0; locale+hedef odaklı 3/3 suite ve 16/16 test; `npm test -- --ci --runInBand --coverage=false` ile 48/48 suite ve 319/319 test başarılı |
+| Cihaz doğrulaması | Bekleniyor: hedefsiz ekran; hedef+birden fazla aya ait limit; silme modalı; hızlı çift dokunma; açık/koyu tema ve dört dil |
+| Son commit/PR | Henüz yok |
+| Nihai insan kabulü | Bekleniyor |
+| Gizlilik incelemesi | Kullanıcı görselleri repoya kopyalanmadı; kişisel mesaj veya finansal tutar kanıt belgesine taşınmadı |
+| Kalan risk | Testler gerçek SQLite ve native modal dokunmasını mock'lar. Tarihli hatırlatıcılar henüz uygulanmadı; mevcut Android teslimi kapalı uygulamayı gelecekte uyandıran scheduler değildir |
+
+### AI-2026-08-09-GOAL-FOCUS-001
+
+| Alan | Kayıt |
+|---|---|
+| Tarih ve saat dilimi | 2026-08-09 · Europe/Warsaw |
+| İnsan katılımcı/rol | Ürün sahibi ve geliştirici |
+| AI aracı, model ve sürüm | Codex; kesin model/sürüm bu kayıtta doğrulanmadı |
+| Repo/branch/başlangıç commit'i | `main` · `203cdde` |
+| Başlangıç çalışma ağacı | Önceki kullanıcı onaylı fiş, tema ve hedef-silme değişiklikleri vardı; korunarak devam edildi |
+| İnsan hedefi | Dashboard'da birikim hedefini daha görünür fakat profesyonel ve kontrollü yapmak; borç ve internet ödemesi hatırlatıcılarını küçük, doğrulanabilir fazlara bölmek |
+| Açık insan onayı | Kullanıcı Dashboard önerisini uygulamak için açık onay verdi. Bildirim/hatırlatıcı koduna geçmeden planı görüp ayrıca onay vermek istedi; bu kapsamda hatırlatıcı ürün kodu değiştirilmedi |
+| Kısıtlar ve korunacak alanlar | Açık borç en yüksek dinamik öncelikte kalmalı; hedef iki kez gösterilmemeli; kategori limitleri hedeften bağımsız kalmalı; mevcut kullanıcı düzeni izinsiz değişmemeli; dört dil ve tema sözleşmesi korunmalı |
+| AI katkısı | Dashboard sırası ve mevcut tercih altyapısının incelenmesi; kompakt kart, saf ilerleme hesabı, ortak katkı sheet'i, tek-sorgulu yerel tercih, yükleme kapısı, dört dil, testler ve tez kanıtının uygulanması; mevcut borç/abonelik/native teslim sınırlarından altı fazlı hatırlatıcı planının çıkarılması |
+| İnsan katkısı | Dashboard önerisini ürün kararı olarak seçti; hatırlatıcıların daha büyük çalışma olduğunu ve yalnız ayrı onaydan sonra uygulanacağını belirledi |
+| Karar | Tam serbest drag/drop yerine varsayılan kapalı “Birikim hedefini öne çıkar” tercihi kullanılır. Aktif/tamamlanmamış hedef, açık borç uyarısından sonra kompakt gösterilir; tam kart aynı anda render edilmez. Tamamlanmış hedef standart konumda kalır; hedef yokken üst placeholder üretilmez; kategori limitleri bağımsız alt bölümünü korur |
+| Değiştirilen ana alanlar | `app/{(tabs)/index,settings-budget}.tsx`; `src/components/SavingsGoal{Card,PulseCard,ContributionSheet}.tsx`; hedef preference hook/service'i; iki saf hedef helper'ı; dört dil kaynak ve çıktıları; altı yeni test paketi; ürün, mimari ve evidence belgeleri |
+| Otomatik doğrulama | Locale derlemesi: RU/AZ partial 775, runtime 776 anahtar; odaklı 8/8 suite ve 41/41 test; `npm run typecheck` exit 0; tam `npm test -- --ci --runInBand --coverage=false` ile 55/55 suite ve 349/349 test; son kodla Android Metro export 1.928 modülle başarılı; `git diff --check` temiz |
+| Cihaz doğrulaması | Bekleniyor: standalone APK'da açık/koyu tema; TR/EN/AZ/RU; büyük font; açık borç+aktif hedef sırası; tercih aç/kapat ve yeniden başlatma; aktif/tamamlanmış/gecikmiş hedef; ana kart ve ayrı katkı düğmesi; katkı sonrası anlık yenileme |
+| Hatırlatıcı plan sınırı | Mevcut Android teslimi yalnız uygulama sync/open/resume sırasında anlıktır. Gerçek geleceğe tarihli teslim için şema+backup, borç UX, kullanıcı onaylı düzenli ödeme, saf notification kuralları, Android scheduler/uzlaştırma ve fiziksel APK doğrulaması ayrı fazlar olarak planlandı; hiçbiri bu kayıtta uygulanmış sayılmaz |
+| Son commit/PR | Henüz yok |
+| Nihai insan kabulü | Dashboard için cihaz ve insan kabulü; hatırlatıcı kapsamı için uygulama öncesi onay bekleniyor |
+| Gizlilik incelemesi | Kullanıcı görselleri veya kişisel mesajlar repoya kopyalanmadı; gerçek finansal değerler test fixture'larına taşınmadı; hatırlatıcı planı şema ve davranış düzeyinde tutuldu |
+| Kalan risk | Jest gerçek SQLite tercih kalıcılığını, büyük font fiziksel yerleşimini, haptic'i veya native sheet dokunmasını kanıtlamaz. Kapalı uygulamaya zamanlı Android bildirimi Faz 5 tamamlanıp APK'da doğrulanmadan vaat edilemez |
 
 ## 5. Yeni kayıt ekleme şablonu
 

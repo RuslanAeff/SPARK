@@ -13,6 +13,7 @@ import {
 import * as SplashScreen from 'expo-splash-screen';
 import * as SystemUI from 'expo-system-ui';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { ThemeProvider as NavigationThemeProvider } from '@react-navigation/native';
 import ThemeScheduler from '../src/components/ThemeScheduler';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { DarkTheme, LightTheme } from '../src/theme/colors';
@@ -38,6 +39,7 @@ import {
   subscribeAndroidNotificationResponses,
 } from '../src/services/androidNotificationsSetup';
 import { useOnboardingStatus } from '../src/hooks/useOnboardingStatus';
+import { createNavigationTheme } from '../src/theme/navigationTheme';
 
 const BOOT_BACKGROUND = '#050505';
 
@@ -126,6 +128,7 @@ interface AppShellProps {
 function AppShell({ onboardingLoading, onboardingCompleted }: AppShellProps) {
   const scheme = useAppTheme();
   const theme = scheme === 'light' ? LightTheme : DarkTheme;
+  const navigationTheme = React.useMemo(() => createNavigationTheme(scheme), [scheme]);
   const { isLoaded: languageLoaded } = useLanguage();
   const { isLoaded: currencyLoaded } = useCurrency();
   const router = useRouter();
@@ -224,98 +227,100 @@ function AppShell({ onboardingLoading, onboardingCompleted }: AppShellProps) {
   ]);
 
   return (
-    <View
-      style={{ flex: 1, backgroundColor: theme.background }}
-      onLayout={() => setRootLaidOut(true)}
-    >
-      <StatusBar
-        animated
-        style={curtainMounted ? 'light' : scheme === 'light' ? 'dark' : 'light'}
-      />
-      <Stack
-        screenOptions={{
-          headerShown: false,
-          contentStyle: { backgroundColor: theme.background },
-        }}
+    <NavigationThemeProvider value={navigationTheme}>
+      <View
+        style={{ flex: 1, backgroundColor: theme.background }}
+        onLayout={() => setRootLaidOut(true)}
       >
-        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-        <Stack.Screen
-          name="onboarding"
-          options={{
-            presentation: 'card',
-            animation: curtainMounted ? 'none' : 'fade',
-            gestureEnabled: false,
-          }}
+        <StatusBar
+          animated
+          style={curtainMounted ? 'light' : scheme === 'light' ? 'dark' : 'light'}
         />
-        <Stack.Screen
-          name="add-expense"
-          options={{ presentation: 'modal', animation: 'slide_from_bottom' }}
-        />
-        <Stack.Screen
-          name="categories"
-          options={{ presentation: 'modal', animation: 'slide_from_bottom' }}
-        />
-        <Stack.Screen
-          name="edit-items"
-          options={{ presentation: 'modal', animation: 'slide_from_bottom' }}
-        />
-        <Stack.Screen
-          name="goal-settings"
-          options={{ presentation: 'modal', animation: 'slide_from_bottom' }}
-        />
-        <Stack.Screen
-          name="notifications"
-          options={{
-            presentation: 'card',
-            animation: 'slide_from_right',
+        <Stack
+          screenOptions={{
+            headerShown: false,
             contentStyle: { backgroundColor: theme.background },
           }}
-        />
-        <Stack.Screen
-          name="subscriptions"
-          options={{
-            presentation: 'card',
-            animation: 'slide_from_right',
-            contentStyle: { backgroundColor: theme.background },
-          }}
-        />
-        <Stack.Screen
-          name="settings-general"
-          options={{
-            presentation: 'card',
-            animation: 'slide_from_right',
-            contentStyle: { backgroundColor: theme.background },
-          }}
-        />
-        <Stack.Screen
-          name="settings-budget"
-          options={{
-            presentation: 'card',
-            animation: 'slide_from_right',
-            contentStyle: { backgroundColor: theme.background },
-          }}
-        />
-        <Stack.Screen
-          name="settings-data"
-          options={{
-            presentation: 'card',
-            animation: 'slide_from_right',
-            contentStyle: { backgroundColor: theme.background },
-          }}
-        />
-        <Stack.Screen
-          name="settings-ai"
-          options={{
-            presentation: 'card',
-            animation: 'slide_from_right',
-            contentStyle: { backgroundColor: theme.background },
-          }}
-        />
-      </Stack>
-      <SparkToastContainer />
-      <AndroidNotificationBootstrap enabled={!curtainMounted} />
-      {curtainMounted ? <BootSurface animatedStyle={{ opacity: curtainOpacity }} /> : null}
-    </View>
+        >
+          <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+          <Stack.Screen
+            name="onboarding"
+            options={{
+              presentation: 'card',
+              animation: curtainMounted ? 'none' : 'fade',
+              gestureEnabled: false,
+            }}
+          />
+          <Stack.Screen
+            name="add-expense"
+            options={{ presentation: 'modal', animation: 'slide_from_bottom' }}
+          />
+          <Stack.Screen
+            name="categories"
+            options={{ presentation: 'modal', animation: 'slide_from_bottom' }}
+          />
+          <Stack.Screen
+            name="edit-items"
+            options={{ presentation: 'modal', animation: 'slide_from_bottom' }}
+          />
+          <Stack.Screen
+            name="goal-settings"
+            options={{ presentation: 'modal', animation: 'slide_from_bottom' }}
+          />
+          <Stack.Screen
+            name="notifications"
+            options={{
+              presentation: 'card',
+              animation: 'slide_from_right',
+              contentStyle: { backgroundColor: theme.background },
+            }}
+          />
+          <Stack.Screen
+            name="subscriptions"
+            options={{
+              presentation: 'card',
+              animation: 'slide_from_right',
+              contentStyle: { backgroundColor: theme.background },
+            }}
+          />
+          <Stack.Screen
+            name="settings-general"
+            options={{
+              presentation: 'card',
+              animation: 'slide_from_right',
+              contentStyle: { backgroundColor: theme.background },
+            }}
+          />
+          <Stack.Screen
+            name="settings-budget"
+            options={{
+              presentation: 'card',
+              animation: 'slide_from_right',
+              contentStyle: { backgroundColor: theme.background },
+            }}
+          />
+          <Stack.Screen
+            name="settings-data"
+            options={{
+              presentation: 'card',
+              animation: 'slide_from_right',
+              contentStyle: { backgroundColor: theme.background },
+            }}
+          />
+          <Stack.Screen
+            name="settings-ai"
+            options={{
+              presentation: 'card',
+              animation: 'slide_from_right',
+              contentStyle: { backgroundColor: theme.background },
+            }}
+          />
+        </Stack>
+        <SparkToastContainer />
+        <AndroidNotificationBootstrap enabled={!curtainMounted} />
+        {curtainMounted ? <BootSurface animatedStyle={{ opacity: curtainOpacity }} /> : null}
+      </View>
+    </NavigationThemeProvider>
   );
 }
 

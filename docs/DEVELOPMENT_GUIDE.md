@@ -80,6 +80,8 @@ Kurallar:
 - `Colors` proxy değerlerini modül seviyesindeki `StyleSheet.create` içine hapsetmeyin; bu değerler yanlış şemada donabilir.
 - Uygulama içi tema değişiklikleri için `Appearance.setColorScheme` kullanmayın. Android activity'sini yeniden oluşturup açılış/tema flicker sorununu geri getirebilir.
 - Route arka planları, modal yüzeyleri, status-bar stili ve yükleme yüzeyleri aynı uygulama temasından çözülmelidir.
+- React Navigation renk context'i [`src/theme/navigationTheme.ts`](../src/theme/navigationTheme.ts) üzerinden aktif SPARK şemasıyla eşleşmelidir. Nested navigator eklerken varsayılan `DefaultTheme` arka planına güvenmeyin.
+- Lazy sekmelerde `sceneStyle` ve `lazyPlaceholder` aktif tema renginde opak kalmalıdır. Flicker'ı gizlemek için lazy loading veya geçiş animasyonunu kapatmak yerine ara yüzeyin temasını düzeltin.
 - Yeni birincil CTA'lar `src/theme/susevar.ts` içindeki ortak `susevar` yaklaşımını yeniden kullanmalıdır.
 - Glass yüzey dilini ayrı hardcoded renkler yerine tema token'larıyla koruyun.
 - Safe-area inset'lerine uyun; cihaza özgü alt boşluğu sabit padding ile taklit etmeyin.
@@ -134,6 +136,8 @@ Formülleri ekranlarda tekrarlamak yerine kanonik helper'ları kullanın.
 - Açık borç bir döngü harcaması değildir.
 - Kullanıcı ürünleri açıkça düzenlemediği sürece fiş başlık toplamı tarama importundan sonra yetkili kalır.
 - Yeni parasal girdiler merkezi tutar, metin, tarih ve tanımlayıcı sanitizer'larını kullanmalıdır.
+- Para toplamı ve indirimi için ham kayan nokta toplama/çıkarma yapmayın; `src/utils/moneyMath.ts` minor-unit yardımcılarını kullanın. `quantity` ve birim oranını toplam para tutarından ayrı hassasiyetle ele alın.
+- Düzenlenebilir para alanlarını kalıcı `number.toString()` ile doldurmayın; kanonik para-input formatter'ı kullanın.
 
 Harcanabilir nakdi değiştiren yeni kaynak eklerken budget hook, dashboard, analiz projeksiyonu, bildirim kuralları, para biçimlendirme, çeviriler ve testleri birlikte inceleyin.
 

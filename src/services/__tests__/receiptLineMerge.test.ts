@@ -54,6 +54,28 @@ describe('mergeDiscountLinesIntoItems', () => {
     expect(out[0].unit_price).toBe(5.58);
   });
 
+  it('ardışık indirimleri kümülatif olarak doğru düşer', () => {
+    const out = mergeDiscountLinesIntoItems([
+      item({ name: 'Ürün', total_price: 10, unit_price: 10 }),
+      item({ name: 'Discount 1', total_price: -1, unit_price: -1 }),
+      item({ name: 'Discount 2', total_price: -2, unit_price: -2 }),
+    ]);
+    expect(out).toHaveLength(1);
+    expect(out[0].list_line_total_before_discount).toBe(10);
+    expect(out[0].line_discount).toBe(3);
+    expect(out[0].total_price).toBe(7);
+  });
+
+  it('bozuk indirim toplamını brüt tutarda sınırlar', () => {
+    const out = mergeDiscountLinesIntoItems([
+      item({ name: 'Ürün', total_price: 10, unit_price: 10 }),
+      item({ name: 'Discount 1', total_price: -7, unit_price: -7 }),
+      item({ name: 'Discount 2', total_price: -7, unit_price: -7 }),
+    ]);
+    expect(out[0].line_discount).toBe(10);
+    expect(out[0].total_price).toBe(0);
+  });
+
   it('baştaki indirim satırını (öncesinde ürün yokken) atar', () => {
     const out = mergeDiscountLinesIntoItems([
       item({ name: 'Discount', total_price: -1, unit_price: -1, suggested_category: 'İndirim' }),
@@ -86,12 +108,12 @@ describe('finalizeParsedReceipt', () => {
     ...over,
   });
 
-  it('yazılı total kalemler toplamıyla uyumsuzsa toplamı düzeltir', () => {
+  it('basılı total kalemler toplamıyla uyumsuz olsa da basılı toplamı korur', () => {
     const out = finalizeParsedReceipt(receipt({
       items: [item({ name: 'A', total_price: 3, unit_price: 3 }), item({ name: 'B', total_price: 4, unit_price: 4 })],
       total: 999,
     }));
-    expect(out.total).toBe(7);
+    expect(out.total).toBe(999);
   });
 
   it('uyumlu total değeri korunur', () => {
@@ -102,7 +124,7 @@ describe('finalizeParsedReceipt', () => {
     expect(out.total).toBe(7);
   });
 
-  it('indirim satırı birleştirilir ve total nete hizalanır', () => {
+  it('indirim satırı birleştirilirken basılı total korunur', () => {
     const out = finalizeParsedReceipt(receipt({
       items: [
         item({ name: 'Ekmek', total_price: 6.99, unit_price: 6.99 }),
@@ -111,7 +133,18 @@ describe('finalizeParsedReceipt', () => {
       total: 6.99,
     }));
     expect(out.items).toHaveLength(1);
-    expect(out.total).toBe(5.58);
+    expect(out.total).toBe(6.99);
+  });
+
+  it('geçersiz basılı total için kalem toplamını kuruş hassasiyetinde kullanır', () => {
+    const out = finalizeParsedReceipt(receipt({
+      items: [
+        item({ name: 'A', total_price: 0.1, unit_price: 0.1 }),
+        item({ name: 'B', total_price: 0.2, unit_price: 0.2 }),
+      ],
+      total: Number.NaN,
+    }));
+    expect(out.total).toBe(0.3);
   });
 
   it('kalem yoksa yazılı total korunur', () => {

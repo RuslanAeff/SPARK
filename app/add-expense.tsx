@@ -30,6 +30,7 @@ import { takePendingReceiptDraft } from '../src/services/pendingReceiptDraft';
 import { getPrefillFromParsedReceipt } from '../src/services/receiptParser';
 import { useRefreshActions } from '../src/context/RefreshContext';
 import { refreshReceiptSavedNotification } from '../src/notifications/receiptNotifications';
+import { formatMoneyInput, parseMoneyInput } from '../src/utils/moneyMath';
 import {
   susevarButton,
   susevarButtonMarginTop,
@@ -135,7 +136,7 @@ export default function AddExpenseScreen() {
     if (isEditing && id) {
       const expense = await ExpenseDao.getById(parseInt(id));
       if (expense) {
-        setAmount(expense.total_amount.toString());
+        setAmount(formatMoneyInput(expense.total_amount));
         setNote(expense.note || '');
         setDate(expense.date);
         setExistingItems(expense.items || []);
@@ -205,8 +206,8 @@ export default function AddExpenseScreen() {
   }
 
   async function handleSave() {
-    const parsedAmount = parseFloat(amount);
-    if (isNaN(parsedAmount) || parsedAmount <= 0) {
+    const parsedAmount = parseMoneyInput(amount);
+    if (parsedAmount == null || parsedAmount <= 0) {
       SparkToast.show(t('invalid_amount'), 'error');
       return;
     }
@@ -270,7 +271,7 @@ export default function AddExpenseScreen() {
     }
 
     // Auto-save logic so we have an ID for the items to attach to
-    const parsedAmount = parseFloat(amount.replace(',', '.')) || 0;
+    const parsedAmount = parseMoneyInput(amount) ?? 0;
     
     setSaving(true);
     try {
@@ -529,7 +530,7 @@ export default function AddExpenseScreen() {
                     )}
                   </View>
                   <Text style={styles.itemPreviewPrice}>
-                    {formatCurrency(it.total_price, currency, false)}
+                    {formatCurrency(it.total_price, currency)}
                   </Text>
                 </View>
                 );

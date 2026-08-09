@@ -82,11 +82,11 @@ Bildirim tipleri, kural değerlendirmesi, feed kalıcılığı ve serileştirilm
 
 ### Saf politika ve biçimlendirme — `src/utils/`
 
-Tarih aralıkları, bütçe döngüsü matematiği, borca göre düzeltilmiş bütçe, tamamlanmış-gün harcama istatistikleri, para biçimlendirme, doğrulama, fiş onarımı, ürün normalizasyonu ve tema zamanlama yardımcıları burada bulunur. Saf iş kuralları React ve SQLite import'larından bağımsız kalmalı, böylece doğrudan test edilebilmelidir.
+Tarih aralıkları, bütçe döngüsü matematiği, borca göre düzeltilmiş bütçe, tamamlanmış-gün harcama istatistikleri, minor-unit para matematiği, para biçimlendirme, doğrulama, fiş onarımı, ürün normalizasyonu ve tema zamanlama yardımcıları burada bulunur. Saf iş kuralları React ve SQLite import'larından bağımsız kalmalı, böylece doğrudan test edilebilmelidir.
 
 ### Çapraz kesen yapılandırma — `src/theme/` ve `src/i18n/`
 
-Tema token'ları ve çalışma zamanı tema mağazası ortak altyapıdır. Çeviri anahtarları varsayılan ürün dili olarak Türkçeyi; ayrıca İngilizce, Azerbaycanca ve Rusça sözlükleri kullanır. Üretilen locale artifact'leri bağımsız doğruluk kaynağı değildir; geliştirme rehberindeki i18n akışına bakın.
+Tema token'ları ve çalışma zamanı tema mağazası ortak altyapıdır. [`src/theme/navigationTheme.ts`](../src/theme/navigationTheme.ts), aynı paleti React Navigation context'ine taşır; stack, pager, scene wrapper ve lazy placeholder yüzeyleri ekran component'leriyle aynı arka planı kullanır. Çeviri anahtarları varsayılan ürün dili olarak Türkçeyi; ayrıca İngilizce, Azerbaycanca ve Rusça sözlükleri kullanır. Üretilen locale artifact'leri bağımsız doğruluk kaynağı değildir; geliştirme rehberindeki i18n akışına bakın.
 
 ## Açılış yaşam döngüsü
 
@@ -101,6 +101,8 @@ Tema token'ları ve çalışma zamanı tema mağazası ortak altyapıdır. Çevi
 7. Android bildirim kurulumu yalnız açılış perdesi kalktıktan sonra başlar.
 
 İlk kareyi etkileyen tercihler veya startup provider'ları değiştiğinde bu readiness gate güncellenmelidir. Native görünüm değişiklikleri bu akış sırasında Android activity'sini yeniden oluşturmamalıdır.
+
+Perde kalktıktan sonraki navigasyon da aynı süreklilik sözleşmesine tabidir. Root, aktif SPARK şemasını React Navigation `ThemeProvider` üzerinden yayınlar. Material tab scene'leri ve lazy içerik bekleme yüzeyleri ayrıca aktif tema arka planını açıkça taşır; lazy yükleme performans için korunurken varsayılan açık navigator rengi görünür olamaz.
 
 ## Domain modeli
 
@@ -121,6 +123,22 @@ Tema token'ları ve çalışma zamanı tema mağazası ortak altyapıdır. Çevi
 
 Kolonlar, constraint'ler, index'ler ve silme davranışında [`src/db/schema.ts`](../src/db/schema.ts) içindeki SQL bildirimleri yetkilidir.
 
+`savings_goal` ile `category_limits` yaşam döngüsü bakımından bağımsızdır. Hedef
+silme yalnız singleton hedef satırını etkiler; limitlerin silinmesi ayrı ve açık
+bir kullanıcı eylemi gerektirir. DAO silme sonucu etkilenen satır sayısıyla
+bildirilir; böylece boş veya eskimiş UI durumu başarı olarak sunulmaz.
+
+Dashboard hedef sunumu, `settings` içindeki gizli olmayan iki yerel tercihle
+orkestre edilir: ana görünürlük tercihi varsayılan açık, kompakt öne çıkarma
+tercihi varsayılan kapalıdır. Bu tercihler aynı sorguda okunur; ekran hedef ve
+tercih okumaları tamamlanmadan hedef varyantı göstermez. Öne çıkarma yalnız
+pozitif tutarlı, tamamlanmamış hedefte kullanılır. Açık borç banner'ı kompakt
+hedeften önce kalır, tam hedef kartı aynı anda render edilmez ve kategori
+limitleri hedef varlığına bağlanmaz. Yüzde, kalan tutar ve takvim-günü durumu
+[`src/utils/savingsGoalProgress.ts`](../src/utils/savingsGoalProgress.ts) içindeki
+saf hesap sözleşmesinden gelir; hızlı katkı iki hedef varyantının paylaştığı tek
+sheet bileşenini kullanır.
+
 ## Finansal değişmezler
 
 ### Fiş ve harcama bütünlüğü
@@ -129,6 +147,9 @@ Kolonlar, constraint'ler, index'ler ve silme davranışında [`src/db/schema.ts`
 - Başlık ve kalem oluşturma atomiktir.
 - Model bir satırı kaçırsa bile ilk fiş importundan sonra basılı/taranmış harcama toplamı yetkili kalır.
 - Açık kullanıcı eylemiyle ürün düzenleme, kullanıcı yönlendirmeli bir düzeltme olduğu için toplamı yeniden hesaplayabilir.
+- `expenses.total_amount`, `expense_items.total_price`, satır indirimi ve indirim öncesi satır toplamı iki ondalıklı para alt birimine normalize edilir. Toplama/çıkarma [`src/utils/moneyMath.ts`](../src/utils/moneyMath.ts) üzerinden tamsayı minor-unit ile yapılır; `quantity` ve birim oranı bu değişmezden ayrıdır.
+- Kullanıcı kaynaklı kalem ekleme/düzenleme/silme ile harcama başlığı toplamının senkronizasyonu tek SQLite transaction'ıdır. Başlık, item `REAL` değerlerini doğrudan toplamak yerine yuvarlanmış minor-unit toplamından üretilir.
+- Eski binary float artıkları tek seferlik idempotent migration ile hassasiyete çekilir; migration başlığı kalem toplamına eşitlemez ve basılı toplam otoritesini değiştirmez.
 - Borç veya geri ödemeyi modellemek için fiş görselleri ve kalemleri yapay harcamalara bölünmemelidir.
 
 ### Bütçe döngüleri

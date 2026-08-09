@@ -38,7 +38,7 @@ export const CategoryLimitDao = {
     await db.runAsync('DELETE FROM category_limits WHERE category_id = ? AND month = ?', [categoryId, month]);
   },
 
-  /** Hedef silindiğinde veya sıfırlamada tüm kategori limitleri */
+  /** Yalnız açıkça onaylanmış tam limit sıfırlaması için; hedef silmeden bağımsızdır. */
   async deleteAll(): Promise<void> {
     const db = await getDatabase();
     await db.runAsync('DELETE FROM category_limits');

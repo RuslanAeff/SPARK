@@ -5,14 +5,13 @@ import { CategoryLimitDao, CategoryLimitRow } from '../db/categoryLimitDao';
 import { CategoryDao } from '../db/categoryDao';
 import { ExpenseDao } from '../db/expenseDao';
 import { getStartOfMonth, getEndOfMonth } from '../utils/dateUtils';
-import { getGoalFeatureEnabled } from '../services/goalFeatureSettings';
+import { getGoalFeaturePreferences } from '../services/goalFeatureSettings';
 
 export function useSavingsGoal() {
   const [goal, setGoal] = useState<SavingsGoalRow | null>(null);
   const [loading, setLoading] = useState(true);
 
   const refresh = useCallback(async () => {
-    setLoading(true);
     try {
       const g = await GoalDao.get();
       setGoal(g);
@@ -102,12 +101,14 @@ export function useCategoryLimitsProgress(startDate?: string, endDate?: string) 
 
 export function useGoalFeatureEnabled() {
   const [enabled, setEnabled] = useState(true);
+  const [dashboardFocusEnabled, setDashboardFocusEnabled] = useState(false);
   const [loading, setLoading] = useState(true);
 
   const refresh = useCallback(async () => {
-    setLoading(true);
     try {
-      setEnabled(await getGoalFeatureEnabled());
+      const preferences = await getGoalFeaturePreferences();
+      setEnabled(preferences.enabled);
+      setDashboardFocusEnabled(preferences.dashboardFocusEnabled);
     } finally {
       setLoading(false);
     }
@@ -117,5 +118,5 @@ export function useGoalFeatureEnabled() {
     refresh();
   }, [refresh]);
 
-  return { enabled, loading, refresh };
+  return { enabled, dashboardFocusEnabled, loading, refresh };
 }

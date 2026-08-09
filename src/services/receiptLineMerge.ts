@@ -1,9 +1,6 @@
 // Fiş satırları: ayrı "Discount / İndirim" satırlarını bir önceki ürüne yedirir (net fiyat + indirim tutarı)
 import type { ParsedItem, ParsedReceipt } from './geminiService';
-
-function round2(n: number): number {
-  return Math.round(n * 100) / 100;
-}
+import { roundMoney, roundUnitRate, subtractMoney, sumMoney } from '../utils/moneyMath';
 
 /**
  * Eşleştirme için küçük harfe çevirir + Türkçe büyük 'İ'nin `toLowerCase()`'te
@@ -55,13 +52,17 @@ export function mergeDiscountLinesIntoItems(items: ParsedItem[]): ParsedItem[] {
           : Number(it.unit_price) * (it.quantity || 1)
       );
 
-      const gross = Number(prev.list_line_total_before_discount ?? prev.total_price);
-      const net = round2(gross - discountAmt);
+      const gross = roundMoney(Number(prev.list_line_total_before_discount ?? prev.total_price));
+      const cumulativeDiscount = Math.min(
+        gross,
+        sumMoney([Number(prev.line_discount) || 0, discountAmt]),
+      );
+      const net = Math.max(0, subtractMoney(gross, cumulativeDiscount));
 
-      prev.list_line_total_before_discount = round2(gross);
-      prev.line_discount = round2(discountAmt + (prev.line_discount || 0));
+      prev.list_line_total_before_discount = gross;
+      prev.line_discount = cumulativeDiscount;
       prev.total_price = net;
-      prev.unit_price = round2(net / (prev.quantity || 1));
+      prev.unit_price = roundUnitRate(net / (prev.quantity || 1));
       continue;
     }
 
@@ -73,12 +74,12 @@ export function mergeDiscountLinesIntoItems(items: ParsedItem[]): ParsedItem[] {
 
 export function finalizeParsedReceipt(receipt: ParsedReceipt): ParsedReceipt {
   const items = mergeDiscountLinesIntoItems(receipt.items || []);
-  const sum = items.reduce((s, i) => s + (Number.isFinite(Number(i.total_price)) ? Number(i.total_price) : 0), 0);
-  let total = Number(receipt.total);
-  if (items.length > 0 && Number.isFinite(sum) && sum > 0) {
-    if (!Number.isFinite(total) || Math.abs(total - sum) > 0.02) {
-      total = round2(sum);
-    }
-  }
-  return { ...receipt, items, total: Number.isFinite(total) ? total : sum };
+  const itemSum = sumMoney(
+    items.map((item) => Number(item.total_price)).filter(Number.isFinite),
+  );
+  const printedTotal = Number(receipt.total);
+  const total = Number.isFinite(printedTotal) && printedTotal >= 0
+    ? roundMoney(printedTotal)
+    : itemSum;
+  return { ...receipt, items, total };
 }

@@ -87,8 +87,14 @@ export const GoalDao = {
     return next;
   },
 
-  async clear(): Promise<void> {
+  /**
+   * Kayıtlı hedef varsa siler. Çağıranın gerçekte bir satır silinip
+   * silinmediğini ayırt edebilmesi, boş/stale ekran durumunda sahte başarı
+   * göstermesini engeller.
+   */
+  async clear(): Promise<boolean> {
     const db = await getDatabase();
-    await db.runAsync('DELETE FROM savings_goal WHERE id = 1');
+    const result = await db.runAsync('DELETE FROM savings_goal WHERE id = 1');
+    return result.changes > 0;
   },
 };

@@ -35,6 +35,7 @@ CI bu kapıları çalıştırmadan önce lockfile üzerinden kurulum yapar. Yere
 Mevcut test paketi dört seviyeyi kapsar:
 
 - Saf domain yardımcıları: tarihler, bütçe döngüleri, borç nakit akışı, tamamlanmış-gün harcama istatistikleri, projeksiyonlar, normalizasyon, doğrulama, para birimi ve fiş onarımı.
+- Para regresyonları: virgül/nokta girdisi, kuruş toplama-çıkarma, indirimli satır, ardışık indirim, tam indirim, basılı toplam otoritesi, DAO yazma normalizasyonu ve eski veri migration'ı.
 - Servis kuralları: Gemini yanıt coercion'ı, fiş satırı birleştirme, abonelik tespiti ve Android bildirim kanal/teslim politikası.
 - Hook/context davranışı: eski sonuç koruması, refresh yayılımı, tema/dil readiness, bildirim serileştirme ve kalıcılık koordinasyonu.
 - Component/ekran davranışı: analiz kartları, toast yaşam döngüsü, bildirim işlemleri, swipe affordance'ları ve çoklu seçim akışları.
@@ -112,6 +113,7 @@ Bildirim kurulumu Android sürüm davranışını ve Expo Go sınırlamalarını
 - İlk kurulum seed ve migration işlemleri veritabanı hazır olarak sunulmadan önce tamamlanır.
 - Çakışabilen aynı bağlantı sorguları Expo SQLite shared-object yaşam döngüsünün gerektirdiği yerlerde serileştirilir.
 - Silme davranışı foreign key'lere uymalı ve bağlı domain anlamını korumalıdır; örneğin bir harcamayı silmek borcu sessizce yeniden yorumlamamalıdır.
+- Finansal toplamları ham JavaScript `number` veya SQLite `SUM(REAL)` sonucuyla kullanıcıya taşımayın. Para toplam/indirimlerini integer minor-unit ile hesaplayın; DAO yazma sınırında iki ondalığa normalize edin ve düzenlenebilir alanları ham `.toString()` yerine kanonik para metniyle doldurun.
 
 ### Yedekleme ve geri yükleme
 
@@ -140,6 +142,7 @@ Ara bir beyaz/varsayılan/native yüzey üretebilecek değişikliklerden kaçın
 - Provider child'larını geçici boş kare olarak render etmeyin.
 - Activity'yi yeniden oluşturan native görünüm değişikliklerini çağırmayın.
 - Yanlış ilk rotayı şeffaf yüzey arkasında animate etmeyin.
+- Nested navigator, lazy scene veya pager wrapper'ında React Navigation'ın varsayılan açık arka planını bırakmayın.
 - Hata yolunun splash'i gizleyip kurtarılabilir ekran gösterme yeteneğini koruyun.
 
 ### Async latest-wins davranışı

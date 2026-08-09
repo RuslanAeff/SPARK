@@ -4,6 +4,43 @@ import { CREATE_TABLES_SQL, DEFAULT_CATEGORIES } from './schema';
 
 let db: SQLite.SQLiteDatabase | null = null;
 let initPromise: Promise<SQLite.SQLiteDatabase> | null = null;
+const RECEIPT_MONEY_PRECISION_MIGRATION = 'migration_receipt_money_precision_v1';
+
+/**
+ * Eski REAL kayıtlarındaki binary float artıklarını bir kez kanonik para
+ * hassasiyetine çeker. Header yeniden item toplamına eşitlenmez; basılı fiş
+ * toplamını koruyan ADR-004 değişmezi aynen korunur.
+ */
+export async function normalizeReceiptMoneyPrecisionOnce(
+  database: SQLite.SQLiteDatabase,
+): Promise<void> {
+  const applied = await database.getFirstAsync<{ value: string }>(
+    'SELECT value FROM settings WHERE key = ?',
+    [RECEIPT_MONEY_PRECISION_MIGRATION],
+  );
+  if (applied?.value === '1') return;
+
+  await database.withTransactionAsync(async () => {
+    await database.runAsync('UPDATE expenses SET total_amount = ROUND(total_amount, 2)');
+    await database.runAsync(`
+      UPDATE expense_items
+      SET unit_price = ROUND(unit_price, 4),
+          total_price = ROUND(total_price, 2),
+          line_discount = CASE
+            WHEN line_discount IS NULL THEN NULL
+            ELSE ROUND(line_discount, 2)
+          END,
+          list_line_total_before_discount = CASE
+            WHEN list_line_total_before_discount IS NULL THEN NULL
+            ELSE ROUND(list_line_total_before_discount, 2)
+          END
+    `);
+    await database.runAsync(
+      'INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)',
+      [RECEIPT_MONEY_PRECISION_MIGRATION, '1'],
+    );
+  });
+}
 
 export async function getDatabase(): Promise<SQLite.SQLiteDatabase> {
   if (db) return db;
@@ -38,6 +75,7 @@ export async function getDatabase(): Promise<SQLite.SQLiteDatabase> {
     try {
       await instance.execAsync('ALTER TABLE expense_items ADD COLUMN list_line_total_before_discount REAL;');
     } catch (_) {}
+    await normalizeReceiptMoneyPrecisionOnce(instance);
     try {
       await instance.execAsync(`
         CREATE TABLE IF NOT EXISTS savings_goal (

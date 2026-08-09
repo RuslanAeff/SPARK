@@ -7,6 +7,7 @@ import { useIsFocused } from '@react-navigation/native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import Animated, { FadeInDown, FadeIn, FadeOut, LinearTransition } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import * as Haptics from 'expo-haptics';
 
 import { Colors } from '../../src/theme/colors';
 import { Typography, FontFamily } from '../../src/theme/typography';
@@ -21,6 +22,8 @@ import { useSavingsGoal, useCategoryLimitsProgress, useGoalFeatureEnabled } from
 
 import DonutChart from '../../src/components/DonutChart';
 import SavingsGoalCard from '../../src/components/SavingsGoalCard';
+import SavingsGoalPulseCard from '../../src/components/SavingsGoalPulseCard';
+import SavingsGoalContributionSheet from '../../src/components/SavingsGoalContributionSheet';
 import CategoryLimitsSection from '../../src/components/CategoryLimitsSection';
 import BudgetCard from '../../src/components/BudgetCard';
 import DebtSheet from '../../src/components/DebtSheet';
@@ -32,6 +35,7 @@ import { useLanguage } from '../../src/i18n/LanguageContext';
 import { useExpenseDataRefresh } from '../../src/context/RefreshContext';
 import { useCurrency } from '../../src/context/CurrencyContext';
 import { useNotifications } from '../../src/context/NotificationsContext';
+import { getDashboardGoalPresentation } from '../../src/utils/dashboardGoalPresentation';
 
 export default function DashboardScreen() {
   // İlk açılışta DB teması gelince tüm kartlar aynı React store'undan senkronlensin.
@@ -62,14 +66,20 @@ export default function DashboardScreen() {
   const { data: categories, refresh: refreshCats } = useCategorySpending(cycleStart, cycleEnd);
   const { data: vendors, refresh: refreshVendors } = useVendorSpending(cycleStart, cycleEnd);
   const { total: monthlyTotal, refresh: refreshTotal } = useMonthlyTotal(cycleStart, cycleEnd);
-  const { goal, refresh: refreshGoal } = useSavingsGoal();
+  const { goal, loading: goalLoading, refresh: refreshGoal } = useSavingsGoal();
   const { rows: limitRows, refresh: refreshLimits } = useCategoryLimitsProgress(cycleStart, cycleEnd);
-  const { enabled: goalFeatureEnabled, refresh: refreshGoalFeature } = useGoalFeatureEnabled();
+  const {
+    enabled: goalFeatureEnabled,
+    dashboardFocusEnabled,
+    loading: goalPreferencesLoading,
+    refresh: refreshGoalFeature,
+  } = useGoalFeatureEnabled();
   const [refreshing, setRefreshing] = React.useState(false);
   const [selectedIndex, setSelectedIndex] = React.useState<number | null>(null);
   // Borç yönetim alt sayfası (açık borç rozetine dokununca açılır — Faz 4a).
   const [debtSheetVisible, setDebtSheetVisible] = React.useState(false);
   const [incomeSheetVisible, setIncomeSheetVisible] = React.useState(false);
+  const [goalContributionVisible, setGoalContributionVisible] = React.useState(false);
   const isFocused = useIsFocused();
   const { currency } = useCurrency();
   const { unreadCount, sync } = useNotifications();
@@ -137,6 +147,16 @@ export default function DashboardScreen() {
 
   // Döngü bilgisi: anchor ≠ 1 ise tarih aralığını göster
   const showCycleRange = budget.cycleStartDay !== 1 && budget.periodStart && budget.periodEnd;
+  const goalSurfacesReady = !goalLoading && !goalPreferencesLoading;
+  const goalPresentation = getDashboardGoalPresentation({
+    goal,
+    featureEnabled: goalFeatureEnabled,
+    focusEnabled: dashboardFocusEnabled,
+    ready: goalSurfacesReady,
+  });
+  const showGoalLowerSection = goalPresentation.showFull
+    || goalPresentation.showPlaceholder
+    || (goalSurfacesReady && goalFeatureEnabled && limitRows.length > 0);
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -206,6 +226,19 @@ export default function DashboardScreen() {
               <MaterialCommunityIcons name="chevron-right" size={22} color={Colors.danger} />
             </Pressable>
           </Animated.View>
+        )}
+
+        {/* Kullanıcının tercihi açıksa aktif hedef, borç uyarısından sonra sakin
+            bir özet olarak öne çıkar. Tam kart aşağıda ikinci kez gösterilmez. */}
+        {goalPresentation.showPulse && goal && (
+          <SavingsGoalPulseCard
+            goal={goal}
+            onOpen={() => router.push('/goal-settings')}
+            onContribute={() => {
+              void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              setGoalContributionVisible(true);
+            }}
+          />
         )}
 
         {/* Main Amount & Donut */}
@@ -353,14 +386,16 @@ export default function DashboardScreen() {
           </Animated.View>
         )}
 
-        {/* Birikim hedefi + kategori limitleri — donut ve aylık bütçeden sonra */}
-        {goalFeatureEnabled && (
+        {/* Standart hedef kartı + kategori limitleri — limitler hedeften bağımsızdır. */}
+        {showGoalLowerSection && (
           <View style={budget.monthlyBudget > 0 ? styles.goalBlockSpacing : undefined}>
-            {goal ? (
+            {goalPresentation.showFull && goal && (
               <Animated.View entering={FadeInDown.delay(50).duration(400)} layout={LinearTransition.duration(750)}>
                 <SavingsGoalCard goal={goal} />
               </Animated.View>
-            ) : (
+            )}
+
+            {goalPresentation.showPlaceholder && (
               <Animated.View entering={FadeInDown.delay(50).duration(400)} layout={LinearTransition.duration(750)}>
                 <Pressable
                   onPress={() => router.push('/goal-settings')}
@@ -378,7 +413,7 @@ export default function DashboardScreen() {
               </Animated.View>
             )}
 
-            {goal && limitRows.length > 0 && (
+            {goalSurfacesReady && goalFeatureEnabled && limitRows.length > 0 && (
               <Animated.View layout={LinearTransition.duration(750)}>
                 <CategoryLimitsSection rows={limitRows} />
               </Animated.View>
@@ -539,6 +574,11 @@ export default function DashboardScreen() {
         cycleStart={budget.periodStart}
         cycleEnd={budget.periodEnd}
         onChanged={refreshBudget}
+      />
+
+      <SavingsGoalContributionSheet
+        visible={goalContributionVisible}
+        onClose={() => setGoalContributionVisible(false)}
       />
     </SafeAreaView>
   );

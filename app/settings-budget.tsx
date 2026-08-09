@@ -27,7 +27,8 @@ import GlassCheckButton from '../src/components/GlassCheckButton';
 import BudgetHistoryCard from '../src/components/BudgetHistoryCard';
 import { SparkToast } from '../src/components/SparkToast';
 import {
-  getGoalFeatureEnabled,
+  getGoalFeaturePreferences,
+  setGoalDashboardFocusEnabled,
   setGoalFeatureEnabled as persistGoalFeatureEnabled,
 } from '../src/services/goalFeatureSettings';
 import {
@@ -50,6 +51,7 @@ export default function SettingsBudgetScreen() {
   });
   const [budgetAmount, setBudgetAmount] = useState('');
   const [goalFeatureOn, setGoalFeatureOn] = useState(true);
+  const [goalFocusOn, setGoalFocusOn] = useState(false);
   const [cycleDay, setCycleDay] = useState(1);
   const [budgetInfoOpen, setBudgetInfoOpen] = useState(false);
   const [goalInfoOpen, setGoalInfoOpen] = useState(false);
@@ -57,9 +59,12 @@ export default function SettingsBudgetScreen() {
   useEffect(() => {
     let alive = true;
     (async () => {
-      const [on, day] = await Promise.all([getGoalFeatureEnabled(), getCycleStartDay()]);
+      // ADR-002: aynı SQLite bağlantısındaki hazırlanan sorguları paralelleştirme.
+      const goalPreferences = await getGoalFeaturePreferences();
+      const day = await getCycleStartDay();
       if (!alive) return;
-      setGoalFeatureOn(on);
+      setGoalFeatureOn(goalPreferences.enabled);
+      setGoalFocusOn(goalPreferences.dashboardFocusEnabled);
       setCycleDay(day);
       // Açılışta güncel döngüyü göster (anchor=1'de bu zaten takvim ayıdır).
       setSelectedMonth(getCurrentCycle(day).key);
@@ -126,6 +131,19 @@ export default function SettingsBudgetScreen() {
       SparkToast.show(t('goal_feature_saved'), 'success');
     } catch (e) {
       console.warn('goal feature', e);
+      SparkToast.show(t('error_saving_data'), 'error');
+    }
+  }
+
+  async function handleGoalFocusToggle(next: boolean) {
+    try {
+      await setGoalDashboardFocusEnabled(next);
+      setGoalFocusOn(next);
+      triggerRefresh();
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      SparkToast.show(t('goal_focus_saved'), 'success');
+    } catch (e) {
+      console.warn('goal dashboard focus', e);
       SparkToast.show(t('error_saving_data'), 'error');
     }
   }
@@ -289,10 +307,31 @@ export default function SettingsBudgetScreen() {
               <View style={styles.goalFeatureRow}>
                 <Text style={styles.goalFeatureLabel}>{t('goal_feature_toggle')}</Text>
                 <Switch
+                  testID="goal-feature-switch"
                   value={goalFeatureOn}
                   onValueChange={handleGoalFeatureToggle}
                   trackColor={{ false: Colors.surfaceLight, true: Colors.primary + '55' }}
                   thumbColor={goalFeatureOn ? Colors.primary : Colors.textMuted}
+                />
+              </View>
+              <View style={styles.goalPreferenceDivider} />
+              <View
+                style={[
+                  styles.goalFeatureRow,
+                  !goalFeatureOn && styles.goalFeatureRowDisabled,
+                ]}
+              >
+                <View style={styles.goalPreferenceText}>
+                  <Text style={styles.goalFeatureLabel}>{t('goal_focus_toggle')}</Text>
+                  <Text style={styles.goalFeatureHint}>{t('goal_focus_hint')}</Text>
+                </View>
+                <Switch
+                  testID="goal-focus-switch"
+                  value={goalFocusOn}
+                  onValueChange={handleGoalFocusToggle}
+                  disabled={!goalFeatureOn}
+                  trackColor={{ false: Colors.surfaceLight, true: Colors.primary + '55' }}
+                  thumbColor={goalFocusOn && goalFeatureOn ? Colors.primary : Colors.textMuted}
                 />
               </View>
             </View>
@@ -335,7 +374,7 @@ export default function SettingsBudgetScreen() {
         visible={goalInfoOpen}
         onClose={() => setGoalInfoOpen(false)}
         title={t('goal_feature_section_title')}
-        paragraphs={[t('goal_feature_section_hint')]}
+        paragraphs={[t('goal_feature_section_hint'), t('goal_focus_hint')]}
       />
     </>
   );
@@ -492,6 +531,24 @@ const getStyles = () => StyleSheet.create({
     color: Colors.textPrimary,
     flex: 1,
     paddingRight: Spacing.md,
+  },
+  goalPreferenceDivider: {
+    height: 1,
+    backgroundColor: Colors.divider,
+    marginVertical: Spacing.xs,
+  },
+  goalFeatureRowDisabled: {
+    opacity: 0.48,
+  },
+  goalPreferenceText: {
+    flex: 1,
+    minWidth: 0,
+    paddingRight: Spacing.md,
+  },
+  goalFeatureHint: {
+    ...Typography.bodySmall,
+    color: Colors.textSecondary,
+    marginTop: Spacing.xs,
   },
   linkRow: {
     flexDirection: 'row',

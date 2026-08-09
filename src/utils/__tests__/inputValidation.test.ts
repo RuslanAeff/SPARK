@@ -29,6 +29,12 @@ describe('sanitizeAmount', () => {
 
   it('string sayı parse edilir', () => {
     expect(sanitizeAmount('42.5')).toBe(42.5);
+    expect(sanitizeAmount('55,93')).toBe(55.93);
+  });
+
+  it('parasal değeri iki ondalığa normalize eder', () => {
+    expect(sanitizeAmount(55.00000000000003)).toBe(55);
+    expect(sanitizeAmount(3.176)).toBe(3.18);
   });
 });
 
@@ -50,6 +56,10 @@ describe('sanitizeUnitPrice', () => {
 
   it('aşırı büyük → fallback', () => {
     expect(sanitizeUnitPrice(1e20, 0)).toBe(0);
+  });
+
+  it('birim fiyatı dört ondalık hassasiyette normalize eder', () => {
+    expect(sanitizeUnitPrice(6.123456)).toBe(6.1235);
   });
 });
 

@@ -8,6 +8,7 @@ import {
   stripTrailingCommasJson,
 } from '../utils/receiptJsonRepair';
 import { stripDangerousKeys } from '../utils/inputValidation';
+import { roundMoney, roundUnitRate, sumMoney } from '../utils/moneyMath';
 import type { Language } from '../i18n/translations';
 
 // Preferred model keywords in priority order (for auto-selection)
@@ -565,14 +566,14 @@ export function coerceParsedReceipt(raw: Record<string, unknown>): ParsedReceipt
 
   const items = cappedItems.map((it) => {
     const q = Math.max(0.001, toFiniteNumber(it.quantity, 1));
-    const total = toFiniteNumber(it.total_price, 0);
-    let unit = toFiniteNumber(it.unit_price, 0);
-    if (unit <= 0 && q > 0 && total > 0) unit = total / q;
+    const total = roundMoney(toFiniteNumber(it.total_price, 0));
+    let unit = roundUnitRate(toFiniteNumber(it.unit_price, 0));
+    if (unit <= 0 && q > 0 && total > 0) unit = roundUnitRate(total / q);
     const lineDisc = it.line_discount !== undefined && it.line_discount !== null
-      ? toFiniteNumber(it.line_discount, 0)
+      ? roundMoney(toFiniteNumber(it.line_discount, 0))
       : undefined;
     const listBefore = it.list_line_total_before_discount !== undefined && it.list_line_total_before_discount !== null
-      ? toFiniteNumber(it.list_line_total_before_discount, 0)
+      ? roundMoney(toFiniteNumber(it.list_line_total_before_discount, 0))
       : undefined;
 
     return {
@@ -588,8 +589,8 @@ export function coerceParsedReceipt(raw: Record<string, unknown>): ParsedReceipt
     } as ParsedItem;
   });
 
-  const sum = items.reduce((s, i) => s + (Number.isFinite(i.total_price) ? i.total_price : 0), 0);
-  const total = toFiniteNumber(raw.total, sum > 0 ? sum : 0);
+  const sum = sumMoney(items.map((item) => item.total_price));
+  const total = roundMoney(toFiniteNumber(raw.total, sum > 0 ? sum : 0));
 
   return {
     vendor_name: String(raw.vendor_name ?? 'Bilinmiyor'),

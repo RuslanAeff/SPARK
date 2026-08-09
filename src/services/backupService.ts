@@ -28,6 +28,7 @@ import {
   sanitizeUnitPrice,
   stripDangerousKeys,
 } from '../utils/inputValidation';
+import { roundMoney } from '../utils/moneyMath';
 
 /** Mevcut yedek formatı sürümü.
  *  v1 → ilk sürüm
@@ -628,7 +629,7 @@ export async function importBackupPayload(payload: BackupPayload): Promise<Impor
         const itemTurkish = it.turkish_name ? sanitizeText(it.turkish_name, 500) : null;
         const qty = sanitizeQuantity(it.quantity);
         const unit = sanitizeUnitPrice(it.unit_price);
-        const tp = sanitizeUnitPrice(it.total_price);
+        const tp = roundMoney(sanitizeUnitPrice(it.total_price));
         const ld = it.line_discount != null ? sanitizeAmount(it.line_discount) : 0;
         const lb = it.list_line_total_before_discount != null
           ? sanitizeAmount(it.list_line_total_before_discount) : null;

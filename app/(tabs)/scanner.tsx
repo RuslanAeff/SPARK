@@ -11,7 +11,8 @@ import * as FileSystem from 'expo-file-system/legacy';
 import Animated, { FadeInDown, FadeIn } from 'react-native-reanimated';
 
 import * as Haptics from 'expo-haptics';
-import { Colors } from '../../src/theme/colors';
+import { DarkTheme, LightTheme } from '../../src/theme/colors';
+import { useAppTheme } from '../../src/theme/themeStore';
 import { Typography, FontFamily } from '../../src/theme/typography';
 import { Spacing, ScreenPadding, BorderRadius } from '../../src/theme/spacing';
 import { formatCurrency } from '../../src/utils/formatCurrency';
@@ -23,7 +24,11 @@ import { useLanguage } from '../../src/i18n/LanguageContext';
 import { useRefreshActions } from '../../src/context/RefreshContext';
 import { useCurrency } from '../../src/context/CurrencyContext';
 import { setScanSessionError } from '../../src/services/scanSession';
-import { effectiveLineDiscount, lineHasDiscount } from '../../src/utils/receiptLineDiscountUi';
+import {
+  effectiveLineDiscount,
+  formatReceiptDiscountAmount,
+  lineHasDiscount,
+} from '../../src/utils/receiptLineDiscountUi';
 import { itemDisplayName } from '../../src/utils/itemDisplayName';
 import { compressImageToBase64 } from '../../src/utils/imageCompressor';
 import {
@@ -36,7 +41,9 @@ import {
 type ScanState = 'idle' | 'processing' | 'result' | 'error' | 'no_key';
 
 export default function ScannerScreen() {
-  const styles = getStyles();
+  const scheme = useAppTheme();
+  const theme = scheme === 'light' ? LightTheme : DarkTheme;
+  const styles = React.useMemo(() => getStyles(theme), [theme]);
   const router = useRouter();
   const { t, language } = useLanguage();
   const { triggerRefresh } = useRefreshActions();
@@ -173,7 +180,7 @@ export default function ScannerScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <SafeAreaView testID="scanner-screen" style={styles.container} edges={['top']}>
       <View style={styles.header}>
         <Text style={styles.title}>{t('scanner_title')}</Text>
         <View style={{ width: 40 }} />
@@ -183,7 +190,7 @@ export default function ScannerScreen() {
         {state === 'idle' && (
           <Animated.View entering={FadeIn.duration(400)} style={styles.idleContent}>
             <View style={styles.iconCircle}>
-              <MaterialCommunityIcons name="receipt" size={64} color={Colors.primary} />
+              <MaterialCommunityIcons name="receipt" size={64} color={theme.primary} />
             </View>
             <Text style={styles.idleTitle}>{t('scan_receipt')}</Text>
             <Text style={styles.idleSubtitle}>
@@ -196,7 +203,7 @@ export default function ScannerScreen() {
                 style={({ pressed }) => [styles.scanButton, pressed && { opacity: 0.9 }]}
               >
                 <View style={styles.scanButtonIconWrap}>
-                  <MaterialCommunityIcons name="camera-iris" size={28} color={Colors.primary} />
+                  <MaterialCommunityIcons name="camera-iris" size={28} color={theme.primary} />
                 </View>
                 <Text style={styles.scanButtonText}>{t('camera')}</Text>
               </Pressable>
@@ -206,7 +213,7 @@ export default function ScannerScreen() {
                 style={({ pressed }) => [styles.scanButton, pressed && { opacity: 0.9 }]}
               >
                 <View style={styles.scanButtonIconWrap}>
-                  <MaterialCommunityIcons name="image-auto-adjust" size={28} color={Colors.primary} />
+                  <MaterialCommunityIcons name="image-auto-adjust" size={28} color={theme.primary} />
                 </View>
                 <Text style={styles.scanButtonText}>{t('gallery')}</Text>
               </Pressable>
@@ -219,7 +226,7 @@ export default function ScannerScreen() {
             {imageUri && (
               <Image source={{ uri: imageUri }} style={styles.previewImage} />
             )}
-            <ActivityIndicator size="large" color={Colors.primary} />
+            <ActivityIndicator size="large" color={theme.primary} />
             <Text style={styles.processingText}>{t('scanning_ai_toast')}</Text>
             <Text style={styles.processingSubtext}>{t('processing')}</Text>
             <Pressable
@@ -238,21 +245,21 @@ export default function ScannerScreen() {
 
         {state === 'no_key' && (
           <View style={styles.errorContent}>
-            <MaterialCommunityIcons name="key-alert" size={48} color={Colors.secondary} />
+            <MaterialCommunityIcons name="key-alert" size={48} color={theme.secondary} />
             <Text style={styles.errorTitle}>{t('no_api_key_title')}</Text>
             <Text style={styles.errorMessage}>{errorMsg}</Text>
             <View style={styles.actionRow}>
               <Pressable
                 onPress={() => { setState('idle'); setImageUri(null); }}
-                style={[styles.actionButton, { backgroundColor: Colors.surfaceLight }]}
+                style={[styles.actionButton, { backgroundColor: theme.surfaceLight }]}
               >
                 <Text style={styles.actionText}>{t('cancel')}</Text>
               </Pressable>
               <Pressable
                 onPress={() => router.push('/settings-ai')}
-                style={[styles.actionButton, { backgroundColor: Colors.primary, flex: 2 }]}
+                style={[styles.actionButton, { backgroundColor: theme.primary, flex: 2 }]}
               >
-                <MaterialCommunityIcons name="cog-outline" size={20} color={Colors.textPrimary} />
+                <MaterialCommunityIcons name="cog-outline" size={20} color={theme.textPrimary} />
                 <Text style={styles.actionText}>{t('tab_settings')}</Text>
               </Pressable>
             </View>
@@ -261,7 +268,7 @@ export default function ScannerScreen() {
 
         {state === 'error' && (
           <View style={styles.errorContent}>
-            <MaterialCommunityIcons name="alert-circle-outline" size={48} color={Colors.danger} />
+            <MaterialCommunityIcons name="alert-circle-outline" size={48} color={theme.danger} />
             <Text style={styles.errorTitle}>{t('error')}</Text>
             <Text style={styles.errorMessage}>{errorMsg}</Text>
             <Pressable
@@ -283,8 +290,8 @@ export default function ScannerScreen() {
                   <Text style={styles.vendorName}>{result.vendor_name}</Text>
                   {result._modelUsed && (
                     <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4 }}>
-                      <View style={{ backgroundColor: Colors.primary + '22', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 12 }}>
-                        <Text style={{ ...Typography.labelSmall, color: Colors.primary, fontFamily: FontFamily.semiBold, fontSize: 10 }}>
+                      <View style={{ backgroundColor: theme.primary + '22', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 12 }}>
+                        <Text style={{ ...Typography.labelSmall, color: theme.primary, fontFamily: FontFamily.semiBold, fontSize: 10 }}>
                           ✨ {result._modelUsed.split(' (')[0].replace('gemini-', '')}
                         </Text>
                       </View>
@@ -313,7 +320,7 @@ export default function ScannerScreen() {
                     {hasDisc && discAmt > 0.001 && (
                       <Text style={styles.itemDiscountHint}>
                         {t('receipt_line_discount', {
-                          amount: formatCurrency(discAmt, lineCurrency, false),
+                          amount: formatReceiptDiscountAmount(discAmt, lineCurrency),
                         })}
                       </Text>
                     )}
@@ -366,7 +373,7 @@ export default function ScannerScreen() {
                   pressed && styles.pillPressed,
                 ]}
               >
-                <MaterialCommunityIcons name="pencil-outline" size={20} color={Colors.primary} />
+                <MaterialCommunityIcons name="pencil-outline" size={20} color={theme.primary} />
                 <Text style={styles.editPillText}>{t('edit')}</Text>
               </Pressable>
               <Pressable
@@ -386,10 +393,10 @@ export default function ScannerScreen() {
   );
 }
 
-const getStyles = () => StyleSheet.create({
+const getStyles = (theme: typeof DarkTheme) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.background,
+    backgroundColor: theme.background,
   },
   header: {
     flexDirection: 'row',
@@ -400,7 +407,7 @@ const getStyles = () => StyleSheet.create({
   },
   title: {
     ...Typography.headlineLarge,
-    color: Colors.textPrimary,
+    color: theme.textPrimary,
   },
   content: {
     paddingHorizontal: ScreenPadding.horizontal,
@@ -415,19 +422,19 @@ const getStyles = () => StyleSheet.create({
     width: 120,
     height: 120,
     borderRadius: 60,
-    backgroundColor: Colors.primaryGlow,
+    backgroundColor: theme.primaryGlow,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: Spacing.xxl,
   },
   idleTitle: {
     ...Typography.headlineMedium,
-    color: Colors.textPrimary,
+    color: theme.textPrimary,
     marginBottom: Spacing.sm,
   },
   idleSubtitle: {
     ...Typography.bodyMedium,
-    color: Colors.textSecondary,
+    color: theme.textSecondary,
     textAlign: 'center',
     lineHeight: 22,
     marginBottom: Spacing.xxxl,
@@ -445,9 +452,9 @@ const getStyles = () => StyleSheet.create({
     paddingHorizontal: Spacing.xxl,
     borderRadius: BorderRadius.xl,
     gap: Spacing.md,
-    backgroundColor: Colors.cardSurface,
+    backgroundColor: theme.cardSurface,
     borderWidth: 1,
-    borderColor: Colors.cardBorder,
+    borderColor: theme.cardBorder,
   },
   scanButtonIconWrap: {
     width: 44,
@@ -455,10 +462,10 @@ const getStyles = () => StyleSheet.create({
     borderRadius: 22,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: Colors.primaryGlow,
+    backgroundColor: theme.primaryGlow,
   },
   scanButtonText: {
-    color: Colors.primary,
+    color: theme.primary,
     fontFamily: FontFamily.extraBold,
     fontSize: 16,
     letterSpacing: 0.6,
@@ -477,17 +484,17 @@ const getStyles = () => StyleSheet.create({
   },
   processingText: {
     ...Typography.headlineSmall,
-    color: Colors.textPrimary,
+    color: theme.textPrimary,
   },
   processingSubtext: {
     ...Typography.bodySmall,
-    color: Colors.textSecondary,
+    color: theme.textSecondary,
   },
   /** Durdur — şüşevar dili, kırmızı (danger) varyant */
   stopButton: {
     ...susevarButton,
-    backgroundColor: Colors.danger,
-    shadowColor: Colors.danger,
+    backgroundColor: theme.danger,
+    shadowColor: theme.danger,
     marginTop: Spacing.xl,
   },
   stopButtonPressed: susevarButtonPressed,
@@ -501,24 +508,24 @@ const getStyles = () => StyleSheet.create({
   },
   errorTitle: {
     ...Typography.headlineSmall,
-    color: Colors.danger,
+    color: theme.danger,
   },
   errorMessage: {
     ...Typography.bodyMedium,
-    color: Colors.textSecondary,
+    color: theme.textSecondary,
     textAlign: 'center',
     paddingHorizontal: 20,
   },
   retryButton: {
     paddingHorizontal: Spacing.xxl,
     paddingVertical: Spacing.md,
-    backgroundColor: Colors.surface,
+    backgroundColor: theme.surface,
     borderRadius: BorderRadius.round,
     marginTop: Spacing.lg,
   },
   retryText: {
     ...Typography.labelLarge,
-    color: Colors.primary,
+    color: theme.primary,
   },
   // Result
   resultCard: {
@@ -531,15 +538,15 @@ const getStyles = () => StyleSheet.create({
   },
   vendorName: {
     ...Typography.headlineSmall,
-    color: Colors.textPrimary,
+    color: theme.textPrimary,
   },
   resultDate: {
     ...Typography.bodySmall,
-    color: Colors.textSecondary,
+    color: theme.textSecondary,
   },
   divider: {
     height: 1,
-    backgroundColor: Colors.divider,
+    backgroundColor: theme.divider,
     marginVertical: Spacing.md,
   },
   lineItem: {
@@ -562,38 +569,38 @@ const getStyles = () => StyleSheet.create({
   },
   itemName: {
     ...Typography.bodyMedium,
-    color: Colors.textPrimary,
+    color: theme.textPrimary,
   },
   itemNameOriginal: {
     ...Typography.labelSmall,
-    color: Colors.textMuted,
+    color: theme.textMuted,
   },
   itemCategory: {
     ...Typography.labelSmall,
-    color: Colors.textSecondary,
+    color: theme.textSecondary,
   },
   itemDiscountHint: {
     ...Typography.labelSmall,
-    color: Colors.primary,
+    color: theme.primary,
     fontFamily: FontFamily.medium,
     marginTop: 2,
   },
   itemQty: {
     ...Typography.labelSmall,
-    color: Colors.textMuted,
+    color: theme.textMuted,
   },
   itemWasPrice: {
     ...Typography.labelSmall,
-    color: Colors.textMuted,
+    color: theme.textMuted,
     textDecorationLine: 'line-through',
   },
   itemPrice: {
     ...Typography.bodyMedium,
     fontFamily: FontFamily.semiBold,
-    color: Colors.textPrimary,
+    color: theme.textPrimary,
   },
   itemPriceNet: {
-    color: Colors.primary,
+    color: theme.primary,
     fontFamily: FontFamily.bold,
   },
   totalRow: {
@@ -603,12 +610,12 @@ const getStyles = () => StyleSheet.create({
   },
   totalLabel: {
     ...Typography.labelLarge,
-    color: Colors.textSecondary,
+    color: theme.textSecondary,
     letterSpacing: 1,
   },
   totalAmount: {
     ...Typography.headlineMedium,
-    color: Colors.primary,
+    color: theme.primary,
     fontFamily: FontFamily.bold,
   },
   actionRow: {
@@ -627,7 +634,7 @@ const getStyles = () => StyleSheet.create({
   },
   actionText: {
     ...Typography.labelLarge,
-    color: Colors.textPrimary,
+    color: theme.textPrimary,
     fontFamily: FontFamily.semiBold,
   },
   /** Fiş sonucu — şüşevar (Kaydet) + Düzenle */
@@ -638,6 +645,9 @@ const getStyles = () => StyleSheet.create({
   savePill: {
     ...susevarButton,
     ...susevarButtonRow,
+    // Shared susevar geometrisini korurken tema rengini runtime'da yenile.
+    backgroundColor: theme.primary,
+    shadowColor: theme.primary,
   },
   savePillPressed: susevarButtonPressed,
   /**
@@ -651,17 +661,17 @@ const getStyles = () => StyleSheet.create({
     gap: Spacing.sm,
     paddingVertical: Spacing.lg,
     paddingHorizontal: Spacing.xxl,
-    backgroundColor: Colors.cardSurface,
+    backgroundColor: theme.cardSurface,
     borderRadius: BorderRadius.round,
     borderWidth: 2,
-    borderColor: Colors.primary,
+    borderColor: theme.primary,
   },
   pillPressed: {
     opacity: 0.9,
   },
   savePillText: susevarButtonText,
   editPillText: {
-    color: Colors.primary,
+    color: theme.primary,
     fontFamily: FontFamily.extraBold,
     fontSize: 17,
     letterSpacing: 0.8,
@@ -673,7 +683,7 @@ const getStyles = () => StyleSheet.create({
   },
   cancelGhostText: {
     ...Typography.labelLarge,
-    color: Colors.textSecondary,
+    color: theme.textSecondary,
     fontFamily: FontFamily.bold,
   },
 });

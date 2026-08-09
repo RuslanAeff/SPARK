@@ -1,5 +1,6 @@
 {
   "discount_placeholder": "Endirim məbləği (varsa)",
+  "discount_exceeds_line_total": "Endirim sətir cəmindən çox ola bilməz.",
   "donut_hint_swipe_right": "Detallar üçün qrafikə toxunun • Sürüşdürün ➔",
   "spending_time": "Xərcləmə vaxtı",
   "time_segment": "Vaxt intervalı",

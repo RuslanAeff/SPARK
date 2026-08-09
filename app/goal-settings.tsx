@@ -1,5 +1,5 @@
 // S.P.A.R.K. — Birikim hedefi ve aylık kategori limitleri
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
   View, Text, ScrollView, StyleSheet, Pressable, TextInput, Modal, FlatList, KeyboardAvoidingView, Platform,
 } from 'react-native';
@@ -46,12 +46,17 @@ export default function GoalSettingsScreen() {
   const [datePickerVisible, setDatePickerVisible] = useState(false);
   const [addModal, setAddModal] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [clearing, setClearing] = useState(false);
   const [clearGoalModalVisible, setClearGoalModalVisible] = useState(false);
+  // null: DB okuması henüz tamamlanmadı; form metni hedef varlığı sayılmaz.
+  const [persistedGoalExists, setPersistedGoalExists] = useState<boolean | null>(null);
+  const clearInFlightRef = useRef(false);
 
   const m = monthKey();
 
   const load = useCallback(async () => {
     setLoading(true);
+    setPersistedGoalExists(null);
     try {
       const [g, cats, lim] = await Promise.all([
         GoalDao.get(),
@@ -60,6 +65,7 @@ export default function GoalSettingsScreen() {
       ]);
       setCategories(cats);
       setLimits(lim);
+      setPersistedGoalExists(Boolean(g));
       if (g) {
         setTitle(g.title);
         setAmountStr(String(g.target_amount));
@@ -153,19 +159,40 @@ export default function GoalSettingsScreen() {
 
   async function performClearGoal() {
     setClearGoalModalVisible(false);
+    if (clearInFlightRef.current) return;
+    if (persistedGoalExists !== true) {
+      SparkToast.show(t('goal_clear_missing'), 'info');
+      return;
+    }
+
+    clearInFlightRef.current = true;
+    setClearing(true);
     try {
-      await GoalDao.clear();
-      await CategoryLimitDao.deleteAll();
+      const removed = await GoalDao.clear();
+      if (!removed) {
+        setPersistedGoalExists(false);
+        setTitle('');
+        setAmountStr('');
+        setCurrentAmountStr('');
+        setTargetDate(getToday());
+        SparkToast.show(t('goal_clear_missing'), 'info');
+        return;
+      }
+
+      setPersistedGoalExists(false);
       setTitle('');
       setAmountStr('');
+      setCurrentAmountStr('');
       setTargetDate(getToday());
-      setLimits([]);
       triggerRefresh();
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      SparkToast.show(t('goal_settings_saved'), 'success');
+      SparkToast.show(t('goal_removed'), 'success');
       router.back();
     } catch (e) {
       SparkToast.show(t('error_saving_data'), 'error');
+    } finally {
+      clearInFlightRef.current = false;
+      setClearing(false);
     }
   }
 
@@ -268,22 +295,34 @@ export default function GoalSettingsScreen() {
 
           <Pressable
             onPress={handleSave}
-            disabled={saving || loading}
+            disabled={saving || clearing || loading}
             style={({ pressed }) => [
               styles.saveBtn,
-              (saving || loading) && { opacity: 0.6 },
+              (saving || clearing || loading) && { opacity: 0.6 },
               pressed && { opacity: 0.9 },
             ]}
           >
             <Text style={styles.saveBtnText}>{saving ? t('processing') : t('save')}</Text>
           </Pressable>
 
-          <Pressable
-            onPress={() => setClearGoalModalVisible(true)}
-            style={({ pressed }) => [styles.clearBtn, pressed && { opacity: 0.92 }]}
-          >
-            <Text style={styles.clearBtnText}>{t('goal_settings_clear_goal')}</Text>
-          </Pressable>
+          {persistedGoalExists === true && (
+            <Pressable
+              testID="goal-clear-button"
+              onPress={() => setClearGoalModalVisible(true)}
+              disabled={saving || clearing}
+              accessibilityRole="button"
+              accessibilityState={{ disabled: saving || clearing }}
+              style={({ pressed }) => [
+                styles.clearBtn,
+                (saving || clearing) && { opacity: 0.6 },
+                pressed && { opacity: 0.92 },
+              ]}
+            >
+              <Text style={styles.clearBtnText}>
+                {clearing ? t('processing') : t('goal_settings_clear_goal')}
+              </Text>
+            </Pressable>
+          )}
 
           <View style={{ height: 48 }} />
         </ScrollView>
@@ -296,7 +335,7 @@ export default function GoalSettingsScreen() {
         />
 
         <GlassDeleteModal
-          visible={clearGoalModalVisible}
+          visible={persistedGoalExists === true && clearGoalModalVisible}
           title={t('goal_settings_clear_goal')}
           message={t('goal_clear_confirm_message')}
           onCancel={() => setClearGoalModalVisible(false)}

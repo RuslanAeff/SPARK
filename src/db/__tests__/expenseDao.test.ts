@@ -90,3 +90,79 @@ describe('ExpenseDao read projections', () => {
     expect(getAllAsync).not.toHaveBeenCalled();
   });
 });
+
+describe('ExpenseDao receipt money writes', () => {
+  const getFirstAsync = jest.fn();
+  const runAsync = jest.fn();
+  const withTransactionAsync = jest.fn(async (operation: () => Promise<void>) => operation());
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    getFirstAsync.mockResolvedValue({ total_minor: 5593 });
+    runAsync.mockResolvedValue({ lastInsertRowId: 1 });
+    getDatabaseMock.mockResolvedValue({
+      getFirstAsync,
+      runAsync,
+      withTransactionAsync,
+    } as any);
+  });
+
+  it('expense header güncellemesinde binary float artığını saklamaz', async () => {
+    await ExpenseDao.update(7, { total_amount: 55.00000000000003 });
+
+    expect(runAsync).toHaveBeenCalledWith(
+      'UPDATE expenses SET total_amount = ? WHERE id = ?',
+      [55, 7],
+    );
+  });
+
+  it('item toplamı ve indirimi kuruşa normalize eder', async () => {
+    await ExpenseDao.updateItem(4, {
+      total_price: 6.319999999999999,
+      line_discount: 3.170000000000001,
+      list_line_total_before_discount: 9.490000000000002,
+    });
+
+    expect(runAsync).toHaveBeenCalledWith(
+      'UPDATE expense_items SET total_price = ?, line_discount = ?, list_line_total_before_discount = ? WHERE id = ?',
+      [6.32, 3.17, 9.49, 4],
+    );
+  });
+
+  it('item toplamını SQLite REAL yerine integer minor-unit toplamından üretir', async () => {
+    await ExpenseDao.syncExpenseTotal(9);
+
+    expect(getFirstAsync.mock.calls[0][0]).toContain(
+      'SUM(CAST(ROUND(total_price * 100, 0) AS INTEGER))',
+    );
+    expect(runAsync).toHaveBeenCalledWith(
+      'UPDATE expenses SET total_amount = ? WHERE id = ?',
+      [55.93, 9],
+    );
+  });
+
+  it('item düzenleme ve header senkronunu tek transaction içinde tamamlar', async () => {
+    await ExpenseDao.updateItemAndSyncTotal(9, 4, { total_price: 6.32 });
+
+    expect(withTransactionAsync).toHaveBeenCalledTimes(1);
+    expect(runAsync).toHaveBeenNthCalledWith(
+      1,
+      'UPDATE expense_items SET total_price = ? WHERE id = ?',
+      [6.32, 4],
+    );
+    expect(runAsync).toHaveBeenNthCalledWith(
+      2,
+      'UPDATE expenses SET total_amount = ? WHERE id = ?',
+      [55.93, 9],
+    );
+  });
+
+  it('başka harcamaya ait item kimliğini güncellemez', async () => {
+    getFirstAsync.mockResolvedValueOnce(null);
+
+    await expect(
+      ExpenseDao.updateItemAndSyncTotal(9, 404, { total_price: 6.32 }),
+    ).rejects.toThrow('Receipt item does not belong to expense');
+    expect(runAsync).not.toHaveBeenCalled();
+  });
+});

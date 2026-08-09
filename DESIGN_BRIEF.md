@@ -63,7 +63,7 @@ Temel ihtiyaçlar:
 
 | Alan | Kullanıcıya sağlanan değer |
 |---|---|
-| Dashboard | Aktif bütçe döngüsünün harcanan, kalan ve nakit-akışı etkisini özetler |
+| Dashboard | Aktif bütçe döngüsünün harcanan, kalan ve nakit-akışı etkisini özetler; kullanıcı isterse aktif birikim hedefini kompakt biçimde öne çıkarır |
 | İşlemler | Harcamaları listeler, arar, filtreler, düzenler ve çoklu seçime izin verir |
 | Fiş tarama | Kamera veya galeriden alınan fişi sıkıştırır, isteğe bağlı Gemini ayrıştırmasına ve kullanıcı önizlemesine sunar |
 | Analiz | Kategori, satıcı, zaman ve davranış odaklı kartlarla finansal örüntüleri gösterir |
@@ -99,6 +99,8 @@ Bütçe dönemi takvim ayıyla sınırlı değildir. Kullanıcının seçtiği b
 
 Harcama istatistikleri yalnız tamamlanmış takvim günlerini değerlendirir; bugün sıfır-harcama günü, hedef-altı gün veya değerlendirme paydasına katılmaz, ancak bugünkü gerçek harcama aktif sıfır-harcama serisini keser. Takip-temelli uzun dönem görünümünde gözlem ilk gerçek işlemle başlar. Bugünü içermeyen geçmiş bir aralıkta gösterilen seri, güncel seri gibi değil dönem sonu serisi olarak adlandırılır. Sabit günlük plan hedefi yalnız aktif bütçenin kanonik aylık döngüsünde `etkin bütçe / toplam döngü günü` hesabıyla sunulur; diğer aralıklarda yapay bir hedef üretilmez.
 
+Dashboard sırası tamamen serbest sürükle-bırak kişiselleştirmesine açılmaz. Kullanıcı, aktif ve tamamlanmamış birikim hedefini isteğe bağlı olarak üst bölgede kompakt bir özetle öne çıkarabilir. Açık borç uyarısı daha yüksek öncelikte kalır; öne çıkarılan hedef aynı ekranda ikinci kez tam kart olarak tekrarlanmaz. Tamamlanmış hedef standart ayrıntı konumunda kalır ve kategori limitleri hedef kaydının varlığına bağlanmaz.
+
 ### 5.4 Borç ve ek gelir
 
 Borç işlemleri harcama fişini parçalamaz. Borç alınması, borç verilmesi, geri ödeme ve ek gelir kendi türleriyle saklanır. Silinen veya düzeltilen bir kayıt bütçe etkisinde kalıcı artık bırakmamalıdır; sonuç mevcut kayıtlar üzerinden yeniden türetilmelidir.
@@ -128,6 +130,9 @@ Bu kurallar ürün davranışıdır; uygulama ayrıntısı gibi sessizce değiş
 7. **Secret finansal ayarlardan ayrıdır.** Gemini anahtarı SQLite ayar tablosunda tutulmaz.
 8. **Üretilmiş locale dosyaları kaynak değildir.** Çeviri kaynağı değiştirilip çıktılar yeniden üretilir.
 9. **Tamamlanmamış gün kesin sonuç değildir.** Bugün, tamamlanmış-gün istatistiğinin paydasına veya sıfır/hedef-altı sayısına eklenmez; bugünkü harcama aktif sıfır-harcama serisini kesebilir ve geçmiş dönem serisi dönem sonuna göre açıklanır.
+10. **Para değerleri kuruş hassasiyetinde deterministiktir.** Harcama, fiş satır toplamı ve indirimler iki ondalıklı alt birimlerle hesaplanır; kayan nokta artığı kullanıcıya gösterilmez veya kalıcı finansal sonuca dönüşmez. Birim fiyat, ağırlıklı ürünler için daha hassas tutulabilir; ödenecek satır ve fiş toplamı daima para biriminin iki ondalıklı sonucuna kapanır.
+11. **Hedef ve kategori limiti bağımsız kayıtlardır.** “Hedefi sil” yalnız gerçekten var olan birikim hedefini kaldırır; kategori limitlerini sessizce silmez. Kayıt yoksa yıkıcı eylem sunulmaz ve eskimiş ekran durumunda sahte başarı gösterilmez.
+12. **Dashboard önceliği kontrollüdür.** Açık borç uyarısı isteğe bağlı hedef özetinden önce gelir; aktif hedef kompakt veya tam karttan yalnız biriyle gösterilir ve görünüm tercihi finansal veriyi değiştirmez.
 
 Ayrıntılı teknik sözleşmeler için [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) ve karar kayıtları kullanılır.
 
@@ -146,11 +151,13 @@ Kod tarafındaki kesin renk, tipografi ve spacing değerlerinin kaynağı `src/t
 ### Etkileşim ilkeleri
 
 - Ana eylem ilk bakışta anlaşılmalı; ikincil eylemler görsel gürültü yaratmamalıdır.
+- Dashboard kişiselleştirmesi kritik finansal öncelikleri bozmamalı; kullanıcı tercihi bir kartı öne çıkarabilir fakat aynı bilgiyi tekrarlamamalı veya açık borç uyarısını aşağı itememelidir.
 - Okunmamış bildirim, kalın bir yan şerit yerine hafif tonal yüzey, ince sınır, güçlendirilmiş başlık ve küçük durum noktasıyla belirtilmelidir; durum ekran okuyucu etiketinde de açıkça söylenmelidir.
 - Silme gibi geri alınması zor eylemler kasıtlı bir jest, seçim veya onay gerektirir.
 - Swipe, uzun basma, scroll ve pull-to-refresh aynı yüzeyde birbirini kilitlememelidir.
 - Toast ve popup geri bildirimi içeriği örterek veya ekranı karartarak cezalandırmamalıdır.
 - Animasyonun başlangıç ve bitiş yüzeyleri aynı tema bağlamında olmalıdır; beyaz/siyah ara kare kabul edilmez.
+- Sekme yöneticisinin scene yüzeyi ve henüz yüklenmemiş lazy placeholder'ı da aktif uygulama temasında opak olmalıdır; komşu veya atlanan sekme geçişte varsayılan sistem rengini gösteremez.
 - Safe area, sistem gesture alanı, font scaling ve dokunma hedefleri cihaz çeşitliliğiyle değerlendirilmelidir.
 
 ### Veri görselleştirme

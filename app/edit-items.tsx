@@ -17,8 +17,22 @@ import GlassDeleteModal from '../src/components/GlassDeleteModal';
 import { formatCurrency } from '../src/utils/formatCurrency';
 import { useCurrency } from '../src/context/CurrencyContext';
 import { useLanguage } from '../src/i18n/LanguageContext';
-import { effectiveLineDiscount, lineHasDiscount } from '../src/utils/receiptLineDiscountUi';
+import {
+  effectiveLineDiscount,
+  effectiveListLineTotal,
+  formatReceiptDiscountAmount,
+  lineHasDiscount,
+} from '../src/utils/receiptLineDiscountUi';
 import { itemDisplayName } from '../src/utils/itemDisplayName';
+import {
+  formatMoneyInput,
+  formatUnitRateInput,
+  parseMoneyInput,
+  parseUnitRateInput,
+  sumMoney,
+  toMinorUnits,
+} from '../src/utils/moneyMath';
+import { calculateReceiptLineAmounts } from '../src/utils/receiptMoney';
 import {
   susevarButton,
   susevarButtonPressed,
@@ -74,10 +88,10 @@ export default function EditItemsScreen() {
     // Düzenlemede ETİKET (indirim öncesi) birim fiyatı göster; indirim ayrı alanda.
     // Net birim yerine etiket gösterilir ki tekrar kaydetmede indirim çift düşmesin.
     const eff = effectiveLineDiscount(item);
-    const listTotal = (item.list_line_total_before_discount ?? item.total_price) || 0;
+    const listTotal = effectiveListLineTotal(item);
     const labelUnit = item.quantity > 0 ? listTotal / item.quantity : listTotal;
-    setUnitPrice(String(labelUnit));
-    setDiscount(eff > 0 ? String(eff) : '');
+    setUnitPrice(formatUnitRateInput(labelUnit));
+    setDiscount(eff > 0 ? formatMoneyInput(eff) : '');
   }
 
   async function handleSaveItem() {
@@ -86,9 +100,9 @@ export default function EditItemsScreen() {
       return;
     }
 
-    const q = parseFloat(quantity);
-    const up = parseFloat(unitPrice.replace(',', '.'));
-    if (isNaN(q) || isNaN(up) || q <= 0 || up <= 0) {
+    const q = Number(quantity.replace(',', '.'));
+    const up = parseUnitRateInput(unitPrice);
+    if (!Number.isFinite(q) || up == null || q <= 0 || up <= 0) {
       SparkToast.show(t('invalid_qty_price'), 'error');
       return;
     }
@@ -99,36 +113,43 @@ export default function EditItemsScreen() {
     // toplamından DÜŞÜLÜR → ödenen (net) = etiket toplam − indirim. (Eskiden
     // girilen fiyat net sanılıp list = net + indirim ile şişiriliyordu → indirim
     // eklemek fiyatı artırmış gibi görünüyordu.)
-    const lineTotal = q * up;
-    const disc = parseFloat((discount || '').replace(',', '.'));
-    const hasDisc = !isNaN(disc) && disc > 0.001;
-    const netTotal = hasDisc ? Math.max(0, lineTotal - disc) : lineTotal;
-    const netUnit = q > 0 ? netTotal / q : netTotal;
+    const parsedDiscount = discount.trim() ? parseMoneyInput(discount) : 0;
+    if (parsedDiscount == null || parsedDiscount < 0) {
+      SparkToast.show(t('invalid_amount'), 'error');
+      return;
+    }
+    const previewAmounts = calculateReceiptLineAmounts(q, up, 0);
+    if (toMinorUnits(parsedDiscount) > toMinorUnits(previewAmounts.listLineTotal)) {
+      SparkToast.show(t('discount_exceeds_line_total'), 'error');
+      return;
+    }
+    const amounts = calculateReceiptLineAmounts(q, up, parsedDiscount);
+    const hasDisc = amounts.discountAmount > 0;
     const discFields = {
-      line_discount: hasDisc ? disc : null,
-      list_line_total_before_discount: hasDisc ? lineTotal : null,
+      line_discount: hasDisc ? amounts.discountAmount : null,
+      list_line_total_before_discount: hasDisc ? amounts.listLineTotal : null,
     };
 
     try {
       if (editingItemId) {
-        await ExpenseDao.updateItem(editingItemId, {
+        await ExpenseDao.updateItemAndSyncTotal(expenseId, editingItemId, {
           name: itemName.trim(),
           turkish_name: itemName.trim(),
           quantity: q,
-          unit_price: netUnit,
-          total_price: netTotal,
+          unit_price: amounts.netUnitPrice,
+          total_price: amounts.netTotal,
           ...discFields,
         });
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         SparkToast.show(t('item_updated'), 'success');
       } else {
-        await ExpenseDao.addItem({
+        await ExpenseDao.addItemAndSyncTotal({
           expense_id: expenseId,
           name: itemName.trim(),
           turkish_name: itemName.trim(),
           quantity: q,
-          unit_price: netUnit,
-          total_price: netTotal,
+          unit_price: amounts.netUnitPrice,
+          total_price: amounts.netTotal,
           category_id: null,
           ...discFields,
         });
@@ -136,7 +157,6 @@ export default function EditItemsScreen() {
         SparkToast.show(t('item_added'), 'success');
       }
 
-      await ExpenseDao.syncExpenseTotal(expenseId);
       resetForm();
       await loadItems();
     } catch (e) {
@@ -151,8 +171,7 @@ export default function EditItemsScreen() {
 
   async function handleDeleteItem(itemId: number) {
     try {
-      await ExpenseDao.deleteItem(itemId);
-      await ExpenseDao.syncExpenseTotal(parseInt(id));
+      await ExpenseDao.deleteItemAndSyncTotal(parseInt(id), itemId);
       SparkToast.show(t('item_deleted'), 'success');
       if (editingItemId === itemId) resetForm();
       await loadItems();
@@ -161,7 +180,7 @@ export default function EditItemsScreen() {
     }
   }
 
-  const currentTotal = items.reduce((sum, item) => sum + item.total_price, 0);
+  const currentTotal = sumMoney(items.map((item) => item.total_price));
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -208,7 +227,7 @@ export default function EditItemsScreen() {
                       {discAmt > 0.001 && (
                         <Text style={styles.itemDiscountHint}>
                           {t('receipt_line_discount', {
-                            amount: formatCurrency(discAmt, currency, false),
+                            amount: formatReceiptDiscountAmount(discAmt, currency),
                           })}
                         </Text>
                       )}

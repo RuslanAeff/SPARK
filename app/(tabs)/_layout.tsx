@@ -1,4 +1,5 @@
 import React from 'react';
+import { View } from 'react-native';
 import { withLayoutContext } from 'expo-router';
 import { createMaterialTopTabNavigator } from '@react-navigation/material-top-tabs';
 import * as Haptics from 'expo-haptics';
@@ -35,6 +36,15 @@ export default function TabLayout() {
         // focus'ta güncel veriyi çeker; startup sırasında gizli analytics
         // sorguları/animasyonları ana ekranın ilk karesiyle yarışmaz.
         lazy: true,
+        // Lazy route içeriği henüz mount edilmemiş olsa bile PagerView hiçbir
+        // zaman React Navigation'ın varsayılan açık yüzeyini göstermez.
+        sceneStyle: { backgroundColor: theme.background },
+        lazyPlaceholder: () => (
+          <View
+            testID="tab-lazy-placeholder"
+            style={{ flex: 1, backgroundColor: theme.background }}
+          />
+        ),
         swipeEnabled: true,
         tabBarActiveTintColor: theme.tabActive,
         tabBarInactiveTintColor: theme.tabInactive,

@@ -5,6 +5,12 @@ import { ExpenseDao } from '../db/expenseDao';
 import { VendorDao } from '../db/vendorDao';
 import { CategoryDao } from '../db/categoryDao';
 import { normalizeToYYYYMMDD } from '../utils/dateUtils';
+import {
+  formatMoneyInput,
+  roundMoney,
+  sumMoney,
+} from '../utils/moneyMath';
+import { normalizeReceiptItemAmounts } from '../utils/receiptMoney';
 
 const CATEGORY_MAP: Record<string, string> = {
   'market': 'Market',
@@ -83,16 +89,15 @@ export async function getPrefillFromParsedReceipt(receipt: ParsedReceipt): Promi
       .sort(([, a], [, b]) => b - a)[0]?.[0] || 'Diğer';
     primaryCategoryId = await resolveCategory(primaryCategory);
   }
-  const itemsSum = (receipt.items || []).reduce(
-    (s, i) => s + (Number.isFinite(Number(i.total_price)) ? Number(i.total_price) : 0),
-    0
+  const itemsSum = sumMoney(
+    (receipt.items || []).map((item) => Number(item.total_price)).filter(Number.isFinite),
   );
   const rawTotal = Number(receipt.total);
   const totalAmount =
-    Number.isFinite(rawTotal) && rawTotal >= 0 ? rawTotal : itemsSum > 0 ? itemsSum : 0;
+    Number.isFinite(rawTotal) && rawTotal >= 0 ? roundMoney(rawTotal) : itemsSum > 0 ? itemsSum : 0;
   const normalizedDate = normalizeToYYYYMMDD(receipt.date);
   return {
-    amount: String(totalAmount),
+    amount: formatMoneyInput(totalAmount),
     vendorName,
     date: normalizedDate,
     note: `Fiş: ${vendorName}`,
@@ -122,13 +127,12 @@ export async function processReceipt(receipt: ParsedReceipt): Promise<number> {
   }
   const normalizedDate = normalizeToYYYYMMDD(receipt.date);
 
-  const itemsSum = (receipt.items || []).reduce(
-    (s, i) => s + (Number.isFinite(Number(i.total_price)) ? Number(i.total_price) : 0),
-    0
+  const itemsSum = sumMoney(
+    (receipt.items || []).map((item) => Number(item.total_price)).filter(Number.isFinite),
   );
   const rawTotal = Number(receipt.total);
   const totalAmount =
-    Number.isFinite(rawTotal) && rawTotal >= 0 ? rawTotal : itemsSum > 0 ? itemsSum : 0;
+    Number.isFinite(rawTotal) && rawTotal >= 0 ? roundMoney(rawTotal) : itemsSum > 0 ? itemsSum : 0;
 
   // 3. Kalem kategorilerini transaction ÖNCESİ çöz (okuma); yazma kısa transaction'da.
   const rawItems = receipt.items || [];
@@ -141,9 +145,7 @@ export async function processReceipt(receipt: ParsedReceipt): Promise<number> {
   }> = [];
   for (const item of rawItems) {
     const itemCategoryId = await resolveCategory(item.suggested_category || 'Diğer');
-    const qty = Number(item.quantity) || 1;
-    const unitPrice = Number(item.unit_price) || 0;
-    const totalPrice = Number(item.total_price) || unitPrice * qty;
+    const { quantity: qty, unitPrice, totalPrice } = normalizeReceiptItemAmounts(item);
     resolvedItems.push({ item, itemCategoryId, qty, unitPrice, totalPrice });
   }
 
@@ -171,10 +173,10 @@ export async function processReceipt(receipt: ParsedReceipt): Promise<number> {
         unit_price: r.unitPrice,
         total_price: r.totalPrice,
         category_id: r.itemCategoryId,
-        line_discount: r.item.line_discount != null ? Number(r.item.line_discount) : 0,
+        line_discount: r.item.line_discount != null ? roundMoney(Number(r.item.line_discount)) : 0,
         list_line_total_before_discount:
           r.item.list_line_total_before_discount != null
-            ? Number(r.item.list_line_total_before_discount)
+            ? roundMoney(Number(r.item.list_line_total_before_discount))
             : null,
       } as any);
     }

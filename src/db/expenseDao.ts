@@ -10,6 +10,7 @@ import {
   sanitizeIdArray,
 } from '../utils/inputValidation';
 import { normalizeItemKey } from '../utils/itemNameNormalizer';
+import { fromMinorUnits, roundMoney } from '../utils/moneyMath';
 
 /**
  * `overall` gerçek işlemleri tutara göre doğrudan sıralar.
@@ -17,6 +18,18 @@ import { normalizeItemKey } from '../utils/itemNameNormalizer';
  * için her satıcının en yüksek tek gerçek işlemini döndürür.
  */
 export type TopTransactionSelection = 'overall' | 'per-vendor';
+
+async function assertItemBelongsToExpense(
+  db: Awaited<ReturnType<typeof getDatabase>>,
+  expenseId: number,
+  itemId: number,
+): Promise<void> {
+  const row = await db.getFirstAsync<{ id: number }>(
+    'SELECT id FROM expense_items WHERE id = ? AND expense_id = ?',
+    [itemId, expenseId],
+  );
+  if (!row) throw new Error('Receipt item does not belong to expense');
+}
 
 export const ExpenseDao = {
   async getAll(limit: number = 50, offset: number = 0): Promise<ExpenseWithDetails[]> {
@@ -112,7 +125,10 @@ export const ExpenseDao = {
     
     if (expense.vendor_id !== undefined) { fields.push('vendor_id = ?'); values.push(expense.vendor_id); }
     if (expense.category_id !== undefined) { fields.push('category_id = ?'); values.push(expense.category_id); }
-    if (expense.total_amount !== undefined) { fields.push('total_amount = ?'); values.push(expense.total_amount); }
+    if (expense.total_amount !== undefined) {
+      fields.push('total_amount = ?');
+      values.push(sanitizeAmount(expense.total_amount));
+    }
     if (expense.currency !== undefined) { fields.push('currency = ?'); values.push(expense.currency); }
     if (expense.note !== undefined) { fields.push('note = ?'); values.push(expense.note); }
     if (expense.receipt_uri !== undefined) { fields.push('receipt_uri = ?'); values.push(expense.receipt_uri); }
@@ -153,7 +169,7 @@ export const ExpenseDao = {
       : null;
     const safeQuantity = sanitizeQuantity(item.quantity);
     const safeUnitPrice = sanitizeUnitPrice(item.unit_price);
-    const safeTotalPrice = sanitizeUnitPrice(item.total_price);
+    const safeTotalPrice = roundMoney(sanitizeUnitPrice(item.total_price));
     const safeLineDiscount = ld != null && ld !== undefined ? sanitizeAmount(ld) : 0;
     const safeListBefore = lb != null && lb !== undefined ? sanitizeAmount(lb) : null;
     const result = await db.runAsync(
@@ -187,16 +203,38 @@ export const ExpenseDao = {
     const fields: string[] = [];
     const values: any[] = [];
     
-    if (item.name !== undefined) { fields.push('name = ?'); values.push(item.name); }
-    if (item.turkish_name !== undefined) { fields.push('turkish_name = ?'); values.push(item.turkish_name); }
-    if (item.quantity !== undefined) { fields.push('quantity = ?'); values.push(item.quantity); }
-    if (item.unit_price !== undefined) { fields.push('unit_price = ?'); values.push(item.unit_price); }
-    if (item.total_price !== undefined) { fields.push('total_price = ?'); values.push(item.total_price); }
+    if (item.name !== undefined) {
+      fields.push('name = ?');
+      values.push(sanitizeText(item.name, 500) || 'Ürün');
+    }
+    if (item.turkish_name !== undefined) {
+      fields.push('turkish_name = ?');
+      values.push(item.turkish_name == null ? null : sanitizeText(item.turkish_name, 500));
+    }
+    if (item.quantity !== undefined) {
+      fields.push('quantity = ?');
+      values.push(sanitizeQuantity(item.quantity));
+    }
+    if (item.unit_price !== undefined) {
+      fields.push('unit_price = ?');
+      values.push(sanitizeUnitPrice(item.unit_price));
+    }
+    if (item.total_price !== undefined) {
+      fields.push('total_price = ?');
+      values.push(roundMoney(sanitizeUnitPrice(item.total_price)));
+    }
     if (item.category_id !== undefined) { fields.push('category_id = ?'); values.push(item.category_id); }
-    if (item.line_discount !== undefined) { fields.push('line_discount = ?'); values.push(item.line_discount); }
+    if (item.line_discount !== undefined) {
+      fields.push('line_discount = ?');
+      values.push(item.line_discount == null ? null : sanitizeAmount(item.line_discount));
+    }
     if (item.list_line_total_before_discount !== undefined) {
       fields.push('list_line_total_before_discount = ?');
-      values.push(item.list_line_total_before_discount);
+      values.push(
+        item.list_line_total_before_discount == null
+          ? null
+          : sanitizeAmount(item.list_line_total_before_discount),
+      );
     }
 
     if (fields.length > 0) {
@@ -212,13 +250,53 @@ export const ExpenseDao = {
 
   async syncExpenseTotal(expenseId: number): Promise<void> {
     const db = await getDatabase();
-    const result = await db.getFirstAsync<{ total: number }>(
-      'SELECT COALESCE(SUM(total_price), 0) as total FROM expense_items WHERE expense_id = ?',
+    const result = await db.getFirstAsync<{ total_minor: number }>(
+      `SELECT COALESCE(
+         SUM(CAST(ROUND(total_price * 100, 0) AS INTEGER)),
+         0
+       ) as total_minor
+       FROM expense_items
+       WHERE expense_id = ?`,
       [expenseId]
     );
     if (result) {
-      await db.runAsync('UPDATE expenses SET total_amount = ? WHERE id = ?', [result.total, expenseId]);
+      const total = fromMinorUnits(Number(result.total_minor) || 0);
+      await db.runAsync('UPDATE expenses SET total_amount = ? WHERE id = ?', [total, expenseId]);
     }
+  },
+
+  async addItemAndSyncTotal(
+    item: Omit<ExpenseItem, 'id'> & { turkish_name?: string },
+  ): Promise<number> {
+    const db = await getDatabase();
+    let itemId = 0;
+    await db.withTransactionAsync(async () => {
+      itemId = await ExpenseDao.addItem(item);
+      await ExpenseDao.syncExpenseTotal(item.expense_id);
+    });
+    return itemId;
+  },
+
+  async updateItemAndSyncTotal(
+    expenseId: number,
+    itemId: number,
+    item: Partial<ExpenseItem> & { turkish_name?: string },
+  ): Promise<void> {
+    const db = await getDatabase();
+    await db.withTransactionAsync(async () => {
+      await assertItemBelongsToExpense(db, expenseId, itemId);
+      await ExpenseDao.updateItem(itemId, item);
+      await ExpenseDao.syncExpenseTotal(expenseId);
+    });
+  },
+
+  async deleteItemAndSyncTotal(expenseId: number, itemId: number): Promise<void> {
+    const db = await getDatabase();
+    await db.withTransactionAsync(async () => {
+      await assertItemBelongsToExpense(db, expenseId, itemId);
+      await ExpenseDao.deleteItem(itemId);
+      await ExpenseDao.syncExpenseTotal(expenseId);
+    });
   },
 
   async getTotalByDateRange(startDate: string, endDate: string): Promise<number> {

@@ -70,6 +70,35 @@ describe('coerceParsedReceipt', () => {
     expect(zeroDisc.items[0].line_discount).toBeUndefined();
   });
 
+  it('AI parasal alanlarını kuruşa normalize eder', () => {
+    const out = coerceParsedReceipt({
+      items: [{
+        name: 'A', quantity: 1, unit_price: 6.319999999999999,
+        total_price: 6.319999999999999, line_discount: 3.170000000000001,
+        list_line_total_before_discount: 9.490000000000002,
+        suggested_category: 'Market',
+      }],
+      total: 55.93000000000001,
+    })!;
+    expect(out.items[0].total_price).toBe(6.32);
+    expect(out.items[0].line_discount).toBe(3.17);
+    expect(out.items[0].list_line_total_before_discount).toBe(9.49);
+    expect(out.total).toBe(55.93);
+  });
+
+  it('tamamen indirimli geçerli sıfır satır toplamını korur', () => {
+    const out = coerceParsedReceipt({
+      items: [{
+        name: 'A', quantity: 1, unit_price: 10, total_price: 0,
+        line_discount: 10, list_line_total_before_discount: 10,
+        suggested_category: 'Market',
+      }],
+      total: 0,
+    })!;
+    expect(out.items[0].total_price).toBe(0);
+    expect(out.total).toBe(0);
+  });
+
   it('total verilmezse kalem toplamından hesaplar', () => {
     const out = coerceParsedReceipt({
       items: [
@@ -95,7 +124,7 @@ describe('tryJsonToReceipt (uçtan uca onarım + birleştirme)', () => {
     expect(out.vendor_name).toBe('Shop');
     expect(out.items).toHaveLength(1);
     expect(out.items[0].total_price).toBe(5.58);
-    expect(out.total).toBe(5.58);
+    expect(out.total).toBe(6.99);
   });
 
   it('geçersiz girdide null döner', () => {

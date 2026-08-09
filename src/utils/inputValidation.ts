@@ -1,18 +1,25 @@
 // S.P.A.R.K. — Merkezi Girdi Doğrulama
 // Tüm DAO ve servisler tarafından kullanılacak güvenlik katmanı.
+import { roundMoney, roundUnitRate } from './moneyMath';
+
+function coerceNumericInput(value: unknown): number {
+  if (typeof value === 'number') return value;
+  const normalized = String(value ?? '').trim().replace(/\s/g, '').replace(',', '.');
+  return normalized ? Number(normalized) : Number.NaN;
+}
 
 /** Güvenli parasal/sayısal değer: NaN, Infinity, negatif ve aşırı büyük kontrol. */
 export function sanitizeAmount(value: unknown, fallback: number = 0): number {
-  const n = typeof value === 'number' ? value : parseFloat(String(value));
+  const n = coerceNumericInput(value);
   if (!Number.isFinite(n)) return fallback;
   if (n < 0) return fallback;
   if (n > 999_999_999) return 999_999_999;
-  return n;
+  return roundMoney(n);
 }
 
 /** Miktar (quantity) doğrulama: 0'dan büyük olmalı. */
 export function sanitizeQuantity(value: unknown, fallback: number = 1): number {
-  const n = typeof value === 'number' ? value : parseFloat(String(value));
+  const n = coerceNumericInput(value);
   if (!Number.isFinite(n) || n <= 0) return fallback;
   if (n > 999_999) return 999_999;
   return n;
@@ -20,10 +27,10 @@ export function sanitizeQuantity(value: unknown, fallback: number = 1): number {
 
 /** Birim fiyat doğrulama: negatif olabilir (iade), ama sınırlı. */
 export function sanitizeUnitPrice(value: unknown, fallback: number = 0): number {
-  const n = typeof value === 'number' ? value : parseFloat(String(value));
+  const n = coerceNumericInput(value);
   if (!Number.isFinite(n)) return fallback;
   if (Math.abs(n) > 999_999_999) return fallback;
-  return n;
+  return roundUnitRate(n);
 }
 
 /**

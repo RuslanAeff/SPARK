@@ -1,6 +1,6 @@
 // S.P.A.R.K. — Ana ekran birikim hedefi kartı (ilerleme + aylık gereklilik)
 import React, { useMemo, useState } from 'react';
-import { View, Text, StyleSheet, Pressable, TextInput } from 'react-native';
+import { View, Text, StyleSheet, Pressable } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
@@ -10,14 +10,13 @@ import { useAppTheme } from '../theme/themeStore';
 import { Typography, FontFamily } from '../theme/typography';
 import { Spacing, BorderRadius } from '../theme/spacing';
 import { formatCurrency } from '../utils/formatCurrency';
-import { SavingsGoalRow, GoalDao } from '../db/goalDao';
+import { SavingsGoalRow } from '../db/goalDao';
 import { useLanguage } from '../i18n/LanguageContext';
 import { useCurrency } from '../context/CurrencyContext';
 import { formatDateFull } from '../utils/dateUtils';
-import { useRefreshActions } from '../context/RefreshContext';
-import { SparkToast } from './SparkToast';
-import BottomSheetModal from './BottomSheetModal';
+import { getSavingsGoalProgress } from '../utils/savingsGoalProgress';
 import AnimatedCard from './AnimatedCard';
+import SavingsGoalContributionSheet from './SavingsGoalContributionSheet';
 
 type Props = {
   goal: SavingsGoalRow;
@@ -29,56 +28,19 @@ export default function SavingsGoalCard({ goal }: Props) {
   const router = useRouter();
   const { t } = useLanguage();
   const { currency } = useCurrency();
-  const { triggerRefresh } = useRefreshActions();
   const [contribOpen, setContribOpen] = useState(false);
-  const [contribAmountStr, setContribAmountStr] = useState('');
-  const [contribSign, setContribSign] = useState<1 | -1>(1);
-  const [saving, setSaving] = useState(false);
-
-  // --- Hesaplar ---
-  const target = new Date(goal.target_date + 'T12:00:00');
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const end = new Date(target);
-  end.setHours(0, 0, 0, 0);
-  const daysLeft = Math.ceil((end.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-  const monthsLeft = Math.max(1, Math.ceil(daysLeft / 30));
-
-  const saved = Math.max(0, Number(goal.current_amount) || 0);
-  const targetAmt = Math.max(0, Number(goal.target_amount) || 0);
-  const remaining = Math.max(0, targetAmt - saved);
-  const progress = targetAmt > 0 ? Math.min(1, saved / targetAmt) : 0;
-  const percent = Math.round(progress * 100);
-  const monthlyNeeded = remaining / monthsLeft;
-  const reached = progress >= 1;
+  const {
+    saved,
+    target: targetAmt,
+    remaining,
+    surplus,
+    percent,
+    daysLeft,
+    monthlyNeeded,
+    reached,
+  } = getSavingsGoalProgress(goal);
 
   const dispCurrency = goal.currency || currency;
-
-  async function handleContribute() {
-    const raw = parseFloat(contribAmountStr.replace(',', '.'));
-    if (!isFinite(raw) || raw <= 0) {
-      SparkToast.show(t('invalid_amount'), 'error');
-      return;
-    }
-    setSaving(true);
-    try {
-      await GoalDao.addContribution(raw * contribSign);
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      SparkToast.show(
-        contribSign > 0 ? t('goal_contribution_added') : t('goal_contribution_removed'),
-        'success'
-      );
-      setContribOpen(false);
-      setContribAmountStr('');
-      setContribSign(1);
-      triggerRefresh();
-    } catch (e) {
-      console.warn('contribution', e);
-      SparkToast.show(t('error_saving_data'), 'error');
-    } finally {
-      setSaving(false);
-    }
-  }
 
   return (
     <>
@@ -130,7 +92,7 @@ export default function SavingsGoalCard({ goal }: Props) {
               <View
                 style={[
                   styles.progressFill,
-                  { width: `${Math.max(6, percent)}%` },
+                  { width: `${percent}%` },
                   reached && styles.progressFillReached,
                 ]}
               />
@@ -144,7 +106,7 @@ export default function SavingsGoalCard({ goal }: Props) {
                 {reached ? t('savings_goal_surplus') : t('savings_goal_remaining')}
               </Text>
               <Text style={styles.statValue}>
-                {formatCurrency(reached ? saved - targetAmt : remaining, dispCurrency)}
+                {formatCurrency(reached ? surplus : remaining, dispCurrency)}
               </Text>
             </View>
             <View style={styles.statDivider} />
@@ -194,91 +156,10 @@ export default function SavingsGoalCard({ goal }: Props) {
         </View>
       </AnimatedCard>
 
-      {/* Hızlı katkı modal — BottomSheetModal pattern kullanılır */}
-      <BottomSheetModal
+      <SavingsGoalContributionSheet
         visible={contribOpen}
         onClose={() => setContribOpen(false)}
-        sheetStyle={styles.contribSheet}
-      >
-        <View style={styles.contribHandle} />
-        <Text style={styles.contribTitle}>{t('goal_add_contribution')}</Text>
-        <Text style={styles.contribHint}>{t('goal_contribution_hint')}</Text>
-
-        <View style={styles.contribToggleRow}>
-          <Pressable
-            onPress={() => setContribSign(1)}
-            style={[
-              styles.contribToggleBtn,
-              contribSign === 1 && styles.contribToggleBtnActive,
-            ]}
-          >
-            <MaterialCommunityIcons
-              name="plus"
-              size={16}
-              color={contribSign === 1 ? '#fff' : Colors.textSecondary}
-            />
-            <Text
-              style={[
-                styles.contribToggleText,
-                contribSign === 1 && styles.contribToggleTextActive,
-              ]}
-            >
-              {t('goal_contribution_add')}
-            </Text>
-          </Pressable>
-          <Pressable
-            onPress={() => setContribSign(-1)}
-            style={[
-              styles.contribToggleBtn,
-              contribSign === -1 && styles.contribToggleBtnActiveNeg,
-            ]}
-          >
-            <MaterialCommunityIcons
-              name="minus"
-              size={16}
-              color={contribSign === -1 ? '#fff' : Colors.textSecondary}
-            />
-            <Text
-              style={[
-                styles.contribToggleText,
-                contribSign === -1 && styles.contribToggleTextActive,
-              ]}
-            >
-              {t('goal_contribution_remove')}
-            </Text>
-          </Pressable>
-        </View>
-
-        <TextInput
-          style={styles.contribInput}
-          value={contribAmountStr}
-          onChangeText={setContribAmountStr}
-          keyboardType="decimal-pad"
-          placeholder="0"
-          placeholderTextColor={Colors.textMuted}
-          autoFocus
-        />
-
-        <View style={styles.contribActionsRow}>
-          <Pressable
-            onPress={() => setContribOpen(false)}
-            style={({ pressed }) => [styles.contribCancelBtn, pressed && { opacity: 0.9 }]}
-          >
-            <Text style={styles.contribCancelText}>{t('cancel')}</Text>
-          </Pressable>
-          <Pressable
-            onPress={handleContribute}
-            disabled={saving}
-            style={({ pressed }) => [
-              styles.contribSaveBtn,
-              pressed && { opacity: 0.9 },
-              saving && { opacity: 0.6 },
-            ]}
-          >
-            <Text style={styles.contribSaveText}>{saving ? t('processing') : t('save')}</Text>
-          </Pressable>
-        </View>
-      </BottomSheetModal>
+      />
     </>
   );
 }
@@ -472,110 +353,4 @@ const getStyles = () => StyleSheet.create({
     fontFamily: FontFamily.bold,
   },
 
-  // Sheet
-  contribSheet: {
-    backgroundColor: Colors.cardSurface,
-    borderTopLeftRadius: BorderRadius.xl,
-    borderTopRightRadius: BorderRadius.xl,
-    paddingHorizontal: Spacing.lg,
-    paddingTop: Spacing.md,
-    paddingBottom: Spacing.xl,
-  },
-  contribHandle: {
-    width: 40,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: Colors.border,
-    alignSelf: 'center',
-    marginBottom: Spacing.md,
-  },
-  contribTitle: {
-    ...Typography.headlineSmall,
-    color: Colors.textPrimary,
-    fontFamily: FontFamily.extraBold,
-    marginBottom: 4,
-  },
-  contribHint: {
-    ...Typography.bodySmall,
-    color: Colors.textSecondary,
-    marginBottom: Spacing.md,
-  },
-  contribToggleRow: {
-    flexDirection: 'row',
-    gap: Spacing.sm,
-    marginBottom: Spacing.md,
-  },
-  contribToggleBtn: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    paddingVertical: Spacing.sm,
-    borderRadius: BorderRadius.round,
-    backgroundColor: Colors.surfaceLight,
-    borderWidth: 1,
-    borderColor: Colors.border,
-  },
-  contribToggleBtnActive: {
-    backgroundColor: Colors.primary,
-    borderColor: Colors.primary,
-  },
-  contribToggleBtnActiveNeg: {
-    backgroundColor: Colors.danger,
-    borderColor: Colors.danger,
-  },
-  contribToggleText: {
-    ...Typography.labelMedium,
-    color: Colors.textSecondary,
-    fontFamily: FontFamily.semiBold,
-  },
-  contribToggleTextActive: {
-    color: '#fff',
-  },
-  contribInput: {
-    ...Typography.headlineSmall,
-    color: Colors.textPrimary,
-    fontFamily: FontFamily.extraBold,
-    backgroundColor: Colors.surfaceLight,
-    borderRadius: BorderRadius.lg,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.md,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    textAlign: 'center',
-  },
-  contribActionsRow: {
-    flexDirection: 'row',
-    gap: Spacing.sm,
-    marginTop: Spacing.md,
-  },
-  contribCancelBtn: {
-    flex: 1,
-    paddingVertical: Spacing.md,
-    borderRadius: BorderRadius.round,
-    backgroundColor: Colors.surfaceLight,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  contribCancelText: {
-    ...Typography.labelLarge,
-    color: Colors.textPrimary,
-    fontFamily: FontFamily.semiBold,
-  },
-  contribSaveBtn: {
-    flex: 1.4,
-    paddingVertical: Spacing.md,
-    borderRadius: BorderRadius.round,
-    backgroundColor: Colors.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  contribSaveText: {
-    ...Typography.labelLarge,
-    color: '#fff',
-    fontFamily: FontFamily.extraBold,
-  },
 });
