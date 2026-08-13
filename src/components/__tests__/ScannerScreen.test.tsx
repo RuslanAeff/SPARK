@@ -1,5 +1,5 @@
 import React from 'react';
-import { render } from '@testing-library/react-native';
+import { fireEvent, render, waitFor } from '@testing-library/react-native';
 import { StyleSheet } from 'react-native';
 
 import ScannerScreen from '../../../app/(tabs)/scanner';
@@ -7,6 +7,10 @@ import { DarkTheme, LightTheme } from '../../theme/colors';
 
 let mockScheme: 'light' | 'dark' = 'dark';
 const mockUseAppTheme = jest.fn(() => mockScheme);
+const mockRequestCameraPermissionsAsync = jest.fn();
+const mockRequestMediaLibraryPermissionsAsync = jest.fn();
+const mockLaunchCameraAsync = jest.fn();
+const mockLaunchImageLibraryAsync = jest.fn();
 
 jest.mock('expo-router', () => ({
   useRouter: () => ({ push: jest.fn() }),
@@ -17,7 +21,12 @@ jest.mock('react-native-safe-area-context', () => {
   return { SafeAreaView: View };
 });
 
-jest.mock('expo-image-picker', () => ({}));
+jest.mock('expo-image-picker', () => ({
+  requestCameraPermissionsAsync: (...args: unknown[]) => mockRequestCameraPermissionsAsync(...args),
+  requestMediaLibraryPermissionsAsync: (...args: unknown[]) => mockRequestMediaLibraryPermissionsAsync(...args),
+  launchCameraAsync: (...args: unknown[]) => mockLaunchCameraAsync(...args),
+  launchImageLibraryAsync: (...args: unknown[]) => mockLaunchImageLibraryAsync(...args),
+}));
 jest.mock('expo-file-system/legacy', () => ({}));
 jest.mock('expo-haptics', () => ({
   impactAsync: jest.fn(),
@@ -77,6 +86,10 @@ describe('Scanner runtime theme', () => {
   beforeEach(() => {
     mockScheme = 'dark';
     mockUseAppTheme.mockClear();
+    mockRequestCameraPermissionsAsync.mockReset();
+    mockRequestMediaLibraryPermissionsAsync.mockReset();
+    mockLaunchCameraAsync.mockReset();
+    mockLaunchImageLibraryAsync.mockReset();
   });
 
   it('rebuilds its mounted shell when the app switches from dark to light', async () => {
@@ -99,5 +112,45 @@ describe('Scanner runtime theme', () => {
       LightTheme.textPrimary,
     );
     expect(mockUseAppTheme).toHaveBeenCalled();
+  });
+
+  it('keeps the two source capsules accessible and theme-aware', async () => {
+    const screen = await render(<ScannerScreen />);
+    const camera = screen.getByTestId('scanner-camera-action');
+    const gallery = screen.getByTestId('scanner-gallery-action');
+
+    expect(camera.props.accessibilityRole).toBe('button');
+    expect(camera.props.accessibilityLabel).toBe('camera');
+    expect(camera.props.accessibilityHint).toBe('scanner_subtitle');
+    expect(gallery.props.accessibilityRole).toBe('button');
+    expect(gallery.props.accessibilityLabel).toBe('gallery');
+    expect(StyleSheet.flatten(camera.props.style).backgroundColor).toBe(DarkTheme.cardSurface);
+    expect(StyleSheet.flatten(gallery.props.style).backgroundColor).toBe(DarkTheme.cardSurface);
+
+    mockScheme = 'light';
+    await screen.rerender(<ScannerScreen />);
+
+    expect(
+      StyleSheet.flatten(screen.getByTestId('scanner-camera-action').props.style).backgroundColor,
+    ).toBe(LightTheme.cardSurface);
+    expect(
+      StyleSheet.flatten(screen.getByTestId('scanner-gallery-action').props.style).backgroundColor,
+    ).toBe(LightTheme.cardSurface);
+  });
+
+  it('routes camera and gallery capsules to their matching picker APIs', async () => {
+    mockRequestCameraPermissionsAsync.mockResolvedValue({ granted: true });
+    mockRequestMediaLibraryPermissionsAsync.mockResolvedValue({ granted: true });
+    mockLaunchCameraAsync.mockResolvedValue({ canceled: true });
+    mockLaunchImageLibraryAsync.mockResolvedValue({ canceled: true });
+    const screen = await render(<ScannerScreen />);
+
+    await fireEvent.press(screen.getByTestId('scanner-camera-action'));
+    await waitFor(() => expect(mockLaunchCameraAsync).toHaveBeenCalledTimes(1));
+    expect(mockLaunchImageLibraryAsync).not.toHaveBeenCalled();
+
+    await fireEvent.press(screen.getByTestId('scanner-gallery-action'));
+    await waitFor(() => expect(mockLaunchImageLibraryAsync).toHaveBeenCalledTimes(1));
+    expect(mockLaunchCameraAsync).toHaveBeenCalledTimes(1);
   });
 });

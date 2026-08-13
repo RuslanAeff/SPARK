@@ -52,7 +52,7 @@ void SystemUI.setBackgroundColorAsync(BOOT_BACKGROUND).catch(() => {});
 
 function AndroidNotificationBootstrap({ enabled }: { enabled: boolean }) {
   const router = useRouter();
-  const { markRead, sync } = useNotifications();
+  const { openFromNotification, sync } = useNotifications();
   const { t } = useLanguage();
   const channelCopy = React.useMemo(() => ({
     updatesName: t('notif_android_updates_channel'),
@@ -63,39 +63,49 @@ function AndroidNotificationBootstrap({ enabled }: { enabled: boolean }) {
 
   useEffect(() => {
     if (!enabled) return;
+    let disposed = false;
+    let unsubscribe: (() => void) | undefined;
     activateAndroidNotificationDelivery();
-    void ensureAndroidNotificationSetup(true, channelCopy).then((status) => {
+    void (async () => {
+      const status = await ensureAndroidNotificationSetup(true, channelCopy);
       if (__DEV__ && status === 'error') {
         console.warn('[notifications] Android setup failed');
       }
-      if (status === 'ready') void sync();
-    });
-  }, [channelCopy, enabled, sync]);
+      if (disposed) return;
 
-  useEffect(() => {
-    if (!enabled) return;
-    let disposed = false;
-    let unsubscribe: (() => void) | undefined;
-
-    void subscribeAndroidNotificationResponses(async (notificationId) => {
       try {
-        await markRead(notificationId);
+        const cleanup = await subscribeAndroidNotificationResponses(async (notificationId) => {
+          try {
+            // Cold response normal bootstrap sync'inden önce işlenir. Böylece
+            // gecikmiş alarmın occurrence'ı cursor ilerlemeden kanonik feed'e
+            // dönüşür ve aynı olay ikinci tray kopyası üretmez.
+            await openFromNotification(notificationId);
+          } catch {
+            // Feed öğesi daha önce silinmiş olabilir; route yine açılabilmelidir.
+          }
+          router.push('/notifications');
+        });
+        if (disposed) {
+          cleanup();
+          return;
+        }
+        unsubscribe = cleanup;
       } catch {
-        // Feed öğesi daha önce silinmiş olabilir; route yine açılabilmelidir.
+        if (__DEV__) console.warn('[notifications] response observer failed');
       }
-      router.push('/notifications');
-    }).then((cleanup) => {
-      if (disposed) cleanup();
-      else unsubscribe = cleanup;
-    }).catch(() => {
-      if (__DEV__) console.warn('[notifications] response observer failed');
-    });
+
+      // Cold response varsa subscribe çağrısı onun tap-aware sync'ini bekler;
+      // normal bootstrap uzlaştırması ancak sonrasında çalışır.
+      // Denied durumda da eski owned alarm cleanup'ı; iOS/Expo Go'da da domain
+      // cursor/feed ilerlemesi gerekir. Yalnız kurulum hatası retry'a bırakılır.
+      if (!disposed && status !== 'error') await sync();
+    })();
 
     return () => {
       disposed = true;
       unsubscribe?.();
     };
-  }, [enabled, markRead, router]);
+  }, [channelCopy, enabled, openFromNotification, router, sync]);
 
   return null;
 }

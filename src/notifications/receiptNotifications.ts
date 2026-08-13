@@ -34,11 +34,12 @@ export function receiptSavedExpenseIds(feed: readonly InAppNotification[]): numb
 
 /**
  * Kalıcı feed, bildirimin üretildiği anda görülen satıcı adını taşır. Bu saf
- * uzlaştırma adımı yalnız hâlâ mevcut olan harcamaların satıcı parametresini
- * kanonik DB değeriyle günceller; okundu durumu, tarih ve sıralama korunur.
+ * uzlaştırma adımı hâlâ mevcut olan harcamaların satıcı parametresini kanonik
+ * DB değeriyle günceller; okundu durumu, tarih ve sıralama korunur. Harcaması
+ * silinmiş fiş bildirimi artık geçerli bir domain olayına bağlı olmadığı için
+ * stale kabul edilir ve feed'den çıkarılır.
  *
- * Feed'de bulunmayan harcamalar için bildirim üretmez. Harcaması artık mevcut
- * olmayan tarihsel bildirimlere de dokunmaz; notification geçmişi silinmez.
+ * Feed'de bulunmayan harcamalar için bildirim üretmez.
  */
 export function reconcileReceiptSavedNotifications(
   feed: InAppNotification[],
@@ -51,22 +52,33 @@ export function reconcileReceiptSavedNotifications(
   }
 
   let changed = false;
-  const next = feed.map((item) => {
+  const next: InAppNotification[] = [];
+  for (const item of feed) {
     const expenseId = receiptSavedExpenseId(item.id);
-    if (expenseId == null || !vendorByExpenseId.has(expenseId)) return item;
+    if (expenseId == null) {
+      next.push(item);
+      continue;
+    }
+    if (!vendorByExpenseId.has(expenseId)) {
+      changed = true;
+      continue;
+    }
 
     const vendor = vendorByExpenseId.get(expenseId)!;
-    if (item.params?.vendor === vendor) return item;
+    if (item.params?.vendor === vendor) {
+      next.push(item);
+      continue;
+    }
 
     changed = true;
-    return {
+    next.push({
       ...item,
       params: {
         ...item.params,
         vendor,
       },
-    };
-  });
+    });
+  }
 
   return changed ? next : feed;
 }

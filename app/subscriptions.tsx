@@ -34,6 +34,17 @@ import {
 } from '../src/services/subscriptionDetector';
 import type { SubscriptionWithDetails } from '../src/db/schema';
 import { SparkToast } from '../src/components/SparkToast';
+import GlassDeleteModal from '../src/components/GlassDeleteModal';
+import RecurringPaymentReminderSheet, {
+  RecurringPaymentReminderFormValue,
+} from '../src/components/RecurringPaymentReminderSheet';
+import { RecurringPaymentReminderDao } from '../src/db/recurringPaymentReminderDao';
+import type {
+  RecurringPaymentReminder,
+  ReminderRecurrenceUnit,
+} from '../src/db/schema';
+import { formatDateFull } from '../src/utils/dateUtils';
+import { useRefreshActions } from '../src/context/RefreshContext';
 
 function daysUntil(dateIso: string): number {
   const target = new Date(dateIso + 'T12:00:00').getTime();
@@ -42,22 +53,44 @@ function daysUntil(dateIso: string): number {
   return Math.ceil((target - today.getTime()) / (86400 * 1000));
 }
 
+export function scheduleFromDetectedPeriod(periodDays: number): {
+  unit: ReminderRecurrenceUnit;
+  interval: number;
+} {
+  if (periodDays === 7 || periodDays === 14) {
+    return { unit: 'week', interval: periodDays / 7 };
+  }
+  if (periodDays >= 28 && periodDays <= 31) return { unit: 'month', interval: 1 };
+  if (periodDays >= 56 && periodDays <= 62) return { unit: 'month', interval: 2 };
+  if (periodDays >= 84 && periodDays <= 95) return { unit: 'month', interval: 3 };
+  if (periodDays >= 360 && periodDays <= 370) return { unit: 'year', interval: 1 };
+  return { unit: 'day', interval: Math.max(1, Math.min(999, Math.round(periodDays))) };
+}
+
 export default function SubscriptionsScreen() {
   const scheme = useAppTheme();
   const styles = useMemo(() => getStyles(), [scheme]);
   const router = useRouter();
   const { t, language } = useLanguage();
   const { currency } = useCurrency();
+  const { triggerRefresh } = useRefreshActions();
   const [items, setItems] = useState<SubscriptionWithDetails[]>([]);
+  const [plans, setPlans] = useState<RecurringPaymentReminder[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [showDismissed, setShowDismissed] = useState(false);
+  const [formVisible, setFormVisible] = useState(false);
+  const [formInitial, setFormInitial] = useState<RecurringPaymentReminderFormValue | null>(null);
+  const [deletePlan, setDeletePlan] = useState<RecurringPaymentReminder | null>(null);
+  const planActionRef = React.useRef(false);
 
   const refresh = useCallback(async () => {
     try {
       await syncSubscriptions();
       const list = await SubscriptionDao.getAll();
       setItems(list);
+      const reminderRows = await RecurringPaymentReminderDao.listAll();
+      setPlans(reminderRows);
     } catch (e) {
       if (__DEV__) console.warn('[subs] refresh', e);
     }
@@ -83,7 +116,13 @@ export default function SubscriptionsScreen() {
     setRefreshing(false);
   }, [refresh]);
 
-  const active = items.filter((s) => s.status === 'active');
+  const confirmedVendorIds = new Set(
+    plans.filter((plan) => plan.source === 'detected' && plan.vendor_id != null)
+      .map((plan) => plan.vendor_id as number),
+  );
+  const active = items.filter(
+    (s) => s.status === 'active' && !confirmedVendorIds.has(s.vendor_id),
+  );
   const dismissed = items.filter((s) => s.status === 'dismissed');
   const monthlyTotal = active.reduce(
     (sum, s) => sum + monthlyEquivalent(s.amount, s.period_days),
@@ -95,13 +134,182 @@ export default function SubscriptionsScreen() {
     await SubscriptionDao.setStatus(s.vendor_id, 'dismissed');
     SparkToast.show(t('subscription_dismissed'), 'info', s.vendor_name);
     await refresh();
+    triggerRefresh();
   }
   async function handleRestore(s: SubscriptionWithDetails) {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     await SubscriptionDao.setStatus(s.vendor_id, 'active');
     SparkToast.show(t('subscription_restored'), 'success', s.vendor_name);
     await refresh();
+    triggerRefresh();
   }
+
+  const openManualPlan = () => {
+    setFormInitial(null);
+    setFormVisible(true);
+  };
+
+  const openDetectedPlan = (subscription: SubscriptionWithDetails) => {
+    const cadence = scheduleFromDetectedPeriod(subscription.period_days);
+    setFormInitial({
+      title: subscription.vendor_name,
+      vendorId: subscription.vendor_id,
+      expectedAmount: subscription.amount,
+      currency: subscription.currency,
+      anchorDate: subscription.next_expected_date,
+      nextDueDate: subscription.next_expected_date,
+      recurrenceUnit: cadence.unit,
+      recurrenceInterval: cadence.interval,
+      reminderDaysBefore: 3,
+      reminderTime: '09:00',
+      status: 'active',
+      source: 'detected',
+      note: null,
+    });
+    setFormVisible(true);
+  };
+
+  const openEditPlan = (plan: RecurringPaymentReminder) => {
+    setFormInitial({
+      id: plan.id,
+      title: plan.title,
+      vendorId: plan.vendor_id,
+      expectedAmount: plan.expected_amount,
+      currency: plan.currency,
+      anchorDate: plan.anchor_date,
+      nextDueDate: plan.next_due_date,
+      recurrenceUnit: plan.recurrence_unit,
+      recurrenceInterval: plan.recurrence_interval,
+      reminderDaysBefore: plan.reminder_days_before,
+      reminderTime: plan.reminder_time,
+      status: plan.status,
+      source: plan.source,
+      note: plan.note,
+    });
+    setFormVisible(true);
+  };
+
+  const togglePlan = async (plan: RecurringPaymentReminder) => {
+    if (planActionRef.current) return;
+    planActionRef.current = true;
+    try {
+      const changed = plan.status === 'active'
+        ? await RecurringPaymentReminderDao.pause(plan.id)
+        : await RecurringPaymentReminderDao.resume(plan.id);
+      if (!changed) throw new Error('Plan was not updated');
+      SparkToast.show(
+        t(plan.status === 'active' ? 'recurring_plan_paused' : 'recurring_plan_resumed'),
+        'success',
+      );
+      await refresh();
+      triggerRefresh();
+    } catch (error) {
+      if (__DEV__) console.warn('[recurring-plan] toggle', error);
+      SparkToast.show(t('recurring_plan_save_error'), 'error');
+    } finally {
+      planActionRef.current = false;
+    }
+  };
+
+  const removePlan = async () => {
+    if (!deletePlan || planActionRef.current) return;
+    planActionRef.current = true;
+    try {
+      const removed = await RecurringPaymentReminderDao.remove(deletePlan.id);
+      if (!removed) throw new Error('Plan was not removed');
+      setDeletePlan(null);
+      SparkToast.show(t('recurring_plan_deleted'), 'success');
+      await refresh();
+      triggerRefresh();
+    } catch (error) {
+      if (__DEV__) console.warn('[recurring-plan] remove', error);
+      SparkToast.show(t('recurring_plan_save_error'), 'error');
+    } finally {
+      planActionRef.current = false;
+    }
+  };
+
+  const handlePlanSaved = useCallback(async () => {
+    await refresh();
+    triggerRefresh();
+  }, [refresh, triggerRefresh]);
+
+  const recurrenceLabel = (plan: RecurringPaymentReminder) => {
+    const unitLabel = t(`recurring_plan_unit_${plan.recurrence_unit}`);
+    return plan.recurrence_interval === 1
+      ? unitLabel
+      : t('recurring_plan_every_interval', {
+          interval: plan.recurrence_interval,
+          unit: unitLabel.toLocaleLowerCase(),
+        });
+  };
+
+  const renderPlan = (plan: RecurringPaymentReminder) => (
+    <View key={plan.id} style={[styles.planCard, plan.status === 'paused' && styles.cardMuted]}>
+      <View style={styles.planTopRow}>
+        <View style={styles.planIcon}>
+          <MaterialCommunityIcons name="calendar-sync-outline" size={21} color={Colors.primary} />
+        </View>
+        <View style={styles.planMain}>
+          <View style={styles.planTitleRow}>
+            <Text style={styles.planTitle} numberOfLines={2}>{plan.title}</Text>
+            <View style={[styles.statusPill, plan.status === 'paused' && styles.statusPillPaused]}>
+              <Text style={[styles.statusText, plan.status === 'paused' && styles.statusTextPaused]}>
+                {t(plan.status === 'active' ? 'recurring_plan_status_active' : 'recurring_plan_status_paused')}
+              </Text>
+            </View>
+          </View>
+          {plan.expected_amount != null ? (
+            <Text style={styles.planAmount}>{formatCurrency(plan.expected_amount, plan.currency)}</Text>
+          ) : null}
+          <Text style={styles.meta}>
+            {recurrenceLabel(plan)} · {formatDateFull(plan.next_due_date, t)}
+          </Text>
+          <View style={styles.preferenceRow}>
+            <MaterialCommunityIcons name="bell-outline" size={14} color={Colors.textSecondary} />
+            <Text style={styles.preferenceText}>
+              {plan.reminder_days_before === 0
+                ? t('recurring_plan_preference_same_day', { time: plan.reminder_time })
+                : t('recurring_plan_preference_saved', {
+                    days: plan.reminder_days_before,
+                    time: plan.reminder_time,
+                  })}
+            </Text>
+          </View>
+        </View>
+      </View>
+      <View style={styles.planActions}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={t('edit')}
+          onPress={() => openEditPlan(plan)}
+          style={({ pressed }) => [styles.iconAction, pressed && styles.actionPressed]}
+        >
+          <MaterialCommunityIcons name="pencil-outline" size={18} color={Colors.textSecondary} />
+        </Pressable>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={t(plan.status === 'active' ? 'recurring_plan_pause' : 'recurring_plan_resume')}
+          onPress={() => void togglePlan(plan)}
+          style={({ pressed }) => [styles.iconAction, pressed && styles.actionPressed]}
+        >
+          <MaterialCommunityIcons
+            name={plan.status === 'active' ? 'pause' : 'play'}
+            size={19}
+            color={Colors.textSecondary}
+          />
+        </Pressable>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={t('delete')}
+          onPress={() => setDeletePlan(plan)}
+          style={({ pressed }) => [styles.iconAction, pressed && styles.actionPressed]}
+        >
+          <MaterialCommunityIcons name="trash-can-outline" size={18} color={Colors.danger} />
+        </Pressable>
+      </View>
+    </View>
+  );
 
   const renderItem = (s: SubscriptionWithDetails, isDismissed: boolean) => {
     const days = daysUntil(s.next_expected_date);
@@ -150,9 +358,9 @@ export default function SubscriptionsScreen() {
             </Text>
           </View>
           <View style={{ alignItems: 'flex-end' }}>
-            <Text style={styles.amount}>{formatCurrency(s.amount, currency)}</Text>
+            <Text style={styles.amount}>{formatCurrency(s.amount, s.currency)}</Text>
             <Text style={styles.equivalent}>
-              ~{formatCurrency(monthlyEquivalent(s.amount, s.period_days), currency)}
+              ~{formatCurrency(monthlyEquivalent(s.amount, s.period_days), s.currency)}
               /{t('subscription_per_month_short')}
             </Text>
           </View>
@@ -179,13 +387,24 @@ export default function SubscriptionsScreen() {
               </Text>
             </Pressable>
           ) : (
-            <Pressable
-              onPress={() => handleDismiss(s)}
-              style={({ pressed }) => [styles.action, pressed && styles.actionPressed]}
-            >
-              <MaterialCommunityIcons name="close-circle-outline" size={16} color={Colors.textSecondary} />
-              <Text style={styles.actionText}>{t('subscription_action_dismiss')}</Text>
-            </Pressable>
+            <>
+              <Pressable
+                onPress={() => openDetectedPlan(s)}
+                style={({ pressed }) => [styles.action, styles.confirmAction, pressed && styles.actionPressed]}
+              >
+                <MaterialCommunityIcons name="calendar-plus" size={16} color={Colors.primary} />
+                <Text style={[styles.actionText, styles.confirmActionText]}>
+                  {t('recurring_plan_convert')}
+                </Text>
+              </Pressable>
+              <Pressable
+                onPress={() => handleDismiss(s)}
+                style={({ pressed }) => [styles.action, pressed && styles.actionPressed]}
+              >
+                <MaterialCommunityIcons name="close-circle-outline" size={16} color={Colors.textSecondary} />
+                <Text style={styles.actionText}>{t('subscription_action_dismiss')}</Text>
+              </Pressable>
+            </>
           )}
         </View>
       </Animated.View>
@@ -216,22 +435,64 @@ export default function SubscriptionsScreen() {
         }
         showsVerticalScrollIndicator={false}
       >
-        {/* Summary kartı */}
-        <Animated.View entering={FadeInDown.duration(400)} style={styles.summaryCard}>
-          <Text style={styles.summaryLabel}>{t('subscription_monthly_estimate')}</Text>
-          <Text style={styles.summaryAmount}>
-            {formatCurrency(monthlyTotal, currency)}
-          </Text>
-          <Text style={styles.summaryHint}>
-            {t('subscription_monthly_hint', { count: active.length.toString() })}
-          </Text>
-        </Animated.View>
+        <View style={styles.sectionHeader}>
+          <View style={styles.sectionHeadingCopy}>
+            <Text style={styles.sectionTitle}>{t('recurring_plans_title')}</Text>
+            <Text style={styles.sectionHint}>{t('recurring_plans_hint')}</Text>
+          </View>
+          <Pressable
+            testID="recurring-plan-add"
+            accessibilityRole="button"
+            accessibilityLabel={t('recurring_plan_add_title')}
+            onPress={openManualPlan}
+            style={({ pressed }) => [styles.addPlanButton, pressed && styles.actionPressed]}
+          >
+            <MaterialCommunityIcons name="plus" size={20} color="#FFFFFF" />
+          </Pressable>
+        </View>
 
         {loading ? (
           <View style={styles.loaderWrap}>
             <ActivityIndicator color={Colors.primary} />
           </View>
-        ) : active.length === 0 ? (
+        ) : plans.length > 0 ? (
+          <View style={styles.listWrap}>{plans.map(renderPlan)}</View>
+        ) : (
+          <Pressable
+            accessibilityRole="button"
+            onPress={openManualPlan}
+            style={({ pressed }) => [styles.planEmpty, pressed && styles.actionPressed]}
+          >
+            <View style={styles.planEmptyIcon}>
+              <MaterialCommunityIcons name="calendar-plus" size={22} color={Colors.primary} />
+            </View>
+            <View style={styles.planEmptyCopy}>
+              <Text style={styles.planEmptyTitle}>{t('recurring_plan_empty_title')}</Text>
+              <Text style={styles.planEmptyText}>{t('recurring_plan_empty_hint')}</Text>
+            </View>
+            <MaterialCommunityIcons name="chevron-right" size={20} color={Colors.textMuted} />
+          </Pressable>
+        )}
+
+        <View style={styles.detectedHeader}>
+          <Text style={styles.sectionTitle}>{t('recurring_detected_title')}</Text>
+          <Text style={styles.sectionHint}>{t('recurring_detected_hint')}</Text>
+        </View>
+
+        {/* Yalnız gerçekten onay bekleyen tahminler varken özet gösterilir. */}
+        {!loading && active.length > 0 ? (
+          <Animated.View entering={FadeInDown.duration(400)} style={styles.summaryCard}>
+            <Text style={styles.summaryLabel}>{t('subscription_monthly_estimate')}</Text>
+            <Text style={styles.summaryAmount}>
+              {formatCurrency(monthlyTotal, currency)}
+            </Text>
+            <Text style={styles.summaryHint}>
+              {t('subscription_monthly_hint', { count: active.length.toString() })}
+            </Text>
+          </Animated.View>
+        ) : null}
+
+        {!loading && active.length === 0 ? (
           <View style={styles.emptyWrap}>
             <MaterialCommunityIcons
               name="autorenew"
@@ -241,11 +502,11 @@ export default function SubscriptionsScreen() {
             <Text style={styles.emptyTitle}>{t('subscription_empty_title')}</Text>
             <Text style={styles.emptyDesc}>{t('subscription_empty_desc')}</Text>
           </View>
-        ) : (
+        ) : !loading ? (
           <View style={styles.listWrap}>
             {active.map((s) => renderItem(s, false))}
           </View>
-        )}
+        ) : null}
 
         {dismissed.length > 0 && (
           <Pressable
@@ -275,6 +536,22 @@ export default function SubscriptionsScreen() {
 
         <View style={{ height: 80 }} />
       </ScrollView>
+
+      <RecurringPaymentReminderSheet
+        visible={formVisible}
+        initialValue={formInitial}
+        defaultCurrency={currency}
+        onClose={() => setFormVisible(false)}
+        onSaved={handlePlanSaved}
+      />
+
+      <GlassDeleteModal
+        visible={deletePlan !== null}
+        title={t('recurring_plan_delete_title')}
+        message={t('recurring_plan_delete_message')}
+        onCancel={() => setDeletePlan(null)}
+        onDelete={() => void removePlan()}
+      />
     </SafeAreaView>
   );
 }
@@ -307,6 +584,120 @@ const getStyles = () =>
     scrollContent: {
       paddingHorizontal: ScreenPadding.horizontal,
       paddingBottom: Spacing.xxl,
+    },
+    sectionHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: Spacing.md,
+      marginBottom: Spacing.md,
+    },
+    sectionHeadingCopy: { flex: 1, minWidth: 0 },
+    sectionTitle: {
+      ...Typography.labelLarge,
+      color: Colors.textPrimary,
+      fontFamily: FontFamily.bold,
+      letterSpacing: 0.6,
+      textTransform: 'uppercase',
+    },
+    sectionHint: {
+      ...Typography.bodySmall,
+      color: Colors.textSecondary,
+      marginTop: 3,
+    },
+    addPlanButton: {
+      width: 44,
+      height: 44,
+      borderRadius: 22,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: Colors.primary,
+    },
+    detectedHeader: { marginTop: Spacing.xl, marginBottom: Spacing.md },
+    planEmpty: {
+      minHeight: 88,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: Spacing.md,
+      borderRadius: BorderRadius.xl,
+      borderWidth: 1,
+      borderStyle: 'dashed',
+      borderColor: Colors.primary + '55',
+      backgroundColor: Colors.primary + '0B',
+      padding: Spacing.md,
+    },
+    planEmptyIcon: {
+      width: 44,
+      height: 44,
+      borderRadius: 22,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: Colors.primary + '18',
+    },
+    planEmptyCopy: { flex: 1, minWidth: 0 },
+    planEmptyTitle: {
+      ...Typography.labelLarge,
+      color: Colors.textPrimary,
+      fontFamily: FontFamily.bold,
+    },
+    planEmptyText: { ...Typography.bodySmall, color: Colors.textSecondary, marginTop: 2 },
+    planCard: {
+      borderRadius: BorderRadius.xl,
+      borderWidth: 1,
+      borderColor: Colors.cardBorder,
+      backgroundColor: Colors.cardSurface,
+      padding: Spacing.md,
+    },
+    planTopRow: { flexDirection: 'row', alignItems: 'flex-start', gap: Spacing.md },
+    planIcon: {
+      width: 44,
+      height: 44,
+      borderRadius: 22,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: Colors.primary + '18',
+    },
+    planMain: { flex: 1, minWidth: 0 },
+    planTitleRow: { flexDirection: 'row', alignItems: 'flex-start', gap: Spacing.sm },
+    planTitle: {
+      ...Typography.bodyLarge,
+      color: Colors.textPrimary,
+      fontFamily: FontFamily.semiBold,
+      flex: 1,
+      minWidth: 0,
+    },
+    statusPill: {
+      paddingHorizontal: Spacing.sm,
+      paddingVertical: 3,
+      borderRadius: BorderRadius.round,
+      backgroundColor: Colors.primary + '18',
+    },
+    statusPillPaused: { backgroundColor: Colors.surfaceLight },
+    statusText: { ...Typography.labelSmall, color: Colors.primary, fontFamily: FontFamily.bold },
+    statusTextPaused: { color: Colors.textSecondary },
+    planAmount: {
+      ...Typography.headlineSmall,
+      color: Colors.textPrimary,
+      fontFamily: FontFamily.bold,
+      marginTop: 4,
+    },
+    preferenceRow: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: Spacing.sm },
+    preferenceText: { ...Typography.labelSmall, color: Colors.textSecondary, flex: 1 },
+    planActions: {
+      flexDirection: 'row',
+      justifyContent: 'flex-end',
+      gap: Spacing.sm,
+      marginTop: Spacing.sm,
+      paddingTop: Spacing.sm,
+      borderTopWidth: StyleSheet.hairlineWidth,
+      borderTopColor: Colors.divider,
+    },
+    iconAction: {
+      width: 44,
+      height: 40,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderRadius: BorderRadius.round,
+      backgroundColor: Colors.surfaceLight,
     },
     summaryCard: {
       backgroundColor: Colors.cardSurface,
@@ -410,6 +801,7 @@ const getStyles = () =>
     actionsRow: {
       flexDirection: 'row',
       justifyContent: 'flex-end',
+      flexWrap: 'wrap',
       marginTop: Spacing.sm,
       gap: Spacing.sm,
     },
@@ -428,6 +820,8 @@ const getStyles = () =>
       color: Colors.textSecondary,
       fontFamily: FontFamily.semiBold,
     },
+    confirmAction: { backgroundColor: Colors.primary + '18' },
+    confirmActionText: { color: Colors.primary },
     toggleDismissed: {
       flexDirection: 'row',
       alignItems: 'center',

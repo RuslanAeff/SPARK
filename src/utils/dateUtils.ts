@@ -11,6 +11,44 @@ function toLocalYmd(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
+const CANONICAL_YMD_PATTERN = /^(\d{4})-(\d{2})-(\d{2})$/;
+
+/**
+ * Kanonik YYYY-MM-DD değerini UTC'ye uğratmadan yerel takvim tarihine çevirir.
+ * Geçersiz takvim günleri (örn. 2026-02-29) sessizce başka güne taşınmaz.
+ */
+export function parseLocalYYYYMMDD(dateStr: string): Date | null {
+  if (typeof dateStr !== 'string') return null;
+
+  const match = dateStr.match(CANONICAL_YMD_PATTERN);
+  if (!match) return null;
+
+  const year = Number(match[1]);
+  const monthIndex = Number(match[2]) - 1;
+  const day = Number(match[3]);
+
+  const parsed = new Date(0);
+  parsed.setHours(0, 0, 0, 0);
+  parsed.setFullYear(year, monthIndex, day);
+
+  if (
+    parsed.getFullYear() !== year ||
+    parsed.getMonth() !== monthIndex ||
+    parsed.getDate() !== day
+  ) {
+    return null;
+  }
+
+  return parsed;
+}
+
+function parseDateForDisplay(dateStr: string): Date {
+  if (CANONICAL_YMD_PATTERN.test(dateStr)) {
+    return parseLocalYYYYMMDD(dateStr) ?? new Date(Number.NaN);
+  }
+  return new Date(dateStr);
+}
+
 function getMonthShort(monthIndex: number, t?: TranslateFunc): string {
   if (t) return t(`month_short_${String(monthIndex + 1).padStart(2, '0')}`);
   const fallback = ['Oca', 'Şub', 'Mar', 'Nis', 'May', 'Haz', 'Tem', 'Ağu', 'Eyl', 'Eki', 'Kas', 'Ara'];
@@ -24,23 +62,23 @@ function getMonthFull(monthIndex: number, t?: TranslateFunc): string {
 }
 
 export function formatDate(dateStr: string, t?: TranslateFunc): string {
-  const d = new Date(dateStr);
+  const d = parseDateForDisplay(dateStr);
   return `${d.getDate()} ${getMonthShort(d.getMonth(), t)} ${d.getFullYear()}`;
 }
 
 export function formatDateFull(dateStr: string, t?: TranslateFunc): string {
-  const d = new Date(dateStr);
+  const d = parseDateForDisplay(dateStr);
   return `${d.getDate()} ${getMonthFull(d.getMonth(), t)} ${d.getFullYear()}`;
 }
 
 export function formatMonthYear(dateStr: string, t?: TranslateFunc): string {
-  const d = new Date(dateStr);
+  const d = parseDateForDisplay(dateStr);
   return `${getMonthFull(d.getMonth(), t)} ${d.getFullYear()}`;
 }
 
 /** Yıl olmadan kompakt "gün kısa-ay" (ör. "23 May") — döngü aralığı etiketleri için. */
 export function formatDayMonth(dateStr: string, t?: TranslateFunc): string {
-  const d = new Date(dateStr);
+  const d = parseDateForDisplay(dateStr);
   return `${d.getDate()} ${getMonthShort(d.getMonth(), t)}`;
 }
 
@@ -53,12 +91,15 @@ export function normalizeToYYYYMMDD(dateStr: string): string {
   if (!dateStr || typeof dateStr !== 'string') return getToday();
   const s = dateStr.trim();
   // Already YYYY-MM-DD
-  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+  if (CANONICAL_YMD_PATTERN.test(s)) {
+    return parseLocalYYYYMMDD(s) ? s : getToday();
+  }
   // DD.MM.YYYY or DD/MM/YYYY
   const dmy = s.match(/^(\d{1,2})[./](\d{1,2})[./](\d{4})$/);
   if (dmy) {
     const [, day, month, year] = dmy;
-    return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+    const canonical = `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+    return parseLocalYYYYMMDD(canonical) ? canonical : getToday();
   }
   // Try parsing as ISO or generic
   const d = new Date(s);

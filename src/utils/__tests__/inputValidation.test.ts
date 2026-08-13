@@ -7,6 +7,7 @@ import {
   sanitizeIdArray,
   hasDangerousKeys,
   stripDangerousKeys,
+  normalizeCanonicalUuid,
 } from '../inputValidation';
 
 describe('sanitizeAmount', () => {
@@ -88,6 +89,7 @@ describe('sanitizeDate', () => {
     expect(sanitizeDate('15.05.2026')).toBeNull();
     expect(sanitizeDate('invalid')).toBeNull();
     expect(sanitizeDate(123)).toBeNull();
+    expect(sanitizeDate('2026-02-30')).toBeNull();
   });
 
   it('makul olmayan yıl → null', () => {
@@ -108,6 +110,18 @@ describe('sanitizeIdArray', () => {
   it('boyut sınırı uygulanır', () => {
     const big = Array.from({ length: 1000 }, (_, i) => i + 1);
     expect(sanitizeIdArray(big, 10)).toHaveLength(10);
+  });
+});
+
+describe('normalizeCanonicalUuid', () => {
+  it('RFC UUID değerini lowercase kanonik biçime getirir', () => {
+    expect(normalizeCanonicalUuid(' 123E4567-E89B-42D3-A456-426614174000 '))
+      .toBe('123e4567-e89b-42d3-a456-426614174000');
+  });
+
+  it('version/variant sözleşmesine uymayan UUID benzeri değerleri reddeder', () => {
+    expect(normalizeCanonicalUuid('00000000-0000-0000-0000-000000000000')).toBeNull();
+    expect(normalizeCanonicalUuid('not-a-uuid')).toBeNull();
   });
 });
 

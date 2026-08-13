@@ -39,6 +39,11 @@ oturumun amacı, kararları, çıktıları, kanıtları ve sınırlamaları kayd
 | `AI-2026-08-09-THEME-CONTINUITY-001` | 2026-08-09 | Tarayıcı'nın açık temada koyu kalmasını ve uzak/lazy sekmeye geçişte görünen beyaz ara yüzeyi gidermek | Kullanıcı ekran ve geçiş kaydıyla sorunu bildirdi; tema altyapısının kökten incelenip stabil hâle getirilmesini istedi | `analiz`, `kod`, `test`, `inceleme`, `dokümantasyon` | Evet | Reactive Scanner stilleri, React Navigation tema köprüsü, opak lazy scene/placeholder ve regresyon testleri | Uygulandı; otomatik doğrulama geçti, standalone APK kabulü bekleniyor |
 | `AI-2026-08-09-GOAL-DELETE-001` | 2026-08-09 | Boş hedefte çalışan silme eylemini güvenli kılmak ve Dashboard hedef görünürlüğü ile hatırlatıcı önerilerini SPARK altyapısına göre değerlendirmek | Kullanıcı hedef-silme hatasını ekran görüntüsüyle bildirdi; arkadaş geri bildirimlerini ürün kararı için değerlendirmemi istedi | `analiz`, `kod`, `test`, `inceleme`, `dokümantasyon` | Evet | Kalıcı hedef-varlığı kapısı, gerçek DELETE sonucu, limitleri koruyan semantik, dört dil ve aşamalı ürün önerisi | Silme düzeltmesi uygulandı ve otomatik doğrulandı; yeni Dashboard/motivasyon/hatırlatıcı kapsamı insan seçimi bekliyor |
 | `AI-2026-08-09-GOAL-FOCUS-001` | 2026-08-09 | Aktif birikim hedefini kritik finansal öncelikleri bozmadan isteğe bağlı olarak Dashboard'da öne çıkarmak; borç ve düzenli ödeme hatırlatıcılarını ayrı fazlara ayırmak | Kullanıcı profesyonel Dashboard önerisini açıkça seçti; hatırlatıcılar için önce plan, sonra ayrıca onay istedi | `analiz`, `plan`, `kod`, `test`, `inceleme`, `dokümantasyon` | Evet | Varsayılan kapalı odak tercihi, borçtan sonra kompakt hedef, tekil kart, ortak katkı sheet'i, dört dil ve altı fazlı hatırlatıcı planı | Dashboard uygulandı ve otomatik doğrulandı; hatırlatıcı uygulaması insan onayı bekliyor |
+| `AI-2026-08-09-REMINDER-FOUNDATION-001` | 2026-08-09 | Borç ve düzenli ödeme hatırlatıcılarının güvenilir veri temelini küçük Faz 1 kapsamında kurmak | Kullanıcı altı fazlı plandan sonra açıkça “Faz 1'e geçelim” dedi; UI, bildirim kuralı ve kapalı-uygulama scheduler'ı bu onaya dahil edilmedi | `analiz`, `plan`, `kod`, `test`, `inceleme`, `dokümantasyon` | Evet | Vade/reminder şeması, saf takvim motoru, kararlı reminder UID'si, backup v3 ilişki kapanışı, migration ve regresyon testleri | Uygulandı ve yerel otomatik doğrulama geçti; standalone DB/restore kabulü ve sonraki faz onayı bekleniyor |
+| `AI-2026-08-11-DEBT-REMINDER-UX-001` | 2026-08-11 | Faz 1 veri temelinin üzerine borç vadesi ve hatırlatma tercihinin profesyonel, erişilebilir ve yarış-güvenli kullanıcı akışını kurmak | Kullanıcı aşamalı hatırlatıcı planında açıkça “Faz 2'ye geçelim” dedi; düzenli ödeme UI'ı, feed kuralı, native scheduler, commit ve push bu onaya dahil edilmedi | `analiz`, `plan`, `kod`, `test`, `inceleme`, `dokümantasyon` | Evet | Yeni ve açık borç için ortak vade/tercih yüzeyi; güvenli yerel takvim seçimi; açık borçta vade durumu; stale/settled yazma kapısı; dört dil ve regresyon testleri | Uygulandı ve yerel otomatik doğrulama geçti; standalone UI kabulü bekleniyor |
+| `AI-2026-08-11-RECURRING-PAYMENT-UX-001` | 2026-08-11 | Kullanıcının düzenli ödemeleri manuel planlamasını ve yerel tahminleri açık onayla plana dönüştürmesini sağlamak | Kullanıcı token maliyetinin düşük tutulmasını istedi ve açıkça “Faz 3 için başla” dedi; feed kuralı, native scheduler, commit ve push bu onaya dahil edilmedi | `analiz`, `plan`, `kod`, `test`, `inceleme`, `dokümantasyon` | Evet | Tek ortak plan formu, onaylı/tahmini ayrımı, create/edit/pause/resume/delete, dört dil, dürüst teslim metni ve odaklı regresyonlar | Uygulandı; otomatik doğrulama ve standalone insan kabulü ayrıştırılıyor |
+| `AI-2026-08-11-REMINDER-FEED-RULES-001` | 2026-08-11 | Borç ve onaylı ödeme planlarını ayrı, deterministik ve yaşam döngüsü güvenli uygulama-içi bildirimlere dönüştürmek | Kullanıcı Faz 2 kalitesini koruyarak ölçülü token kullanılmasını istedi ve Faz 4'ü açıkça başlattı; future scheduler bu onaya dahil değildi | `analiz`, `plan`, `kod`, `test`, `inceleme`, `dokümantasyon` | Evet | Saf kural motoru, ayrı filtre/mute, dismissal ve kapasite güvenliği, stale feed/tray temizliği, dört dil ve regresyonlar | Uygulandı ve otomatik doğrulandı; fiziksel Android kabulü bekleniyor |
+| `AI-2026-08-11-ANDROID-REMINDER-SCHEDULER-001` | 2026-08-11 | Borç ve düzenli ödeme hatırlatıcılarını geleceğe tarihli Android alarmlarıyla kapalı uygulama teslimine hazırlamak | Kullanıcı token tüketiminin kontrollü tutulmasını istedi ve açıkça “Faz 5'e geçelim” dedi; commit, push, yayın ve exact-alarm özel izni yetkisi vermedi | `analiz`, `plan`, `kod`, `test`, `inceleme`, `dokümantasyon` | Evet | Rolling-horizon planlayıcı, cursor ilerletme, actual-vs-desired OS uzlaştırması, atomik çift-ledger baseline/rollback, cold-tap senkronu, dört dil ve kritik regresyonlar | Ürün kodu ve otomatik doğrulama tamamlandı; standalone APK/Faz 6 insan kabulü bekleniyor |
 
 > Yukarıdaki oturum girdisi eşzamanlı olarak yazılmıştır; ancak doğrudan konuşma
 > dışa aktarımı veya kalıcı bir oturum kimliği henüz bağlanmamıştır. İnsan onayı
@@ -266,6 +271,171 @@ oturumun amacı, kararları, çıktıları, kanıtları ve sınırlamaları kayd
 | Nihai insan kabulü | Dashboard için cihaz ve insan kabulü; hatırlatıcı kapsamı için uygulama öncesi onay bekleniyor |
 | Gizlilik incelemesi | Kullanıcı görselleri veya kişisel mesajlar repoya kopyalanmadı; gerçek finansal değerler test fixture'larına taşınmadı; hatırlatıcı planı şema ve davranış düzeyinde tutuldu |
 | Kalan risk | Jest gerçek SQLite tercih kalıcılığını, büyük font fiziksel yerleşimini, haptic'i veya native sheet dokunmasını kanıtlamaz. Kapalı uygulamaya zamanlı Android bildirimi Faz 5 tamamlanıp APK'da doğrulanmadan vaat edilemez |
+
+### AI-2026-08-09-REMINDER-FOUNDATION-001
+
+| Alan | Kayıt |
+|---|---|
+| Tarih ve saat dilimi | 2026-08-09 · Europe/Warsaw |
+| İnsan katılımcı/rol | Ürün sahibi ve geliştirici |
+| AI aracı, model ve sürüm | Codex; kesin model/sürüm bu kayıtta doğrulanmadı |
+| Repo/branch/başlangıç commit'i | `main` · `67b8117` |
+| Başlangıç çalışma ağacı | Clean |
+| İnsan hedefi | Borç son ödeme tarihi ile internet benzeri düzenli ödeme hatırlatıcılarını büyük tek değişiklik yerine küçük, doğrulanabilir fazlarda geliştirmek; önce veri temelini kurmak |
+| Açık insan onayı | Kullanıcı, önceden sunulan hatırlatıcı planında yalnız Faz 1'e geçilmesini açıkça onayladı. Uygulama UI'ı, feed kuralları, geleceğe tarihli Android teslimi, commit, push ve yayın yetkisi verilmedi |
+| Kısıtlar ve korunacak alanlar | Borcun nakit-akışı tarihi vade olarak yeniden kullanılamaz; abonelik tahmini kullanıcı taahhüdü değildir; birden çok finansal yazı atomik olmalı; backup geriye uyumlu ve dış girdi doğrulamalı olmalı; dört dil ve Expo Go guard'ı korunmalı |
+| AI'ya sağlanan kaynaklar | Kullanıcı geri bildirimi; mevcut borç, abonelik, bildirim, backup ve DB kodu; `DESIGN_BRIEF.md`, mimari/kalite rehberleri ve ADR'ler |
+| AI katkısı | `analiz`, `plan`, `kod`, `test`, `inceleme`, `dokümantasyon`: vade/reminder şeması ve idempotent migration; saf takvim/occurrence doğrulaması; borç ve recurring DAO'ları; backup v3 doğrulama, kaynak-hedef eşleme ve exact consumable-pool idempotence; çapraz ajan final denetimi; ADR ve tez kanıtı |
+| İnsan katkısı | Hatırlatıcı ihtiyacını ve aşamalı çalışma tercihini belirledi; Faz 1 kapsamını seçti; gerçek APK/cihaz testi ve sonraki faz kararı insanda kaldı |
+| Karar | `debts.date` nakit-akışı semantiğini korur, opsiyonel `due_date` ayrı tutulur. Kullanıcı tarafından yönetilen düzenli ödeme ayrı tablo/UID kullanır; sıradaki vade tekrar programının gerçek oluşumudur. Backup v3 ilişkileri hedef PK'lerine yeniden eşler, borç durumunu ödemelerden türetir ve yalnız birebir eşleşmeleri atlar. Veri modeli tek başına native scheduler değildir |
+| Değiştirilen ana alanlar | `src/db/{schema,database,debtDao,recurringPaymentReminderDao}.ts`; `src/utils/{inputValidation,recurringSchedule}.ts`; `src/services/backupService.ts`; `src/components/BackupSection.tsx`; TR/EN/AZ/RU locale kaynak/çıktıları; DAO/migration/backup/calendar testleri; `DESIGN_BRIEF.md`, `docs/ARCHITECTURE.md`, ADR-006 ve evidence belgeleri |
+| Otomatik doğrulama | `npm run typecheck` exit 0; odaklı 6/6 suite ve 121/121 test; `npm test -- --ci --runInBand --coverage=false` exit 0, 60/60 suite ve 448/448 test; `git diff --check` exit 0. SQLite trigger davranışı salt-okunur denetimde bellek veritabanıyla doğrulandı; bu bir Android cihaz kanıtı değildir |
+| Cihaz doğrulaması | Bekleniyor: standalone APK temiz kurulum; mevcut v1 marker'lı DB'de v2 trigger uzlaştırması; eski borç DB upgrade'i; invalid CHECK'ler; vendor silmede reminder'ın manuel+bağsız kalması; v1/v2/v3 backup restore ve ikinci import |
+| Son commit/PR | Henüz yok |
+| Nihai insan kabulü | Bekleniyor |
+| Hatalı/yarım AI çıktısı | İlk taslaklarda backup identity yalnız tek `created_at` satırına, UID yalnız biçim-benzeri regex'e ve recurrence yalnız `next>=anchor` kontrolüne dayanıyordu. Final çapraz denetim bunların sessiz merge/self-restore riskini gösterdi; consumable pool, ortak RFC UUID ve occurrence üyeliği ile değiştirildi |
+| Gizlilik incelemesi | Kullanıcı ekran görüntüsü, kişisel mesaj, satıcı/tutar kaydı, secret, credential veya yerel mutlak dosya yolu evidence içine kopyalanmadı; testler genel fixture'larla kuruldu |
+| Retrospektif sınırlama | Oturumun kalıcı platform kimliği ve kesin model build'i kaydedilmedi; yerel komut çıktıları henüz commit/CI artefaktına bağlanmadı |
+| Takip işleri | Faz 2 borç vade/reminder UX'i; Faz 3 kullanıcı tarafından onaylı düzenli ödeme yönetimi; daha sonra feed kuralları, Android scheduler/uzlaştırma ve fiziksel APK kabulü. Faz 5 tamamlanmadan kapalı uygulamaya zamanında teslim garantisi verilmez |
+
+### AI-2026-08-11-DEBT-REMINDER-UX-001
+
+| Alan | Kayıt |
+|---|---|
+| Tarih ve saat dilimi | 2026-08-11 · Europe/Warsaw |
+| İnsan katılımcı/rol | Ürün sahibi ve geliştirici |
+| AI aracı, model ve sürüm | Codex; kesin model/sürüm bu kayıtta doğrulanmadı |
+| Repo/branch/başlangıç commit'i | `main` · `67b8117` |
+| Başlangıç çalışma ağacı | Dirty; aynı insan-onaylı hatırlatıcı çalışmasının henüz commit edilmemiş Faz 1 şema, DAO, backup, test ve belge değişiklikleri vardı ve korundu |
+| İnsan hedefi | Faz 1'in ardından borç son ödeme tarihi ve borç hatırlatma tercihinin profesyonel kullanıcı akışına geçmek |
+| Açık insan onayı | Kullanıcı yalnız Faz 2'ye geçilmesini açıkça onayladı. Düzenli ödeme yönetimi, feed bildirimi, kapalı uygulamayı uyandıran scheduler, commit, push ve yayın yetkisi verilmedi |
+| Kısıtlar ve korunacak alanlar | `debts.date` nakit-akış tarihi olarak kalmalı; vade opsiyonel olmalı; vadesiz hatırlatma açılmamalı; kapanmış borç eski UI ile değiştirilmemeli; aynı SQLite bağlantısında sorgular seri tutulmalı; dört dil ve tema sözleşmesi korunmalı |
+| AI'ya sağlanan kaynaklar | Kullanıcının faz onayı; Faz 1 kodu ve ADR-006; mevcut `DebtSheet`, takvim, DAO, i18n, kalite ve kanıt belgeleri |
+| AI katkısı | `analiz`, `plan`, `kod`, `test`, `inceleme`, `dokümantasyon`: Faz sınırı denetimi; ortak vade/hatırlatma alanı; yeni borçta tek INSERT ve açık borçta tek UPDATE akışı; açık listede vade sunumu; tarih seçici hedef ayrımı ve timezone/ay-sonu güvenliği; erişilebilirlik, dört dil, test ve tez kanıtı |
+| İnsan katkısı | Aşamalı uygulama yöntemini ve Faz 2 başlangıcını seçti; fiziksel APK ve nihai kullanıcı kabulü insanda kaldı |
+| Karar | Vade, borcun işlem tarihinden ayrı ve opsiyoneldir. Hatırlatma yalnız vade varken etkinleşir; vade temizlenince kapanır. Kapanmış/bakiyesiz borçta ayar UPDATE'i başarısız sayılır. Hatırlatma ayarı geri ödemeden ayrı mutasyondur ve bütçe yenilemesi tetiklemez. Faz 2 tercih saklar; geleceğe tarihli native teslim yapmaz |
+| Değiştirilen ana alanlar | `src/components/{DebtSheet,DebtReminderFields,CustomDatePicker}.tsx`; `src/utils/{dateUtils,debtReminder}.ts`; `src/db/debtDao.ts`; TR/EN/AZ/RU locale kaynak/derlenmiş çıktılar; component/DAO/takvim testleri; `DESIGN_BRIEF.md` ve evidence belgeleri |
+| Otomatik doğrulama | `npm run typecheck` exit 0; odaklı 7/7 suite ve 67/67 test; `npm test -- --ci --runInBand --coverage=false` exit 0, 64/64 suite ve 483/483 test; locale parity 11/11; `git diff --check` exit 0 |
+| Cihaz doğrulaması | Bekleniyor: standalone Android'de nested sheet+tarih modalı, işlem/vade/ödeme tarihi ayrımı, klavye, geri/drag, açık-koyu tema, büyük font ve TalkBack. Zamanlı sistem bildirimi bu fazın cihaz kabulü değildir |
+| Son commit/PR | Henüz yok |
+| Nihai insan kabulü | Bekleniyor |
+| Gizlilik incelemesi | Kullanıcı ekran görüntüsü, gerçek borç/tutar/kişi verisi, secret, credential veya yerel mutlak dosya yolu belge ve testlere kopyalanmadı; fixture'lar geneldir |
+| Retrospektif sınırlama | Component testleri native modal kompozisyonunu ve Android dokunma/klavye davranışını kanıtlamaz. Faz 5 scheduler ve uzlaştırma tamamlanmadan kapalı uygulamaya zamanında teslim iddiası kurulamaz |
+| Takip işleri | Faz 3 kullanıcı tarafından yönetilen düzenli ödeme akışı; sonra feed kuralları, native scheduler/ledger/uzlaştırma ve standalone cihaz kabulü |
+
+### AI-2026-08-11-RECURRING-PAYMENT-UX-001
+
+| Alan | Kayıt |
+|---|---|
+| Tarih ve saat dilimi | 2026-08-11 · Europe/Warsaw |
+| İnsan katılımcı/rol | Ürün sahibi ve geliştirici |
+| AI aracı, model ve sürüm | Codex; kesin model/sürüm bu kayıtta doğrulanmadı |
+| Repo/branch/başlangıç commit'i | `main` · `67b8117` |
+| Başlangıç çalışma ağacı | Dirty; insan-onaylı Faz 1–2 reminder değişiklikleri henüz commit edilmemişti ve korundu |
+| İnsan hedefi | Faz 3'te internet/kira gibi düzenli ödemeler için kullanıcı tarafından yönetilen plan akışını kurmak; token tüketimini sınırlı tutmak |
+| Açık insan onayı | Kullanıcı yalnız Faz 3'e geçilmesini onayladı. Feed bildirimi, geleceğe tarihli native scheduler, commit, push ve yayın yetkisi verilmedi |
+| Kısıtlar ve korunacak alanlar | Yerel tahmin kullanıcı onayı olmadan kalıcı plana dönüşmemeli; sorgular seri kalmalı; tekrar programı kanonik occurrence olmalı; dört dil ve tema sözleşmesi korunmalı; UI telefon teslimi vaadi vermemeli |
+| AI katkısı | `analiz`, `plan`, `kod`, `test`, `inceleme`, `dokümantasyon`: mevcut Abonelikler/DAO sınırının tek dar denetimi; ortak plan sheet'i; manuel/detected create, edit, pause/resume/delete; i18n, test ve tez izlenebilirliği |
+| İnsan katkısı | Faz 3 başlangıcını ve düşük token önceliğini belirledi; fiziksel APK ve nihai kabul insanda kaldı |
+| Karar | Onaylı “Ödeme planlarım” ile salt tahmin olan “Algılanan ödemeler” ayrı yüzeylerdir. Algılanan satıcı yalnız formda açık Kaydet ile detected plana dönüşür. Düzenleme program değiştiğinde anchor'ı yeni vadesine taşır; salt metin/tutar değişikliği ay-sonu anchor'ını korur. Pause silme değildir |
+| Değiştirilen ana alanlar | `app/subscriptions.tsx`; `src/components/RecurringPaymentReminderSheet.tsx`; TR/EN/AZ/RU locale kaynak/çıktıları; form regresyon testleri; `DESIGN_BRIEF.md` ve evidence belgeleri |
+| Otomatik doğrulama | `npm run typecheck` exit 0; form/DAO/locale odaklı 3/3 suite ve 32/32 test; `npm test -- --ci --runInBand --coverage=false` exit 0, 65/65 suite ve 487/487 test; `git diff --check` exit 0 |
+| Cihaz doğrulaması | Bekleniyor: standalone Android'de sheet+tarih modalı, klavye, geri/drag, açık-koyu tema, dört dil, büyük font ve tüm CRUD/detected akışı. Telefon zamanlaması Faz 3 cihaz kabulü değildir |
+| Son commit/PR | Henüz yok |
+| Nihai insan kabulü | Bekleniyor |
+| Gizlilik incelemesi | Gerçek kullanıcı ödeme/satıcı/tutarı, ekran görüntüsü, secret, credential veya mutlak yerel yol belge/test fixture'larına kopyalanmadı |
+| Retrospektif sınırlama | Component testleri native modal ve gerçek SQLite'ı mock'lar. Faz 5 scheduler/uzlaştırma tamamlanmadan kapalı uygulamaya zamanında teslim iddiası kurulamaz |
+| Takip işleri | Faz 4 saf feed kuralları; Faz 5 native scheduler/ledger/uzlaştırma; Faz 6 standalone cihaz sertleştirme ve kullanıcı kabulü |
+
+### AI-2026-08-11-REMINDER-FEED-RULES-001
+
+| Alan | Kayıt |
+|---|---|
+| Tarih ve saat dilimi | 2026-08-11 · Europe/Warsaw |
+| İnsan katılımcı/rol | Ürün sahibi ve geliştirici |
+| AI aracı, model ve sürüm | Codex; kesin model/sürüm bu kayıtta doğrulanmadı |
+| Repo/branch/başlangıç commit'i | `main` · `67b8117` |
+| Başlangıç çalışma ağacı | Dirty; insan-onaylı Faz 1–3 reminder değişiklikleri henüz commit edilmemişti ve korundu |
+| İnsan hedefi | Faz 4'te borç vadesi ve açıkça kaydedilmiş ödeme planlarını profesyonel uygulama-içi bildirim kurallarına bağlamak; Faz 2 düzeyindeki kaliteyi ölçülü token kullanımıyla korumak |
+| Açık insan onayı | Kullanıcı yalnız Faz 4'e geçilmesini onayladı. Geleceğe tarihli native scheduler, commit, push ve yayın yetkisi verilmedi |
+| Kısıtlar ve korunacak alanlar | Borç, onaylı plan ve tahmin birbirine karışmamalı; tarih hesabı yerel ve saf olmalı; silinen aynı uyarı geri doğmamalı; stale feed/tepsi kopyaları temizlenmeli; DB sorguları seri kalmalı; dört dil korunmalı; kapalı uygulama teslimi vaat edilmemeli |
+| AI katkısı | `analiz`, `plan`, `kod`, `test`, `inceleme`, `dokümantasyon`: saf reminder kural motoru; deterministik kimlik/fingerprint; feed uzlaştırma ve stale retirement; ayrı filtre/mute kanalları; Android tepsi temizliği; domain mutasyonlarında global yenileme; dört dil, regresyon testleri ve tez izlenebilirliği |
+| İnsan katkısı | Faz 4 başlangıcını, kalite/token dengesini ve kapsam sınırını belirledi; fiziksel APK ve nihai kabul insanda kaldı |
+| Karar | Açık borç “yaklaşıyor/bugün/gecikti” aşamalarını kullanır. Kullanıcı planında ödeme sonucu izlenmediği için geçmiş tarih yalnız tarafsız “planlanan tarih geçti” olarak sunulur. Tahmini abonelik ayrı kanalda kalır ve aynı vendor onaylı plana dönüştüğünde bastırılır. Feed kanoniktir; native geleceğe zamanlama Faz 5'tir |
+| Değiştirilen ana alanlar | `src/notifications/{reminderNotificationRules,reminderNotificationFeed,buildNotifications,presentation,types}.ts`; `src/context/NotificationsContext.tsx`; `app/{notifications,subscriptions}.tsx`; `src/components/DebtSheet.tsx`; TR/EN/AZ/RU locale kaynak/çıktıları; testler; ürün, mimari, ADR ve evidence belgeleri |
+| Otomatik doğrulama | `npm run typecheck` exit 0; `npm test -- --ci --runInBand --coverage=false` exit 0, 69/69 suite ve 547/547 test; locale parity 11/11; `git diff --check` exit 0 |
+| Cihaz doğrulaması | Bekleniyor: standalone Android'de uygulama açık/resume, saat eşiği, borç/plan/tahmin filtre ve mute'ları, settle/pause/reschedule cleanup ve retired tepsi kopyalarının kaldırılması. Kapalı uygulamada geleceğe kesin teslim Faz 5 kabulüdür |
+| Son commit/PR | Henüz yok |
+| Nihai insan kabulü | Bekleniyor |
+| Gizlilik incelemesi | Gerçek kullanıcı borcu, ödeme planı, satıcı/tutarı, ekran görüntüsü, secret, credential veya mutlak yerel yol belge/test fixture'larına kopyalanmadı |
+| Retrospektif sınırlama | Saf Jest ve context mock'ları OS scheduler, süreç ölümü, reboot, timezone değişimi veya fiziksel Android tepsisini kanıtlamaz. `next_due_date` Faz 4'te otomatik ilerletilmez; plan yaşam döngüsü ve native ledger Faz 5'e bırakılmıştır |
+| Takip işleri | Faz 5 native scheduler/ledger/uzlaştırma; Faz 6 standalone cihaz sertleştirme ve kullanıcı kabulü |
+
+### AI-2026-08-11-ANDROID-REMINDER-SCHEDULER-001
+
+| Alan | Kayıt |
+|---|---|
+| Tarih ve saat dilimi | 2026-08-11 · Europe/Warsaw |
+| İnsan katılımcı/rol | Ürün sahibi ve geliştirici |
+| AI aracı, model ve sürüm | Codex; kesin model/sürüm bu kayıtta doğrulanmadı |
+| Repo/branch/başlangıç commit'i | `main` · `67b8117` |
+| Başlangıç çalışma ağacı | Dirty; insan-onaylı Faz 1–4 hatırlatıcı değişiklikleri henüz commit edilmemişti ve korundu |
+| İnsan hedefi | Faz 5'te borç ve düzenli ödeme tercihlerinin, uygulama kapalıyken de Android tarafından gelecekte teslim edilebilecek güvenli alarmlara dönüşmesi; kalitenin korunurken token tüketiminin kontrollü kalması |
+| Açık insan onayı | Kullanıcı yalnız Faz 5'e geçilmesini onayladı. Commit, push, yayın, yeni paket/native modül ve exact-alarm özel erişimi onaylanmadı veya uygulanmadı |
+| Kısıtlar ve korunacak alanlar | Feed kanonik kalmalı; native hata finansal/domain veriyi geri almamalı; aynı SQLite bağlantısı seri kullanılmalı; Expo Go ve reveal kapısı korunmalı; başka native istekler iptal edilmemeli; kişisel/finansal metin uygulama ledger'ına yazılmamalı; exact dakika garantisi verilmemeli |
+| AI'ya sağlanan kaynaklar | İnsan faz onayı ve token sınırı; Faz 1–4 kodu/testleri; Expo SDK 55'in depodaki tip/native uygulaması; `DESIGN_BRIEF`, mimari, kalite rehberi ve ADR-006 |
+| AI katkısı | `analiz`, `plan`, `kod`, `test`, `inceleme`, `dokümantasyon`: SDK 55 trigger/cancel sınırı; saf rolling-horizon üretimi; geçmiş schedule cursor'ı; actual-vs-desired native uzlaştırma; schedule+immediate-delivery baseline'ının ortak transaction'ı ve telafi iptali; mute/dismiss/settle/pause cleanup; reveal-güvenli cold-tap senkronu, sync mutex'i ve fired-tray retry; dört dil; odaklı ve tam regresyon; tez izlenebilirliği |
+| İnsan katkısı | Faz 5 başlangıcını ve ölçülü token kullanımını seçti; yeni izin eklenmemesi ve fiziksel APK/nihai kabul insanda kaldı |
+| Karar | Borç için yaklaşan ve vade-günü alarmı; kullanıcı planı için 400 günlük, plan başına en çok 14 oluşum ve global 512 istek üretilir. Plan cursor'ı ödeme gerçekleşti sayılmadan ilerler. Yalnız SPARK sahiplik prefix'i uzlaştırılır. Future alarm başarıyla kurulunca aynı feed kimliği anlık teslim ledger'ında baseline edilir. Exact-alarm izni istenmez ve teslim dakikası garanti edilmez |
+| Değiştirilen ana alanlar | `src/notifications/{reminderNativeSchedule,reminderNotificationPresentation,storage,buildNotifications}.ts`; `src/services/{reminderScheduler,androidNotificationsSetup}.ts`; `src/context/NotificationsContext.tsx`; `src/db/recurringPaymentReminderDao.ts`; `src/utils/recurringSchedule.ts`; `app/_layout.tsx`; dört dil kaynak/çıktıları; ilgili testler; ürün, mimari, kalite, ADR ve evidence belgeleri |
+| Otomatik doğrulama | `npm run typecheck` exit 0; Faz 5 odaklı `npm test -- --runInBand --coverage=false ...` exit 0, 9/9 suite ve 167/167 test; `npm test -- --ci --runInBand --coverage=false` exit 0, 71/71 suite ve 614/614 test; locale parity odaklı pakete dahil; `git diff --check` exit 0 |
+| Cihaz doğrulaması | Bekleniyor: standalone Android APK'da Android 13+ izin; seçilen saate future DATE alarmı; process-kill; reboot; APK update; Doze/OEM gecikmesi; settle/pause/delete/mute sonrası iptal; warm/cold tap ve tek feed kaydı; timezone değişiminden sonraki resume; force-stop sınırı |
+| Son commit/PR | Henüz yok |
+| Nihai insan kabulü | Bekleniyor; otomatik test sonucu OS teslim kanıtı sayılmadı |
+| Hatalı/yarım AI çıktısı | İlk dar seçenek yalnız tek `next_due_date` alarmını planlayacaktı; bu, aylık internet ödemesini uygulama açılmadan sonraki aylara taşıyamayacağı için kullanılmadı. Bunun yerine sınırlı ve adil rolling horizon seçildi. Exact-alarm izni ve sonsuz tekrar vaadi kapsam dışında bırakıldı |
+| Gizlilik incelemesi | Gerçek borç, satıcı, ödeme/tutar, ekran görüntüsü, secret, credential veya mutlak yerel yol test ve belgeye kopyalanmadı. SQLite schedule ledger'ı yalnız kimlik/revision/zaman metadata'sı taşır; Expo/Android'in uygulamaya özel native deposunda kullanıcıya sunulan title/body bulunabileceği açıkça belgelendi |
+| Retrospektif sınırlama | Jest native API'leri mock'lar; OS alarmı, reboot restore, Doze/OEM gecikmesi, force-stop ve killed-state timezone davranışını kanıtlamaz. OS scheduling ile SQLite tek transaction değildir; telafi iptali ani süreç ölümü penceresini tamamen ortadan kaldırmaz |
+| Takip işleri | Faz 6 standalone Android sertleştirme, fiziksel cihaz kanıtı ve nihai insan kabulü |
+
+### `AI-2026-08-13-RECEIPT-DELETE-NOTIFICATION-001`
+
+| Alan | Kayıt |
+|---|---|
+| Tarih ve saat dilimi | 2026-08-13 · Europe/Warsaw |
+| İnsan hedefi | Silinen bir işlemin saatler önce oluşturulmuş fiş bildiriminin genel refresh sonrasında yeniden “işlem kaydedildi” olarak Android paneline düşmesini engellemek |
+| Açık insan onayı | Kullanıcı hata düzeltmesini istedi; commit, push, APK build veya yayınlama istemedi |
+| Başlangıç çalışma ağacı | Dirty; insan-onaylı Faz 1–5 değişiklikleri korundu |
+| AI katkısı | `analiz`, `kod`, `test`, `dokümantasyon`: işlem–fiş bildirimi yaşam döngüsü ve Android delivery eligibility denetlendi; stale kart emekliliği, tray cleanup kimliği ve eski backlog baseline koruması uygulandı |
+| İnsan katkısı | Gerçek cihazdaki yeniden bildirim semptomunu ekran görüntüsü ve tekrar senaryosuyla bildirdi; nihai APK kabulü insanda kaldı |
+| Karar | Fiş bildirimi bağımsız sonsuz tarihçe değil, mevcut harcamaya bağlı türevdir. Harcama silinince kart stale olur. Native anlık teslim yalnız explicit-created veya iki dakikalık taze kayıt içindir; eski unread backlog başka bir işlem nedeniyle yeniden uyarılmaz |
+| Değiştirilen ana alanlar | `src/notifications/{receiptNotifications,buildNotifications}.ts`; `src/services/androidNotificationsSetup.ts`; ilgili Jest testleri; evidence belgeleri |
+| Otomatik doğrulama | `npm run typecheck` exit 0; odaklı 4/4 suite ve 65/65 test; tam Jest 71/71 suite ve 617/617 test; `git diff --check` exit 0 |
+| Cihaz doğrulaması | Bekleniyor: standalone APK'da eski unread fiş kartı bulunan durumda başka bir taranmış harcamayı silme, app resume ve yeniden başlatma sonrasında eski işlem için yeni tray bildirimi oluşmamalı; silinen işleme bağlı feed kartı kalmamalı |
+| Son commit/PR | Henüz yok |
+| Nihai insan kabulü | Bekleniyor; otomatik test Android panel davranışının fiziksel kanıtı değildir |
+| Gizlilik incelemesi | Kullanıcının ekran görüntüsündeki gerçek satıcı adları veya cihaz bilgileri teste ve belgeye taşınmadı; sentetik kimlikler kullanıldı |
+| Takip işleri | Faz 6 standalone Android cihaz kabulüne bu regresyon senaryosunu eklemek |
+
+### `AI-2026-08-13-SCANNER-VISUAL-REFINEMENT-001`
+
+| Alan | Kayıt |
+|---|---|
+| Tarih ve saat dilimi | 2026-08-13 · Europe/Warsaw |
+| İnsan hedefi | Fiş Tarayıcı girişini eski Android hissi veren büyük ikon/kartlardan arındırıp, sağlanan kapsül referansını SPARK kimliğine uyarlayan modern ve sakin bir açık/koyu tema tasarımına dönüştürmek |
+| Açık insan onayı | Kullanıcı görsel/etkileşim tasarımının uygulanmasını istedi; commit, push, APK build veya yayınlama istemedi |
+| Başlangıç çalışma ağacı | Dirty; insan-onaylı önceki özellik ve hata düzeltmeleri korundu |
+| AI'ya sağlanan kaynaklar | Bir kapsül düğme referans görseli; iki Scanner ekran görüntüsü için verilen yollar yerel dosya sisteminde bulunamadı. Mevcut Scanner kodu ve oturumdaki önceki açık/koyu ekranlar ikincil kanıt olarak kullanıldı |
+| AI katkısı | `analiz`, `tasarım`, `kod`, `test`, `dokümantasyon`: bilgi hiyerarşisi sadeleştirildi; Ionicons outline ailesine geçildi; kamera/galeri için tema-duyarlı ortak kapsül dili, erişilebilir etiketler ve same-frame çift dokunma/yazma guard'ları eklendi; tema ve picker yönlendirme regresyonları yazıldı |
+| İnsan katkısı | Modern, Apple-benzeri fakat amatör olmayan yönü ve kamera/galeri kapsül referansını seçti; görsel APK kabulü insanda kaldı |
+| Karar | Referanstaki web hover/gradient birebir kopyalanmadı. Mobilde tema yüzeyli dış ray + canlı ikon kapsülü, kısa press geri bildirimi ve düz SPARK yeşili kullanıldı; açık temada siyah ray kullanılmadı. Hazır fiş ikonu yerine platformdan bağımsız özel belge-tarama vektörü çizildi. Kaynak seçicileri `susevar` CTA sayılmadı; sonuç ekranındaki Kaydet tek birincil CTA olarak korundu |
+| Değiştirilen ana alanlar | `app/(tabs)/scanner.tsx`; `src/components/__tests__/ScannerScreen.test.tsx`; `DESIGN_BRIEF.md`; evidence belgeleri |
+| Otomatik doğrulama | `npm run typecheck` exit 0; Scanner odaklı Jest 1/1 suite ve 3/3 test; tam Jest 71/71 suite ve 619/619 test; `git diff --check` exit 0 |
+| Cihaz doğrulaması | Bekleniyor: Android development/standalone build'de açık/koyu tema, küçük ekran, büyük font, dört dil, TalkBack; kamera/galeri izin kabul-reddi, picker iptali, hızlı çift dokunma ve sonuç Kaydet/Düzenle akışları |
+| Son commit/PR | Henüz yok |
+| Nihai insan kabulü | Bekleniyor; otomatik test görsel kalite veya native picker kanıtı değildir |
+| Gizlilik incelemesi | Kullanıcı ekran görüntülerindeki gerçek finansal içerik belge/test fixture'ına taşınmadı; mutlak attachment yolu belgeye yazılmadı |
+| Retrospektif sınırlama | İki açık/koyu ekran görüntüsü belirtilen konumda bulunamadığı için doğrudan piksel karşılaştırması yapılamadı. Referansın gradient/hover davranışı mobil-native etkileşime uygun olmadığı için bilinçli olarak uygulanmadı |
+| Takip işleri | İnsan görsel incelemesi sonrası gerekirse yalnız spacing/optik ağırlık rötuşu; APK öncesi cihaz kabul matrisine Scanner senaryolarını eklemek |
 
 ## 5. Yeni kayıt ekleme şablonu
 

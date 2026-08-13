@@ -15,6 +15,22 @@ import { Colors } from '../theme/colors';
 import { Typography, FontFamily } from '../theme/typography';
 import { Spacing, BorderRadius } from '../theme/spacing';
 import { useLanguage } from '../i18n/LanguageContext';
+import { parseLocalYYYYMMDD } from '../utils/dateUtils';
+
+const MIN_YEAR = 2000;
+const MAX_YEAR = 2100;
+
+function getPickerInitialDate(value: string): Date {
+  const parsed = parseLocalYYYYMMDD(value);
+  if (
+    parsed &&
+    parsed.getFullYear() >= MIN_YEAR &&
+    parsed.getFullYear() <= MAX_YEAR
+  ) {
+    return parsed;
+  }
+  return new Date();
+}
 
 interface CustomDatePickerProps {
   visible: boolean;
@@ -32,20 +48,25 @@ export default function CustomDatePicker({
   const { t } = useLanguage();
   const scheme = useAppTheme();
   const isDark = scheme === 'dark';
-  const [currentDate, setCurrentDate] = useState(new Date());
+  const [currentDate, setCurrentDate] = useState(() => getPickerInitialDate(initialDate));
   const [showYearPicker, setShowYearPicker] = useState(false);
 
   useLayoutEffect(() => {
-    if (visible && initialDate) {
-      setCurrentDate(new Date(initialDate));
+    if (visible) {
+      setCurrentDate(getPickerInitialDate(initialDate));
       setShowYearPicker(false);
     }
   }, [visible, initialDate]);
 
   const changeMonth = (delta: number) => {
-    const newDate = new Date(currentDate);
-    newDate.setMonth(newDate.getMonth() + delta);
-    setCurrentDate(newDate);
+    const absoluteMonth = currentDate.getMonth() + delta;
+    const targetYear = currentDate.getFullYear() + Math.floor(absoluteMonth / 12);
+    const targetMonth = ((absoluteMonth % 12) + 12) % 12;
+
+    if (targetYear < MIN_YEAR || targetYear > MAX_YEAR) return;
+
+    // Görüntülenen ayın gününü 1'e sabitlemek 29–31 kaynaklı ay taşmasını önler.
+    setCurrentDate(new Date(targetYear, targetMonth, 1));
   };
 
   const selectDay = (day: number) => {
@@ -73,6 +94,8 @@ export default function CustomDatePicker({
 
   const year = currentDate.getFullYear();
   const month = currentDate.getMonth();
+  const canGoPrevious = year > MIN_YEAR || month > 0;
+  const canGoNext = year < MAX_YEAR || month < 11;
   const daysInMonth = getDaysInMonth(year, month);
   const firstDay = getFirstDayOfMonth(year, month);
 
@@ -273,19 +296,45 @@ export default function CustomDatePicker({
       navigationBarTranslucent
       onRequestClose={onClose}
     >
-      <Pressable style={styles.overlay} onPress={onClose}>
-        <Pressable style={[styles.modal, { backgroundColor: modalBg }]} onPress={() => {}}>
+      <Pressable style={styles.overlay} onPress={onClose} accessible={false}>
+        <Pressable
+          style={[styles.modal, { backgroundColor: modalBg }]}
+          onPress={() => {}}
+          accessible={false}
+        >
 
           {/* Header with month navigation */}
           <View style={styles.header}>
-            <Pressable onPress={() => changeMonth(-1)} style={styles.arrowBtn} hitSlop={12}>
+            <Pressable
+              onPress={() => changeMonth(-1)}
+              style={[styles.arrowBtn, !canGoPrevious && { opacity: 0.35 }]}
+              hitSlop={12}
+              disabled={!canGoPrevious}
+              accessibilityRole="button"
+              accessibilityLabel={t('calendar_previous_month')}
+              accessibilityState={{ disabled: !canGoPrevious }}
+            >
               <MaterialCommunityIcons name="chevron-left" size={26} color={Colors.textSecondary} />
             </Pressable>
-            <Pressable onPress={() => setShowYearPicker(!showYearPicker)} style={styles.monthBtn}>
+            <Pressable
+              onPress={() => setShowYearPicker(!showYearPicker)}
+              style={styles.monthBtn}
+              accessibilityRole="button"
+              accessibilityLabel={`${t('calendar_select_year')}: ${year}`}
+              accessibilityState={{ expanded: showYearPicker }}
+            >
               <Text style={styles.monthText}>{monthNames[month]} {year}</Text>
               <MaterialCommunityIcons name={showYearPicker ? 'chevron-up' : 'chevron-down'} size={18} color={Colors.primary} />
             </Pressable>
-            <Pressable onPress={() => changeMonth(1)} style={styles.arrowBtn} hitSlop={12}>
+            <Pressable
+              onPress={() => changeMonth(1)}
+              style={[styles.arrowBtn, !canGoNext && { opacity: 0.35 }]}
+              hitSlop={12}
+              disabled={!canGoNext}
+              accessibilityRole="button"
+              accessibilityLabel={t('calendar_next_month')}
+              accessibilityState={{ disabled: !canGoNext }}
+            >
               <MaterialCommunityIcons name="chevron-right" size={26} color={Colors.textSecondary} />
             </Pressable>
           </View>
@@ -293,16 +342,17 @@ export default function CustomDatePicker({
           {showYearPicker ? (
             <View style={styles.yearContainer}>
               <ScrollView showsVerticalScrollIndicator={false}>
-                {Array.from({ length: 40 }, (_, i) => new Date().getFullYear() - 20 + i).map(y => (
+                {Array.from({ length: MAX_YEAR - MIN_YEAR + 1 }, (_, i) => MIN_YEAR + i).map(y => (
                   <Pressable 
                     key={y} 
                     style={[styles.yearItem, y === year && { backgroundColor: Colors.primary + '18' }]}
                     onPress={() => {
-                      const newDate = new Date(currentDate);
-                      newDate.setFullYear(y);
-                      setCurrentDate(newDate);
+                      setCurrentDate(new Date(y, month, 1));
                       setShowYearPicker(false);
                     }}
+                    accessibilityRole="button"
+                    accessibilityLabel={String(y)}
+                    accessibilityState={{ selected: y === year }}
                   >
                     <Text style={[styles.yearText, y === year && { color: Colors.primary, fontFamily: FontFamily.bold }]}>{y}</Text>
                   </Pressable>
@@ -328,6 +378,9 @@ export default function CustomDatePicker({
                        key={day}
                        onPress={() => selectDay(day)}
                        style={styles.dayBox}
+                       accessibilityRole="button"
+                       accessibilityLabel={`${day} ${monthNames[month]} ${year}`}
+                       accessibilityState={{ selected }}
                      >
                        {({ pressed }) => (
                          <View
@@ -359,11 +412,21 @@ export default function CustomDatePicker({
 
           {/* Footer */}
           <View style={styles.footer}>
-            <Pressable onPress={setToday} style={styles.todayBtn}>
+            <Pressable
+              onPress={setToday}
+              style={styles.todayBtn}
+              accessibilityRole="button"
+              accessibilityLabel={t('today')}
+            >
               <MaterialCommunityIcons name="calendar-today" size={18} color={Colors.primary} />
               <Text style={styles.todayText}>{t('today')}</Text>
             </Pressable>
-            <Pressable onPress={onClose} style={styles.closeBtn}>
+            <Pressable
+              onPress={onClose}
+              style={styles.closeBtn}
+              accessibilityRole="button"
+              accessibilityLabel={t('close')}
+            >
                <Text style={styles.closeText}>{t('close')}</Text>
             </Pressable>
           </View>

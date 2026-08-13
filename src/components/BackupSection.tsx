@@ -157,24 +157,25 @@ export default function BackupSection() {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       const res = await exportBackupToFile({ start: startDate, end: endDate });
       // Boş aralıkta dahi metaveriyi kaydetmiyoruz; "son yedek" gerçek bir
-      // veri içeren ve cihazda kalıcı olan kaydı temsil etmeli.
-      if (res.expenseCount > 0 && (res.destination === 'saved' || res.destination === 'shared')) {
+      // finansal kayıt veya kullanıcı hatırlatıcısı içeren ve cihazda kalıcı
+      // olan kaydı temsil etmeli.
+      if (res.recordCount > 0 && (res.destination === 'saved' || res.destination === 'shared')) {
         await recordBackupSuccess({
-          expenseCount: res.expenseCount,
+          expenseCount: res.recordCount,
           itemCount: res.itemCount,
           rangeStart: startDate,
           rangeEnd: endDate,
         });
         setMeta(await loadBackupMeta());
       }
-      if (res.expenseCount === 0) {
+      if (res.recordCount === 0) {
         SparkToast.show(t('backup_export_empty_title'), 'warning', t('backup_export_empty_desc'));
       } else if (res.destination === 'saved') {
         SparkToast.show(
           t('backup_export_saved_title'),
           'success',
           t('backup_export_saved_desc', {
-            count: res.expenseCount.toString(),
+            count: res.recordCount.toString(),
             items: res.itemCount.toString(),
           })
         );
@@ -183,7 +184,7 @@ export default function BackupSection() {
           t('backup_export_success_title'),
           'success',
           t('backup_export_save_hint', {
-            count: res.expenseCount.toString(),
+            count: res.recordCount.toString(),
             items: res.itemCount.toString(),
           })
         );
@@ -213,14 +214,18 @@ export default function BackupSection() {
         return;
       }
       const s: ImportSummary = res.summary;
+      const added = s.expensesAdded + s.debtsAdded + s.debtPaymentsAdded
+        + s.extraIncomesAdded + s.remindersAdded;
+      const skipped = s.expensesSkipped + s.debtsSkipped + s.debtPaymentsSkipped
+        + s.extraIncomesSkipped + s.remindersSkipped;
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       triggerRefresh();
       SparkToast.show(
         t('backup_import_success_title'),
         'success',
         t('backup_import_success_desc', {
-          added: s.expensesAdded.toString(),
-          skipped: s.expensesSkipped.toString(),
+          added: added.toString(),
+          skipped: skipped.toString(),
         })
       );
     } catch (e: any) {

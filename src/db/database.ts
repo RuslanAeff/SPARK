@@ -1,10 +1,90 @@
 // S.P.A.R.K. — Database Initialization
 import * as SQLite from 'expo-sqlite';
-import { CREATE_TABLES_SQL, DEFAULT_CATEGORIES } from './schema';
+import {
+  CREATE_TABLES_SQL,
+  DEFAULT_CATEGORIES,
+  PAYMENT_REMINDERS_SCHEMA_SQL,
+} from './schema';
 
 let db: SQLite.SQLiteDatabase | null = null;
 let initPromise: Promise<SQLite.SQLiteDatabase> | null = null;
 const RECEIPT_MONEY_PRECISION_MIGRATION = 'migration_receipt_money_precision_v1';
+export const PAYMENT_REMINDERS_MIGRATION = 'migration_payment_reminders_v1';
+export const PAYMENT_REMINDER_VENDOR_DETACH_MIGRATION =
+  'migration_payment_reminder_vendor_detach_v2';
+
+interface SqliteTableInfoRow {
+  name: string;
+}
+
+/**
+ * Mevcut borç tablosunu vade alanlarıyla genişletir ve düzenli ödeme
+ * hatırlatıcılarını kurar. Kolon keşfi, yarıda kalmış eski bir denemeyi de
+ * güvenle tamamlar; marker yalnız bütün DDL başarıyla bittikten sonra yazılır.
+ */
+export async function migratePaymentRemindersOnce(
+  database: SQLite.SQLiteDatabase,
+): Promise<void> {
+  const applied = await database.getFirstAsync<{ value: string }>(
+    'SELECT value FROM settings WHERE key = ?',
+    [PAYMENT_REMINDERS_MIGRATION],
+  );
+  const detachApplied = await database.getFirstAsync<{ value: string }>(
+    'SELECT value FROM settings WHERE key = ?',
+    [PAYMENT_REMINDER_VENDOR_DETACH_MIGRATION],
+  );
+  if (applied?.value === '1' && detachApplied?.value === '1') return;
+
+  const columns = applied?.value === '1'
+    ? []
+    : await database.getAllAsync<SqliteTableInfoRow>('PRAGMA table_info(debts);');
+  const existingColumns = new Set(columns.map((column) => column.name));
+  const missingColumnSql: Array<[string, string]> = [
+    ['due_date', 'ALTER TABLE debts ADD COLUMN due_date TEXT;'],
+    [
+      'reminder_enabled',
+      `ALTER TABLE debts ADD COLUMN reminder_enabled INTEGER NOT NULL DEFAULT 0 CHECK(
+        reminder_enabled IN (0, 1)
+        AND (reminder_enabled = 0 OR due_date IS NOT NULL)
+      );`,
+    ],
+    [
+      'reminder_days_before',
+      'ALTER TABLE debts ADD COLUMN reminder_days_before INTEGER NOT NULL DEFAULT 3 CHECK(reminder_days_before BETWEEN 0 AND 365);',
+    ],
+    [
+      'reminder_time',
+      `ALTER TABLE debts ADD COLUMN reminder_time TEXT NOT NULL DEFAULT '09:00' CHECK(
+        length(reminder_time) = 5
+        AND substr(reminder_time, 3, 1) = ':'
+        AND substr(reminder_time, 1, 2) GLOB '[0-2][0-9]'
+        AND CAST(substr(reminder_time, 1, 2) AS INTEGER) BETWEEN 0 AND 23
+        AND substr(reminder_time, 4, 2) GLOB '[0-5][0-9]'
+      );`,
+    ],
+  ];
+
+  await database.withTransactionAsync(async () => {
+    if (applied?.value !== '1') {
+      for (const [columnName, sql] of missingColumnSql) {
+        if (!existingColumns.has(columnName)) {
+          await database.execAsync(sql);
+        }
+      }
+    }
+    await database.execAsync(PAYMENT_REMINDERS_SCHEMA_SQL);
+    if (applied?.value !== '1') {
+      await database.runAsync(
+        'INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)',
+        [PAYMENT_REMINDERS_MIGRATION, '1'],
+      );
+    }
+    await database.runAsync(
+      'INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)',
+      [PAYMENT_REMINDER_VENDOR_DETACH_MIGRATION, '1'],
+    );
+  });
+}
 
 /**
  * Eski REAL kayıtlarındaki binary float artıklarını bir kez kanonik para
@@ -64,6 +144,7 @@ export async function getDatabase(): Promise<SQLite.SQLiteDatabase> {
       if (__DEV__) console.warn('[DB] integrity check error', e);
     }
     await instance.execAsync(CREATE_TABLES_SQL);
+    await migratePaymentRemindersOnce(instance);
     try {
       await instance.execAsync('ALTER TABLE expense_items ADD COLUMN turkish_name TEXT;');
     } catch (_) {
@@ -160,6 +241,19 @@ export async function getDatabase(): Promise<SQLite.SQLiteDatabase> {
           currency          TEXT NOT NULL DEFAULT 'PLN',
           date              TEXT NOT NULL,
           status            TEXT NOT NULL DEFAULT 'open',
+          due_date          TEXT,
+          reminder_enabled  INTEGER NOT NULL DEFAULT 0 CHECK(
+            reminder_enabled IN (0, 1)
+            AND (reminder_enabled = 0 OR due_date IS NOT NULL)
+          ),
+          reminder_days_before INTEGER NOT NULL DEFAULT 3 CHECK(reminder_days_before BETWEEN 0 AND 365),
+          reminder_time     TEXT NOT NULL DEFAULT '09:00' CHECK(
+            length(reminder_time) = 5
+            AND substr(reminder_time, 3, 1) = ':'
+            AND substr(reminder_time, 1, 2) GLOB '[0-2][0-9]'
+            AND CAST(substr(reminder_time, 1, 2) AS INTEGER) BETWEEN 0 AND 23
+            AND substr(reminder_time, 4, 2) GLOB '[0-5][0-9]'
+          ),
           linked_expense_id INTEGER REFERENCES expenses(id) ON DELETE SET NULL,
           note              TEXT,
           created_at        TEXT NOT NULL

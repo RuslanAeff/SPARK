@@ -1,6 +1,10 @@
 // S.P.A.R.K. — Merkezi Girdi Doğrulama
 // Tüm DAO ve servisler tarafından kullanılacak güvenlik katmanı.
 import { roundMoney, roundUnitRate } from './moneyMath';
+import { isValidYmd } from './recurringSchedule';
+
+const CANONICAL_UUID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 function coerceNumericInput(value: unknown): number {
   if (typeof value === 'number') return value;
@@ -49,17 +53,25 @@ export function sanitizeText(value: unknown, maxLen: number = 500): string {
   return s;
 }
 
-/** Tarih doğrulama: geçerli YYYY-MM-DD formatı kontrolü. */
+/** Kalıcı uygulama verisi için desteklenen kanonik tarih aralığı. */
+export function isSupportedYmd(value: unknown): value is string {
+  if (typeof value !== 'string' || !isValidYmd(value)) return false;
+  const year = Number(value.slice(0, 4));
+  return year >= 2000 && year <= 2100;
+}
+
+/** Tarih doğrulama: gerçek YYYY-MM-DD ve desteklenen yıl aralığı kontrolü. */
 export function sanitizeDate(value: unknown): string | null {
   if (typeof value !== 'string') return null;
   const s = value.trim();
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return null;
-  const d = new Date(s + 'T12:00:00Z');
-  if (isNaN(d.getTime())) return null;
-  // Yılın makul aralıkta olduğunu kontrol et
-  const year = d.getFullYear();
-  if (year < 2000 || year > 2100) return null;
-  return s;
+  return isSupportedYmd(s) ? s : null;
+}
+
+/** RFC 4122 v1-v5 UUID'yi kalıcı karşılaştırmalar için küçük harfe indirger. */
+export function normalizeCanonicalUuid(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  const normalized = value.trim().toLowerCase();
+  return CANONICAL_UUID_PATTERN.test(normalized) ? normalized : null;
 }
 
 /**

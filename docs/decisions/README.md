@@ -21,6 +21,7 @@ Bir kararı değiştirirken eski ADR sessizce yeniden yazılmaz. Yeni ADR oluşt
 | [ADR-003](ADR-003-financial-cash-flow-domain.md) | Accepted · retrospective | Harcama, borç, borç ödemesi, ek gelir, bütçe döngüsü | Tüketim ile nakit akışının karışmasını ve silinen kaydın etkisinin kalmasını engeller. |
 | [ADR-004](ADR-004-receipt-total-integrity.md) | Accepted · retrospective | Gemini fişi, header/items transaction'ı, edit semantiği | AI eksik kalem çıkarsa bile gerçek ödenen toplamı korur. |
 | [ADR-005](ADR-005-generated-locale-sources.md) | Accepted · retrospective | TR/EN/AZ/RU sözlükleri ve üretim akışı | Üretilmiş locale dosyalarındaki sessiz çeviri kaybını önler. |
+| [ADR-006](ADR-006-reminder-domain-and-delivery-boundaries.md) | Accepted · prospective | Borç vadesi, kullanıcı hatırlatıcıları, takvim kuralları ve teslim sınırı | Türetilmiş abonelik tahmini ile kullanıcı taahhüdünün karışmasını ve kapalı-uygulama tesliminin erken vaat edilmesini engeller. |
 
 ## ADR ekleme kontrol listesi
 
@@ -29,4 +30,3 @@ Bir kararı değiştirirken eski ADR sessizce yeniden yazılmaz. Yeni ADR oluşt
 3. Özgün karar sonradan kayda geçiriliyorsa `retrospective` yaz; bilinmeyen tarih veya commit üretme.
 4. Kaynak kod, test ve ilgili rehber yollarını kanıt olarak ekle.
 5. Uygulama davranışını değiştiren ADR ile kod/test değişikliklerini aynı çalışma kapsamında doğrula.
-

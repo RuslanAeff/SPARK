@@ -5,7 +5,30 @@ import {
   getDaysInMonth,
   isToday,
   getToday,
+  parseLocalYYYYMMDD,
+  formatDateFull,
 } from '../dateUtils';
+
+describe('parseLocalYYYYMMDD', () => {
+  it('kanonik tarihi UTC yerine yerel takvim parçalarıyla oluşturur', () => {
+    const parsed = parseLocalYYYYMMDD('2026-01-31');
+
+    expect(parsed).not.toBeNull();
+    expect(parsed?.getTime()).toBe(new Date(2026, 0, 31).getTime());
+    expect(parsed?.getHours()).toBe(0);
+  });
+
+  it('geçersiz veya kanonik olmayan tarihleri başka güne taşımaz', () => {
+    expect(parseLocalYYYYMMDD('2026-02-29')).toBeNull();
+    expect(parseLocalYYYYMMDD('2026-13-01')).toBeNull();
+    expect(parseLocalYYYYMMDD('31.01.2026')).toBeNull();
+  });
+
+  it('kanonik tarihi yerel gün kayması olmadan biçimlendirir', () => {
+    const t = (key: string) => key;
+    expect(formatDateFull('2026-01-31', t)).toBe('31 month_01 2026');
+  });
+});
 
 describe('normalizeToYYYYMMDD', () => {
   it('zaten YYYY-MM-DD ise olduğu gibi döner', () => {
@@ -23,6 +46,8 @@ describe('normalizeToYYYYMMDD', () => {
   it('boş/geçersiz girdi bugüne fallback', () => {
     expect(normalizeToYYYYMMDD('')).toBe(getToday());
     expect(normalizeToYYYYMMDD('abc')).toBe(getToday());
+    expect(normalizeToYYYYMMDD('2026-02-29')).toBe(getToday());
+    expect(normalizeToYYYYMMDD('31.02.2026')).toBe(getToday());
   });
 });
 

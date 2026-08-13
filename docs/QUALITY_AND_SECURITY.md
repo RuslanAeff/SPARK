@@ -56,7 +56,7 @@ Değişiklik aşağıdaki alanlara dokunuyorsa development build veya APK smoke 
 
 Sıcak navigasyonun yanında cold start da test edilmelidir. Expo Go her native açılış yüzeyini yeniden üretmediğinden startup görsel düzeltmeleri standalone build içinde doğrulanmalıdır.
 
-Android sistem bildirimi değişikliklerinin APK smoke testi en az şu senaryoları kaydetmelidir: cold start sırasında reveal tamamlanmadan izin yüzeyi açılmaması; Android 13+ izin akışı; sessiz güncelleme ve dikkat gerektiren uyarı kanallarının önem/ses/titreşim farkı; kilit ekranında özel içerik görünürlüğü; resume ve yeniden başlatmada çift teslim olmaması; uygulama içi silmenin tray kopyasını kaldırması; warm/cold dokunuşun doğru kaydı okuyup Bildirimler'e yönlendirmesi. Expo Go sonucu bu davranışlar için cihaz kanıtı sayılmaz.
+Android sistem bildirimi değişikliklerinin APK smoke testi en az şu senaryoları kaydetmelidir: cold start sırasında reveal tamamlanmadan izin yüzeyi açılmaması; Android 13+ izin akışı; sessiz güncelleme ve dikkat gerektiren uyarı kanallarının önem/ses/titreşim farkı; kilit ekranında özel içerik görünürlüğü; resume ve yeniden başlatmada çift teslim olmaması; uygulama içi silmenin tray kopyasını kaldırması; warm/cold dokunuşun doğru kaydı okuyup Bildirimler'e yönlendirmesi. Geleceğe tarihli hatırlatıcılarda ayrıca seçilen saate planlama, settle/pause/delete/mute sonrası iptal, cold tap ile feed'e tek kayıt, process-kill, reboot, APK update, saat-dilimi değişiminden sonraki resume uzlaştırması ve Doze/OEM gecikmesi kaydedilmelidir. Force-stop sınırı ayrıca raporlanmalıdır. Expo Go sonucu bu davranışlar için cihaz kanıtı sayılmaz.
 
 ## Güvenlik modeli
 
@@ -129,6 +129,17 @@ Bildirim kurulumu Android sürüm davranışını ve Expo Go sınırlamalarını
 Feed, okuma, mute, dismissal ve özel kural durumu birden fazla UI ve refresh yolundan güncellenebilir. Bu değişiklikleri ortak serileştirilmiş mutasyon mekanizması üzerinden kalıcılaştırın. Toplu işlemler tek atomik depolama değişikliği yapmalıdır; paralel tekli işlemlerden birleştirilmemelidir.
 
 Native teslim başarısızlığı uygulama içi feed'in kalıcılığını geri almamalıdır. Tekrar teslimi önleyen ledger sınırlı ve idempotent olmalı; yalnız feed/native kimlikleri ile zaman damgalarını taşımalı, bildirim metni veya finansal veri saklamamalıdır. Başarılı teslim ledger'a yazılır; başarısız teslim sonraki resume/senkronizasyonda güvenle yeniden denenebilir. İlk native aktivasyon, eski feed kayıtlarını topluca sistem bildirimi olarak canlandırmamalıdır. Planlama öncesi kanonik feed `id/read/revision` kontrolü yapılmalı; schedule başarılıyken ledger yazımı başarısız olursa native side-effect geri alınarak retry hazırlanmalıdır. OS scheduling ile SQLite arasında mutlak atomiklik varsaymayın; ani süreç ölümü penceresini fiziksel APK'da tekrar-teslim senaryosuyla ayrıca kaydedin.
+
+Geleceğe tarihli alarm uzlaştırması yalnız uygulamaya ait kimlik prefix'ini
+yönetmeli; `cancelAll` kullanmamalı ve gerçek OS planlarını kanonik isteklerle
+karşılaştırmalıdır. İptal edilmemiş future alarm ile daha önce sunulmuş tray
+kopyası aynı şey değildir: future için cancel, sunulmuş kayıt için dismiss API'si
+kullanılır. Uygulamanın SQLite schedule ledger'ı yalnız PII içermeyen kimlik,
+revision ve zaman bilgisi taşır; ancak Expo/Android'in uygulamaya özel native
+deposunda alarm başlık/gövdesi bulunabilir. Dokümantasyon bu iki depoyu
+birbirine karıştırmamalıdır. Exact-alarm özel erişimi yokken tam dakika garantisi
+verilmez; Doze/OEM, force-stop ve uygulama kapalıyken saat-dilimi değişikliği
+fiziksel cihaz kabulünde açık sınırlama olarak raporlanır.
 
 ## Güvenilirlik gereksinimleri
 

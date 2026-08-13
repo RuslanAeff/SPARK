@@ -112,6 +112,19 @@ export const CREATE_TABLES_SQL = `
     currency          TEXT NOT NULL DEFAULT 'PLN',
     date              TEXT NOT NULL,                       -- YYYY-MM-DD (döngü bundan hesaplanır)
     status            TEXT NOT NULL DEFAULT 'open',        -- 'open' | 'settled'
+    due_date          TEXT,
+    reminder_enabled  INTEGER NOT NULL DEFAULT 0 CHECK(
+      reminder_enabled IN (0, 1)
+      AND (reminder_enabled = 0 OR due_date IS NOT NULL)
+    ),
+    reminder_days_before INTEGER NOT NULL DEFAULT 3 CHECK(reminder_days_before BETWEEN 0 AND 365),
+    reminder_time     TEXT NOT NULL DEFAULT '09:00' CHECK(
+      length(reminder_time) = 5
+      AND substr(reminder_time, 3, 1) = ':'
+      AND substr(reminder_time, 1, 2) GLOB '[0-2][0-9]'
+      AND CAST(substr(reminder_time, 1, 2) AS INTEGER) BETWEEN 0 AND 23
+      AND substr(reminder_time, 4, 2) GLOB '[0-5][0-9]'
+    ),
     linked_expense_id INTEGER REFERENCES expenses(id) ON DELETE SET NULL,
     note              TEXT,
     created_at        TEXT NOT NULL
@@ -139,6 +152,68 @@ export const CREATE_TABLES_SQL = `
     created_at  TEXT NOT NULL
   );
   CREATE INDEX IF NOT EXISTS idx_extra_incomes_date ON extra_incomes(date);
+`;
+
+/**
+ * Borç vadesi indeksini ve kullanıcı tarafından onaylanmış düzenli ödeme
+ * hatırlatıcılarını kurar. Bu SQL, eski `debts` tablolarına kolonlar eklendikten
+ * sonra çalıştırılmalıdır; bu yüzden CREATE_TABLES_SQL içine gömülmez.
+ */
+export const PAYMENT_REMINDERS_SCHEMA_SQL = `
+  CREATE TABLE IF NOT EXISTS recurring_payment_reminders (
+    id                    INTEGER PRIMARY KEY AUTOINCREMENT,
+    uid                   TEXT NOT NULL UNIQUE,
+    title                 TEXT NOT NULL,
+    vendor_id             INTEGER REFERENCES vendors(id) ON DELETE SET NULL,
+    expected_amount       REAL CHECK(expected_amount IS NULL OR expected_amount >= 0),
+    currency              TEXT NOT NULL DEFAULT 'PLN',
+    anchor_date           TEXT NOT NULL,
+    next_due_date         TEXT NOT NULL CHECK(next_due_date >= anchor_date),
+    recurrence_unit       TEXT NOT NULL CHECK(recurrence_unit IN ('day', 'week', 'month', 'year')),
+    recurrence_interval   INTEGER NOT NULL DEFAULT 1 CHECK(recurrence_interval BETWEEN 1 AND 999),
+    reminder_days_before  INTEGER NOT NULL DEFAULT 3 CHECK(reminder_days_before BETWEEN 0 AND 365),
+    reminder_time         TEXT NOT NULL DEFAULT '09:00' CHECK(
+      length(reminder_time) = 5
+      AND substr(reminder_time, 3, 1) = ':'
+      AND substr(reminder_time, 1, 2) GLOB '[0-2][0-9]'
+      AND CAST(substr(reminder_time, 1, 2) AS INTEGER) BETWEEN 0 AND 23
+      AND substr(reminder_time, 4, 2) GLOB '[0-5][0-9]'
+    ),
+    status                TEXT NOT NULL DEFAULT 'active' CHECK(status IN ('active', 'paused')),
+    source                TEXT NOT NULL DEFAULT 'manual' CHECK(
+      source IN ('manual', 'detected')
+      AND (source != 'detected' OR vendor_id IS NOT NULL)
+    ),
+    note                  TEXT,
+    created_at            TEXT NOT NULL,
+    updated_at            TEXT NOT NULL
+  );
+
+  -- Kullanıcı satıcı kaydını sildiğinde onaylanmış bir hatırlatıcı sessizce
+  -- kaybolmaz. FK vendor_id'yi NULL yapmadan önce kaynak "manual" olarak
+  -- ayrıştırılır; böylece detected=>vendor değişmezi ve ON DELETE SET NULL
+  -- birlikte güvenle çalışır.
+  CREATE TRIGGER IF NOT EXISTS trg_recurring_reminder_vendor_detach
+    BEFORE DELETE ON vendors
+    FOR EACH ROW
+  BEGIN
+    UPDATE recurring_payment_reminders
+       SET source = 'manual',
+           updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+     WHERE vendor_id = OLD.id AND source = 'detected';
+  END;
+
+  CREATE INDEX IF NOT EXISTS idx_recurring_payment_reminders_due
+    ON recurring_payment_reminders(next_due_date)
+    WHERE status = 'active';
+  CREATE INDEX IF NOT EXISTS idx_recurring_payment_reminders_vendor
+    ON recurring_payment_reminders(vendor_id);
+  CREATE UNIQUE INDEX IF NOT EXISTS idx_recurring_payment_reminders_detected_vendor
+    ON recurring_payment_reminders(vendor_id)
+    WHERE source = 'detected' AND vendor_id IS NOT NULL;
+  CREATE INDEX IF NOT EXISTS idx_debts_open_reminder_due
+    ON debts(due_date)
+    WHERE status = 'open' AND reminder_enabled = 1 AND due_date IS NOT NULL;
 `;
 
 export const DEFAULT_CATEGORIES = [
@@ -303,6 +378,12 @@ export interface Debt {
   /** YYYY-MM-DD; borcun düştüğü bütçe döngüsü bu tarihten hesaplanır. */
   date: string;
   status: 'open' | 'settled';
+  /** Opsiyonel vade tarihi; YYYY-MM-DD. */
+  due_date: string | null;
+  reminder_enabled: 0 | 1;
+  reminder_days_before: number;
+  /** Cihazın yerel saatinde HH:MM. */
+  reminder_time: string;
   /** Borcun karşıladığı fişe opsiyonel bağ (fiş silinirse SET NULL). */
   linked_expense_id: number | null;
   note: string | null;
@@ -317,6 +398,35 @@ export interface DebtPayment {
   /** YYYY-MM-DD; ödemenin düştüğü bütçe döngüsü bu tarihten hesaplanır. */
   date: string;
   created_at: string;
+}
+
+export type ReminderRecurrenceUnit = 'day' | 'week' | 'month' | 'year';
+export type RecurringPaymentReminderStatus = 'active' | 'paused';
+export type RecurringPaymentReminderSource = 'manual' | 'detected';
+
+/** Kullanıcı tarafından onaylanmış düzenli ödeme hatırlatıcısı. */
+export interface RecurringPaymentReminder {
+  id: number;
+  /** Backup/import boyunca değişmeyen uygulama kimliği. */
+  uid: string;
+  title: string;
+  vendor_id: number | null;
+  expected_amount: number | null;
+  currency: string;
+  /** Ay sonu kaymasını engelleyen değişmez tekrar başlangıcı; YYYY-MM-DD. */
+  anchor_date: string;
+  /** Sıradaki somut oluşum; YYYY-MM-DD. */
+  next_due_date: string;
+  recurrence_unit: ReminderRecurrenceUnit;
+  recurrence_interval: number;
+  reminder_days_before: number;
+  /** Cihazın yerel saatinde HH:MM. */
+  reminder_time: string;
+  status: RecurringPaymentReminderStatus;
+  source: RecurringPaymentReminderSource;
+  note: string | null;
+  created_at: string;
+  updated_at: string;
 }
 
 /** Ek Gelir — bütçe dışı, harcanabilir tutarı ARTIRAN nakit girişi (banka bonusu,

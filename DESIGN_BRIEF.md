@@ -72,6 +72,7 @@ Temel ihtiyaçlar:
 | Borç | Alınan borcu, kalan bakiyeyi ve kısmi/tam ödeme geçmişini harcamadan ayrı tutar |
 | Ek gelir | Geri ödeme yükümlülüğü olmayan dönemsel nakit girişini kaydeder |
 | Abonelikler | Yerel işlem geçmişinden tekrar eden satıcı ödemelerini tahmin eder ve kullanıcı kararını saklar |
+| Ödeme hatırlatıcıları | Borç vadelerini ve kullanıcının açıkça tanımladığı/onayladığı düzenli ödemeleri, tahmini aboneliklerden ayrı bir takvim kaydı olarak tutar |
 | Bildirim merkezi | Bütçe, hedef, kategori, fiş ve sistem uyarılarını kalıcı, filtrelenebilir ve yönetilebilir biçimde gösterir |
 | Yedekleme | Seçilen tarih aralığındaki veriyi sürümlü JSON olarak dışa aktarır ve doğrulanmış veriyi atomik geri yükler |
 | Ayarlar | Dil, para birimi, tema, bütçe, veri ve AI tercihlerini yönetir |
@@ -92,6 +93,17 @@ Kullanıcı tutar, tarih, satıcı, kategori ve isteğe bağlı not girer. Kayı
 6. Fiş başlığı ve kalemleri tek atomik işlemle kaydedilir.
 
 AI sonucu doğrudan finansal gerçek kabul edilmez. Kullanıcı kontrol noktası akışın zorunlu ürün ilkesidir.
+
+Tarayıcı giriş yüzeyi, büyük dekoratif ikon ve ağır kart yığınları yerine tek bir
+sayfa başlığı, kompakt tarama işareti ve aynı kontrol ailesindeki iki kaynak
+kapsülü kullanır. Kamera önerilen hızlı yol olarak canlı yeşil ikon kapsülüyle
+önceliklendirilir; dış ray açık temada siyaha dönmez ve galeri seçimi aynı
+geometriyi daha sakin ikincil vurguyla sürdürür. Canlı yeşil bölüm
+yalnız eylem ikonunu taşır; ince outline ikonlar, doğal metin ölçüsü ve ölçülü
+gölge açık/koyu temada aynı bilgi hiyerarşisini korur. Bu kaynak seçiciler bir
+sonuç CTA'sı olmadığı için `susevar` sözleşmesini kullanmaz; fiş sonucu
+ekranındaki Kaydet eylemi tek birincil CTA olarak kalır. İzin veya picker işlemi
+beklerken hızlı tekrar dokunma ikinci bir sistem akışı başlatmamalıdır.
 
 ### 5.3 Bütçe döngüsü
 
@@ -117,6 +129,57 @@ Uygulama içi feed finansal bildirim geçmişinin kalıcı yüzeyidir; Android s
 
 Kullanıcı taşınabilir bir yedek oluşturabilir. Geri yüklemede bütün veri önce doğrulanır; hata halinde kısmi kayıt bırakılmaz. Eski desteklenen formatlar okunabilir, desteklenmeyen yeni formatlar açık hata ile reddedilir.
 
+### 5.7 Borç vadesi ve ödeme hatırlatıcıları
+
+Borç kaydının bütçe etkisini belirleyen işlem tarihi ile kullanıcının ödeme sözü
+olan vade tarihi aynı kavram değildir. Düzenli ödeme tahmini de kullanıcı
+tarafından onaylanmış bir hatırlatıcı sayılmaz. Kalıcı hatırlatıcı; kullanıcı
+kararı, tekrar başlangıcı, sıradaki vade ve tercih edilen uyarı zamanını ayrı
+tutar. Android'de bu kalıcı kayıttan türetilen tek-seferlik alarmlar uygulama
+kapalıyken de OS tarafından teslim edilmek üzere planlanır; kalıcı kayıt yetkili,
+native alarm ise iptal edilip yeniden kurulabilen ikincil bir yan etkidir.
+
+Borç oluşturma yüzeyi vade tarihini opsiyonel tutar ve bu tarihi borcun nakit-akış
+tarihinden açıkça ayırır. Hatırlatma tercihi ancak vade varken etkinleştirilebilir;
+vadenin kaldırılması tercihi de kapatır. Kullanıcı açık bir borcun vade ve
+hatırlatma ayarlarını geri ödeme işleminden ayrı bir yüzeyde değiştirir.
+Açık borç listesi yaklaşan, bugün olan ve gecikmiş vadeyi yalnız renkle değil
+ikon ve metinle gösterir. Bu tercih yüzeyi, seçilen yerel zaman için Android
+alarmı kurulduğunu ve cihazın pil/bildirim politikasının teslimi
+geciktirebileceğini açıkça belirtir.
+
+Abonelikler ekranı kullanıcı tarafından onaylanmış **Ödeme planlarım** ile işlem
+geçmişinden türetilmiş **Algılanan ödemeler** alanlarını birbirinden ayırır.
+Algılanan bir ödeme ancak kullanıcı plan formunu gözden geçirip açıkça
+kaydettiğinde kalıcı plana dönüşür. Kullanıcı manuel plan oluşturabilir; tutar,
+para birimi, sıradaki ödeme, tekrar aralığı ve hatırlatma tercihini düzenleyebilir;
+planı veri kaybetmeden duraklatabilir veya onayla silebilir. Duraklatılmış plan
+gizlenmez. Etkin plan için mevcut ve sonraki gerçek takvim oluşumları sınırlı
+bir rolling horizon içinde planlanır; uygulama her açılış, resume ve veri
+değişikliğinde bu pencereyi yeniler.
+
+Uygulama içi bildirim motoru açık ve bakiyeli borçları, ayrıca yalnız kullanıcı
+tarafından kaydedilmiş etkin ödeme planlarını değerlendirir. Bildirim; yaklaşan
+ve bugün aşamalarının ilk ilgili gününde seçilen yerel saati bekler; planlanan
+uyarı anı önceki bir takvim gününde kaldıysa aynı saati yeniden beklemez. Borcun
+geciktiği kanonik bakiyeden bilinebilir; ödeme planında gerçekleşen ödeme
+izlenmediği için geçmiş tarih metni yalnız planlanan tarihin geçtiğini söyler.
+Kapanan borç, duraklatılan/silinen plan veya değiştirilen vade eski türev kartı
+aktif uyarı olarak bırakmaz. Tahmine dayalı abonelikler ayrı “Tahmin” kanalında
+kalır; aynı satıcı açıkça ödeme planına dönüştürüldüğünde çift bildirim üretmez.
+Borç, ödeme planı ve tahmin kanalları ayrı ayrı filtrelenip sessize alınabilir.
+Native scheduler borçta yaklaşan ve vade-günü alarmını, düzenli ödemede ise 400
+günlük pencere içinde en çok 14 oluşumu planlar; toplam native istek 512 ile
+sınırlı ve varlıklar arasında adil seçilir. Geçmiş plan cursor'ı ödeme yapılmış
+sayılmadan yalnız sıradaki gerçek oluşuma ilerletilir. Faz 5 exact-alarm özel
+izni istemez: Android Doze/OEM politikası dakikayı geciktirebilir; force-stop ve
+uygulama kapalıyken saat dilimi değişimi Faz 6 fiziksel APK kabulünde açık
+platform sınırı olarak doğrulanır. Gecikmiş ama hâlâ bekleyen native alarm
+başarıyla iptal edilirse uygulama açıkken aynı kanonik kayıt anlık fallback ile
+teslim edilebilir; iptal edilemezse ikinci alarm kurulmaz. Yaz saati başlangıç
+boşluğuna denk gelen yerel saat aynı günün ilk geçerli ileri saatine taşınır ve
+occurrence tamamen kaybolmaz.
+
 ## 6. Finansal ve veri değişmezleri
 
 Bu kurallar ürün davranışıdır; uygulama ayrıntısı gibi sessizce değiştirilemez:
@@ -133,6 +196,7 @@ Bu kurallar ürün davranışıdır; uygulama ayrıntısı gibi sessizce değiş
 10. **Para değerleri kuruş hassasiyetinde deterministiktir.** Harcama, fiş satır toplamı ve indirimler iki ondalıklı alt birimlerle hesaplanır; kayan nokta artığı kullanıcıya gösterilmez veya kalıcı finansal sonuca dönüşmez. Birim fiyat, ağırlıklı ürünler için daha hassas tutulabilir; ödenecek satır ve fiş toplamı daima para biriminin iki ondalıklı sonucuna kapanır.
 11. **Hedef ve kategori limiti bağımsız kayıtlardır.** “Hedefi sil” yalnız gerçekten var olan birikim hedefini kaldırır; kategori limitlerini sessizce silmez. Kayıt yoksa yıkıcı eylem sunulmaz ve eskimiş ekran durumunda sahte başarı gösterilmez.
 12. **Dashboard önceliği kontrollüdür.** Açık borç uyarısı isteğe bağlı hedef özetinden önce gelir; aktif hedef kompakt veya tam karttan yalnız biriyle gösterilir ve görünüm tercihi finansal veriyi değiştirmez.
+13. **Hatırlatma taahhüdü tahminden ayrıdır.** Türetilmiş abonelik önerisi kullanıcı onayı olmadan kalıcı ödeme hatırlatıcısına dönüşmez; borç vadesi borcun işlem tarihini veya bütçe etkisini değiştirmez.
 
 Ayrıntılı teknik sözleşmeler için [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) ve karar kayıtları kullanılır.
 

@@ -25,17 +25,24 @@ import { useLanguage } from '../i18n/LanguageContext';
 import {
   deliverAndroidSystemNotifications,
   dismissAndroidSystemNotifications,
+  isAndroidNotificationDeliveryActivated,
 } from '../services/androidNotificationsSetup';
 import {
   localizeNotificationParams,
   notificationPresentationRevision,
 } from '../notifications/presentation';
+import { isNotificationMuted } from '../notifications/channels';
+import { RecurringPaymentReminderDao } from '../db/recurringPaymentReminderDao';
+import { getToday } from '../utils/dateUtils';
+import { syncAndroidReminderSchedules } from '../services/reminderScheduler';
+import { reminderNotificationFamilyKeyFromId } from '../notifications/reminderNotificationFeed';
 
 interface NotificationsContextValue {
   feed: InAppNotification[];
   unreadCount: number;
   syncing: boolean;
   sync: () => Promise<void>;
+  openFromNotification: (id: string) => Promise<void>;
   markRead: (id: string) => Promise<void>;
   markAllRead: () => Promise<void>;
   dismiss: (id: string) => Promise<DismissNotificationsResult>;
@@ -55,6 +62,7 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
   const [mutes, setMutes] = useState<Partial<Record<NotificationMuteChannel, boolean>>>({});
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingSyncCountRef = useRef(0);
+  const syncTailRef = useRef<Promise<void>>(Promise.resolve());
 
   const loadMutesState = useCallback(async () => {
     try {
@@ -66,14 +74,17 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  const sync = useCallback(async () => {
-    pendingSyncCountRef.current += 1;
-    setSyncing(true);
+  const executeSync = useCallback(async (
+    options: { suppressImmediateDelivery?: boolean },
+    deliveryWasActivatedAtInvocation: boolean,
+  ) => {
     try {
       let delivery:
         | {
             feed: InAppNotification[];
             createdIds: string[];
+            retiredIds: string[];
+            mutes: Partial<Record<NotificationMuteChannel, boolean>>;
           }
         | undefined;
       await enqueueNotificationMutation(async () => {
@@ -83,26 +94,86 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
         const { feed: next, unreadCount: uc } = result;
         setFeed(next);
         setUnreadCount(uc);
-        delivery = { feed: next, createdIds: result.createdIds ?? [] };
+        delivery = {
+          feed: next,
+          createdIds: result.createdIds ?? [],
+          retiredIds: result.retiredIds ?? [],
+          mutes: m,
+        };
       });
 
       // Native teslimat finansal/feed transaction'ının parçası değildir. Android
       // izni veya OS scheduling başarısız olsa bile uygulama-içi merkez korunur.
       if (delivery) {
-        await deliverAndroidSystemNotifications(
-          delivery.feed.map((item) => ({
-            id: item.id,
-            title: t(item.titleKey, localizeNotificationParams(item.params, t)),
-            body: item.id === 'sys-scan-err'
-              ? t('notif_scan_err_native_b')
-              : t(item.bodyKey, localizeNotificationParams(item.params, t)),
-            severity: item.severity,
-            createdAt: item.createdAt,
-            read: item.read,
-            revision: notificationPresentationRevision(item),
-          })),
-          { newlyCreatedIds: delivery.createdIds },
+        const deliveryMutes = delivery.mutes;
+        if (delivery.retiredIds.length > 0) {
+          try {
+            await dismissAndroidSystemNotifications(delivery.retiredIds);
+          } catch (error) {
+            if (__DEV__) console.warn('[notifications] stale tray cleanup failed', error);
+          }
+        }
+        const nativeFeed = delivery.feed.filter(
+          (item) => !isNotificationMuted(item.id, deliveryMutes),
         );
+        const nativeCreatedIds = delivery.createdIds.filter(
+          (id) => !isNotificationMuted(id, deliveryMutes),
+        );
+        const suppressedIds = delivery.feed
+          .filter((item) => isNotificationMuted(item.id, deliveryMutes))
+          .map((item) => item.id);
+        let schedulerReadyForCursorAdvance = false;
+        try {
+          const schedulerResult = await syncAndroidReminderSchedules(t, deliveryMutes);
+          // Provider ilk kez açılış perdesinin arkasında sync olabilir. Native
+          // teslim henüz etkin değilse cursor'ı ilerletmek cold-tap bağlamını
+          // normal bootstrap sync'inden önce yok eder. Reveal sonrası bootstrap
+          // aynı yolu yeniden çağırıp ancak o zaman cursor'ı ilerletir.
+          schedulerReadyForCursorAdvance = deliveryWasActivatedAtInvocation
+            && schedulerResult.status !== 'not_ready'
+            && schedulerResult.status !== 'error';
+        } catch (error) {
+          // Native scheduler ikincil yan etkidir; feed ve finansal kayıtlar kanonik
+          // kalır, bir sonraki refresh/resume actual-vs-desired retry yapar.
+          if (__DEV__) console.warn('[notifications] reminder schedule sync failed', error);
+        }
+
+        // Future actual-vs-desired uzlaştırması anlık köprüden önce çalışır.
+        // Böylece Doze/inexact nedeniyle zamanı geçmiş ama hâlâ pending olan
+        // native istek önce iptal edilip baseline'ı temizlenebilir; aynı feed
+        // öğesi ardından anlık fallback olarak güvenle teslim edilir.
+        if (!options.suppressImmediateDelivery) {
+          try {
+            await deliverAndroidSystemNotifications(
+              nativeFeed.map((item) => ({
+                id: item.id,
+                title: t(item.titleKey, localizeNotificationParams(item.params, t)),
+                body: item.id === 'sys-scan-err'
+                  ? t('notif_scan_err_native_b')
+                  : t(item.bodyKey, localizeNotificationParams(item.params, t)),
+                severity: item.severity,
+                createdAt: item.createdAt,
+                read: item.read,
+                revision: notificationPresentationRevision(item),
+              })),
+              { newlyCreatedIds: nativeCreatedIds, suppressedIds },
+            );
+          } catch (error) {
+            if (__DEV__) console.warn('[notifications] immediate Android delivery failed', error);
+          }
+        }
+
+        // Cursor ödeme kanıtı değildir. Önce eski oluşumdan `date_passed`
+        // feed/tap bağlamını ve yeni rolling horizon'ı üret, ancak bundan sonra
+        // kalıcı ekranda bugünkü/sonraki gerçek oluşuma ilerlet. Böylece Doze ile
+        // ertesi güne geciken alarm uygulama açılışında sessizce kaybolmaz.
+        if (schedulerReadyForCursorAdvance) {
+          try {
+            await RecurringPaymentReminderDao.advancePastDue(getToday());
+          } catch (error) {
+            if (__DEV__) console.warn('[notifications] reminder cursor advance failed', error);
+          }
+        }
       }
     } catch (error) {
       console.warn('[notifications] sync failed', error);
@@ -111,6 +182,25 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
       if (pendingSyncCountRef.current === 0) setSyncing(false);
     }
   }, [t]);
+
+  const runSync = useCallback((
+    options: { suppressImmediateDelivery?: boolean } = {},
+  ): Promise<void> => {
+    // Kuyrukta bekleyen pre-reveal bir çağrı, perde bu arada kalktı diye cursor
+    // yetkisi kazanamaz; aktivasyon çağrı anında snapshotlanır.
+    const deliveryWasActivatedAtInvocation = isAndroidNotificationDeliveryActivated();
+    pendingSyncCountRef.current += 1;
+    setSyncing(true);
+    const task = syncTailRef.current.then(
+      () => executeSync(options, deliveryWasActivatedAtInvocation),
+      () => executeSync(options, deliveryWasActivatedAtInvocation),
+    );
+    // Bir sync hatası sonraki refresh/tap işini zincirden düşürmemeli.
+    syncTailRef.current = task.catch(() => undefined);
+    return task;
+  }, [executeSync]);
+
+  const sync = useCallback(() => runSync(), [runSync]);
 
   useEffect(() => {
     loadMutesState();
@@ -143,12 +233,28 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
   const markRead = useCallback(async (id: string) => {
     await enqueueNotificationMutation(async () => {
       const cur = await loadFeedStrict();
-      const next = cur.map((f) => (f.id === id ? { ...f, read: true } : f));
+      const exact = cur.some((item) => item.id === id);
+      const reminderFamily = exact ? null : reminderNotificationFamilyKeyFromId(id);
+      const next = cur.map((f) => (
+        f.id === id
+        || (reminderFamily != null
+          && reminderNotificationFamilyKeyFromId(f.id) === reminderFamily)
+          ? { ...f, read: true }
+          : f
+      ));
       await saveFeed(next);
       setFeed(next);
       setUnreadCount(next.filter((f) => !f.read).length);
     });
   }, []);
+
+  const openFromNotification = useCallback(async (id: string) => {
+    // Kullanıcı zaten OS bildirimine dokundu: sync'in aynı olay için yeni bir
+    // anlık tray kopyası üretmesini engelle, ardından aynı reminder ailesinin
+    // o anki kanonik feed aşamasını okunmuş say.
+    await runSync({ suppressImmediateDelivery: true });
+    await markRead(id);
+  }, [markRead, runSync]);
 
   const markAllRead = useCallback(async () => {
     await enqueueNotificationMutation(async () => {
@@ -198,6 +304,7 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
       unreadCount,
       syncing,
       sync,
+      openFromNotification,
       markRead,
       markAllRead,
       dismiss,
@@ -205,7 +312,19 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
       setMute,
       mutes,
     }),
-    [feed, unreadCount, syncing, sync, markRead, markAllRead, dismiss, dismissMany, setMute, mutes]
+    [
+      feed,
+      unreadCount,
+      syncing,
+      sync,
+      openFromNotification,
+      markRead,
+      markAllRead,
+      dismiss,
+      dismissMany,
+      setMute,
+      mutes,
+    ]
   );
 
   return (

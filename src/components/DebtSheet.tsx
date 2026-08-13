@@ -1,16 +1,18 @@
 // S.P.A.R.K. — Borç yönetim alt sayfası (hub)
 //
-// Tek BottomSheetModal içinde üç görünüm: açık borç LİSTESİ, "Borç Aldım" (EKLE)
-// ve "Borcu Öde" (kısmi destekli). Fiş/harcama bütünlüğü bozulmaz — geri ödeme
+// Tek BottomSheetModal içinde dört görünüm: açık borç LİSTESİ, "Borç Aldım"
+// (EKLE), "Borcu Öde" (kısmi destekli) ve vade/hatırlatma ayarları. Fiş/
+// harcama bütünlüğü bozulmaz — geri ödeme
 // tüketim sayılmaz; nakit-akışı etkisi useBudget/debtMath üzerinden işlenir.
 // Tema kalıbı: useAppTheme + useMemo(getStyles) (P12). Birincil CTA = şüşevar.
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { View, Text, TextInput, StyleSheet, Pressable, ScrollView, Dimensions } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 
 import BottomSheetModal from './BottomSheetModal';
 import CustomDatePicker from './CustomDatePicker';
+import DebtReminderFields from './DebtReminderFields';
 import GlassDeleteModal from './GlassDeleteModal';
 import { SparkToast } from './SparkToast';
 import { Colors } from '../theme/colors';
@@ -19,11 +21,17 @@ import { Typography, FontFamily } from '../theme/typography';
 import { Spacing, ScreenPadding, BorderRadius } from '../theme/spacing';
 import { susevarButton, susevarButtonPressed, susevarButtonText } from '../theme/susevar';
 import { formatCurrency } from '../utils/formatCurrency';
-import { formatDayMonth, getToday } from '../utils/dateUtils';
+import { formatDateFull, formatDayMonth, getToday } from '../utils/dateUtils';
+import {
+  getDebtDueState,
+  isValidDebtReminderTime,
+  parseDebtReminderDays,
+} from '../utils/debtReminder';
 import { DebtDao } from '../db/debtDao';
 import { ExpenseDao } from '../db/expenseDao';
 import { Debt, DebtPayment, ExpenseWithDetails } from '../db/schema';
 import { useLanguage } from '../i18n/LanguageContext';
+import { useRefreshActions } from '../context/RefreshContext';
 
 const SCREEN_H = Dimensions.get('window').height;
 
@@ -35,21 +43,30 @@ interface DebtSheetProps {
   onChanged?: () => void | Promise<void>;
 }
 
-type DebtView = 'list' | 'add' | 'repay';
+type DebtView = 'list' | 'add' | 'repay' | 'reminder';
+type DatePickerTarget = 'debt-date' | 'repay-date' | 'due-date' | null;
 
 function parseAmountInput(s: string): number {
   return parseFloat(s.replace(',', '.')) || 0;
+}
+
+function playSuccessHaptic(): void {
+  void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success)
+    .catch(() => undefined);
 }
 
 export default function DebtSheet({ visible, onClose, currency, onChanged }: DebtSheetProps) {
   const scheme = useAppTheme();
   const styles = useMemo(() => getStyles(), [scheme]);
   const { t } = useLanguage();
+  const { triggerRefresh } = useRefreshActions();
+  const today = getToday();
 
   const [view, setView] = useState<DebtView>('list');
   const [debts, setDebts] = useState<Debt[]>([]);
   const [saving, setSaving] = useState(false);
-  const [datePickerVisible, setDatePickerVisible] = useState(false);
+  const savingRef = useRef(false);
+  const [datePickerTarget, setDatePickerTarget] = useState<DatePickerTarget>(null);
 
   // Liste sekmesi: açık borçlar vs tüm geçmiş (açık + kapanmış).
   const [listTab, setListTab] = useState<'open' | 'history'>('open');
@@ -66,6 +83,12 @@ export default function DebtSheet({ visible, onClose, currency, onChanged }: Deb
   const [linkExpanded, setLinkExpanded] = useState(false);
   const [recentExpenses, setRecentExpenses] = useState<ExpenseWithDetails[]>([]);
   const [linkedExpenseId, setLinkedExpenseId] = useState<number | null>(null);
+
+  // Ekleme ve mevcut borç düzenleme görünümlerinin paylaştığı vade draft'ı.
+  const [dueDate, setDueDate] = useState<string | null>(null);
+  const [reminderEnabled, setReminderEnabled] = useState(false);
+  const [reminderDaysBefore, setReminderDaysBefore] = useState('3');
+  const [reminderTime, setReminderTime] = useState('09:00');
 
   // Öde formu
   const [activeDebt, setActiveDebt] = useState<Debt | null>(null);
@@ -92,7 +115,10 @@ export default function DebtSheet({ visible, onClose, currency, onChanged }: Deb
     if (visible) {
       setView('list');
       setListTab('open');
+      setDatePickerTarget(null);
       void reload();
+    } else {
+      setDatePickerTarget(null);
     }
   }, [visible, reload]);
 
@@ -110,6 +136,13 @@ export default function DebtSheet({ visible, onClose, currency, onChanged }: Deb
     }
   }, [expandedDebtId, paymentsByDebt]);
 
+  const resetReminderDraft = useCallback(() => {
+    setDueDate(null);
+    setReminderEnabled(false);
+    setReminderDaysBefore('3');
+    setReminderTime('09:00');
+  }, []);
+
   const resetAddForm = useCallback(() => {
     setAmount('');
     setCounterparty('');
@@ -117,7 +150,8 @@ export default function DebtSheet({ visible, onClose, currency, onChanged }: Deb
     setDate(getToday());
     setLinkExpanded(false);
     setLinkedExpenseId(null);
-  }, []);
+    resetReminderDraft();
+  }, [resetReminderDraft]);
 
   const openAdd = useCallback(async () => {
     resetAddForm();
@@ -137,6 +171,57 @@ export default function DebtSheet({ visible, onClose, currency, onChanged }: Deb
     setView('repay');
   }, []);
 
+  const openReminderSettings = useCallback((debt: Debt) => {
+    setActiveDebt(debt);
+    setDueDate(debt.due_date);
+    setReminderEnabled(debt.reminder_enabled === 1 && debt.due_date != null);
+    setReminderDaysBefore(String(debt.reminder_days_before));
+    setReminderTime(debt.reminder_time);
+    setView('reminder');
+  }, []);
+
+  const beginSaving = useCallback((): boolean => {
+    if (savingRef.current) return false;
+    savingRef.current = true;
+    setSaving(true);
+    return true;
+  }, []);
+
+  const finishSaving = useCallback(() => {
+    savingRef.current = false;
+    setSaving(false);
+  }, []);
+
+  const getReminderDraft = useCallback(() => {
+    if (!reminderEnabled) {
+      return {
+        dueDate,
+        reminderEnabled: false,
+        reminderDaysBefore: undefined,
+        reminderTime: undefined,
+      };
+    }
+    if (!dueDate) {
+      SparkToast.show(t('debt_reminder_requires_due_date'), 'error');
+      return null;
+    }
+    const daysBefore = parseDebtReminderDays(reminderDaysBefore);
+    if (daysBefore == null) {
+      SparkToast.show(t('debt_reminder_invalid_days'), 'error');
+      return null;
+    }
+    if (!isValidDebtReminderTime(reminderTime)) {
+      SparkToast.show(t('debt_reminder_invalid_time'), 'error');
+      return null;
+    }
+    return {
+      dueDate,
+      reminderEnabled: true,
+      reminderDaysBefore: daysBefore,
+      reminderTime,
+    };
+  }, [dueDate, reminderDaysBefore, reminderEnabled, reminderTime, t]);
+
   async function handleAdd() {
     const parsed = parseAmountInput(amount);
     if (parsed <= 0) {
@@ -147,7 +232,8 @@ export default function DebtSheet({ visible, onClose, currency, onChanged }: Deb
       SparkToast.show(t('debt_counterparty_required'), 'error');
       return;
     }
-    setSaving(true);
+    const reminderDraft = getReminderDraft();
+    if (!reminderDraft || !beginSaving()) return;
     try {
       await DebtDao.create({
         direction: 'borrowed',
@@ -155,20 +241,25 @@ export default function DebtSheet({ visible, onClose, currency, onChanged }: Deb
         amount: parsed,
         currency,
         date,
+        dueDate: reminderDraft.dueDate,
+        reminderEnabled: reminderDraft.reminderEnabled,
+        reminderDaysBefore: reminderDraft.reminderDaysBefore,
+        reminderTime: reminderDraft.reminderTime,
         note: note.trim() || null,
         linkedExpenseId,
       });
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      playSuccessHaptic();
       SparkToast.show(t('debt_created_toast'), 'success', formatCurrency(parsed, currency, false));
       await reload();
       // Yerel borç sorguları bittikten sonra bütçeyi yenile: aynı SQLite
       // bağlantısında iki bağımsız okuma zinciri üst üste binmesin.
       await onChanged?.();
+      triggerRefresh();
       setView('list');
     } catch {
       SparkToast.show(t('error_saving_data'), 'error');
     } finally {
-      setSaving(false);
+      finishSaving();
     }
   }
 
@@ -179,21 +270,55 @@ export default function DebtSheet({ visible, onClose, currency, onChanged }: Deb
       SparkToast.show(t('invalid_amount'), 'error');
       return;
     }
-    setSaving(true);
+    if (!beginSaving()) return;
     try {
       await DebtDao.repay(activeDebt.id, parsed, repayDate);
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      playSuccessHaptic();
       // Ödeme kalanı kapatıyorsa "kapandı", değilse "kaydedildi".
       const settled = parsed >= activeDebt.remaining;
       SparkToast.show(settled ? t('debt_settled_toast') : t('debt_repaid_toast'), 'success');
       await reload();
       await onChanged?.();
+      triggerRefresh();
       setActiveDebt(null);
       setView('list');
     } catch {
       SparkToast.show(t('error_saving_data'), 'error');
     } finally {
-      setSaving(false);
+      finishSaving();
+    }
+  }
+
+  async function handleReminderSave() {
+    if (!activeDebt) return;
+    const reminderDraft = getReminderDraft();
+    if (!reminderDraft || !beginSaving()) return;
+    try {
+      const updated = await DebtDao.updateReminderSettings(activeDebt.id, reminderDraft);
+      if (!updated) {
+        SparkToast.show(t('debt_reminder_unavailable'), 'info');
+        await reload();
+        setActiveDebt(null);
+        setView('list');
+        return;
+      }
+      playSuccessHaptic();
+      SparkToast.show(t('debt_reminder_saved_toast'), 'success');
+      setActiveDebt({
+        ...activeDebt,
+        due_date: reminderDraft.dueDate,
+        reminder_enabled: reminderDraft.reminderEnabled ? 1 : 0,
+        reminder_days_before:
+          reminderDraft.reminderDaysBefore ?? activeDebt.reminder_days_before,
+        reminder_time: reminderDraft.reminderTime ?? activeDebt.reminder_time,
+      });
+      await reload();
+      triggerRefresh();
+      setView('repay');
+    } catch {
+      SparkToast.show(t('error_saving_data'), 'error');
+    } finally {
+      finishSaving();
     }
   }
 
@@ -201,10 +326,11 @@ export default function DebtSheet({ visible, onClose, currency, onChanged }: Deb
     if (deleteId == null) return;
     try {
       await DebtDao.remove(deleteId);
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      playSuccessHaptic();
       SparkToast.show(t('debt_deleted_toast'), 'success');
       await reload();
       await onChanged?.();
+      triggerRefresh();
       setActiveDebt(null);
       setView('list');
     } catch {
@@ -226,32 +352,73 @@ export default function DebtSheet({ visible, onClose, currency, onChanged }: Deb
       </View>
     ) : (
       <ScrollView style={styles.listScroll} contentContainerStyle={styles.listContent}>
-        {debts.map((d) => (
-          <Pressable
-            key={d.id}
-            onPress={() => openRepay(d)}
-            style={({ pressed }) => [styles.debtRow, pressed && { opacity: 0.85 }]}
-          >
-            <View style={{ flex: 1, minWidth: 0 }}>
-              <Text style={styles.debtName} numberOfLines={1}>{d.counterparty}</Text>
-              <Text style={styles.debtMeta} numberOfLines={1}>
-                {formatDayMonth(d.date, t)}
-                {d.remaining < d.amount
-                  ? ` · ${formatCurrency(d.remaining, currency, false)} / ${formatCurrency(d.amount, currency, false)}`
-                  : ''}
-              </Text>
-              {d.note ? (
-                <Text style={styles.debtNote} numberOfLines={1}>{d.note}</Text>
-              ) : null}
-            </View>
-            <View style={styles.debtRight}>
-              <Text style={styles.debtRemaining}>{formatCurrency(d.remaining, currency, false)}</Text>
-              <View style={styles.payChip}>
-                <Text style={styles.payChipText}>{t('debt_repay_cta')}</Text>
+        {debts.map((d) => {
+          const dueState = getDebtDueState(d.due_date, today);
+          const dueDateLabel = d.due_date ? formatDateFull(d.due_date, t) : '';
+          const dueLabel = dueState === 'today'
+            ? t('debt_due_status_today')
+            : dueState === 'overdue'
+              ? t('debt_due_status_overdue', { date: dueDateLabel })
+              : dueState === 'upcoming'
+                ? t('debt_due_summary', { date: dueDateLabel })
+                : '';
+          return (
+            <Pressable
+              key={d.id}
+              testID={`debt-open-row-${d.id}`}
+              onPress={() => openRepay(d)}
+              style={({ pressed }) => [styles.debtRow, pressed && { opacity: 0.85 }]}
+              accessibilityRole="button"
+              accessibilityLabel={[
+                d.counterparty,
+                formatCurrency(d.remaining, currency, false),
+                dueLabel,
+                d.reminder_enabled === 1 ? t('debt_reminder_active_short') : '',
+              ].filter(Boolean).join(', ')}
+              accessibilityHint={t('debt_open_hint')}
+            >
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <Text style={styles.debtName} numberOfLines={1}>{d.counterparty}</Text>
+                <Text style={styles.debtMeta} numberOfLines={1}>
+                  {formatDayMonth(d.date, t)}
+                  {d.remaining < d.amount
+                    ? ` · ${formatCurrency(d.remaining, currency, false)} / ${formatCurrency(d.amount, currency, false)}`
+                    : ''}
+                </Text>
+                {dueState !== 'none' ? (
+                  <View style={styles.dueMetaRow}>
+                    <MaterialCommunityIcons
+                      name={dueState === 'overdue' ? 'calendar-alert' : 'calendar-clock-outline'}
+                      size={14}
+                      color={dueState === 'overdue' ? Colors.danger : dueState === 'today' ? Colors.warning : Colors.textSecondary}
+                      accessible={false}
+                    />
+                    <Text
+                      style={[
+                        styles.dueMetaText,
+                        dueState === 'overdue' && styles.dueMetaOverdue,
+                        dueState === 'today' && styles.dueMetaToday,
+                      ]}
+                      numberOfLines={2}
+                    >
+                      {dueLabel}
+                      {d.reminder_enabled === 1 ? ` · ${t('debt_reminder_active_short')}` : ''}
+                    </Text>
+                  </View>
+                ) : null}
+                {d.note ? (
+                  <Text style={styles.debtNote} numberOfLines={1}>{d.note}</Text>
+                ) : null}
               </View>
-            </View>
-          </Pressable>
-        ))}
+              <View style={styles.debtRight}>
+                <Text style={styles.debtRemaining}>{formatCurrency(d.remaining, currency, false)}</Text>
+                <View style={styles.payChip}>
+                  <Text style={styles.payChipText}>{t('debt_repay_cta')}</Text>
+                </View>
+              </View>
+            </Pressable>
+          );
+        })}
       </ScrollView>
     );
 
@@ -367,6 +534,7 @@ export default function DebtSheet({ visible, onClose, currency, onChanged }: Deb
       {/* "Borç Aldım" yalnız Açık sekmesinde — geçmiş salt görüntüleme bağlamı. */}
       {listTab === 'open' ? (
         <Pressable
+          testID="debt-open-add"
           onPress={openAdd}
           style={({ pressed }) => [styles.primaryBtn, pressed && susevarButtonPressed]}
         >
@@ -391,6 +559,7 @@ export default function DebtSheet({ visible, onClose, currency, onChanged }: Deb
       <ScrollView style={styles.formScroll} contentContainerStyle={styles.formContent} keyboardShouldPersistTaps="handled">
         <Text style={styles.fieldLabel}>{t('amount')}</Text>
         <TextInput
+          testID="debt-add-amount"
           style={styles.input}
           value={amount}
           onChangeText={setAmount}
@@ -401,6 +570,7 @@ export default function DebtSheet({ visible, onClose, currency, onChanged }: Deb
 
         <Text style={styles.fieldLabel}>{t('debt_counterparty')}</Text>
         <TextInput
+          testID="debt-add-counterparty"
           style={styles.input}
           value={counterparty}
           onChangeText={setCounterparty}
@@ -408,11 +578,32 @@ export default function DebtSheet({ visible, onClose, currency, onChanged }: Deb
           placeholderTextColor={Colors.textMuted}
         />
 
-        <Text style={styles.fieldLabel}>{t('date')}</Text>
-        <Pressable style={[styles.input, styles.inputAsButton]} onPress={() => setDatePickerVisible(true)}>
+        <Text style={styles.fieldLabel}>{t('debt_received_date')}</Text>
+        <Pressable
+          testID="debt-transaction-date-button"
+          style={[styles.input, styles.inputAsButton]}
+          onPress={() => setDatePickerTarget('debt-date')}
+          accessibilityRole="button"
+        >
           <Text style={styles.inputButtonText}>{date || t('select_date')}</Text>
           <MaterialCommunityIcons name="calendar-outline" size={18} color={Colors.textSecondary} />
         </Pressable>
+
+        <DebtReminderFields
+          dueDate={dueDate}
+          reminderEnabled={reminderEnabled}
+          reminderDaysBefore={reminderDaysBefore}
+          reminderTime={reminderTime}
+          disabled={saving}
+          onPressDueDate={() => setDatePickerTarget('due-date')}
+          onClearDueDate={() => {
+            setDueDate(null);
+            setReminderEnabled(false);
+          }}
+          onReminderEnabledChange={setReminderEnabled}
+          onReminderDaysBeforeChange={setReminderDaysBefore}
+          onReminderTimeChange={setReminderTime}
+        />
 
         <Text style={styles.fieldLabel}>{t('note')}</Text>
         <TextInput
@@ -465,6 +656,7 @@ export default function DebtSheet({ visible, onClose, currency, onChanged }: Deb
         ) : null}
 
         <Pressable
+          testID="debt-add-save"
           onPress={handleAdd}
           disabled={saving}
           style={({ pressed }) => [styles.primaryBtn, { marginTop: Spacing.xl }, saving && { opacity: 0.6 }, pressed && susevarButtonPressed]}
@@ -495,18 +687,51 @@ export default function DebtSheet({ visible, onClose, currency, onChanged }: Deb
 
       <ScrollView style={styles.formScroll} contentContainerStyle={styles.formContent} keyboardShouldPersistTaps="handled">
         {activeDebt ? (
-          <View style={styles.repaySummary}>
-            <Text style={styles.repayName}>{activeDebt.counterparty}</Text>
-            {activeDebt.note ? (
-              <Text style={styles.repayNote} numberOfLines={2}>{activeDebt.note}</Text>
-            ) : null}
-            <Text style={styles.repayRemainingLabel}>{t('debt_remaining')}</Text>
-            <Text style={styles.repayRemaining}>{formatCurrency(activeDebt.remaining, currency)}</Text>
-          </View>
+          <>
+            <View style={styles.repaySummary}>
+              <Text style={styles.repayName}>{activeDebt.counterparty}</Text>
+              {activeDebt.note ? (
+                <Text style={styles.repayNote} numberOfLines={2}>{activeDebt.note}</Text>
+              ) : null}
+              <Text style={styles.repayRemainingLabel}>{t('debt_remaining')}</Text>
+              <Text style={styles.repayRemaining}>{formatCurrency(activeDebt.remaining, currency)}</Text>
+            </View>
+            <Pressable
+              testID="debt-open-reminder-settings"
+              accessibilityRole="button"
+              accessibilityLabel={t('debt_reminder_edit')}
+              accessibilityHint={t('debt_reminder_edit_hint')}
+              onPress={() => openReminderSettings(activeDebt)}
+              style={({ pressed }) => [styles.reminderSummaryCard, pressed && styles.reminderSummaryPressed]}
+            >
+              <View style={styles.reminderSummaryIcon}>
+                <MaterialCommunityIcons
+                  name={activeDebt.reminder_enabled === 1 ? 'bell-outline' : 'calendar-clock-outline'}
+                  size={20}
+                  color={activeDebt.reminder_enabled === 1 ? Colors.primary : Colors.textSecondary}
+                />
+              </View>
+              <View style={styles.reminderSummaryCopy}>
+                <Text style={styles.reminderSummaryTitle}>{t('debt_reminder_title')}</Text>
+                <Text style={styles.reminderSummaryText} numberOfLines={2}>
+                  {activeDebt.due_date
+                    ? t('debt_due_summary', { date: formatDateFull(activeDebt.due_date, t) })
+                    : t('debt_due_date_none')}
+                  {activeDebt.reminder_enabled === 1
+                    ? ` · ${activeDebt.reminder_days_before === 0
+                      ? t('debt_reminder_when_due')
+                      : t('debt_reminder_days_before_short', { days: activeDebt.reminder_days_before })}, ${activeDebt.reminder_time}`
+                    : ''}
+                </Text>
+              </View>
+              <MaterialCommunityIcons name="chevron-right" size={20} color={Colors.textMuted} />
+            </Pressable>
+          </>
         ) : null}
 
         <Text style={styles.fieldLabel}>{t('amount')}</Text>
         <TextInput
+          testID="debt-repay-amount"
           style={styles.input}
           value={repayAmount}
           onChangeText={setRepayAmount}
@@ -520,18 +745,91 @@ export default function DebtSheet({ visible, onClose, currency, onChanged }: Deb
           </Pressable>
         ) : null}
 
-        <Text style={styles.fieldLabel}>{t('date')}</Text>
-        <Pressable style={[styles.input, styles.inputAsButton]} onPress={() => setDatePickerVisible(true)}>
+        <Text style={styles.fieldLabel}>{t('debt_payment_date')}</Text>
+        <Pressable
+          testID="debt-repayment-date-button"
+          style={[styles.input, styles.inputAsButton]}
+          onPress={() => setDatePickerTarget('repay-date')}
+          accessibilityRole="button"
+        >
           <Text style={styles.inputButtonText}>{repayDate || t('select_date')}</Text>
           <MaterialCommunityIcons name="calendar-outline" size={18} color={Colors.textSecondary} />
         </Pressable>
 
         <Pressable
+          testID="debt-repay-save"
           onPress={handleRepay}
           disabled={saving}
           style={({ pressed }) => [styles.primaryBtn, { marginTop: Spacing.xl }, saving && { opacity: 0.6 }, pressed && susevarButtonPressed]}
         >
           <Text style={styles.primaryBtnText}>{saving ? t('processing') : t('debt_repay_cta')}</Text>
+        </Pressable>
+        <View style={{ height: Spacing.lg }} />
+      </ScrollView>
+    </>
+  );
+
+  const renderReminder = () => (
+    <>
+      <View style={styles.formHeader}>
+        <Pressable
+          onPress={() => setView(activeDebt ? 'repay' : 'list')}
+          hitSlop={10}
+          style={styles.backBtn}
+          accessibilityRole="button"
+          accessibilityLabel={t('notif_go_back')}
+        >
+          <MaterialCommunityIcons name="arrow-left" size={22} color={Colors.textPrimary} />
+        </Pressable>
+        <Text style={styles.formTitle}>{t('debt_reminder_edit')}</Text>
+      </View>
+
+      <ScrollView
+        style={styles.formScroll}
+        contentContainerStyle={styles.formContent}
+        keyboardShouldPersistTaps="handled"
+      >
+        {activeDebt ? (
+          <View style={styles.reminderDebtContext}>
+            <Text style={styles.reminderDebtName}>{activeDebt.counterparty}</Text>
+            <Text style={styles.reminderDebtAmount}>
+              {formatCurrency(activeDebt.remaining, currency)}
+            </Text>
+          </View>
+        ) : null}
+
+        <DebtReminderFields
+          dueDate={dueDate}
+          reminderEnabled={reminderEnabled}
+          reminderDaysBefore={reminderDaysBefore}
+          reminderTime={reminderTime}
+          disabled={saving}
+          onPressDueDate={() => setDatePickerTarget('due-date')}
+          onClearDueDate={() => {
+            setDueDate(null);
+            setReminderEnabled(false);
+          }}
+          onReminderEnabledChange={setReminderEnabled}
+          onReminderDaysBeforeChange={setReminderDaysBefore}
+          onReminderTimeChange={setReminderTime}
+        />
+
+        <Pressable
+          testID="debt-reminder-save"
+          onPress={handleReminderSave}
+          disabled={saving || !activeDebt}
+          accessibilityRole="button"
+          accessibilityState={{ disabled: saving || !activeDebt }}
+          style={({ pressed }) => [
+            styles.primaryBtn,
+            { marginTop: Spacing.xl },
+            (saving || !activeDebt) && { opacity: 0.6 },
+            pressed && susevarButtonPressed,
+          ]}
+        >
+          <Text style={styles.primaryBtnText}>
+            {saving ? t('processing') : t('debt_reminder_save')}
+          </Text>
         </Pressable>
         <View style={{ height: Spacing.lg }} />
       </ScrollView>
@@ -547,13 +845,27 @@ export default function DebtSheet({ visible, onClose, currency, onChanged }: Deb
       showHandle
     >
       {/* Kapat (X) yok — sürükle-kapat kulpu zaten var (gereksiz tekrar). */}
-      {view === 'list' ? renderList() : view === 'add' ? renderAdd() : renderRepay()}
+      {view === 'list'
+        ? renderList()
+        : view === 'add'
+          ? renderAdd()
+          : view === 'repay'
+            ? renderRepay()
+            : renderReminder()}
 
       <CustomDatePicker
-        visible={datePickerVisible}
-        onClose={() => setDatePickerVisible(false)}
-        initialDate={view === 'repay' ? repayDate : date}
-        onSelectDate={(d) => (view === 'repay' ? setRepayDate(d) : setDate(d))}
+        visible={datePickerTarget !== null}
+        onClose={() => setDatePickerTarget(null)}
+        initialDate={datePickerTarget === 'repay-date'
+          ? repayDate
+          : datePickerTarget === 'due-date'
+            ? dueDate ?? getToday()
+            : date}
+        onSelectDate={(selectedDate) => {
+          if (datePickerTarget === 'repay-date') setRepayDate(selectedDate);
+          else if (datePickerTarget === 'due-date') setDueDate(selectedDate);
+          else if (datePickerTarget === 'debt-date') setDate(selectedDate);
+        }}
       />
 
       <GlassDeleteModal
@@ -749,6 +1061,25 @@ const getStyles = () => StyleSheet.create({
     color: Colors.textSecondary,
     marginTop: 2,
   },
+  dueMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 5,
+    marginTop: 5,
+  },
+  dueMetaText: {
+    ...Typography.labelSmall,
+    color: Colors.textSecondary,
+    flex: 1,
+  },
+  dueMetaOverdue: {
+    color: Colors.danger,
+    fontFamily: FontFamily.semiBold,
+  },
+  dueMetaToday: {
+    color: Colors.warning,
+    fontFamily: FontFamily.semiBold,
+  },
   /** Açık satırda borç notu (varsa) — küçük, soluk. */
   debtNote: {
     ...Typography.labelSmall,
@@ -932,6 +1263,64 @@ const getStyles = () => StyleSheet.create({
     color: Colors.danger,
     fontFamily: FontFamily.bold,
     marginTop: 2,
+  },
+  reminderSummaryCard: {
+    minHeight: 66,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.md,
+    backgroundColor: Colors.cardSurface,
+    borderRadius: BorderRadius.lg,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    padding: Spacing.md,
+    marginBottom: Spacing.sm,
+  },
+  reminderSummaryPressed: {
+    opacity: 0.8,
+    borderColor: Colors.primary,
+  },
+  reminderSummaryIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: Colors.primary + '14',
+  },
+  reminderSummaryCopy: { flex: 1, minWidth: 0 },
+  reminderSummaryTitle: {
+    ...Typography.labelMedium,
+    color: Colors.textPrimary,
+    fontFamily: FontFamily.semiBold,
+  },
+  reminderSummaryText: {
+    ...Typography.bodySmall,
+    color: Colors.textSecondary,
+    marginTop: 2,
+  },
+  reminderDebtContext: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: Spacing.md,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.md,
+    backgroundColor: Colors.surface,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  reminderDebtName: {
+    ...Typography.bodyMedium,
+    color: Colors.textPrimary,
+    fontFamily: FontFamily.semiBold,
+    flex: 1,
+  },
+  reminderDebtAmount: {
+    ...Typography.labelLarge,
+    color: Colors.danger,
+    fontFamily: FontFamily.bold,
   },
   fullChip: {
     alignSelf: 'flex-start',

@@ -4,12 +4,19 @@ import { isRunningInExpoGo } from 'expo';
 import {
   enqueueNotificationMutation,
   loadAndroidDeliveryStateStrict,
+  loadAndroidReminderScheduleStateStrict,
   loadFeedStrict,
   saveAndroidDeliveryState,
+  saveAndroidReminderScheduleSnapshot,
   type AndroidDeliveryState,
+  type AndroidReminderScheduleRecord,
 } from '../notifications/storage';
-import type { NotificationSeverity } from '../notifications/types';
-import { notificationPresentationRevision } from '../notifications/presentation';
+import type { NotificationMuteChannel, NotificationSeverity } from '../notifications/types';
+import {
+  notificationContentRevision,
+  notificationPresentationRevision,
+} from '../notifications/presentation';
+import { isNotificationMuted } from '../notifications/channels';
 
 type ExpoNotificationsModule = typeof import('expo-notifications');
 
@@ -18,6 +25,11 @@ export const ANDROID_ALERTS_CHANNEL_ID = 'spark-alerts-v1';
 
 const FIRST_ENABLE_FRESHNESS_MS = 2 * 60 * 1000;
 const NOTIFICATION_ACCENT = '#00EB64';
+const FUTURE_REMINDER_PREFIX = 'spark:future:v1:';
+const FUTURE_REMINDER_OWNER = 'spark-reminder-v1';
+// Saf planner da aynı üst sınırı uygular. Buradaki ikinci savunma, iptali
+// başarısız stale native istekler varken OS sahipliğinin 512'yi aşmasını önler.
+const MAX_OWNED_FUTURE_REMINDERS = 512;
 
 export type AndroidNotificationSetupStatus =
   | 'ready'
@@ -50,6 +62,28 @@ export interface AndroidNotificationChannelCopy {
   alertsDescription: string;
 }
 
+export interface AndroidReminderScheduleItem {
+  /** PII içermeyen, prefixsiz mantıksal schedule kimliği. */
+  scheduleId: string;
+  /** Aynı olayın uygulama-içi feed kimliği; tap ve double-delivery baseline'ı. */
+  notificationId: string;
+  triggerAt: number;
+  title: string;
+  body: string;
+  severity: NotificationSeverity;
+  revision: string;
+  /** createdAt'ten bağımsız, kanonik feed içerik özeti. */
+  feedRevision: string;
+}
+
+export interface AndroidReminderScheduleResult {
+  status: AndroidNotificationSetupStatus;
+  scheduledIds: string[];
+  canceledIds: string[];
+  failedScheduleIds: string[];
+  failedCancelIds: string[];
+}
+
 const DEFAULT_CHANNEL_COPY: AndroidNotificationChannelCopy = {
   updatesName: 'S.P.A.R.K updates',
   updatesDescription: 'Receipts, summaries and reminders',
@@ -79,6 +113,13 @@ export function activateAndroidNotificationDelivery(): void {
   deliveryActivated = true;
 }
 
+/** Sync başlangıcının reveal/cold-response bariyerinin hangi tarafında olduğunu
+ * sabitlemek için salt-okunur snapshot. Uzun bir pre-reveal sync sürerken global
+ * aktivasyon değişse bile o eski çalışma cursor ilerletme yetkisi kazanmaz. */
+export function isAndroidNotificationDeliveryActivated(): boolean {
+  return deliveryActivated;
+}
+
 function canUseAndroidNotifications(): AndroidNotificationSetupStatus | null {
   if (Platform.OS !== 'android') return 'unsupported';
   // Proje sözleşmesi: Expo Go native bildirim yüzeyi gerçek APK kanıtı sayılmaz
@@ -95,6 +136,48 @@ function loadNotificationsModule(): Promise<ExpoNotificationsModule> {
 function notificationIdentifier(id: string): string {
   const safe = id.replace(/[^a-zA-Z0-9._:-]/g, '-').slice(0, 170);
   return `spark:${safe || 'notification'}`;
+}
+
+function futureReminderIdentifier(scheduleId: string): string {
+  const safe = scheduleId.replace(/[^a-zA-Z0-9._:-]/g, '-').slice(0, 170);
+  return `${FUTURE_REMINDER_PREFIX}${safe || 'invalid'}`;
+}
+
+function emptyReminderScheduleResult(
+  status: AndroidNotificationSetupStatus,
+): AndroidReminderScheduleResult {
+  return {
+    status,
+    scheduledIds: [],
+    canceledIds: [],
+    failedScheduleIds: [],
+    failedCancelIds: [],
+  };
+}
+
+function validReminderScheduleItem(
+  item: AndroidReminderScheduleItem,
+  now: number,
+): boolean {
+  return Boolean(
+    item
+    && typeof item.scheduleId === 'string'
+    && item.scheduleId.length > 0
+    && item.scheduleId.length <= 170
+    && typeof item.notificationId === 'string'
+    && item.notificationId.length > 0
+    && item.notificationId.length <= 190
+    && Number.isFinite(item.triggerAt)
+    && item.triggerAt > now
+    && typeof item.title === 'string'
+    && typeof item.body === 'string'
+    && typeof item.revision === 'string'
+    && item.revision.length > 0
+    && item.revision.length <= 120
+    && typeof item.feedRevision === 'string'
+    && item.feedRevision.length > 0
+    && item.feedRevision.length <= 120
+  );
 }
 
 function attentionRequired(severity: NotificationSeverity): boolean {
@@ -207,7 +290,11 @@ function emptyDeliveryResult(status: AndroidNotificationSetupStatus): AndroidDel
  */
 export async function deliverAndroidSystemNotifications(
   items: readonly AndroidSystemNotificationItem[],
-  options: { newlyCreatedIds?: readonly string[]; now?: number } = {},
+  options: {
+    newlyCreatedIds?: readonly string[];
+    suppressedIds?: readonly string[];
+    now?: number;
+  } = {},
 ): Promise<AndroidDeliveryResult> {
   if (!deliveryActivated) return emptyDeliveryResult('not_ready');
   // Otomatik sync kullanıcıya tekrar tekrar izin penceresi açmaz. İlk açık izin
@@ -218,6 +305,7 @@ export async function deliverAndroidSystemNotifications(
   const Notifications = await loadNotificationsModule();
   const now = options.now ?? Date.now();
   const newlyCreated = new Set(options.newlyCreatedIds ?? []);
+  const suppressed = new Set(options.suppressedIds ?? []);
 
   return enqueueNotificationMutation(async () => {
     // Setup/izin beklerken kullanıcı bildirimi okuyabilir veya silebilir. Native
@@ -236,6 +324,15 @@ export async function deliverAndroidSystemNotifications(
     let stateChanged = firstEnable;
     const pending: AndroidSystemNotificationItem[] = [];
 
+    // Mute uygulama-içi geçmişi silmez; ancak sessizde oluşan kayıt unmute
+    // sonrasında eski backlog olarak native panele düşmemelidir. İçeriği native
+    // planlayıcıya vermeden, kanonik feed'de bulunan ID'yi handled baseline yap.
+    for (const id of suppressed) {
+      if (!id || state.records[id] || !canonicalById.has(id)) continue;
+      state.records[id] = { handledAt: now };
+      stateChanged = true;
+    }
+
     for (const item of items) {
       if (!item.id || state.records[item.id] || sessionScheduledIds.has(item.id)) continue;
 
@@ -250,17 +347,19 @@ export async function deliverAndroidSystemNotifications(
       }
       const renderable = Boolean(item.title.trim() || item.body.trim());
       const isFresh = item.createdAt >= now - FIRST_ENABLE_FRESHNESS_MS;
-      const eligibleOnFirstEnable = newlyCreated.has(item.id) || isFresh;
+      const eligibleForDelivery = newlyCreated.has(item.id) || isFresh;
 
       if (
         !canonical ||
         canonical.read ||
         item.read ||
         !renderable ||
-        (firstEnable && !eligibleOnFirstEnable)
+        !eligibleForDelivery
       ) {
-        // Baseline/read kaydı: daha sonra eski bir feed öğesi yanlışlıkla yeni
-        // sistem bildirimi olarak dirilmesin.
+        // Baseline/read kaydı: ledger eksilse veya başka bir işlem genel sync
+        // tetiklese bile saatler önceki feed öğesi yeni sistem bildirimi olarak
+        // dirilmesin. Başarısız güncel teslim iki dakikalık tazelik penceresinde
+        // yeniden denenebilir; açıkça yeni ID ise pencere dışında da teslim edilir.
         state.records[item.id] = { handledAt: now };
         stateChanged = true;
         continue;
@@ -331,6 +430,235 @@ export async function deliverAndroidSystemNotifications(
   });
 }
 
+function ownedFutureReminderRequest(
+  request: import('expo-notifications').NotificationRequest,
+): boolean {
+  return request.identifier.startsWith(FUTURE_REMINDER_PREFIX)
+    && request.content.data?.sparkReminderOwner === FUTURE_REMINDER_OWNER;
+}
+
+function nativeFutureRequestMatches(
+  request: import('expo-notifications').NotificationRequest,
+  desired: AndroidReminderScheduleItem,
+): boolean {
+  const data = request.content.data;
+  return data?.sparkReminderRevision === desired.revision
+    && data?.sparkNotificationId === desired.notificationId
+    && Number(data?.sparkReminderTriggerAt) === desired.triggerAt;
+}
+
+/**
+ * Kalıcı borç/ödeme-planı verisinden türetilen gelecekteki Android alarmlarını
+ * OS gerçekliğiyle uzlaştırır. Yalnız `spark:future:v1:` sahiplik alanını yönetir;
+ * başka uygulama veya SPARK'ın anlık feed isteklerine dokunmaz.
+ */
+export async function reconcileAndroidReminderSchedules(
+  desiredItems: readonly AndroidReminderScheduleItem[],
+  options: {
+    now?: number;
+    mutes?: Partial<Record<NotificationMuteChannel, boolean>>;
+  } = {},
+): Promise<AndroidReminderScheduleResult> {
+  if (!deliveryActivated) return emptyReminderScheduleResult('not_ready');
+  const unsupported = canUseAndroidNotifications();
+  if (unsupported) return emptyReminderScheduleResult(unsupported);
+
+  const now = options.now ?? Date.now();
+  const setupStatus = await ensureAndroidNotificationSetup(false);
+  if (setupStatus === 'error' || setupStatus === 'unsupported' || setupStatus === 'expo_go') {
+    return emptyReminderScheduleResult(setupStatus);
+  }
+  const Notifications = await loadNotificationsModule();
+
+  return enqueueNotificationMutation(async () => {
+    let allScheduled: import('expo-notifications').NotificationRequest[];
+    try {
+      allScheduled = await Notifications.getAllScheduledNotificationsAsync();
+    } catch {
+      // Native gerçek okunamazsa yalnız yerel ledger'a güvenip alarm silmek veya
+      // çoğaltmak güvenli değildir.
+      return emptyReminderScheduleResult('error');
+    }
+
+    const previousState = await loadAndroidReminderScheduleStateStrict();
+    let activeReminderPresentations: Map<string, string>;
+    try {
+      activeReminderPresentations = new Map(
+        (await loadFeedStrict())
+          .filter((item) => !isNotificationMuted(item.id, options.mutes ?? {}))
+          .map((item) => [item.id, notificationContentRevision(item)]),
+      );
+    } catch {
+      // Feed kanonik bağlamı okunamazsa fired tray'i yanlışlıkla stale sayma.
+      return emptyReminderScheduleResult('error');
+    }
+    const desiredByNativeId = new Map<string, AndroidReminderScheduleItem>();
+    if (setupStatus === 'ready') {
+      for (const item of desiredItems) {
+        if (!validReminderScheduleItem(item, now)) continue;
+        const nativeId = futureReminderIdentifier(item.scheduleId);
+        if (!desiredByNativeId.has(nativeId)) desiredByNativeId.set(nativeId, item);
+      }
+    }
+
+    const ownedActual = new Map<string, import('expo-notifications').NotificationRequest>();
+    for (const request of allScheduled) {
+      if (ownedFutureReminderRequest(request)) ownedActual.set(request.identifier, request);
+    }
+
+    const result = emptyReminderScheduleResult(setupStatus);
+    const blockedNativeIds = new Set<string>();
+    const dismissedNativeIds = new Set<string>();
+    const finalRecords: Record<string, AndroidReminderScheduleRecord> = {};
+
+    // Önce stale/değişmiş native kayıtları iptal et. İptal başarısızsa aynı
+    // kimliği yeniden kurup iki alarm üretme; sonraki sync retry eder.
+    for (const [nativeId, request] of ownedActual) {
+      const desired = desiredByNativeId.get(nativeId);
+      if (desired && nativeFutureRequestMatches(request, desired)) continue;
+      try {
+        await Notifications.cancelScheduledNotificationAsync(nativeId);
+        try {
+          await Notifications.dismissNotificationAsync(nativeId);
+          dismissedNativeIds.add(nativeId);
+        } catch {
+          // Alarm iptal edildi; daha önce yarışla görünmüş tray kopyası ayrı
+          // best-effort yüzeydir ve sonraki feed cleanup'ında tekrar denenir.
+        }
+        ownedActual.delete(nativeId);
+        result.canceledIds.push(nativeId.slice(FUTURE_REMINDER_PREFIX.length));
+      } catch {
+        blockedNativeIds.add(nativeId);
+        result.failedCancelIds.push(nativeId.slice(FUTURE_REMINDER_PREFIX.length));
+      }
+    }
+
+    const newlyScheduledNativeIds: string[] = [];
+    let ownedFutureCount = ownedActual.size;
+    for (const [nativeId, desired] of desiredByNativeId) {
+      if (blockedNativeIds.has(nativeId)) continue;
+      const actual = ownedActual.get(nativeId);
+      if (!actual) {
+        if (ownedFutureCount >= MAX_OWNED_FUTURE_REMINDERS) {
+          result.failedScheduleIds.push(desired.scheduleId);
+          continue;
+        }
+        const alert = attentionRequired(desired.severity);
+        try {
+          await Notifications.scheduleNotificationAsync({
+            identifier: nativeId,
+            content: {
+              title: clampText(desired.title, 120),
+              body: clampText(desired.body, 280),
+              color: NOTIFICATION_ACCENT,
+              sound: alert ? 'default' : false,
+              priority: alert
+                ? Notifications.AndroidNotificationPriority.HIGH
+                : Notifications.AndroidNotificationPriority.DEFAULT,
+              data: {
+                sparkNotificationId: desired.notificationId,
+                sparkSeverity: desired.severity,
+                sparkReminderOwner: FUTURE_REMINDER_OWNER,
+                sparkReminderRevision: desired.revision,
+                sparkFeedRevision: desired.feedRevision,
+                sparkReminderTriggerAt: desired.triggerAt,
+                url: '/notifications',
+              },
+            },
+            trigger: {
+              type: Notifications.SchedulableTriggerInputTypes.DATE,
+              date: new Date(desired.triggerAt),
+              channelId: ANDROID_ALERTS_CHANNEL_ID,
+            },
+          });
+          newlyScheduledNativeIds.push(nativeId);
+          ownedFutureCount += 1;
+          result.scheduledIds.push(desired.scheduleId);
+        } catch {
+          result.failedScheduleIds.push(desired.scheduleId);
+          continue;
+        }
+      }
+
+      const previous = previousState?.records[desired.scheduleId];
+      finalRecords[desired.scheduleId] = {
+        nativeIdentifier: nativeId,
+        notificationId: desired.notificationId,
+        revision: desired.revision,
+        feedRevision: desired.feedRevision,
+        triggerAt: desired.triggerAt,
+        scheduledAt: previous?.revision === desired.revision
+          && previous.triggerAt === desired.triggerAt
+          ? previous.scheduledAt
+          : now,
+      };
+    }
+
+    // İptali başarısız stale istekleri ledger'da kaybetme. Bir sonraki actual-vs-
+    // desired pass aynı native kaydı yeniden görüp iptali tekrar dener.
+    for (const nativeId of blockedNativeIds) {
+      const scheduleId = nativeId.slice(FUTURE_REMINDER_PREFIX.length);
+      const previous = previousState?.records[scheduleId];
+      if (previous) finalRecords[scheduleId] = previous;
+    }
+
+    // DATE alarmı tetiklenince Expo scheduled envanterinden çıkar ama Android
+    // tray kopyası yaşayabilir. Feed oluşmadan borç kapanır veya plan pause/delete
+    // edilirse retiredId üretilemez; önceki içeriksiz ledger bu kopyayı bulup
+    // yalnız artık etkin olmayan domain varlıkları için best-effort temizler.
+    for (const [scheduleId, previous] of Object.entries(previousState?.records ?? {})) {
+      if (finalRecords[scheduleId]
+        || ownedActual.has(previous.nativeIdentifier)
+        || dismissedNativeIds.has(previous.nativeIdentifier)) continue;
+      const activeFeedRevision = activeReminderPresentations.get(previous.notificationId);
+      if (activeFeedRevision && previous.feedRevision === activeFeedRevision) {
+        // Alarm scheduled envanterinden düşmüş olsa da görünür tray kopyasının
+        // sonraki settle/pause/reschedule işleminde bulunabilmesi için cleanup
+        // handle'ını ledger'da koru.
+        finalRecords[scheduleId] = previous;
+        continue;
+      }
+      try {
+        await Notifications.dismissNotificationAsync(previous.nativeIdentifier);
+        dismissedNativeIds.add(previous.nativeIdentifier);
+      } catch {
+        // Sunulmuş kayıt kullanıcı tarafından kaldırılmış olabilir. Yeni schedule
+        // kurulmadığından sonraki sync aynı stale ledger cleanup'ını tekrar dener.
+        finalRecords[scheduleId] = previous;
+      }
+    }
+
+    try {
+      await saveAndroidReminderScheduleSnapshot(
+        { version: 1, updatedAt: now, records: finalRecords },
+        Object.values(finalRecords).map((record) => ({
+          notificationId: record.notificationId,
+          nativeIdentifier: record.nativeIdentifier,
+          handledAt: now,
+        })),
+      );
+    } catch {
+      // Native schedule başarılı ama iki ledger'ın ortak commit'i başarısızsa
+      // yeni OS yan etkisini geri al. Stale iptal edilen kayıtlar sonraki sync'te
+      // desired kaynaktan yeniden kurulabilir.
+      for (const nativeId of newlyScheduledNativeIds) {
+        try {
+          await Notifications.cancelScheduledNotificationAsync(nativeId);
+        } catch {
+          // Deterministik ID + actual-vs-desired sorgusu sonraki retry korumasıdır.
+        }
+      }
+      result.failedScheduleIds.push(
+        ...result.scheduledIds.filter((id) => !result.failedScheduleIds.includes(id)),
+      );
+      result.scheduledIds = [];
+      result.status = 'error';
+    }
+
+    return result;
+  });
+}
+
 /** Uygulama içinden silinen bildirimin tray kopyasını da kaldırır. */
 export async function dismissAndroidSystemNotifications(
   ids: readonly string[],
@@ -342,15 +670,33 @@ export async function dismissAndroidSystemNotifications(
   await enqueueNotificationMutation(async () => {
     const state = await loadAndroidDeliveryStateStrict();
     if (!state) return;
+    let stateChanged = false;
     for (const id of new Set(ids)) {
       const nativeIdentifier = state.records[id]?.nativeIdentifier;
-      if (!nativeIdentifier) continue;
-      try {
-        await Notifications.dismissNotificationAsync(nativeIdentifier);
-      } catch {
-        // Android tray öğesi kullanıcı tarafından zaten kaldırılmış olabilir.
+      if (nativeIdentifier) {
+        if (nativeIdentifier.startsWith(FUTURE_REMINDER_PREFIX)) {
+          try {
+            await Notifications.cancelScheduledNotificationAsync(nativeIdentifier);
+          } catch {
+            // Gelecekteki alarmın kaldığı belirsizken baseline'ı silmek, aynı
+            // occurrence'ın ikinci kez kurulmasına yol açabilir.
+            continue;
+          }
+        }
+        try {
+          await Notifications.dismissNotificationAsync(nativeIdentifier);
+        } catch {
+          // Eski panel kopyasının kaldığı belirsizken ledger'ı silip aynı ID'yi
+          // yeniden teslim ederek çift bildirim üretme.
+          continue;
+        }
+      }
+      if (state.records[id]) {
+        delete state.records[id];
+        stateChanged = true;
       }
     }
+    if (stateChanged) await saveAndroidDeliveryState(state);
   });
 }
 
@@ -392,15 +738,33 @@ export async function subscribeAndroidNotificationResponses(
     return task;
   };
 
+  const handleAndClearIfStillLatest = async (
+    response: import('expo-notifications').NotificationResponse,
+  ): Promise<boolean> => {
+    if (!await handle(response)) return false;
+    const requestId = response.notification.request.identifier;
+    try {
+      // Slot globaldir: A callback'i sürerken B tap'i geldiyse A'nın clear'i
+      // B'nin retry kaydını silmemeli. Yalnız hâlâ işlediğimiz response latest ise
+      // tüket; callback başarısızlığında handle false döner ve slot korunur.
+      const latest = await Notifications.getLastNotificationResponseAsync();
+      if (latest?.notification.request.identifier !== requestId) return true;
+      await Notifications.clearLastNotificationResponseAsync();
+      return true;
+    } catch {
+      // Route işlendi; kalıcı slot okunamadı/temizlenemedi. Daha yeni bir tap'i
+      // yanlışlıkla silmektense sonraki bootstrap retry'ını koru.
+      return false;
+    }
+  };
+
   const subscription = Notifications.addNotificationResponseReceivedListener((response) => {
-    void handle(response);
+    void handleAndClearIfStillLatest(response);
   });
 
   try {
     const initial = await Notifications.getLastNotificationResponseAsync();
-    if (initial && await handle(initial)) {
-      await Notifications.clearLastNotificationResponseAsync();
-    }
+    if (initial) await handleAndClearIfStillLatest(initial);
   } catch {
     // Warm listener yaşamaya devam eder. Cold response temizlenmez; sonraki
     // açılışta tekrar denenebilir ve kurulmuş subscription sızdırılmaz.

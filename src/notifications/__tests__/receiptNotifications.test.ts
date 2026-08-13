@@ -98,15 +98,15 @@ describe('receipt notification reconciliation', () => {
     expect(next[1]).toBe(budget);
   });
 
-  it('does not recreate missing notifications or erase historical ones without a DB subject', () => {
+  it('retires a receipt notification after its canonical expense is deleted', () => {
     const receipt = notification('receipt-saved-42');
-    const feed = [receipt];
+    const budget = notification('budget-2026-08-80', 'Dokunma');
 
     expect(
-      reconcileReceiptSavedNotifications(feed, [
+      reconcileReceiptSavedNotifications([receipt, budget], [
         { expense_id: 99, vendor_name: 'Başka kayıt' },
       ]),
-    ).toBe(feed);
+    ).toEqual([budget]);
   });
 
   it('uses the neutral placeholder when the saved expense has no vendor', () => {
@@ -130,6 +130,21 @@ describe('receipt notification reconciliation', () => {
     expect(mockGetNotificationSubjectsByIds).toHaveBeenCalledTimes(1);
     expect(mockGetNotificationSubjectsByIds).toHaveBeenCalledWith([7, 8]);
     expect(next.map((item) => item.params?.vendor)).toEqual(['Market A', 'Market B']);
+  });
+
+  it('removes only missing receipt subjects during normal notification sync', async () => {
+    const budget = notification('budget-2026-08-80', 'Dokunma');
+    const feed = [notification('receipt-saved-7'), notification('receipt-saved-8'), budget];
+    mockGetNotificationSubjectsByIds.mockResolvedValue([
+      { expense_id: 8, vendor_name: 'Kalan Market' },
+    ]);
+
+    const next = await reconcileReceiptSavedNotificationsFromDatabase(feed);
+
+    expect(next).toEqual([
+      expect.objectContaining({ id: 'receipt-saved-8', params: expect.objectContaining({ vendor: 'Kalan Market' }) }),
+      budget,
+    ]);
   });
 
   it('refreshes an existing receipt notification without creating a manual one', async () => {

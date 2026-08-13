@@ -6,6 +6,8 @@ import { GoalDao } from '../db/goalDao';
 import { CategoryLimitDao } from '../db/categoryLimitDao';
 import { CategoryDao } from '../db/categoryDao';
 import { SubscriptionDao } from '../db/subscriptionDao';
+import { DebtDao } from '../db/debtDao';
+import { RecurringPaymentReminderDao } from '../db/recurringPaymentReminderDao';
 import { hasApiKey } from '../services/geminiService';
 import { peekPendingReceiptDraft } from '../services/pendingReceiptDraft';
 import { getScanSessionError } from '../services/scanSession';
@@ -18,6 +20,8 @@ import {
 } from '../utils/budgetCycle';
 import { loadBackupMeta, isBackupOverdue } from '../services/backupMeta';
 import { syncSubscriptions } from '../services/subscriptionDetector';
+import { getToday } from '../utils/dateUtils';
+import { getCalendarDayOffset } from '../utils/recurringSchedule';
 import type { InAppNotification, RulesState, NotificationSeverity } from './types';
 import {
   loadFeedStrict,
@@ -27,13 +31,19 @@ import {
   stripLegacyDevDemoNotifications,
 } from './storage';
 import { reconcileReceiptSavedNotificationsFromDatabase } from './receiptNotifications';
+import {
+  buildReminderNotificationCandidates,
+  type ReminderNotificationCandidate,
+} from './reminderNotificationRules';
+import {
+  reconcileReminderNotificationFeed,
+  type ReminderFeedCandidate,
+  type ReminderFeedEntity,
+} from './reminderNotificationFeed';
+import { presentReminderNotification } from './reminderNotificationPresentation';
 
 function daysToDate(isoDate: string): number {
-  const t = new Date();
-  t.setHours(0, 0, 0, 0);
-  const e = new Date(isoDate + 'T12:00:00');
-  e.setHours(0, 0, 0, 0);
-  return Math.ceil((e.getTime() - t.getTime()) / (86400 * 1000));
+  return getCalendarDayOffset(getToday(), isoDate) ?? Number.NaN;
 }
 
 function muted(
@@ -43,6 +53,8 @@ function muted(
     | 'category_limit'
     | 'goal'
     | 'receipt'
+    | 'debt'
+    | 'payment_plan'
     | 'system'
     | 'subscription'
     | 'backup'
@@ -51,7 +63,21 @@ function muted(
 }
 
 function todayIso(): string {
-  return new Date().toISOString().slice(0, 10);
+  return getToday();
+}
+
+function currentLocalTime(now: Date): string {
+  return `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+}
+
+function candidateNotification(
+  candidate: ReminderNotificationCandidate,
+  createdAt: number,
+): ReminderFeedCandidate {
+  return {
+    candidate,
+    notification: presentReminderNotification(candidate, createdAt),
+  };
 }
 
 function push(
@@ -88,13 +114,31 @@ async function getDisplayCurrencySetting(): Promise<string> {
 
 export async function runNotificationSync(
   mutes: Partial<Record<string, boolean>>
-): Promise<{ feed: InAppNotification[]; unreadCount: number; createdIds: string[] }> {
+): Promise<{
+  feed: InAppNotification[];
+  unreadCount: number;
+  createdIds: string[];
+  retiredIds: string[];
+}> {
   let feed = stripLegacyDevDemoNotifications(await loadFeedStrict());
   let rules: RulesState = await loadRulesStateStrict();
+  const retiredIds = new Set<string>();
+  let confirmedPlanVendorIds = new Set<number>();
+  let confirmedPlansResolved = false;
 
   // Eski ve yeni fiş bildirimleri, oluşturma anındaki AI metnine değil mevcut
-  // harcamanın kanonik satıcısına bağlı kalır. Tek batch sorgu kullanılır.
+  // harcamanın kanonik satıcısına bağlı kalır. Silinen harcamaya bağlı kartlar
+  // stale sayılıp Android tray cleanup listesine eklenir. Tek batch sorgu kullanılır.
+  const receiptIdsBefore = new Set(
+    feed.filter((item) => item.id.startsWith('receipt-saved-')).map((item) => item.id),
+  );
   feed = await reconcileReceiptSavedNotificationsFromDatabase(feed);
+  const receiptIdsAfter = new Set(
+    feed.filter((item) => item.id.startsWith('receipt-saved-')).map((item) => item.id),
+  );
+  for (const id of receiptIdsBefore) {
+    if (!receiptIdsAfter.has(id)) retiredIds.add(id);
+  }
   const idsBeforeRuleEvaluation = new Set(feed.map((item) => item.id));
 
   // Bütçe dönemi takvim ayı değil, kullanıcının döngü başlangıç gününe göredir.
@@ -264,17 +308,113 @@ export async function runNotificationSync(
     }
   }
 
-  // —— 8) Tekrar eden ödemeler (abonelikler) ——
+  // —— 8) Borç vadeleri ve kullanıcı tarafından onaylanmış ödeme planları ——
+  // Bu iki kaynak türetilmiş abonelik tahmininden ayrıdır. Kural motoru yalnız
+  // yerel canonical gün/saat alır; feed uzlaştırması kapanmış, duraklatılmış veya
+  // yeniden planlanmış eski kartları kaldırır ve aynı fingerprint'i kullanıcı
+  // sildiyse geri diriltmez. Native gelecek-tarih scheduler'ı Faz 5 işidir.
+  try {
+    const debtRows = await DebtDao.listAll('borrowed');
+    const planRows = await RecurringPaymentReminderDao.listAll();
+    confirmedPlansResolved = true;
+    confirmedPlanVendorIds = new Set(
+      planRows
+        .filter((plan) => plan.source === 'detected' && plan.vendor_id != null)
+        .map((plan) => plan.vendor_id as number),
+    );
+
+    // Tahmin kullanıcı tarafından kalıcı plana dönüştürüldüğünde eski tahmin
+    // kartını ve Android kopyasını aynı sync'te emekliye ayır. Bu cleanup mute
+    // durumundan bağımsızdır; bayat domain türevi geçmiş olarak saklanmaz.
+    feed = feed.filter((item) => {
+      const match = item.id.match(/^sub-due-(\d+)-/);
+      if (!match || !confirmedPlanVendorIds.has(Number(match[1]))) return true;
+      retiredIds.add(item.id);
+      return false;
+    });
+    if (rules.subscriptionDueLast) {
+      for (const vendorId of confirmedPlanVendorIds) {
+        delete rules.subscriptionDueLast[String(vendorId)];
+      }
+    }
+
+    const now = new Date();
+    const candidates = buildReminderNotificationCandidates({
+      clock: { today: getToday(), localTime: currentLocalTime(now) },
+      debts: debtRows,
+      recurringPayments: planRows,
+    });
+
+    const entities: ReminderFeedEntity[] = [
+      ...debtRows.map((debt): ReminderFeedEntity => {
+        const dueDate = debt.due_date ?? 'none';
+        const timeId = debt.reminder_time.replace(':', '');
+        return {
+          entityKey: `debt:${debt.id}`,
+          kind: 'debt',
+          familyPrefix:
+            `debt-due-v1-${debt.id}-${dueDate}-${debt.reminder_days_before}-${timeId}-`,
+          tokenPrefix: `${dueDate}:${debt.reminder_days_before}:${debt.reminder_time}:`,
+          active: debt.direction === 'borrowed'
+            && debt.status === 'open'
+            && debt.remaining > 0
+            && debt.reminder_enabled === 1
+            && debt.due_date != null,
+        };
+      }),
+      ...planRows.map((plan): ReminderFeedEntity => {
+        const uid = plan.uid.toLowerCase();
+        const timeId = plan.reminder_time.replace(':', '');
+        return {
+          entityKey: `recurring:${uid}`,
+          kind: 'recurring_payment',
+          familyPrefix:
+            `payplan-due-v1-${uid}-${plan.next_due_date}-${plan.reminder_days_before}-${timeId}-`,
+          tokenPrefix:
+            `${plan.next_due_date}:${plan.reminder_days_before}:${plan.reminder_time}:`,
+          active: plan.status === 'active',
+        };
+      }),
+    ];
+
+    const reconciled = reconcileReminderNotificationFeed({
+      feed,
+      entities,
+      candidates: candidates.map((candidate) => candidateNotification(candidate, now.getTime())),
+      state: {
+        debtDueLast: rules.debtDueLast ?? {},
+        debtDueDismissed: rules.debtDueDismissed ?? {},
+        paymentPlanDueLast: rules.paymentPlanDueLast ?? {},
+        paymentPlanDueDismissed: rules.paymentPlanDueDismissed ?? {},
+      },
+      muted: {
+        debt: muted(mutes, 'debt'),
+        recurring_payment: muted(mutes, 'payment_plan'),
+      },
+    });
+    feed = reconciled.feed;
+    rules.debtDueLast = reconciled.state.debtDueLast;
+    rules.debtDueDismissed = reconciled.state.debtDueDismissed;
+    rules.paymentPlanDueLast = reconciled.state.paymentPlanDueLast;
+    rules.paymentPlanDueDismissed = reconciled.state.paymentPlanDueDismissed;
+    reconciled.retiredIds.forEach((id) => retiredIds.add(id));
+  } catch (e) {
+    if (__DEV__) console.warn('[notif] persisted_reminders', e);
+  }
+
+  // —— 9) Türetilmiş tekrar eden ödeme tahminleri ——
   // Önce tespiti güncel tut (ucuz, lookback penceresinde indeksli sorgu).
   // Ardından 3 gün veya daha az kala next_expected_date'i olan aktif aboneliği
-  // bildir. Aynı satıcı için aynı tarih bandında tekrar bildirim üretmeyiz.
-  if (!muted(mutes, 'subscription')) {
+  // bildir. Kullanıcı aynı satıcıyı kalıcı plana dönüştürdüyse tahmin ikinci bir
+  // bildirim üretmez; onaylı plan yukarıdaki ayrı kanalın yetkisindedir.
+  if (!muted(mutes, 'subscription') && confirmedPlansResolved) {
     try {
       await syncSubscriptions();
       const subs = await SubscriptionDao.getActive();
       rules.subscriptionDueLast = rules.subscriptionDueLast || {};
       const today = todayIso();
       for (const s of subs) {
+        if (confirmedPlanVendorIds.has(s.vendor_id)) continue;
         const days = daysToDate(s.next_expected_date);
         if (days < 0 || days > 3) continue;
         const key = String(s.vendor_id);
@@ -304,7 +444,7 @@ export async function runNotificationSync(
     }
   }
 
-  // —— 9) Otomatik döngü özeti (önceki döngü) ——
+  // —— 10) Otomatik döngü özeti (önceki döngü) ——
   // Her döngünün başında (ilk 7 gün içinde) bir kez gönderilir. Önceki döngünün
   // toplam harcama, bütçeye göre yüzde ve en yüksek harcanan kategori bilgisini içerir.
   // anchor=1'de "döngü" = takvim ayıdır (eski "aylık özet" davranışı korunur).
@@ -367,5 +507,5 @@ export async function runNotificationSync(
   const createdIds = feed
     .filter((item) => !idsBeforeRuleEvaluation.has(item.id))
     .map((item) => item.id);
-  return { feed, unreadCount, createdIds };
+  return { feed, unreadCount, createdIds, retiredIds: [...retiredIds] };
 }

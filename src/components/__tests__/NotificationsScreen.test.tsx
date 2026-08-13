@@ -3,6 +3,7 @@ import { fireEvent, render, waitFor } from '@testing-library/react-native';
 import { Linking, Platform } from 'react-native';
 
 import NotificationsScreen from '../../../app/notifications';
+import type { InAppNotification } from '../../notifications/types';
 
 const mockMarkRead = jest.fn(async () => undefined);
 const mockMarkAllRead = jest.fn(async () => undefined);
@@ -18,7 +19,7 @@ const mockSetMute = jest.fn(async () => undefined);
 const mockSync = jest.fn(async () => undefined);
 const mockEnsureAndroidNotificationSetup = jest.fn(async () => 'denied');
 
-const receiptNotification = {
+const receiptNotification: InAppNotification = {
   id: 'receipt-visual-test',
   severity: 'info' as const,
   titleKey: 'notif_receipt_saved_t',
@@ -28,12 +29,39 @@ const receiptNotification = {
   read: false,
 };
 
-const budgetNotification = {
+const budgetNotification: InAppNotification = {
   id: 'budget-visual-test',
   severity: 'warning' as const,
   titleKey: 'test_budget_title',
   bodyKey: 'test_budget_body',
   createdAt: new Date(2026, 6, 25, 14, 32).getTime(),
+  read: true,
+};
+
+const debtNotification: InAppNotification = {
+  id: 'debt-due-debt-1-2026-07-27-upcoming',
+  severity: 'warning' as const,
+  titleKey: 'test_debt_title',
+  bodyKey: 'test_debt_body',
+  createdAt: new Date(2026, 6, 25, 13, 30).getTime(),
+  read: true,
+};
+
+const paymentPlanNotification: InAppNotification = {
+  id: 'payplan-due-v1-plan-1-2026-07-27-upcoming',
+  severity: 'info' as const,
+  titleKey: 'test_payment_plan_title',
+  bodyKey: 'test_payment_plan_body',
+  createdAt: new Date(2026, 6, 25, 13, 20).getTime(),
+  read: true,
+};
+
+const inferredSubscriptionNotification: InAppNotification = {
+  id: 'sub-vendor-2-2026-07-28',
+  severity: 'info' as const,
+  titleKey: 'test_subscription_title',
+  bodyKey: 'test_subscription_body',
+  createdAt: new Date(2026, 6, 25, 13, 10).getTime(),
   read: true,
 };
 
@@ -84,13 +112,23 @@ jest.mock('../../i18n/LanguageContext', () => ({
         notif_filter_category: 'Kategori',
         notif_filter_goal: 'Hedef',
         notif_filter_receipt: 'Fiş',
+        notif_filter_debt: 'Borç',
+        notif_filter_payment_plan: 'Ödeme planı',
         notif_filter_subscription: 'Abonelik',
         notif_filter_backup: 'Yedek',
         notif_filter_system: 'Sistem',
+        notif_mute_debt: 'Borç hatırlatmaları',
+        notif_mute_payment_plan: 'Ödeme planı hatırlatmaları',
         notif_receipt_saved_t: '{vendor}',
         notif_receipt_saved_b: 'Fiş başarıyla işlendi ve işlem kaydedildi.',
         test_budget_title: 'Bütçe uyarısı',
         test_budget_body: 'Bütçene yaklaştın.',
+        test_debt_title: 'Borç vadesi',
+        test_debt_body: 'Borç vadesi yaklaşıyor.',
+        test_payment_plan_title: 'Ödeme planı',
+        test_payment_plan_body: 'Ödeme planı yaklaşıyor.',
+        test_subscription_title: 'Tahmini abonelik',
+        test_subscription_body: 'Tahmini abonelik ödemesi yaklaşıyor.',
       };
       let text = translations[key] ?? key;
       for (const [param, value] of Object.entries(params ?? {})) {
@@ -287,6 +325,60 @@ describe('NotificationsScreen', () => {
     ).toMatchObject({ selected: true });
     expect(view.queryByTestId(`notification-card-${receiptNotification.id}`)).toBeNull();
     expect(view.getByTestId(`notification-card-${budgetNotification.id}`)).toBeTruthy();
+  });
+
+  it('keeps debt, confirmed plans, and inferred subscriptions in separate channels', async () => {
+    mockNotifications = {
+      ...mockNotifications,
+      feed: [debtNotification, paymentPlanNotification, inferredSubscriptionNotification],
+      unreadCount: 0,
+    };
+    const view = await render(<NotificationsScreen />);
+
+    await fireEvent.press(view.getByTestId('notifications-filter-debt'));
+    expect(view.getByTestId(`notification-card-${debtNotification.id}`)).toBeTruthy();
+    expect(
+      view.queryByTestId(`notification-card-${paymentPlanNotification.id}`),
+    ).toBeNull();
+    expect(
+      view.queryByTestId(`notification-card-${inferredSubscriptionNotification.id}`),
+    ).toBeNull();
+
+    await fireEvent.press(view.getByTestId('notifications-filter-payment_plan'));
+    expect(view.queryByTestId(`notification-card-${debtNotification.id}`)).toBeNull();
+    expect(
+      view.getByTestId(`notification-card-${paymentPlanNotification.id}`),
+    ).toBeTruthy();
+    expect(
+      view.queryByTestId(`notification-card-${inferredSubscriptionNotification.id}`),
+    ).toBeNull();
+
+    await fireEvent.press(view.getByTestId('notifications-filter-subscription'));
+    expect(view.queryByTestId(`notification-card-${debtNotification.id}`)).toBeNull();
+    expect(
+      view.queryByTestId(`notification-card-${paymentPlanNotification.id}`),
+    ).toBeNull();
+    expect(
+      view.getByTestId(`notification-card-${inferredSubscriptionNotification.id}`),
+    ).toBeTruthy();
+
+    await fireEvent.press(view.getByTestId('notifications-filter-system'));
+    expect(view.queryByTestId(`notification-card-${debtNotification.id}`)).toBeNull();
+    expect(
+      view.queryByTestId(`notification-card-${paymentPlanNotification.id}`),
+    ).toBeNull();
+    expect(
+      view.queryByTestId(`notification-card-${inferredSubscriptionNotification.id}`),
+    ).toBeNull();
+  });
+
+  it('exposes debt reminder muting in notification preferences', async () => {
+    const view = await render(<NotificationsScreen />);
+
+    await fireEvent.press(view.getByTestId('notifications-preferences'));
+
+    expect(view.getByText('Borç hatırlatmaları')).toBeTruthy();
+    expect(view.getByText('Ödeme planı hatırlatmaları')).toBeTruthy();
   });
 
   it('disables swipe while selecting and deletes all selected IDs in one call', async () => {

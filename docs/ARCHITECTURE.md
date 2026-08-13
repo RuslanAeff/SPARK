@@ -115,8 +115,9 @@ Perde kalktıktan sonraki navigasyon da aynı süreklilik sözleşmesine tabidir
 | `budgets` | Takvim ayı olmak zorunda olmayan bütçe döngüsü anahtarıyla ilişkili planlanan tutar. |
 | `savings_goal` | Tek aktif birikim hedefi ve mevcut katkı tutarı. |
 | `category_limits` | Döngü başına kategori harcama limitleri. |
-| `subscriptions` | Yerel olarak çıkarılan tekrarlayan satıcı ödemeleri ve kullanıcının gizleme durumu. |
-| `debts` | Tüketimden ayrı izlenen alınan veya verilen borç anaparası. |
+| `subscriptions` | Yerel harcama geçmişinden çıkarılan tekrarlayan satıcı ödeme tahminleri ve kullanıcının gizleme durumu; kullanıcı taahhüdü değildir. |
+| `recurring_payment_reminders` | Kullanıcının manuel tanımladığı veya bir tahminden açıkça onayladığı takvimli ödeme hatırlatıcıları. |
+| `debts` | Tüketimden ayrı izlenen alınan veya verilen borç anaparası; nakit-akışı tarihi ile opsiyonel vade birbirinden ayrıdır. |
 | `debt_payments` | Borca bağlı kısmi veya tam geri ödeme olayları. |
 | `extra_incomes` | Geri ödeme yükümlülüğü olmadan harcanabilir nakdi artıran tek seferlik gelir. |
 | `settings` | Yerel anahtar/değer tercihleri ve alt sistem durumu; gizli bilgiler burada tutulmaz. |
@@ -173,6 +174,36 @@ kalan       = etkin bütçe - gerçek harcama
 
 Borç alma, borç tarihinin bulunduğu döngüyü; geri ödeme, ödeme tarihinin bulunduğu döngüyü etkiler. Ek gelir yalnız kendi döngüsünü etkiler. Açık borç toplamı ayrı ve döngüden bağımsız bir bakiyedir.
 
+Borç vadesi bütçe matematiğine katılmaz. `due_date`, yalnız kullanıcının ödeme
+taahhüdünü ve hatırlatma zamanını tanımlar; `debts.date` nakit-akışı tarihini
+korur. Tam ödeme, kalan/status güncellemesiyle aynı transaction içinde borç
+hatırlatmasını kapatır; kısmi ödeme hatırlatma tercihini değiştirmez.
+
+### Kullanıcı tarafından yönetilen ödeme hatırlatıcıları
+
+`subscriptions` yeniden üretilebilen bir istatistiksel tahmindir.
+`recurring_payment_reminders` ise kullanıcının açık kararıyla oluşan kalıcı bir
+varlıktır; tahmin silindiğinde veya tespit penceresinden çıktığında kaybolmaz.
+İlişkili satıcı kullanıcı tarafından silinirse bir `BEFORE DELETE` uzlaştırması
+kaydı manuel yönetime geçirir, ardından FK satıcı bağını `NULL` yapar; onaylanmış
+hatırlatıcı bu yan etkiyle sessizce silinmez.
+Tekrar kuralı anchor tarihi, sıradaki vade, gün/hafta/ay/yıl birimi ve pozitif
+aralıkla saklanır. Sıradaki vade bu programın gerçek bir oluşumu olmak zorundadır.
+Ay sonu ve artık yıl hesabı
+[`src/utils/recurringSchedule.ts`](../src/utils/recurringSchedule.ts) içinde
+kanonik takvim parçalarıyla yapılır; cihaz saat dilimi tarih sonucunu
+değiştiremez.
+
+Bu kalıcı modelden iki ayrı ikincil görünüm türetilir. Uygulama içi kural katmanı
+açık/bakiyeli borç ile etkin kullanıcı planını saf yerel takvim ve saat üzerinden
+değerlendirir; kalıcı fingerprint aynı aşamanın silindikten sonra geri dirilmesini
+engeller. Android coordinator ise aynı kanonik kayıtlardan geleceğe tarihli,
+tek-seferlik native alarm planı üretir ve gerçek OS planlarıyla uzlaştırır.
+Tahmini abonelik, borç ve onaylı plan ayrı kanallardır. Native kimlik ile teslim
+ve planlama ledger'ları backup verisi değildir. Ayrıntılı sınır
+[`ADR-006`](decisions/ADR-006-reminder-domain-and-delivery-boundaries.md) içinde
+tanımlanır.
+
 ## Temel akışlar
 
 ### Fiş tarama ve kaydetme
@@ -193,17 +224,76 @@ kamera/galeri
 
 ### Yedekleme ve geri yükleme
 
-Yedekleme, kullanıcının seçtiği tarih aralığı için sürümlenmiş JSON payload dışa aktarır. Import, tek transaction içinde uygulamadan önce payload'ın tamamını doğrular ve sanitize eder. Kalıcı bir varlık veya alan eklemek; şema başlatma, DAO, export oluşturma, import uyumluluğu ve yedek format sürümünün birlikte incelenmesini gerektirir.
+Yedekleme, kullanıcının seçtiği tarih aralığı için sürümlenmiş JSON payload dışa
+aktarır. İlişkisel bütünlük için seçili aralıkta oluşturulan veya ödemesi bulunan
+bir borç, tüm ödeme geçmişiyle taşınır; kullanıcı tarafından yönetilen düzenli
+ödeme hatırlatıcıları tarihsel olay değil yapılandırma olduğundan aralıktan
+bağımsız taşınır. Import, tek transaction içinde uygulamadan önce payload'ın
+tamamını doğrular ve sanitize eder. Kaynak SQLite kimlikleri hedef kimlik olarak
+kullanılmaz; harcama, borç ve ödeme ilişkileri kaynak-hedef haritalarıyla kurulur.
+Seçilen aralığın dışında kalan bağlı harcama payload'a gizlice eklenmez;
+v3 bunun yerine ilişkinin export kapsamı nedeniyle eksik olduğunu açık bir
+marker ile taşır. Böylece gerçekten bağlantısız borç ile eksik ilişki birbirine
+karışmaz; aynı DB'ye geri yükleme mevcut bağı silmez veya ikinci borç üretmez.
+Borç kalan/status değeri ödeme geçmişinden yeniden türetilir. Desteklenen eski
+formatlar yeni koleksiyonları boş kabul ederek okunur. Kalıcı bir varlık veya
+alan eklemek; şema başlatma, DAO, export oluşturma, import uyumluluğu ve yedek
+format sürümünün birlikte incelenmesini gerektirir.
 
 ### Bildirimler
 
 Bildirim kural motoru mevcut yerel durumdan feed girdileri türetir. Eşzamanlı yenileme, okuma, sessize alma ve silme işlemlerinin birbirini ezmemesi için feed ve dismissal-rule değişiklikleri serileştirilir. Çoklu silme paralel tekli yazmalar yerine tek depolama işlemi olmalıdır.
+
+Borç ve onaylı ödeme planı kuralları `Date`/UTC takvim farkına güvenmez;
+kanonik `YYYY-MM-DD`, yerel `HH:MM` ve saf gün farkı kullanır. Her kaynak için
+vade, tercih ve aşamayı içeren PII taşımayan deterministik kimlik ile son
+fingerprint tutulur. Aşama yükselince veya program değişince önceki türev feed'den
+kaldırılır; okundu durumu ile ilk oluşturulma zamanı kanonik metin güncellenirken
+korunur. Açık kullanıcı silmesi ayrı state'tir; 40 kayıtlık feed kapasitesi
+nedeniyle teknik budama silme kabul edilmez ve kapasite baskısında en yakın
+vadeler korunur. Kapanmış borç, duraklatılmış/silinmiş plan ve onaylı plana
+dönüşmüş tahmin cleanup'ı sessize alma durumundan bağımsızdır; kaldırılan veya
+aynı ID'de kanonik içeriği değişen tray kopyası transaction sonrasında best-effort
+temizlenir. Mute uygulama-içi geçmişi korur fakat native retry teslimini de keser.
+Feed veya native zamanlama bir ödemeyi gerçekleşmiş saymaz. Coordinator yalnız
+etkin planın geçmişte kalmış schedule cursor'ını tekrar kuralındaki bugünkü veya
+sonraki gerçek oluşuma ilerletir; bu işlem ödeme olayı, harcama ya da finansal
+durum değişikliği üretmez. Açılış perdesinin arkasında çağrılan veya kuyrukta
+bekleyen bir sync, native teslim daha sonra etkinleşse bile cursor ilerletme
+yetkisi kazanmaz. Cold tap varsa son response normal bootstrap sync'inden önce
+işlenir; eski oluşumun feed bağlamı kurulduktan ve native uzlaştırma uygulanabilir
+olduktan sonra cursor ilerletilir.
 
 Uygulama içi feed yetkili ve native teslimden bağımsız kalır. Android sistem bildirimi kök reveal kapısı kalktıktan sonra etkinleştirilir; Expo Go guard'ı native modül yüklenmeden önce çalışır. Standalone/development build'de rutin güncellemeler varsayılan ve sessiz `updates`, bütçe/hedef gibi dikkat gerektiren kayıtlar yüksek öncelikli sesli/titreşimli `alerts` kanalına gider. İki kanal da kilit ekranında `PRIVATE` görünürlük kullanır.
 
 Teslim idempotency'si, `settings` içindeki sınırlı yerel ledger ile korunur. Ledger yalnız feed kimliği, native kimlik ve zaman bilgisi taşır; başlık, gövde veya finansal içerik saklamaz. İlk aktivasyon eski feed'i topluca yeniden bildirim olarak üretmez; başarılı teslim kaydedilir, başarısız teslim sonraki senkronizasyonda yeniden denenebilir. Native planlama öncesinde kanonik feed varlığı, okunma durumu ve içerik revision'ı aynı mutasyon kuyruğunda yeniden doğrulanır; kullanıcı silme veya satıcı düzeltmesi sırasında eski snapshot diriltilmez. Kanal adları uygulama dilinde güncellenir; sistem izni Bildirimler tercihlerinde görünür ve ham tarama tanısı panel için jenerik metne çevrilir. Uygulamanın arka plandan dönmesi feed ve native teslimi yeniden senkronize eder. Uygulama içinden silme tray kopyasını kaldırır; warm/cold bildirim dokunuşu kaydı okunmuş sayıp bildirim rotasına yönlendirir.
 
 Android scheduling ve SQLite ledger yazımı tek OS transaction'ı değildir. Schedule sonrası ledger hatasında servis native kaydı geri kaldırıp retry yapar; kaldırma da başarısızsa süreç içi guard ikinci uyarıyı keser. Ani süreç ölümü sınırında mutlak exactly-once kanıtı verilemez; deterministik native kimlik, kalıcı ledger ve APK tekrar-teslim smoke testi bu küçük pencerenin azaltıcı kontrolleridir.
+
+Geleceğe tarihli planlama yalnız SPARK'a ait deterministik native kimlikleri
+uzlaştırır; başka uygulama veya özelliklerin OS bildirimleri topluca iptal
+edilmez. Borç için yaklaşan ve vade-günü alarmları, düzenli ödeme içinse mevcut
+oluşumdan başlayarak 400 günlük ve plan başına en fazla 14 oluşumluk rolling
+horizon hazırlanır; toplam istek sayısı 512 ile sınırlandırılır ve yakın
+oluşumlar planlar arasında adil seçilir. Alarm kurulduğunda aynı feed kimliği
+anlık teslim ledger'ında baselined edilerek uygulama açıldığında ikinci kez
+teslim edilmez. Doze/inexact teslim nedeniyle zamanı geçtiği halde native
+envanterde bekleyen alarm önce actual-vs-desired uzlaştırmasında iptal edilir;
+başarılı iptal aynı transaction'da eski baseline'ı kaldırır ve kanonik feed'in
+anlık fallback teslimine izin verir. İptali başarısız istek 512 OS kotasına dahil
+kalır ve ikinci alarm kurulmaz. Dil veya sunum metni değişirse revision değişir
+ve bekleyen OS isteği yenilenir. Tetiklenip scheduled envanterden düşmüş tray kopyaları exact
+feed kimliği ve içerik özetiyle izlenir; aşama, vade, tutar veya mute değişiminde
+stale sayılır ve temizleme hatası ledger handle'ını koruyarak sonraki sync'te
+yeniden denenir. Kalıcı ledger canlı 512 OS alarmını cleanup retry kayıtlarından
+ayrı tutar; cleanup backlog'u canlı alarm kimliklerini budayamaz. DST ilkbahar
+boşluğuna düşen yerel saat occurrence'ı kaybetmez, aynı takvim günündeki platformun
+ileri normalize ettiği ilk geçerli saate taşınır. Android exact-alarm özel erişimi istenmez; Doze, üretici pil
+politikası ve işletim sistemi alarmı seçilen dakikadan geciktirebilir. Reboot ve
+paket yenilemesinde Expo'nun kalıcı native deposu planları yeniden kurar;
+uygulama kapalıyken yapılan saat-dilimi değişikliği ancak sonraki startup/resume
+uzlaştırmasında yeni yerel saate çevrilir. Force-stop sonrası teslim garantisi
+verilmez ve bu sınırlar standalone APK kabulünde ayrıca sınanır.
 
 ## Bağımlılık ve değişiklik sınırları
 
