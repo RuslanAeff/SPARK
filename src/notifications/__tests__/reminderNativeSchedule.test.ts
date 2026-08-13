@@ -6,17 +6,6 @@ import {
   type RecurringPaymentNativeScheduleInput,
 } from '../reminderNativeSchedule';
 
-const originalTimezone = process.env.TZ;
-
-beforeAll(() => {
-  process.env.TZ = 'UTC';
-});
-
-afterAll(() => {
-  if (originalTimezone === undefined) delete process.env.TZ;
-  else process.env.TZ = originalTimezone;
-});
-
 function at(ymd: string, time: string): number {
   const value = localReminderDateTimeToEpoch(ymd, time);
   if (value == null) throw new Error(`Invalid test clock: ${ymd} ${time}`);
@@ -193,27 +182,22 @@ describe('reminderNativeSchedule — düzenli ödeme rolling horizon', () => {
 
 describe('reminderNativeSchedule — yerel saat ve kapasite güvenliği', () => {
   it('DST boşluğunda occurrence kaybetmeden aynı gün ileri normalize eder', () => {
-    process.env.TZ = 'Europe/Warsaw';
-    try {
-      const normalized = localReminderDateTimeToEpoch('2026-03-29', '02:30');
-      expect(normalized).not.toBeNull();
-      expect(new Date(normalized as number).getHours()).toBe(3);
-      expect(new Date(normalized as number).getMinutes()).toBe(30);
-      expect(localReminderDateTimeToEpoch('2026-03-29', '03:30')).not.toBeNull();
-      const result = buildReminderNativeSchedule({
-        nowMs: at('2026-03-28', '10:00'),
-        debts: [debt({
-          due_date: '2026-03-29',
-          reminder_days_before: 0,
-          reminder_time: '02:30',
-        })],
-        recurringPayments: [],
-      });
-      expect(result).toHaveLength(1);
-      expect(result[0]?.triggerAt).toBe(normalized);
-    } finally {
-      process.env.TZ = 'UTC';
-    }
+    const normalized = localReminderDateTimeToEpoch('2026-03-29', '02:30');
+    expect(normalized).not.toBeNull();
+    expect(new Date(normalized as number).getHours()).toBe(3);
+    expect(new Date(normalized as number).getMinutes()).toBe(30);
+    expect(localReminderDateTimeToEpoch('2026-03-29', '03:30')).not.toBeNull();
+    const result = buildReminderNativeSchedule({
+      nowMs: at('2026-03-28', '10:00'),
+      debts: [debt({
+        due_date: '2026-03-29',
+        reminder_days_before: 0,
+        reminder_time: '02:30',
+      })],
+      recurringPayments: [],
+    });
+    expect(result).toHaveLength(1);
+    expect(result[0]?.triggerAt).toBe(normalized);
   });
 
   it('512 sınırında her varlığın ilk alarmını ek alarmlardan önce korur', () => {
