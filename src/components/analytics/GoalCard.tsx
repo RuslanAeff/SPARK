@@ -5,6 +5,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import AnimatedCard from '../AnimatedCard';
 import DonutChart from '../DonutChart';
 import { Colors } from '../../theme/colors';
+import { useThemeRevision } from '../../theme/themeStore';
 import { formatCurrency } from '../../utils/formatCurrency';
 import type { BaseCardProps, GoalInfo } from './shared';
 
@@ -13,13 +14,14 @@ interface GoalCardProps extends BaseCardProps {
 }
 
 function GoalCard({ styles, t, currency, goalInfo }: GoalCardProps) {
+  useThemeRevision();
   if (!goalInfo.available) {
     return (
       <AnimatedCard delay={140} style={styles.section}>
         <View style={styles.goalHeader}>
           <View style={styles.goalHeaderLeft}>
             <MaterialCommunityIcons name="flag-checkered" size={18} color={Colors.textSecondary} />
-            <Text style={styles.sectionTitle}>{t('goal_card_title')}</Text>
+            <Text style={styles.cardHeaderTitle}>{t('goal_card_title')}</Text>
           </View>
         </View>
         <View style={styles.goalEmptyWrap}>
@@ -67,7 +69,7 @@ function GoalCard({ styles, t, currency, goalInfo }: GoalCardProps) {
           <View style={[styles.goalHeaderIcon, { backgroundColor: accent + '1F' }]}>
             <MaterialCommunityIcons name="flag-checkered" size={16} color={accent} />
           </View>
-          <Text style={styles.sectionTitle}>{t('goal_card_title')}</Text>
+          <Text style={styles.cardHeaderTitle}>{t('goal_card_title')}</Text>
         </View>
         {!!dateText && (
           <View style={[styles.goalDateChip, { backgroundColor: Colors.surfaceLight }]}>

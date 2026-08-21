@@ -35,6 +35,7 @@ export const CREATE_TABLES_SQL = `
     name        TEXT NOT NULL,
     turkish_name TEXT,
     quantity    REAL DEFAULT 1,
+    measurement_unit TEXT NOT NULL DEFAULT 'piece' CHECK(measurement_unit IN ('piece', 'kg', 'l')),
     unit_price  REAL NOT NULL,
     total_price REAL NOT NULL,
     category_id INTEGER REFERENCES categories(id)
@@ -45,6 +46,9 @@ export const CREATE_TABLES_SQL = `
     monthly_amount  REAL NOT NULL,
     currency        TEXT DEFAULT 'PLN',
     start_date      TEXT NOT NULL,
+    period_start    TEXT,
+    period_end      TEXT,
+    cycle_start_day INTEGER,
     active          INTEGER DEFAULT 1
   );
 
@@ -345,6 +349,7 @@ export interface ExpenseItem {
   name: string;
   turkish_name?: string | null;
   quantity: number;
+  measurement_unit?: import('../utils/measurementUnit').MeasurementUnit;
   unit_price: number;
   total_price: number;
   category_id: number | null;
@@ -359,6 +364,9 @@ export interface Budget {
   monthly_amount: number;
   currency: string;
   start_date: string;
+  period_start: string | null;
+  period_end: string | null;
+  cycle_start_day: number | null;
   active: number;
 }
 

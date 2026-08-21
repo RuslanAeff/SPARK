@@ -3,7 +3,7 @@ import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Colors } from '../theme/colors';
-import { useAppTheme } from '../theme/themeStore';
+import { useAppTheme, useThemeRevision } from '../theme/themeStore';
 import { Typography, FontFamily } from '../theme/typography';
 import { Spacing, BorderRadius } from '../theme/spacing';
 import { formatCurrency } from '../utils/formatCurrency';
@@ -21,7 +21,8 @@ function BudgetCard({ budget }: BudgetCardProps) {
   // React.memo + üst sekme yeniden çizilmeyince tema takılı kalmasın + Android'de
   // OS ve uygulama içi tema için merkezi store.
   const scheme = useAppTheme();
-  const styles = React.useMemo(() => getStyles(), [scheme]);
+  const themeRevision = useThemeRevision();
+  const styles = React.useMemo(() => getStyles(), [scheme, themeRevision]);
   const { t } = useLanguage();
   const { currency } = useCurrency();
   const percentage = Math.round(budget.percentage);

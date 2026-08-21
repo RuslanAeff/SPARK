@@ -44,6 +44,12 @@ oturumun amacı, kararları, çıktıları, kanıtları ve sınırlamaları kayd
 | `AI-2026-08-11-RECURRING-PAYMENT-UX-001` | 2026-08-11 | Kullanıcının düzenli ödemeleri manuel planlamasını ve yerel tahminleri açık onayla plana dönüştürmesini sağlamak | Kullanıcı token maliyetinin düşük tutulmasını istedi ve açıkça “Faz 3 için başla” dedi; feed kuralı, native scheduler, commit ve push bu onaya dahil edilmedi | `analiz`, `plan`, `kod`, `test`, `inceleme`, `dokümantasyon` | Evet | Tek ortak plan formu, onaylı/tahmini ayrımı, create/edit/pause/resume/delete, dört dil, dürüst teslim metni ve odaklı regresyonlar | Uygulandı; otomatik doğrulama ve standalone insan kabulü ayrıştırılıyor |
 | `AI-2026-08-11-REMINDER-FEED-RULES-001` | 2026-08-11 | Borç ve onaylı ödeme planlarını ayrı, deterministik ve yaşam döngüsü güvenli uygulama-içi bildirimlere dönüştürmek | Kullanıcı Faz 2 kalitesini koruyarak ölçülü token kullanılmasını istedi ve Faz 4'ü açıkça başlattı; future scheduler bu onaya dahil değildi | `analiz`, `plan`, `kod`, `test`, `inceleme`, `dokümantasyon` | Evet | Saf kural motoru, ayrı filtre/mute, dismissal ve kapasite güvenliği, stale feed/tray temizliği, dört dil ve regresyonlar | Uygulandı ve otomatik doğrulandı; fiziksel Android kabulü bekleniyor |
 | `AI-2026-08-11-ANDROID-REMINDER-SCHEDULER-001` | 2026-08-11 | Borç ve düzenli ödeme hatırlatıcılarını geleceğe tarihli Android alarmlarıyla kapalı uygulama teslimine hazırlamak | Kullanıcı token tüketiminin kontrollü tutulmasını istedi ve açıkça “Faz 5'e geçelim” dedi; commit, push, yayın ve exact-alarm özel izni yetkisi vermedi | `analiz`, `plan`, `kod`, `test`, `inceleme`, `dokümantasyon` | Evet | Rolling-horizon planlayıcı, cursor ilerletme, actual-vs-desired OS uzlaştırması, atomik çift-ledger baseline/rollback, cold-tap senkronu, dört dil ve kritik regresyonlar | Ürün kodu ve otomatik doğrulama tamamlandı; standalone APK/Faz 6 insan kabulü bekleniyor |
+| `AI-2026-08-13-ACCENT-PALETTES-001` | 2026-08-13 | Açık/koyu görünümden bağımsız, profesyonel ve erişilebilir beşli vurgu paleti kişiselleştirmesi eklemek | Kullanıcı mavi/turuncu/mor fikrine kırmızıyı ekledi, kapsamlı planı onayladı; ilk yoğun ayar sunumunu değerlendirip yerleşik görünüm kontrolü ile kompakt carousel yönünü seçti; commit, push, merge veya yayın istemedi | `analiz`, `plan`, `kod`, `test`, `inceleme`, `dokümantasyon` | Evet | Atomik tema snapshot'ı, runtime tam-palet reaktivitesi, kontrastlı CTA sözleşmesi, sabit merkezli yatay palet carousel'i, dört dil, ADR-007 ve cihaz kabul matrisi | Uygulandı ve yerel otomatik doğrulama geçti; standalone APK insan kabulü bekleniyor |
+| `AI-2026-08-14-ACCENT-DETENT-001` | 2026-08-14 | Vurgu carousel'ini gerçek viewport'ta optik merkezleyen, kademeli mekanik hissi ses+haptic ile veren ve sürükleme boyunca gereksiz DB yazmayan bir seçiciye dönüştürmek | Kullanıcı merkezleme kusurunu ekran görüntüsüyle gösterdi; daha sert kademeli “tak tak” hissi ile senkron ses ve titreşimi açıkça istedi. Commit, push, APK build veya yayın istemedi | `analiz`, `kod`, `test`, `inceleme`, `dokümantasyon` | Evet | Adaptif snap geometrisi, gesture-kademe önizlemesi, best-effort yerel klik+haptic, nihai snap kalıcılığı, sessiz/programatik yollar ve native yetenek sınırı | Uygulandı ve otomatik paket doğrulaması tamamlandı; fiziksel cihaz kabulü bekleniyor |
+| `AI-2026-08-21-RECURRING-PAYMENT-FULLSCREEN-001` | 2026-08-21 | Ödeme planı formunun üst başlığını ve alanlarını klavye/ekran oranından bağımsız, tam ekran ve dikey kaydırılabilir yapmak | Kullanıcı gerçek Expo Go ekranıyla bottom-sheet davranışını reddetti ve sabit sayfa akışını doğrudan istedi; commit, push veya yayın istemedi | `analiz`, `kod`, `test`, `inceleme`, `dokümantasyon` | Evet | Ayrı card route, safe-area sabit başlık, klavyeden bağımsız scroll gövdesi, kimlik-temelli güvenli veri yükleme ve create/edit/detected regresyonları | Uygulandı ve otomatik doğrulandı; fiziksel Android klavye/safe-area kabulü bekleniyor |
+| `AI-2026-08-21-DAILY-FLUCTUATION-VIEWPORT-001` | 2026-08-21 | Günlük Dalgalanma yakınlaştırmasını aynı adımlarda aynı tarih penceresini veren, sayaçla uyumlu ve sıçramasız bir görünüme dönüştürmek | Kullanıcı 32 günlük gerçek özel aralıkta `3/3`–`5/5` ile grafik kapsamının çeliştiğini ve geçişte başka grafik yanıp söndüğünü ekran kanıtıyla gösterdi; commit, push veya yayın istemedi | `analiz`, `kod`, `test`, `inceleme`, `dokümantasyon` | Evet | Sağdan hizalı saf pencere motoru, atomik viewport durumu, sağ-uç tarih çıpası, ilk karede doğru scroll konumu, tarih aralığı+sayaç ve zoomdan bağımsız giriş animasyonu | Uygulandı ve otomatik doğrulandı; fiziksel Android pager/optik kabulü bekleniyor |
+| `AI-2026-08-21-VENDOR-PRODUCT-PAGER-001` | 2026-08-21 | Satıcı ve ürün yoğunluğunu ana Analiz akışını uzatmadan göstermek; alım sayısı/toplam harcama sıralamasını ayırmak | Kullanıcı önce ürünlerin, ardından ana satıcı listesinin beşerli yatay sayfalanmasını istedi; satıcı dokunuşunda donut detayının nasıl korunacağını sordu ve önerilen ayrı yüksek paneli açıkça onayladı. Commit, push veya yayın istemedi | `analiz`, `kod`, `test`, `inceleme`, `dokümantasyon` | Evet | DAO'daki on ürün sınırının kaldırılması; sabit beşli satıcı pager'ı; ayrı satıcı analiz paneli; panel içinde donut, kararlı iki ürün sıralaması ve beşli pager; üst sekme kilidi; dört dil ve regresyon testleri | Uygulandı ve otomatik doğrulandı; fiziksel Android gesture/modal/optik kabulü bekleniyor |
+| `AI-2026-08-22-CLOSED-APP-ATTENTION-001` | 2026-08-22 | Ödeme günleri, birikim hedefi ve bütçe kontrol noktalarının uygulama ekranda değilken de Android paneline ulaşmasını sağlamak | Kullanıcı kapalı uygulamada görünür, dikkat çekici ve davranışı destekleyen uyarıları kapsamlı biçimde istedi; commit, push veya yayın yetkisi vermedi | `analiz`, `plan`, `kod`, `test`, `inceleme`, `dokümantasyon` | Evet | Mevcut borç/ödeme scheduler'ının denetimi; hedef ve bütçe için sınırlı tarihli dikkat planı; gerçek OS alarm sayısı; dört dil; deterministik uzlaştırma, mute ve backlog kontrolü | Ürün kodu hazır; otomatik doğrulama ve standalone APK insan kabulü ayrıştırılıyor |
 
 > Yukarıdaki oturum girdisi eşzamanlı olarak yazılmıştır; ancak doğrudan konuşma
 > dışa aktarımı veya kalıcı bir oturum kimliği henüz bağlanmamıştır. İnsan onayı
@@ -436,6 +442,192 @@ oturumun amacı, kararları, çıktıları, kanıtları ve sınırlamaları kayd
 | Gizlilik incelemesi | Kullanıcı ekran görüntülerindeki gerçek finansal içerik belge/test fixture'ına taşınmadı; mutlak attachment yolu belgeye yazılmadı |
 | Retrospektif sınırlama | İki açık/koyu ekran görüntüsü belirtilen konumda bulunamadığı için doğrudan piksel karşılaştırması yapılamadı. Referansın gradient/hover davranışı mobil-native etkileşime uygun olmadığı için bilinçli olarak uygulanmadı |
 | Takip işleri | İnsan görsel incelemesi sonrası gerekirse yalnız spacing/optik ağırlık rötuşu; APK öncesi cihaz kabul matrisine Scanner senaryolarını eklemek |
+
+### `AI-2026-08-13-ACCENT-PALETTES-001`
+
+| Alan | Kayıt |
+|---|---|
+| Tarih ve saat dilimi | 2026-08-13 · Europe/Warsaw |
+| İnsan hedefi | Açık/koyu görünümü korurken SPARK'ı tek rengin kontrollü tonlarıyla kişiselleştirmek; yeşil, mavi, turuncu, mor ve kırmızı arasında profesyonel seçim sunmak |
+| Açık insan onayı | Kullanıcı kapsamlı palet planını ve kırmızı seçeneğini açıkça onayladı; özellik branch'ine geçti ve uygulamayı başlatmamızı istedi. Commit, push, main'e merge, APK build veya yayınlama yetkisi vermedi |
+| Başlangıç çalışma ağacı | `feature/accent-palettes` branch'i; önceki kararlı tarayıcı tasarımı ayrı tag ile korunmuştu. Eşzamanlı insan-onaylı özellik uygulaması sırasında çalışma ağacı değiştirildi |
+| Kısıtlar ve korunacak alanlar | Açık/koyu nötr yüzeyler korunmalı; renk cümbüşü veya serbest hex seçimi olmamalı; semantik durumlar, kategori/grafik renkleri ve logo/splash sabit kalmalı; `Appearance.setColorScheme` ve navigator remount kullanılmamalı; ilk görünür kare flicker üretmemeli; vurgu finansal backup kapsamına girmemeli |
+| AI'ya sağlanan kaynaklar | Kullanıcının renk kişiselleştirmesi geri bildirimi; mevcut tema/startup kodu, ADR-001, ürün/mimari/kalite rehberleri ve test yapısı |
+| AI katkısı | `analiz`, `plan`, `kod`, `test`, `inceleme`, `dokümantasyon`: tema tüketicileri ve startup akışı denetlendi; küratörlü açık/koyu palet registry'si, tam snapshot/revision reaktivitesi, atomik kalıcılık, navigation köprüsü, runtime `susevar`, ayar seçicisi, dört dil, kontrast ve regresyon testleri ile ADR-007 tasarlandı/uygulandı. İnsan geri bildirimi sonrasında görünüm kontrolü yerleşik yapısına döndürüldü; vurgu seçimi sabit merkez halkalı yatay snap carousel ve ayrı bilgi modalı olarak sadeleştirildi |
+| İnsan katkısı | Vurgunun renkli yüzeylerden değil tek rengin tonlarından oluşmasını seçti; mavi, turuncu ve mora kırmızıyı ekledi; ilk uygulamadaki ayrı görünüm seçenekleri ile beş dikey vurgu satırının yoğunluğunu değerlendirip eski tam genişlikte otomatik kontrolü ve kompakt yatay carousel'i seçti; güvenli branch/tag akışını uyguladı ve nihai görsel kabulü kendisinde tuttu |
+| Karar | Görünüm ve vurgu ayrı eksenlerdir. Beş sabit palet dışına çıkılmaz. Dolu eylem `primaryAction`/`onPrimary` kullanır; semantik/veri/marka renkleri vurguya bağlanmaz. Şema ve vurgu startup DB readiness içinde tek snapshot olarak uygulanır; runtime değişim React store ve Navigation theme context'i üzerinden remount olmadan yayılır. Görünüm kartı yerleşik tam genişlikte otomatik kontrolü korur ve yalnız otomatik kapalıyken Açık/Koyu seçeneklerini gösterir. Vurgu kartı beş dikey satır yerine merkez halkalı yatay snap carousel kullanır; ayrıntılar ayrı bilgi modalındadır. Vurgu cihaz-yerel ayardır ve backup v4 oluşturmaz |
+| Değiştirilen ana alanlar | `src/theme/{colors,themeStore,navigationTheme,susevar}.ts`; `src/utils/themeSchedule.ts`; root/tab layout ve tema tüketen ekran/bileşenler; `app/settings-general.tsx`; `src/components/{AutoThemeScheduleToggle,AccentPaletteCarousel}.tsx`; TR/EN/AZ/RU kaynak/çıktıları; tema/ayar testleri; `DESIGN_BRIEF.md`, mimari/geliştirme/kalite rehberleri, ADR-007 ve evidence belgeleri |
+| Otomatik doğrulama | `npm run typecheck` exit 0; görünüm/vurgu/locale odaklı Jest 4/4 suite ve 24/24 test; `npm test -- --ci --coverage=false` 76/76 suite ve 648/648 test; locale compile/build başarılı; `git diff --check` exit 0 |
+| Cihaz doğrulaması | Bekleniyor: standalone APK'da beş vurgu × açık/koyu görünüm; cold start, otomatik/manüel görünüm, carousel dokunma ve swipe/snap, büyük font, art arda vurgu değişimi, yeniden başlatma kalıcılığı, aktif rota/sheet/scroll korunumu, lazy sekmeler, birincil CTA kontrastı, semantik/kategori/grafik sabitliği, logo/splash ve video-kare flicker kontrolü |
+| Son commit/PR | Henüz yok |
+| Nihai insan kabulü | Bekleniyor; otomatik test görsel uyumu, native ilk kareyi veya navigator kompozisyonunu kanıtlamaz |
+| Gizlilik incelemesi | Secret, kişisel finans verisi, kullanıcı hesabı, mutlak yerel yol veya attachment kimliği belge/test kanıtına eklenmedi; yalnız depo-göreli yollar kullanıldı |
+| Retrospektif sınırlama | Doğrulama `feature/accent-palettes` branch'inde, başlangıç HEAD `c9ef1db3d667461f5fd84ed8104f5b1a9789153a` üzerinde fakat henüz commit/build kimliği oluşmamış çalışma ağacında yapıldı; sonuç CI veya fiziksel cihaz kanıtı değildir |
+| Hatalı/yarım AI çıktısı | İlk UI taslağı görünümü yeni bir seçenek düzenine, vurgu seçimini ise beş dikey satıra genişleterek ekranı gereğinden uzun ve mevcut alışkanlıktan kopuk yaptı. İnsan geri bildirimiyle bu sunum bırakıldı; mimari karar korunarak görünüm eski kontrolüne, vurgu da kompakt swipe/snap carousel'e geçirildi |
+| Takip işleri | Standalone APK matrisini build/cihaz kimliğiyle yürütmek; insan görsel kabulünden sonra branch merge kararını ayrıca vermek |
+
+### `AI-2026-08-14-ACCENT-DETENT-001`
+
+| Alan | Kayıt |
+|---|---|
+| Tarih ve saat dilimi | 2026-08-14 · Europe/Warsaw |
+| İnsan hedefi | Vurgu renk dairelerini seçici sınırına tam merkezlemek; serbest kayan hissi sert ve kademeli bir detent deneyimine dönüştürmek; her kademe geçişinde kısa “tak” sesi ile titreşimi senkron algılatmak |
+| Açık insan onayı | Kullanıcı doğrudan bu görsel/etkileşim düzenlemesini istedi. Commit, push, merge, APK build veya yayınlama yetkisi vermedi |
+| Başlangıç çalışma ağacı | `feature/accent-palettes` branch'i; aynı özellik için insan-onaylı fakat henüz commit edilmemiş çalışma ağacı korundu |
+| Kısıtlar ve korunacak alanlar | Görünüm/tema altyapısı, beş palet ve semantik renk sınırı değişmemeli; programatik ilk konumlandırma geri bildirim üretmemeli; hızlı swipe DB yazma fırtınasına dönüşmemeli; ses/haptic hatası seçimi engellememeli; mikrofon, recording veya arka plan playback eklenmemeli; native hissin kabulü Jest'e dayandırılmamalı |
+| AI'ya sağlanan kaynaklar | Kullanıcının Genel Ayarlar ekran görüntüsü ve mekanik kademe hissi tarifi; sonraki geri bildirimlerde Samsung Alarm saat çarkı ekran görüntüsü, daha tok saat-kademesi, daha yavaş geçiş ve kovuk “tuf” yerine çok kısa tiz “tik” isteği; mevcut carousel/tema kodu, yerel Expo Haptics SDK sözleşmesi, ADR-007, kalite ve evidence sözleşmeleri |
+| AI katkısı | `analiz`, `kod`, `test`, `inceleme`, `dokümantasyon`: gerçek ScrollView ölçüsünden adaptif item stride/kenar inset/snap offset türetildi; seçili rozeti optik merkezi bozmayan sabit halkaya dönüştürüldü; kullanıcı gesture'ında geçilen her yeni kademeye dedupe edilmiş platform haptic'i ve kısa yerel klik bağlandı; hedef Samsung'da hafif kalan `CLOCK_TICK` insan geri bildirimiyle tek ve daha tok OEM `CONTEXT_CLICK`e, iOS geri bildirimi `RIGID` impact'e geçirildi; kovuk duyulan düşük frekans, ikinci mandal ve uzun rezonans kaldırılarak 12 ms özgün tiz “tik” WAV'ı üretildi; yuva mesafesi yaklaşık 96 dp'ye, geri bildirim ritmi 100 ms'ye çıkarıldı ve Android kaydırma freni güçlendirildi; önizleme ile DB kalıcılığı ayrılıp yalnız nihai snap yazıldı; programatik/rollback akışları sessiz tutuldu; Expo Audio yapılandırması recording/arka plan yeteneği açmayacak şekilde sınırlandı; regresyon ve cihaz kabul matrisi güncellendi |
+| İnsan katkısı | Merkezleme hatasını ve aranan fiziksel hissi belirledi; ses ile titreşimin birlikte gelmesini seçti; açık görünümde yeşil/mavi tonlarının mat, turuncu/kırmızının kirli göründüğünü ve yeniden açmada mor etiket/halkanın fiziksel turuncu kademe üzerinde kalabildiğini ekran görüntüsüyle gösterdi; cihazdaki hissin ve nihai tasarımın kabulünü kendisinde tuttu |
+| Karar | Geometri dış wrapper'a veya sabit 84 dp adıma bağlanmaz; gerçek viewport'a uyarlanır. Scroll sırasında yalnız merkez eşiği değiştiğinde önizleme+tek geri bildirim oluşur. Hedef cihaz geri bildirimine göre Android'de tok tek `CONTEXT_CLICK`, iOS'ta `RIGID` impact; yaklaşık 96 dp yuva, 100 ms kademe ritmi ve kuvvetli fren kullanılır. Kalıcı vurgu yalnız drag/momentum sonundaki snap kademesinde bir kez yazılır; içerik ölçümü, kayıt tamamlanması ve yeniden açma kanonik kademeyi sessizce yeniden merkezler. Açık görünüm canlı `primary` gösterim tonlarını, dolu CTA ise ayrı kontrastlı `primaryAction` tonunu kullanır. Bas/ikinci mandal/uzun rezonans içermeyen 12 ms tiz yerel “tik” best-effort'tur; sistem sessiz/medya politikası ile native API sınırlamaları aşılmaz. Mikrofon/recording ve arka plan playback kapalıdır |
+| Değiştirilen ana alanlar | `src/components/AccentPaletteCarousel.tsx`; `app/settings-general.tsx`; `assets/audio/palette-detent.wav`; `scripts/generate-palette-detent-audio.cjs`; `package.json`/lockfile; `app.json`; carousel/ayar testleri; `DESIGN_BRIEF.md`, ADR-007, kalite ve evidence belgeleri |
+| Otomatik doğrulama | `npm run typecheck` exit 0; görünüm/vurgu/ses yapılandırması/locale odaklı Jest 5/5 suite ve 40/40 test; son `npm test -- --ci --coverage=false` ile 77/77 suite ve 665/665 test; Android Metro export 1.956 modülle başarılı ve `assets/audio/palette-detent.wav` pakete dahil; Expo config introspection başarılı; `git diff --check` exit 0 |
+| Cihaz doğrulaması | Bekleniyor: desteklenen Android/iOS cihazda ilk/orta/son rengin optik merkezi; yavaş sürükleme, hızlı savurma ve dokunma; kademe başına tek haptic+klik algısı; normal ses, sessiz/titreşim ve düşük medya sesi; OEM haptic farkı; TalkBack/VoiceOver ayarlanabilir kontrol; ses/haptic hazır değilken seçim ve yeniden başlatma kalıcılığı |
+| Son commit/PR | Henüz yok |
+| Nihai insan kabulü | Bekleniyor; mekanik sertlik, ses seviyesi ve algısal senkron kullanıcı tarafından fiziksel cihazda değerlendirilmelidir |
+| Hatalı/yarım AI çıktısı | İlk sabit genişlik yaklaşımı ekran genişliğini ve dış wrapper ölçüm farkını yeterince hesaba katmadığı için daireler merkez sınırına optik olarak oturmadı; seçili rengin köşe rozeti de ağırlığı yana çekti. Sabit adım ve köşe rozeti bırakıldı |
+| Gizlilik incelemesi | Yerel ses varlığı özgün, kısa ve uygulama içinde paketlidir; kullanıcı sesi, mikrofon verisi, finansal veri, secret, credential veya mutlak attachment yolu eklenmedi |
+| Retrospektif sınırlama | Otomatik test native ses oturumunu, sessiz anahtarını, OEM haptic motorunu veya iki duyunun algısal senkronunu kanıtlamaz. Expo/React Native geri bildirim çağrıları aynı JS etkileşiminde kuyruğa alınsa da örnek düzeyinde zamanlama garantisi verilmez |
+| Takip işleri | Standalone cihaz kabulünü build/OS/artefakt kimliğiyle yürütmek ve gerekirse yalnız stride, haptic türü veya klik seviyesini ölçülü biçimde ayarlamak |
+
+### `AI-2026-08-21-IMMUTABLE-BUDGET-PERIODS-001`
+
+| Alan | Kayıt |
+|---|---|
+| Tarih ve saat dilimi | 2026-08-21 · Europe/Warsaw |
+| İnsan hedefi | Maaş erken/geç geldiğinde yeni bütçe döngüsünü o gün başlatabilmek; eski bütçelerin tarih aralığı ve tutarını değiştirmemek |
+| Açık insan onayı | Kullanıcı çözümü değerlendirdikten sonra uygulama değişikliğini onayladı; commit, push veya yayınlama yetkisi vermedi |
+| AI katkısı | Global döngü gününün geçmişi yeniden yorumladığını teşhis etti; dönem sınırı snapshot migration'ı, atomik 23→21 geçişi, geçmiş kartı/hook/backup uyumu ve regresyon testlerini uyguladı |
+| İnsan katkısı | Değişmez geçmiş ve yeni dönemde esnek başlangıç gereksinimini belirledi; cihaz kabulünü kendisinde tuttu |
+| Karar | Döngü günü ara `+/-` dokunuşlarında değil yeşil bütçe kaydında yürürlüğe girer. Açık dönem yürürlük tarihinden önceki gün kapanır; yeni dönem yürürlük tarihinde başlar; tamamlanmış kayıtlar değiştirilmez |
+| Değiştirilen ana alanlar | `app/settings-budget.tsx`; `src/db/{schema,database,budgetDao}.ts`; `src/hooks/useBudget.ts`; `src/components/BudgetHistoryCard.tsx`; `src/services/backupService.ts`; ADR-008 ve ilgili ürün/mimari/kanıt belgeleri |
+| Otomatik doğrulama | Odaklı Jest 6/6 suite ve 53/53 test başarılı; `npm run typecheck` ve `git diff --check` exit 0 |
+| Cihaz doğrulaması | Bekleniyor: eski 23 Haz–22 Tem kaydının sabit kalması, 21 Ağustos'ta 23→21 kaydı, uygulamayı yeniden açma ve mevcut DB migration'ı |
+| Son commit/PR | Henüz yok |
+| Retrospektif sınırlama | Otomatik SQLite sözleşme testleri gerçek cihaz upgrade'ını ve kullanıcının mevcut verisini kanıtlamaz |
+
+### `AI-2026-08-21-ANALYTICS-AFFORDANCE-001`
+
+| Alan | Kayıt |
+|---|---|
+| Tarih ve saat dilimi | 2026-08-21 · Europe/Warsaw |
+| İnsan hedefi | Kategori limitinin anlamını ve giriş yolunu netleştirmek; tüm fiyat değişimlerine erişmek; sekiz analiz kartı başlığını hizalamak |
+| Açık insan onayı | Kullanıcı doğrudan uygulama düzenlemesini istedi; commit/push/yayın yetkisi vermedi |
+| AI katkısı | Gizli ve hedef doğrulamasına bağlı limit akışını teşhis etti; hedefsiz limit kaydı, Bütçe/Analiz yönetim girişleri, kapsam metni, altılı yatay fiyat sayfaları ve ortak başlık ölçüsü uyguladı. Projeksiyon eşiğini kontrastlı/uçta görünür işaretçiye, donut yönlerini aynı vektör ikon sistemine dönüştürdü; test/dokümantasyon ekledi |
+| İnsan katkısı | Anlaşılmaz giriş yolunu, altı ürün sınırını ve optik hizasızlığı ekran görüntüleriyle belirledi; cihaz görsel kabulünü kendisinde tuttu |
+| Otomatik doğrulama | Locale üretimi/parity başarılı; ilk kapsam odaklı Jest 8/8 suite ve 29/29 test; yatay fiyat sayfası/projeksiyon eşiği takip kontrolü 3/3 suite ve 15/15 test; `npm run typecheck` ve `git diff --check` exit 0 |
+| Cihaz doğrulaması | Bekleniyor: hedef olmadan limit ekleme, 7+/13+ fiyat değişiminde nested yatay swipe, %1/%99 bütçe işaretçisi, donut okları, açık/koyu tema ve büyük fontta kart başlıkları |
+| Son commit/PR | Henüz yok |
+| Retrospektif sınırlama | Jest gerçek ekran ölçüsü, scroll ve optik hizayı kanıtlamaz |
+
+### `AI-2026-08-21-MEASUREMENT-PRICE-001`
+
+| Alan | Kayıt |
+|---|---|
+| İnsan hedefi | Fiyat kartı swipe'ının üst sekmeyi yanlışlıkla değiştirmemesini sağlamak; fiyat takibinin doğruluğunu denetlemek; ağırlıklı meyve/sebze/et miktarlarını adet `x` yerine uluslararası ölçüyle izlemek |
+| İnsan katkısı | Gerçek Analiz ve ürün geçmişi ekranlarıyla `0.53x`, `1.225x` örneklerini ve nested swipe riskini gösterdi; AI ve manuel akışın birlikte ele alınmasını istedi |
+| AI katkısı | Gesture sahipliğini tab navigator ile koordine etti; kanonik adet/kg/L şeması, g/ml dönüşümü, eski veri migration'ı, AI prompt/coercion, atomik fiş yazısı, backup uyumu ve ölçü-duyarlı ürün analizi uyguladı. Fiyat gruplamasını normalize ad+ölçüye bağladı; aynı gün tekrarlarını ağırlıklı tek gözleme indirdi ve ortalama fiyatı toplam tutar/toplam miktar yaptı |
+| İnsan kararı | Ölçü sistemi ve profesyonel fiyat takibi kapsamını talep etti; commit, push ve yayın yetkisi vermedi |
+| Otomatik doğrulama | `npm run typecheck` başarılı; `npm test -- --ci --coverage=false` ile 83 suite / 682 test başarılı; `git diff --check` temiz. Gemini 500-kalem koruma testi beklenen geliştirme uyarısını üretir |
+| Cihaz doğrulaması | Bekleniyor: fiyat kartı üzerinde yatay sürüklemede sekmenin sabit kalması; kart dışı swipe ile sekme geçişi; 530 g/0.53 kg manuel ve AI kaydı; eski kesirli kayıtların upgrade sonrası görünümü |
+| Kalan risk | Jest native PagerView gesture yarışını ve gerçek Expo SQLite upgrade'ını kanıtlamaz. Eski kesirli miktarlar için kg çıkarımı kontrollü fakat heuristiktir |
+
+### `AI-2026-08-21-PRICE-HISTORY-UX-001`
+
+| Alan | Kayıt |
+|---|---|
+| İnsan hedefi | Fiyat grafiği noktalarını kolay seçmek, uzun alım geçmişini sabit yükseklikte altışarlı incelemek ve davranış analizindeki belirsiz “Tasarruf” kavramını açıklığa kavuşturmak |
+| İnsan katkısı | Gerçek ürün geçmişi ve davranış analizi ekranlarıyla küçük hedef, geri dönüşsüz “Tümünü göster” ve kavramsal belirsizliği gösterdi |
+| AI katkısı | Her gözleme 44×44 doğrudan dokunma hedefi ekledi; geçmişi en yeniden eskiye altışarlı yatay pager yaptı ve iç gesture sırasında üst sekmeyi kilitledi; SQL sınıflandırmasını inceleyerek segmentin tasarruf değil kalan gider kategorileri olduğunu doğruladı ve dört dilde “Diğer Harcamalar” olarak düzeltti |
+| İnsan kararı | Üç sorunun birlikte düzeltilmesini istedi; commit, push veya yayın yetkisi vermedi |
+| Otomatik doğrulama | `npm run typecheck` başarılı; `npm test -- --ci --coverage=false` ile 83 suite / 685 test başarılı; `git diff --check` temiz. Gemini 500-kalem koruma testi beklenen geliştirme uyarısını üretir |
+| Cihaz doğrulaması | Bekleniyor: küçük/kenar grafik noktaları, geçmişte yatay sayfalama, dikey sheet scroll ile gesture ayrımı, açık/koyu tema ve dört dil |
+| Kalan risk | Jest fiziksel parmak hedefini, native gesture arbitration'ı ve optik yerleşimi tek başına kanıtlamaz |
+
+### `AI-2026-08-21-ANALYTICS-SUBSCRIPTION-UX-001`
+
+| Alan | Kayıt |
+|---|---|
+| İnsan hedefi | Davranış sınıflandırmasını açıklamak, uç değerli günlük grafiği yakından incelemek ve abonelik create/edit formunun ekran oranı ile belirsiz tekrar aralığını düzeltmek |
+| İnsan katkısı | Gerçek ekran görüntüleriyle kategori anlamını, grafik okunabilirliğini, sheet katmanını ve “her kaç birimde” belirsizliğini gösterdi; abonelik sisteminin doğruluğunun da denetlenmesini istedi |
+| AI katkısı | Ayarlar ile aynı bilgi affordance'ını davranış kartına ekledi ve “Diğer Harcamalar”ın tasarruf olmadığını belirtti. Günlük grafiği tüm dönem/14/7 gün kademeli, alt zaman pencereleri yatay gezilebilir ve her pencere yerel Y ölçekli hale getirdi. Abonelik sheet'ini klavye/safe-area uyumlu sabit yüzeye taşıdı; aralığı stepper ve dilbilgisel özetle açıkladı. DAO, tekrar takvimi ve scheduler sözleşmelerini yeniden doğruladı |
+| İnsan kararı | Bilgi penceresi ve sade timeline benzeri zoom yaklaşımını istedi; commit, push veya yayınlama yetkisi vermedi |
+| Otomatik doğrulama | `npm run typecheck` başarılı; odaklı 7/7 suite ve 82/82 test; tam `npm test -- --ci --coverage=false --runInBand` ile 85/85 suite ve 689/689 test başarılı; `git diff --check` temiz. Gemini 500-kalem koruma testi beklenen geliştirme uyarısını üretir |
+| Cihaz doğrulaması | Bekleniyor: Android APK'da grafiğin `-/+` kademeleri ve yatay pencereleri, uç değerli veri, klavye açıkken yeni/düzenle abonelik sheet'i, safe-area, büyük font ve dört dil |
+| Kalan risk | Jest native klavye, safe-area, gerçek kaydırma hissi ve kapatılmış uygulamadaki OS teslimini kanıtlamaz; bunlar standalone cihaz kabulü gerektirir |
+
+### `AI-2026-08-21-RECURRING-PAYMENT-FULLSCREEN-001`
+
+| Alan | Kayıt |
+|---|---|
+| İnsan hedefi | “Ödeme planı ekle/düzenle” başlığının ekran dışına itilmesini ve tutar klavyesi açıldığında formun görünümden kaybolmasını gidermek; ana formu bottom sheet yerine sabit, aşağı-yukarı kaydırılabilir gerçek sayfa yapmak |
+| İnsan katkısı | Sorunun önceki düzenlemeden sonra sürdüğünü gerçek Expo Go ekranıyla gösterdi; kabul edilen sunum modelini açıkça tam ekran sayfa olarak belirledi |
+| AI katkısı | Bottom-sheet yüzde yüksekliği, absolute alt yerleşim ve Android klavye daralmasının birleşimini kök neden olarak doğruladı. Manuel, düzenleme ve algılanan ödeme akışlarını ayrı `recurring-payment` card route'una taşıdı; safe-area başlığını klavye alanının dışında sabitledi ve yalnız form gövdesini dikey ScrollView+KeyboardAvoidingView içine aldı. Route parametrelerini sayısal plan/vendor kimliğiyle sınırladı; gerçek veriyi DAO'dan yükledi ve dönem eşlemesini ortak utility'ye ayırdı |
+| İnsan kararı | Ana formun alt pop-up olmamasını, ilk karede üst başlığın görünmesini ve klavye açıkken sayfanın kaydırılabilir kalmasını istedi; commit, push veya yayın yetkisi vermedi |
+| Değiştirilen ana alanlar | `app/{subscriptions,recurring-payment,_layout}.tsx`; `src/components/RecurringPaymentReminderSheet.tsx`; `src/utils/recurringPaymentPlan.ts`; route/form regresyon testleri; evidence belgeleri |
+| Otomatik doğrulama | `npm run typecheck` başarılı; route+form odaklı 2/2 suite ve 8/8 test; tam `npm test -- --ci --coverage=false --runInBand` ile 86/86 suite ve 692/692 test başarılı; `git diff --check` temiz |
+| Cihaz doğrulaması | Bekleniyor: Android APK/Expo Go'da ilk açılışta başlığın görünmesi; beklenen tutar ve not klavyelerinde başlığın sabit, gövdenin kaydırılabilir kalması; create/edit/detected, tarih seçici, sistem geri hareketi, açık/koyu tema ve büyük font |
+| Hatalı/yarım AI çıktısı | Önceki `%92` bottom-sheet + klavye kaçınma yaklaşımı Jest'te geçmesine rağmen gerçek cihazda başlığı korumadı. Bu iddia ekran kanıtıyla geçersizleşti ve sessizce yamalanmak yerine tam ekran route ile değiştirildi |
+| Gizlilik incelemesi | Route parametrelerine başlık, tutar, not veya satıcı metni konmadı; yalnız yerel sayısal kayıt kimliği taşındı. Ekran görüntüsü veya yerel dosya yolu depoya eklenmedi |
+| Kalan risk | Jest native Android pencere yeniden boyutlandırmasını, OEM klavye davranışını ve optik safe-area sonucunu kanıtlamaz; fiziksel cihaz kabulü gerekir |
+
+### `AI-2026-08-21-DAILY-FLUCTUATION-VIEWPORT-001`
+
+| Alan | Kayıt |
+|---|---|
+| İnsan hedefi | Günlük Dalgalanma grafiğindeki `-/+` adımlarını, sağdaki sayacı ve görünen tarih/veri kapsamını deterministik yapmak; geçiş sırasında farklı grafiğin kısa süre görünmesini kaldırmak |
+| İnsan katkısı | 21.07–21.08 özel aralığında tam görünüm, `3/3` ve `5/5` durumlarını yan yana göstererek son iki kademenin beklenmedik biçimde aynı dört günü çizdiğini ve her geçişin stabil hissedilmediğini belgeledi |
+| AI katkısı | Kaynağın günlük toplam sorgusu değil görünüm bölme/scroll yaşam döngüsü olduğunu doğruladı. 32 günü soldan `[14,14,4]` ve `[7,7,7,7,4]` bölen yaklaşımı en güncel tarihten geriye hizalanan saf sayfa aralıklarıyla değiştirdi; zoomu tek atomik `{zoomIndex,pageIndex}` durumuna aldı; kademe değişiminde incelenen sağ uç tarihi korudu; render sonrası `requestAnimationFrame(scrollTo)` sıçramasını ilk mount `contentOffset` ile kaldırdı; tarih aralığı ve sayacı aynı viewport'tan üretti; yalnız zoom değişiminde bar giriş animasyonunun yeniden başlamasını engelledi |
+| İnsan kararı | Kapsamlı ve kök neden odaklı düzeltme istedi; commit, push veya yayınlama yetkisi vermedi |
+| Değiştirilen ana alanlar | `src/components/BarChart.tsx`; `src/utils/barChartViewport.ts`; `app/(tabs)/analytics.tsx`; `src/components/analytics/ChartCard.tsx`; saf ve bileşen regresyon testleri; ürün/evidence belgeleri |
+| Otomatik doğrulama | `npm run typecheck` başarılı; odaklı 2/2 suite ve 10/10 test; tam `npm test -- --ci --coverage=false --runInBand` ile 87/87 suite ve 700/700 test başarılı; `git diff --check` temiz |
+| Cihaz doğrulaması | Bekleniyor: 21.07–21.08 aralığında tüm görünüm `21.07–21.08 · 1/1`; ilk artıda `08.08–21.08 · 3/3`; ikinci artıda `15.08–21.08 · 5/5`; eksiyle aynı pencerelere ters sırada dönüş; eski yatay sayfada zoom yapınca aynı sağ uç gününün korunması; hızlı dokunuş ve açık/koyu tema |
+| Hatalı/yarım AI çıktısı | Önceki uygulama sayfaları dizinin başından bölüyordu; bu nedenle en güncel son sayfa iki zoom kademesinde de yalnız dört gün kalıyordu. Ayrıca render sonrası imperatif scroll ve zooma bağlı animasyon yeni grafiğin bir kare yanlış konumda görünmesine yol açabiliyordu. Bu yaklaşım otomatik testlerden geçmiş olsa da gerçek cihaz ekran kanıtıyla geçersizleşti |
+| Gizlilik incelemesi | Ekran görüntüsü veya yerel dosya yolu depoya eklenmedi; yalnız tarih aralığı ve davranış düzeyindeki kabul örneği kaydedildi |
+| Kalan risk | Jest native ScrollView momentumunu, fiziksel dokunma hızını ve küçük ekran/büyük font optiğini tek başına kanıtlamaz; APK/cihaz kabulü gerekir |
+
+### `AI-2026-08-21-VENDOR-PRODUCT-PAGER-001`
+
+| Alan | Kayıt |
+|---|---|
+| İnsan hedefi | Ana satıcı/mağaza kartında ilk beş satıcıyı gösterip sağa doğru tüm satıcılara erişmek; satıcı seçilince donut ve ürün analizini profesyonel biçimde korumak; ürünleri alım sayısı veya toplam harcamaya göre sıralamak |
+| İnsan katkısı | Ana listenin sayfa boyutunu ve gezinme yönünü belirledi; ana kartta satır içi büyüme yerine ayrı yüksek analiz paneli önerisini açıkça onayladı. Commit, push veya yayın yetkisi vermedi |
+| AI katkısı | DAO'daki sessiz on ürün sınırını kaldırdı. Ana satıcı kartını sabit yükseklikte beşerli pager'a çevirdi; yatay hareket sırasında üst analiz sekmesini kilitledi ve satır dokunuşunu ayrı yüksek satıcı analiz paneline bağladı. Donut, lejant, alım/toplam harcama sıralaması ve beşerli ürün pager'ını panele taşıdı; ürün modalını iki native katman üst üste binmeden panel kapandıktan sonra açtı. `kg/l/adet` miktarlarını karşılaştırılamaz bir “adet” toplamına dönüştürmedi |
+| İnsan kararı | Satıcı sayfalarında kart yüksekliğinin değişmemesini, satıcı ayrıntısının ayrı panelde açılmasını ve ürünlerin iki anlamlı sıralamayla yatay gezilmesini seçti |
+| Değiştirilen ana alanlar | `app/(tabs)/analytics.tsx`; `src/components/analytics/{VendorsCard,VendorAnalyticsSheet,analyticsStyles}.tsx`; `src/db/expenseDao.ts`; dört dil kaynağı; DAO, bileşen ve locale testleri; ürün/evidence belgeleri |
+| Otomatik doğrulama | `npm run typecheck` başarılı; odaklı satıcı kartı/paneli 1/1 suite ve 6/6 test; tam `npm test -- --ci --coverage=false --runInBand` ile 88/88 suite ve 708/708 test başarılı; locale çıktıları yeniden üretildi; `git diff --check` sonucu teslim öncesi kaydedildi |
+| Cihaz doğrulaması | Bekleniyor: 6+ ve 11+ satıcı/ürünle beşerli sayfalar, son eksik sayfa, satır dokunuşu ile yatay swipe ayrımı, üst sekmeye kaçmayan jest, panel geri/handle/backdrop kapatma, kapandıktan sonra aynı satıcı sayfası, ürün ayrıntısı geçişi, açık/koyu tema ve büyük font |
+| Hatalı/yarım AI çıktısı | İlk sürüm satıcı ayrıntısını ana kartın içinde genişletiyordu; ürün sayfalansa bile satıcı sayısı kartı uzatıyor ve seçili satıcı donut'ı liste bağlamını bozuyordu. Kullanıcı geri bildirimiyle bu yaklaşım ayrı panel lehine geçersiz kılındı |
+| Gizlilik incelemesi | Ekran görüntüsü veya yerel dosya yolu depoya eklenmedi; yalnız davranış ve doğrulama özeti kaydedildi |
+| Kalan risk | Jest gerçek Android nested gesture önceliğini, tap/swipe ayrımını, native panel geçişini, momentum davranışını ve optik kart yüksekliğini kanıtlamaz; APK/cihaz kabulü gerekir |
+
+### `AI-2026-08-21-ANALYTICS-PAGERS-SUBSCRIPTIONS-001`
+
+| Alan | Kayıt |
+|---|---|
+| İnsan hedefi | Ayarlar'da eklenen aboneliklerin Analiz'deki aktif aboneliklere yansıması; En Yüksek İşlemler ve Sessiz Harcamalar kartlarının amacı zayıflamadan yatay sayfalanması |
+| İnsan katkısı | Üç davranışı açıkça talep etti; commit, push veya yayın yetkisi vermedi |
+| AI katkısı | Veri akışını iki ayrı tablonun kullanıldığını bulacak şekilde izledi. Etkin onaylı planlar ile otomatik tespitleri kullanıcı planı öncelikli tek görünümde birleştirdi; tekrar sıklığını aylık karşılığa normalize etti ve tutarsız çift vendor'ı bastırdı. En yüksek işlemleri 10 kayıt/iki beşli sayfa, sessiz harcamaları 15 kayıt/üç beşli sayfa ile sınırladı; kart yüksekliğini sabitledi ve iç gesture sırasında üst sekmeyi kilitledi |
+| İnsan kararı | Yoğun listelerde fiyat takibine benzer sağa/sola gezinmeyi istedi; En Yüksek İşlemler kapsamının aşırı büyütülmemesini özellikle belirtti |
+| Değiştirilen ana alanlar | `app/(tabs)/analytics.tsx`; `src/utils/subscriptionAnalytics.ts`; `src/components/analytics/{shared,SubscriptionsCard,TopTxCard,SilentSpendCard,analyticsStyles}.tsx`; ilgili testler ve ürün/evidence belgeleri |
+| Otomatik doğrulama | `npm run typecheck` başarılı; tam Jest koşusu 89/89 suite ve 714/714 test başarılı; `git diff --check` temiz |
+| Cihaz doğrulaması | Bekleniyor: manuel planın karta anında/focus sonrası gelmesi; aynı vendor tekilleştirmesi; 6+/11+ kayıt, son eksik sayfa, kart içi swipe ile üst sekme ayrımı, açık/koyu tema ve büyük font |
+| Gizlilik incelemesi | Ekran görüntüsü, yerel dosya yolu ve kullanıcı finans değeri belgeye eklenmedi |
+| Kalan risk | Jest gerçek SQLite, native yatay gesture arbitration'ı ve optik yükseklik hissini kanıtlamaz; standalone cihaz kabulü gerekir |
+
+### `AI-2026-08-22-CLOSED-APP-ATTENTION-001`
+
+| Alan | Kayıt |
+|---|---|
+| İnsan hedefi | Uygulamayı her gün açma zorunluluğu olmadan ödeme tarihleri, planlar, birikim hedefi ve bütçe davranışı için Android sistem panelinde dikkat çekici uyarılar almak |
+| Açık insan onayı | Kullanıcı bildirim altyapısının kapsamlı düzenlenmesini doğrudan istedi; commit, push, APK build veya yayın istemedi |
+| İnsan katkısı | Kapalı uygulamada gözlenmeyen teslim sorununu ve beklenen davranışsal amacı gerçek Android paneliyle tanımladı |
+| AI katkısı | Mevcut future scheduler, reveal/izin kapısı, feed köprüsü, mute ve refresh akışını denetledi; borç/ödeme planlarını koruyup hedef son tarihi ile bütçe dönemi kontrol noktalarını deterministik Android alarmına dönüştürdü; gerçek OS plan sayısını tercih yüzeyine taşıdı; dört dil, test ve tez izlenebilirliği ekledi |
+| İnsan tarafından seçilen/reddedilen öneriler | Sınırsız veya sürekli rahatsız etme yerine tarihli ve anlamlı kilometre taşları seçildi; bilinmeyen harcamayı arka planda varmış gibi gösterme reddedildi |
+| Değiştirilen ana alanlar | `src/notifications/{attentionNativeSchedule,buildNotifications,types}.ts`; `src/services/{reminderScheduler,androidNotificationsSetup}.ts`; `app/notifications.tsx`; ilgili testler; TR/EN/AZ/RU kaynak ve çıktıları; ürün, mimari, ADR ve evidence belgeleri |
+| Otomatik doğrulama | `npm run typecheck` exit 0; dikkat planı/scheduler/native envanter/feed/tercihler/locale için odaklı Jest 6/6 suite ve 72/72 test; tam Jest 90/90 suite ve 720/720 test; locale parity geçti; `git diff --check` exit 0. İki mevcut analytics bileşen testinde sonucu etkilemeyen overlapping `act()` uyarısı sürüyor |
+| Cihaz doğrulaması | Bekleniyor: standalone APK ilk izin; planlandı sayısı; uygulamayı ana ekrana gönderme/process kill; 5–10 dakika ileri ödeme alarmı; hedef/bütçe test tarihi; plan değişimi/mute iptali; reboot; Doze/OEM gecikmesi; force-stop sınırı |
+| Gizlilik incelemesi | Native schedule kimlikleri kişi/satıcı adı veya finansal tutar taşımaz; OS request içeriğinin Android özel deposunda bulunabileceği mevcut sınır korunur; ekran görüntüsü ve kişisel dosya yolu repoya eklenmedi |
+| Kalan risk | Yeni kurulum uygulama bir kez açılmadan ve izin verilmeden alarm kuramaz. Android force-stop planlı teslimi engeller; exact alarm izni olmadığı için seçilen dakika Doze/OEM tarafından gecikebilir. Uygulama kapalıyken yeni finansal veri gelmediğinden harcama/kategori eşikleri ancak event sonrası senkronizasyonda hesaplanır |
 
 ## 5. Yeni kayıt ekleme şablonu
 

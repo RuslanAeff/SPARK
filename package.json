@@ -1,6 +1,6 @@
 {
   "name": "spark-finance",
-  "version": "2.8.0",
+  "version": "3.1.0",
   "main": "expo-router/entry",
   "scripts": {
     "start": "expo start",
@@ -18,6 +18,7 @@
     "babel-preset-expo": "^55.0.11",
     "expo": "~55.0.28",
     "expo-asset": "~55.0.18",
+    "expo-audio": "~55.0.16",
     "expo-camera": "~55.0.21",
     "expo-constants": "~55.0.17",
     "expo-crypto": "~55.0.17",

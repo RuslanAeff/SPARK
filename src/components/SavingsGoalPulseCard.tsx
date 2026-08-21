@@ -8,7 +8,7 @@ import { useLanguage } from '../i18n/LanguageContext';
 import { formatCurrency } from '../utils/formatCurrency';
 import { getSavingsGoalProgress } from '../utils/savingsGoalProgress';
 import { Colors } from '../theme/colors';
-import { useAppTheme } from '../theme/themeStore';
+import { useAppTheme, useThemeRevision } from '../theme/themeStore';
 import { Typography, FontFamily } from '../theme/typography';
 import { Spacing, BorderRadius } from '../theme/spacing';
 import AnimatedCard from './AnimatedCard';
@@ -22,7 +22,8 @@ type Props = {
 
 export default function SavingsGoalPulseCard({ goal, onOpen, onContribute, now }: Props) {
   const scheme = useAppTheme();
-  const styles = useMemo(() => getStyles(), [scheme]);
+  const themeRevision = useThemeRevision();
+  const styles = useMemo(() => getStyles(), [scheme, themeRevision]);
   const { t } = useLanguage();
   const { currency } = useCurrency();
   const progress = getSavingsGoalProgress(goal, now);

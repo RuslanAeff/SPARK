@@ -14,6 +14,7 @@ jest.mock('@expo/vector-icons', () => {
 
 jest.mock('../../theme/themeStore', () => ({
   useAppTheme: () => 'light',
+  useThemeRevision: () => 0,
 }));
 
 jest.mock('../../i18n/LanguageContext', () => ({

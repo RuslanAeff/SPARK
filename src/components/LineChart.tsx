@@ -4,7 +4,7 @@ import { View, Text, StyleSheet, Pressable } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import Svg, { Path, Circle, Line, G, Defs, LinearGradient, Stop, Text as SvgText } from 'react-native-svg';
 import { Colors } from '../theme/colors';
-import { useAppTheme } from '../theme/themeStore';
+import { useAppTheme, useThemeRevision } from '../theme/themeStore';
 import { Typography, FontFamily } from '../theme/typography';
 import { Spacing, BorderRadius } from '../theme/spacing';
 import { formatCurrency } from '../utils/formatCurrency';
@@ -124,7 +124,8 @@ export default function LineChart({
   showDots = true,
 }: LineChartProps) {
   const scheme = useAppTheme();
-  const styles = useMemo(() => getStyles(), [scheme]);
+  const themeRevision = useThemeRevision();
+  const styles = useMemo(() => getStyles(), [scheme, themeRevision]);
   const { t } = useLanguage();
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
   const [layoutWidth, setLayoutWidth] = useState(320);
@@ -433,6 +434,27 @@ export default function LineChart({
             if (event.nativeEvent.actionName === 'decrement') moveAccessibleSelection(-1);
           }}
         />
+        {points.map((point, index) => (
+          <Pressable
+            key={`hit-target-${index}`}
+            testID={`line-chart-hit-target-${index}`}
+            style={[
+              styles.pointHitTarget,
+              {
+                left: contentOffsetX + point.x * contentScale - 22,
+                top: contentOffsetY + point.y * contentScale - 22,
+              },
+            ]}
+            onPress={() => handlePress(index)}
+            accessibilityRole="button"
+            accessibilityLabel={[
+              data[index].label,
+              formatCurrency(data[index].value, currency),
+              data[index].meta,
+            ].filter(Boolean).join(', ')}
+            accessibilityHint={t('chart_point_select_hint')}
+          />
+        ))}
       </View>
     </View>
   );
@@ -449,6 +471,13 @@ const getStyles = () => StyleSheet.create({
   },
   plotInteraction: {
     position: 'absolute',
+    backgroundColor: 'transparent',
+  },
+  pointHitTarget: {
+    position: 'absolute',
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     backgroundColor: 'transparent',
   },
   emptyText: {

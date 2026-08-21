@@ -4,6 +4,7 @@ import { View, Text } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import AnimatedCard from '../AnimatedCard';
 import { Colors } from '../../theme/colors';
+import { useThemeRevision } from '../../theme/themeStore';
 import { formatCurrency } from '../../utils/formatCurrency';
 import type { BaseCardProps, ProjectionInfo, Timeframe } from './shared';
 
@@ -13,6 +14,7 @@ interface ProjectionCardProps extends BaseCardProps {
 }
 
 function ProjectionCard({ styles, t, currency, projectionInfo, timeframe }: ProjectionCardProps) {
+  useThemeRevision();
   // Yıllık analizde ay sonu projeksiyonu anlamlı bir kart değildir. Kart
   // yapılandırmasını koruyup yalnızca bu görünümde render etmeyiz.
   if (timeframe === 'year') return null;
@@ -25,7 +27,7 @@ function ProjectionCard({ styles, t, currency, projectionInfo, timeframe }: Proj
         <View style={styles.projHeader}>
           <View style={styles.projHeaderLeft}>
             <MaterialCommunityIcons name="crystal-ball" size={18} color={Colors.textSecondary} />
-            <Text style={styles.sectionTitle}>{t('projection_title')}</Text>
+            <Text style={styles.cardHeaderTitle}>{t('projection_title')}</Text>
           </View>
         </View>
         <View style={styles.projEmptyWrap}>
@@ -84,7 +86,7 @@ function ProjectionCard({ styles, t, currency, projectionInfo, timeframe }: Proj
             <MaterialCommunityIcons name="crystal-ball" size={16} color={accent} />
           </View>
           <View style={styles.projHeaderTitleWrap}>
-            <Text style={styles.sectionTitle}>{t(titleKey)}</Text>
+            <Text style={styles.cardHeaderTitle}>{t(titleKey)}</Text>
             {periodLabel && <Text style={styles.projPeriodLabel}>{periodLabel}</Text>}
           </View>
         </View>
@@ -104,22 +106,25 @@ function ProjectionCard({ styles, t, currency, projectionInfo, timeframe }: Proj
       {/* Track — current ↔ projected ↔ budget */}
       <View style={styles.projTrackWrap}>
         <View style={styles.projTrack}>
-          {/* Current spent fill (solid, accent) */}
-          <View style={[styles.projTrackCurrent, { width: `${currentPct}%`, backgroundColor: accent }]} />
-          {/* Projected fill (translucent extension) */}
-          <View
-            style={[
-              styles.projTrackProjected,
-              {
-                left: `${currentPct}%`,
-                width: `${Math.max(0, projectedPct - currentPct)}%`,
-                backgroundColor: accent + '4D',
-              },
-            ]}
-          />
+          <View style={styles.projTrackFillClip}>
+            <View style={[styles.projTrackCurrent, { width: `${currentPct}%`, backgroundColor: accent }]} />
+            <View
+              style={[
+                styles.projTrackProjected,
+                {
+                  left: `${currentPct}%`,
+                  width: `${Math.max(0, projectedPct - currentPct)}%`,
+                  backgroundColor: accent + '4D',
+                },
+              ]}
+            />
+          </View>
           {/* Budget marker */}
           {budgetPct !== null && (
-            <View style={[styles.projTrackBudgetMarker, { left: `${budgetPct}%` }]} />
+            <View testID="projection-budget-marker" style={[
+              styles.projTrackBudgetMarker,
+              { left: `${Math.max(1, Math.min(99, budgetPct))}%` },
+            ]} />
           )}
         </View>
         <View style={styles.projTrackLegend}>

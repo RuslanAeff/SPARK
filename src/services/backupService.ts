@@ -30,6 +30,7 @@ import {
 } from '../utils/inputValidation';
 import { fromMinorUnits, roundMoney, toMinorUnits } from '../utils/moneyMath';
 import { isRecurringOccurrence } from '../utils/recurringSchedule';
+import { sanitizeMeasurementUnit } from '../utils/measurementUnit';
 
 /** Mevcut yedek formatı sürümü.
  *  v1 → ilk sürüm
@@ -91,6 +92,9 @@ interface ExportedBudget {
   monthly_amount: number;
   currency: string;
   start_date: string;
+  period_start?: string | null;
+  period_end?: string | null;
+  cycle_start_day?: number | null;
 }
 
 /** v2+: kullanıcının "abonelik değil" tepkisi vermiş satıcılar.
@@ -372,6 +376,8 @@ function validateBaseCollections(data: Record<string, unknown>): void {
         || unitPrice == null || Math.abs(unitPrice) > 999_999_999
         || totalPrice == null || Math.abs(totalPrice) > 999_999_999
         || !isNullableBoundedString(item.category_name, 100)) invalidFormat();
+      if (item.measurement_unit != null
+        && !['piece', 'kg', 'l'].includes(String(item.measurement_unit))) invalidFormat();
       if (item.line_discount != null && !isNonNegativeMoney(item.line_discount)) invalidFormat();
       if (item.list_line_total_before_discount != null
         && !isNonNegativeMoney(item.list_line_total_before_discount)) invalidFormat();
@@ -396,7 +402,13 @@ function validateBaseCollections(data: Record<string, unknown>): void {
     const budget = asRecord(raw);
     if (!isNonNegativeMoney(budget.monthly_amount)
       || !isBoundedString(budget.currency, 10, false)
-      || !isMonthKey(budget.start_date)) invalidFormat();
+      || !isMonthKey(budget.start_date)
+      || (budget.period_start != null && !isStrictDate(budget.period_start))
+      || (budget.period_end != null && !isStrictDate(budget.period_end))
+      || (budget.cycle_start_day != null
+        && (!Number.isInteger(budget.cycle_start_day)
+          || Number(budget.cycle_start_day) < 1
+          || Number(budget.cycle_start_day) > 31))) invalidFormat();
   }
 
   if (data.dismissed_subscriptions != null) {
@@ -618,6 +630,7 @@ export async function buildBackupPayload(range: BackupDateRange): Promise<Backup
         name: it.name,
         turkish_name: it.turkish_name ?? null,
         quantity: it.quantity,
+        measurement_unit: sanitizeMeasurementUnit(it.measurement_unit),
         unit_price: it.unit_price,
         total_price: it.total_price,
         line_discount: it.line_discount ?? null,
@@ -856,15 +869,24 @@ export async function buildBackupPayload(range: BackupDateRange): Promise<Backup
     monthly_amount: number;
     currency: string;
     start_date: string;
+    period_start: string | null;
+    period_end: string | null;
+    cycle_start_day: number | null;
   }>(
-    `SELECT monthly_amount, currency, start_date FROM budgets WHERE active = 1`
+    `SELECT monthly_amount, currency, start_date, period_start, period_end, cycle_start_day
+     FROM budgets WHERE active = 1`
   );
   const budgetsOut: ExportedBudget[] = budgetRows
-    .filter(b => months.has(b.start_date))
+    .filter(b => months.has(b.start_date)
+      || Boolean(b.period_start && b.period_end
+        && b.period_start <= range.end && b.period_end >= range.start))
     .map(b => ({
       monthly_amount: b.monthly_amount,
       currency: b.currency,
       start_date: b.start_date,
+      period_start: b.period_start,
+      period_end: b.period_end,
+      cycle_start_day: b.cycle_start_day,
     }));
 
   return {
@@ -1270,9 +1292,9 @@ export async function importBackupPayload(inputPayload: BackupPayload): Promise<
           : null;
         await db.runAsync(
           `INSERT INTO expense_items
-             (expense_id, name, turkish_name, quantity, unit_price, total_price, category_id, line_discount, list_line_total_before_discount)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-          [expenseId, itemName, itemTurkish, qty, unit, tp, itemCatId, ld, lb]
+             (expense_id, name, turkish_name, quantity, measurement_unit, unit_price, total_price, category_id, line_discount, list_line_total_before_discount)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [expenseId, itemName, itemTurkish, qty, sanitizeMeasurementUnit(it.measurement_unit), unit, tp, itemCatId, ld, lb]
         );
         summary.itemsAdded += 1;
       }
@@ -1704,15 +1726,26 @@ export async function importBackupPayload(inputPayload: BackupPayload): Promise<
         ? b.start_date : null;
       if (!month) continue;
       const existing = await db.getFirstAsync<{ id: number }>(
-        'SELECT id FROM budgets WHERE start_date = ? AND active = 1 LIMIT 1',
-        [month]
+        `SELECT id FROM budgets
+         WHERE active = 1 AND (period_start = ? OR (period_start IS NULL AND start_date = ?))
+         LIMIT 1`,
+        [b.period_start ?? null, month]
       );
       if (existing) continue;
       const amount = sanitizeAmount(b.monthly_amount);
       const curr = sanitizeText(b.currency || 'PLN', 10);
       await db.runAsync(
-        'INSERT INTO budgets (monthly_amount, currency, start_date, active) VALUES (?, ?, ?, 1)',
-        [amount, curr, month]
+        `INSERT INTO budgets
+          (monthly_amount, currency, start_date, period_start, period_end, cycle_start_day, active)
+         VALUES (?, ?, ?, ?, ?, ?, 1)`,
+        [
+          amount,
+          curr,
+          month,
+          b.period_start ?? null,
+          b.period_end ?? null,
+          b.cycle_start_day ?? null,
+        ]
       );
       summary.budgetsAdded += 1;
     }

@@ -5,6 +5,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import AnimatedCard from '../AnimatedCard';
 import MarqueeText from '../MarqueeText';
 import { Colors } from '../../theme/colors';
+import { useThemeRevision } from '../../theme/themeStore';
 import { CountUpText, type BaseCardProps, type StreakData, type StreakVariant } from './shared';
 
 interface StreakCardProps extends BaseCardProps {
@@ -13,6 +14,7 @@ interface StreakCardProps extends BaseCardProps {
 }
 
 function StreakCard({ styles, t, streakData, setStreakDetailVariant }: StreakCardProps) {
+  useThemeRevision();
   const {
     status,
     streakMode,

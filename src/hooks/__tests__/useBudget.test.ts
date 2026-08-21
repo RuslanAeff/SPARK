@@ -9,6 +9,7 @@ import { useBudget } from '../useBudget';
 jest.mock('../../db/budgetDao', () => ({
   BudgetDao: {
     getForMonth: jest.fn(),
+    getContainingDate: jest.fn(),
     getLatestActive: jest.fn(),
   },
 }));
@@ -65,6 +66,13 @@ describe('useBudget refresh sıralaması', () => {
     (BudgetDao.getForMonth as jest.Mock).mockResolvedValue({
       monthly_amount: 1000,
       currency: 'PLN',
+    });
+    (BudgetDao.getContainingDate as jest.Mock).mockResolvedValue({
+      monthly_amount: 1000,
+      currency: 'PLN',
+      period_start: null,
+      period_end: null,
+      cycle_start_day: null,
     });
     (BudgetDao.getLatestActive as jest.Mock).mockResolvedValue(null);
     (DebtDao.getBorrowedTotalByDateRange as jest.Mock).mockResolvedValue(0);

@@ -1,7 +1,7 @@
 // S.P.A.R.K. — Advanced Analytics Screen
 import React, { useCallback, useEffect, useState, useMemo, useRef } from 'react';
 import { View, Text, ScrollView, StyleSheet, Pressable, PanResponder, Animated as RNAnimated, Dimensions, RefreshControl, Platform, ActivityIndicator } from 'react-native';
-import { useAppTheme } from '../../src/theme/themeStore';
+import { useAppTheme, useThemeRevision } from '../../src/theme/themeStore';
 import { useFocusEffect, router } from 'expo-router';
 import { useIsFocused } from '@react-navigation/native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -13,9 +13,10 @@ import { Spacing, BorderRadius } from '../../src/theme/spacing';
 import { useCategorySpending, useVendorSpending, useDailySpending, useTopTransactions, useSubcategorySpending, useBehavioralAnalytics } from '../../src/hooks/useExpenses';
 import { ExpenseDao } from '../../src/db/expenseDao';
 import { SubscriptionDao } from '../../src/db/subscriptionDao';
+import { RecurringPaymentReminderDao } from '../../src/db/recurringPaymentReminderDao';
 import { CategoryLimitDao } from '../../src/db/categoryLimitDao';
 import { GoalDao, type SavingsGoalRow } from '../../src/db/goalDao';
-import type { SubscriptionWithDetails } from '../../src/db/schema';
+import type { RecurringPaymentReminder, SubscriptionWithDetails } from '../../src/db/schema';
 import { getStartOfMonth, getEndOfMonth, formatMonthYear, formatDayMonth } from '../../src/utils/dateUtils';
 import { getCurrentCycle, getCycleProgress } from '../../src/utils/budgetCycle';
 import {
@@ -49,10 +50,14 @@ import GoalCard from '../../src/components/analytics/GoalCard';
 import CategoriesCard from '../../src/components/analytics/CategoriesCard';
 import DonutCard from '../../src/components/analytics/DonutCard';
 import VendorsCard from '../../src/components/analytics/VendorsCard';
+import VendorAnalyticsSheet from '../../src/components/analytics/VendorAnalyticsSheet';
 import StreakCard from '../../src/components/analytics/StreakCard';
 import { useBudget } from '../../src/hooks/useBudget';
 import { useExpenseDataRefresh } from '../../src/context/RefreshContext';
 import { useCurrency } from '../../src/context/CurrencyContext';
+import type { MeasurementUnit } from '../../src/utils/measurementUnit';
+import { buildPriceChanges } from '../../src/utils/priceWatch';
+import { buildSubscriptionAnalyticsInfo } from '../../src/utils/subscriptionAnalytics';
 
 const SCREEN_HEIGHT = Dimensions.get('window').height;
 const AUTO_SCROLL_EDGE = 100;
@@ -240,9 +245,10 @@ export default function AnalyticsScreen() {
   // BÜTÇE DURUMU vb. kartlar sekme odakta değilken de tema güncellensin.
   // Merkezi React tema store'u tüm analitik kartları aynı karede günceller.
   const scheme = useAppTheme();
+  const themeRevision = useThemeRevision();
   // P10: Büyük StyleSheet her render’da yeniden üretilmesin; yalnız tema
   // geçişlerinde yeniden oluştur.
-  const styles = useMemo(() => getAnalyticsStyles(), [scheme]);
+  const styles = useMemo(() => getAnalyticsStyles(), [scheme, themeRevision]);
   const [timeframe, setTimeframe] = useState<Timeframe>('month');
   const { t, tc, language } = useLanguage();
   const { currency } = useCurrency();
@@ -444,7 +450,7 @@ export default function AnalyticsScreen() {
   const { data: topTx, refresh: refreshTop } = useTopTransactions(
     dateRange.start,
     dateRange.end,
-    8,
+    10,
     topTransactionsQueryOptions,
   );
   const { data: subcats, refresh: refreshSubcats } = useSubcategorySpending(
@@ -481,13 +487,15 @@ export default function AnalyticsScreen() {
   const [yearlyData, setYearlyData] = useState<{ label: string; value: number }[]>([]);
   const [selectedVendor, setSelectedVendor] = useState<number | null>(null);
   const [vendorItems, setVendorItems] = useState<any[]>([]);
+  const [vendorItemsLoading, setVendorItemsLoading] = useState(false);
   const [selectedItemName, setSelectedItemName] = useState<string | null>(null);
+  const [selectedItemUnit, setSelectedItemUnit] = useState<MeasurementUnit | undefined>();
   const [streakDetailVariant, setStreakDetailVariant] = useState<'zero' | 'streak' | 'under' | null>(null);
-  const [selectedDonutIdx, setSelectedDonutIdx] = useState<number | null>(null);
   const [selectedNWIdx, setSelectedNWIdx] = useState<number | null>(null);
   const [selectedWWIdx, setSelectedWWIdx] = useState<number | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [activeSubs, setActiveSubs] = useState<SubscriptionWithDetails[]>([]);
+  const [activePaymentPlans, setActivePaymentPlans] = useState<RecurringPaymentReminder[]>([]);
   const [categoryLimits, setCategoryLimits] = useState<{
     category_id: number;
     category_name: string;
@@ -567,39 +575,22 @@ export default function AnalyticsScreen() {
   async function loadPriceChanges() {
     try {
       const raw = await ExpenseDao.getPriceHistory(6);
-      const grouped = new Map<string, typeof raw>();
-      raw.forEach(r => {
-        const key = r.name.trim();
-        if (!grouped.has(key)) grouped.set(key, []);
-        grouped.get(key)!.push(r);
-      });
-
-      const changes: PriceChange[] = [];
-      grouped.forEach((entries) => {
-        if (entries.length < 2) return;
-        const first = entries[0];
-        const last = entries[entries.length - 1];
-        if (first.unit_price === last.unit_price || first.unit_price === 0) return;
-        const pct = ((last.unit_price - first.unit_price) / first.unit_price) * 100;
-        changes.push({
-          name: first.name,
-          turkishName: first.turkish_name,
-          firstPrice: first.unit_price,
-          lastPrice: last.unit_price,
-          changePct: Math.round(pct * 10) / 10,
-          purchaseCount: entries.length,
-        });
-      });
-      changes.sort((a, b) => Math.abs(b.changePct) - Math.abs(a.changePct));
-      setPriceChanges(changes.slice(0, 6));
+      setPriceChanges(buildPriceChanges(raw));
     } catch { setPriceChanges([]); }
   }
 
   async function loadActiveSubscriptions() {
     try {
+      // ADR-002: iki tabloyu aynı bağlantıda seri oku. Kullanıcı tarafından
+      // onaylanan ödeme planları otomatik tespitlerden ayrı kanonik kaynaktır.
       const rows = await SubscriptionDao.getActive();
+      const plans = await RecurringPaymentReminderDao.listActive();
       setActiveSubs(rows);
-    } catch { setActiveSubs([]); }
+      setActivePaymentPlans(plans);
+    } catch {
+      setActiveSubs([]);
+      setActivePaymentPlans([]);
+    }
   }
 
   async function loadSavingsGoal() {
@@ -625,7 +616,7 @@ export default function AnalyticsScreen() {
       const data = await ExpenseDao.getSilentSpendItems(dateRange.start, dateRange.end, {
         minOccurrences: 3,
         maxAvgPrice: 30,
-        limit: 5,
+        limit: 15,
       });
       if (sequence === silentSpendSequence.current) setSilentSpendData(data);
     } catch {
@@ -764,31 +755,12 @@ export default function AnalyticsScreen() {
   }, [timeframe, budget.cycleStartDay, budget.totalSpent, budget.effectiveBudget, cycleDailyData, t]);
 
   // ── Abonelik özeti ───────────────────────────────────────────────
-  // Her abonelik period_days'a göre 30 günlük döneme normalize edilir.
-  const subscriptionInfo = useMemo(() => {
-    if (activeSubs.length === 0) {
-      return { count: 0, monthlyTotal: 0, upcoming: [] as (SubscriptionWithDetails & { daysUntil: number })[] };
-    }
-    const monthlyTotal = activeSubs.reduce((sum, s) => {
-      const period = s.period_days || 30;
-      return sum + s.amount * (30 / period);
-    }, 0);
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const withDays = activeSubs.map(s => {
-      const next = new Date(s.next_expected_date);
-      next.setHours(0, 0, 0, 0);
-      const diffMs = next.getTime() - today.getTime();
-      const daysUntil = Math.round(diffMs / 86400000);
-      return { ...s, daysUntil };
-    });
-    withDays.sort((a, b) => a.daysUntil - b.daysUntil);
-    return {
-      count: activeSubs.length,
-      monthlyTotal,
-      upcoming: withDays.slice(0, 3),
-    };
-  }, [activeSubs]);
+  // Onaylı ödeme planları + tekrarlama motorunun otomatik tespitleri. Aynı
+  // satıcı iki tarafta varsa kullanıcı kararı olan onaylı plan tek kez gösterilir.
+  const subscriptionInfo = useMemo(
+    () => buildSubscriptionAnalyticsInfo(activeSubs, activePaymentPlans),
+    [activePaymentPlans, activeSubs],
+  );
 
   // ── Limit sağlığı özeti ──────────────────────────────────────────
   const limitsHealthInfo = useMemo(() => {
@@ -1010,15 +982,9 @@ export default function AnalyticsScreen() {
   // useCallback: VendorsCard React.memo'su için referans-kararlı (P11).
   const handleVendorPress = useCallback(async (vendorId: number) => {
     const sequence = ++vendorItemsSequence.current;
-    if (selectedVendor === vendorId) {
-      setSelectedVendor(null);
-      setVendorItems([]);
-      setSelectedDonutIdx(null);
-      return;
-    }
     setSelectedVendor(vendorId);
-    setSelectedDonutIdx(null);
     setVendorItems([]);
+    setVendorItemsLoading(true);
     try {
       const items = await ExpenseDao.getVendorItems(
         vendorId,
@@ -1028,8 +994,21 @@ export default function AnalyticsScreen() {
       if (sequence === vendorItemsSequence.current) setVendorItems(items as any[]);
     } catch (e) {
       console.error('Error loading vendor items:', e);
+    } finally {
+      if (sequence === vendorItemsSequence.current) setVendorItemsLoading(false);
     }
-  }, [selectedVendor, dateRange.start, dateRange.end]);
+  }, [dateRange.start, dateRange.end]);
+
+  const closeVendorAnalysis = useCallback(() => {
+    ++vendorItemsSequence.current;
+    setVendorItemsLoading(false);
+    setSelectedVendor(null);
+  }, []);
+
+  const selectedVendorData = useMemo(
+    () => vendors.find(vendor => vendor.vendor_id === selectedVendor) ?? null,
+    [selectedVendor, vendors],
+  );
 
   const barData = useMemo(() => {
     if (timeframe === 'year') return yearlyData;
@@ -1038,7 +1017,7 @@ export default function AnalyticsScreen() {
       const label = timeframe === 'week' 
         ? date.toLocaleDateString(intlLocaleForLanguage(language), { weekday: 'short' })
         : date.getDate().toString();
-      return { label, value: d.total };
+      return { id: d.date, label, value: d.total };
     });
   }, [timeframe, yearlyData, dailyData, language]);
 
@@ -1049,7 +1028,7 @@ export default function AnalyticsScreen() {
       const label = timeframe === 'week'
         ? date.toLocaleDateString(intlLocaleForLanguage(language), { weekday: 'short' })
         : date.getDate().toString();
-      return { label, value: d.total };
+      return { id: d.date, label, value: d.total };
     });
   }, [timeframe, prevDailyData, language]);
 
@@ -1121,12 +1100,7 @@ export default function AnalyticsScreen() {
           {...cardBase}
           vendors={vendors}
           prevVendorTotals={prevVendorTotals}
-          selectedVendor={selectedVendor}
-          vendorItems={vendorItems}
-          selectedDonutIdx={selectedDonutIdx}
           handleVendorPress={handleVendorPress}
-          setSelectedDonutIdx={setSelectedDonutIdx}
-          onSelectItem={setSelectedItemName}
         />
       );
     }
@@ -1164,7 +1138,14 @@ export default function AnalyticsScreen() {
     // çift); başlıkta toplam ürün sayısı küçük bir rozet gösterir.
     if (id === 'price_watch') {
       content = (
-        <PriceWatchCard {...cardBase} priceChanges={priceChanges} onSelectItem={setSelectedItemName} />
+        <PriceWatchCard
+          {...cardBase}
+          priceChanges={priceChanges}
+          onSelectItem={(name, unit) => {
+            setSelectedItemUnit(unit);
+            setSelectedItemName(name);
+          }}
+        />
       );
     }
 
@@ -1203,7 +1184,11 @@ export default function AnalyticsScreen() {
     // doğal olarak en üste sıralandı (loadCategoryLimits).
     if (id === 'limits_health') {
       content = (
-        <LimitsHealthCard {...cardBase} limitsHealthInfo={limitsHealthInfo} />
+        <LimitsHealthCard
+          {...cardBase}
+          limitsHealthInfo={limitsHealthInfo}
+          onManageLimits={() => router.push('/goal-settings')}
+        />
       );
     }
 
@@ -1229,7 +1214,7 @@ export default function AnalyticsScreen() {
 
     // ──── A13: Silent Spend ────
     // Küçük tutarlı ama tekrarlayan kalemler — tek tek bakınca masum, toplamı
-    // şaşırtıcı. Hero rakamı + 5 kalem listesi (kategori avatarı, sayı, ortalama).
+    // şaşırtıcı. Hero rakamı + en fazla üç adet beşli yatay sayfa.
     if (id === 'silent_spend') {
       content = (
         <SilentSpendCard {...cardBase} silentSpendInfo={silentSpendInfo} onSelectItem={setSelectedItemName} />
@@ -1283,7 +1268,7 @@ export default function AnalyticsScreen() {
               <MaterialCommunityIcons
                 name={isEditing ? "check" : "view-dashboard-edit-outline"}
                 size={20}
-                color={isEditing ? Colors.background : Colors.textPrimary}
+                color={isEditing ? Colors.onPrimary : Colors.textPrimary}
               />
             </Pressable>
           </View>
@@ -1438,7 +1423,20 @@ export default function AnalyticsScreen() {
     <ItemAnalyticsModal
       visible={!!selectedItemName}
       itemName={selectedItemName || ''}
-      onClose={() => setSelectedItemName(null)}
+      measurementUnit={selectedItemUnit}
+      onClose={() => {
+        setSelectedItemName(null);
+        setSelectedItemUnit(undefined);
+      }}
+    />
+    <VendorAnalyticsSheet
+      {...cardBase}
+      visible={selectedVendor !== null}
+      vendor={selectedVendorData}
+      items={vendorItems}
+      loading={vendorItemsLoading}
+      onClose={closeVendorAnalysis}
+      onSelectItem={setSelectedItemName}
     />
     <StreakDetailsSheet
       visible={streakDetailVariant !== null}

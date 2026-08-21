@@ -46,6 +46,7 @@ jest.mock('../../db/expenseDao', () => ({
 
 jest.mock('../../theme/themeStore', () => ({
   useAppTheme: () => 'light',
+  useThemeRevision: () => 0,
 }));
 
 jest.mock('../../context/RefreshContext', () => ({

@@ -5,7 +5,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Colors } from '../theme/colors';
 import { IconSize, BorderRadius } from '../theme/spacing';
 import { FontFamily } from '../theme/typography';
-import { useAppTheme } from '../theme/themeStore';
+import { useAppTheme, useThemeRevision } from '../theme/themeStore';
 
 interface VendorAvatarProps {
   name: string;
@@ -21,7 +21,8 @@ export default function VendorAvatar({
   color = Colors.primary,
 }: VendorAvatarProps) {
   const scheme = useAppTheme();
-  const styles = useMemo(() => getStyles(), [scheme]);
+  const themeRevision = useThemeRevision();
+  const styles = useMemo(() => getStyles(), [scheme, themeRevision]);
   if (logoUri) {
     return (
       <View style={[styles.container, { width: size, height: size, borderRadius: size / 2 }]}>

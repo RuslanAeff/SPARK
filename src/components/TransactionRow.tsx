@@ -1,7 +1,7 @@
 // S.P.A.R.K. — Transaction Row Component
 import React, { useMemo } from 'react';
 import { View, Text, StyleSheet, Pressable } from 'react-native';
-import { useAppTheme } from '../theme/themeStore';
+import { useAppTheme, useThemeRevision } from '../theme/themeStore';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Colors } from '../theme/colors';
 import { Typography, FontFamily } from '../theme/typography';
@@ -29,7 +29,8 @@ function TransactionRow({
   selected = false,
 }: TransactionRowProps) {
   const scheme = useAppTheme();
-  const styles = useMemo(() => getStyles(), [scheme]);
+  const themeRevision = useThemeRevision();
+  const styles = useMemo(() => getStyles(), [scheme, themeRevision]);
   const { t, tc } = useLanguage();
   const { currency } = useCurrency();
 

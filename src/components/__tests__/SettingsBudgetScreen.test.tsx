@@ -2,6 +2,7 @@ import React from 'react';
 import { fireEvent, render, waitFor } from '@testing-library/react-native';
 
 import SettingsBudgetScreen from '../../../app/settings-budget';
+import { BudgetDao } from '../../db/budgetDao';
 import {
   getGoalFeaturePreferences,
   setGoalDashboardFocusEnabled,
@@ -47,14 +48,15 @@ jest.mock('@expo/vector-icons', () => {
 });
 
 jest.mock('expo-haptics', () => ({
-  impactAsync: jest.fn(),
-  notificationAsync: jest.fn(),
+  impactAsync: jest.fn().mockResolvedValue(undefined),
+  notificationAsync: jest.fn().mockResolvedValue(undefined),
   ImpactFeedbackStyle: { Light: 'light' },
   NotificationFeedbackType: { Success: 'success' },
 }));
 
 jest.mock('../../theme/themeStore', () => ({
   useAppTheme: () => 'dark',
+  useThemeRevision: () => 0,
 }));
 
 jest.mock('../../i18n/LanguageContext', () => ({
@@ -75,6 +77,7 @@ jest.mock('../../db/budgetDao', () => ({
   BudgetDao: {
     getForMonth: jest.fn().mockResolvedValue(null),
     setMonthlyBudget: jest.fn(),
+    transitionAndSetBudget: jest.fn(),
   },
 }));
 
@@ -89,7 +92,16 @@ jest.mock('../../services/goalFeatureSettings', () => ({
   setGoalFeatureEnabled: jest.fn(),
 }));
 
-jest.mock('../GlassCheckButton', () => () => null);
+jest.mock('../GlassCheckButton', () => {
+  const React = require('react');
+  const { Pressable, Text } = require('react-native');
+  return ({ onPress }: { onPress: () => void }) =>
+    React.createElement(
+      Pressable,
+      { testID: 'budget-save', onPress },
+      React.createElement(Text, null, 'save-budget'),
+    );
+});
 jest.mock('../BudgetHistoryCard', () => () => null);
 jest.mock('../SparkToast', () => ({ SparkToast: { show: jest.fn() } }));
 jest.mock('../SettingsInfoHint', () => ({
@@ -145,5 +157,29 @@ describe('SettingsBudgetScreen goal focus preference', () => {
       expect(screen.getByTestId('goal-focus-switch').props.disabled).toBe(true);
     });
     expect(setDashboardFocus).not.toHaveBeenCalled();
+  });
+
+  it('keeps cycle steps as a draft and persists the transition only with budget save', async () => {
+    getPreferences.mockResolvedValue({ enabled: true, dashboardFocusEnabled: false });
+    (BudgetDao.getForMonth as jest.Mock).mockResolvedValue(null);
+    (BudgetDao.transitionAndSetBudget as jest.Mock).mockResolvedValue(21);
+
+    const screen = await render(<SettingsBudgetScreen />);
+    await waitFor(() => expect(screen.getByText('budget_cycle_day_default')).toBeTruthy());
+
+    await fireEvent.press(screen.getByText('plus'));
+    expect(BudgetDao.transitionAndSetBudget).not.toHaveBeenCalled();
+
+    await fireEvent.changeText(screen.getByPlaceholderText('5000'), '3600');
+    await fireEvent.press(screen.getByTestId('budget-save'));
+
+    await waitFor(() => expect(BudgetDao.transitionAndSetBudget).toHaveBeenCalledWith(
+      expect.objectContaining({
+        amount: 3600,
+        currency: 'PLN',
+        previousStartDay: 1,
+        nextStartDay: 2,
+      }),
+    ));
   });
 });

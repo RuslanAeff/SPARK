@@ -7,7 +7,7 @@ import { GoalDao } from '../db/goalDao';
 import { useRefreshActions } from '../context/RefreshContext';
 import { useLanguage } from '../i18n/LanguageContext';
 import { Colors } from '../theme/colors';
-import { useAppTheme } from '../theme/themeStore';
+import { useAppTheme, useThemeRevision } from '../theme/themeStore';
 import { Typography, FontFamily } from '../theme/typography';
 import { Spacing, BorderRadius } from '../theme/spacing';
 import BottomSheetModal from './BottomSheetModal';
@@ -20,7 +20,8 @@ type Props = {
 
 export default function SavingsGoalContributionSheet({ visible, onClose }: Props) {
   const scheme = useAppTheme();
-  const styles = useMemo(() => getStyles(), [scheme]);
+  const themeRevision = useThemeRevision();
+  const styles = useMemo(() => getStyles(), [scheme, themeRevision]);
   const { t } = useLanguage();
   const { triggerRefresh } = useRefreshActions();
   const [amount, setAmount] = useState('');
@@ -202,8 +203,8 @@ const getStyles = () => StyleSheet.create({
     borderColor: Colors.border,
   },
   toggleButtonActive: {
-    backgroundColor: Colors.primary,
-    borderColor: Colors.primary,
+    backgroundColor: Colors.primaryAction,
+    borderColor: Colors.primaryAction,
   },
   toggleButtonNegative: {
     backgroundColor: Colors.danger,
@@ -215,7 +216,7 @@ const getStyles = () => StyleSheet.create({
     fontFamily: FontFamily.semiBold,
   },
   toggleTextActive: {
-    color: '#fff',
+    color: Colors.onPrimary,
   },
   input: {
     ...Typography.headlineSmall,
@@ -253,13 +254,13 @@ const getStyles = () => StyleSheet.create({
     flex: 1.4,
     paddingVertical: Spacing.md,
     borderRadius: BorderRadius.round,
-    backgroundColor: Colors.primary,
+    backgroundColor: Colors.primaryAction,
     alignItems: 'center',
     justifyContent: 'center',
   },
   saveText: {
     ...Typography.labelLarge,
-    color: '#fff',
+    color: Colors.onPrimary,
     fontFamily: FontFamily.extraBold,
   },
   pressed: {

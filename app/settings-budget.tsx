@@ -1,7 +1,7 @@
 // S.P.A.R.K. — Settings: Budget & goals
 import React, { useState, useEffect, useMemo } from 'react';
 import { View, Text, ScrollView, StyleSheet, Pressable, TextInput, Switch } from 'react-native';
-import { useAppTheme } from '../src/theme/themeStore';
+import { useAppTheme, useThemeRevision } from '../src/theme/themeStore';
 import { useRouter } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -16,7 +16,8 @@ import { useCurrency } from '../src/context/CurrencyContext';
 import { useRefresh } from '../src/context/RefreshContext';
 import { BudgetDao } from '../src/db/budgetDao';
 import { formatMonthYear, formatDayMonth } from '../src/utils/dateUtils';
-import { getCycleStartDay, setCycleStartDay } from '../src/services/budgetCycleSettings';
+import { getCycleStartDay } from '../src/services/budgetCycleSettings';
+import { getToday } from '../src/utils/dateUtils';
 import {
   getCurrentCycle,
   getCycleForKey,
@@ -38,7 +39,8 @@ import {
 
 export default function SettingsBudgetScreen() {
   const colorScheme = useAppTheme();
-  const styles = useMemo(() => getStyles(), [colorScheme]);
+  const themeRevision = useThemeRevision();
+  const styles = useMemo(() => getStyles(), [colorScheme, themeRevision]);
   const router = useRouter();
   const { t } = useLanguage();
   const { currency } = useCurrency();
@@ -53,6 +55,7 @@ export default function SettingsBudgetScreen() {
   const [goalFeatureOn, setGoalFeatureOn] = useState(true);
   const [goalFocusOn, setGoalFocusOn] = useState(false);
   const [cycleDay, setCycleDay] = useState(1);
+  const [persistedCycleDay, setPersistedCycleDay] = useState(1);
   const [budgetInfoOpen, setBudgetInfoOpen] = useState(false);
   const [goalInfoOpen, setGoalInfoOpen] = useState(false);
 
@@ -66,6 +69,7 @@ export default function SettingsBudgetScreen() {
       setGoalFeatureOn(goalPreferences.enabled);
       setGoalFocusOn(goalPreferences.dashboardFocusEnabled);
       setCycleDay(day);
+      setPersistedCycleDay(day);
       // Açılışta güncel döngüyü göster (anchor=1'de bu zaten takvim ayıdır).
       setSelectedMonth(getCurrentCycle(day).key);
     })();
@@ -85,15 +89,8 @@ export default function SettingsBudgetScreen() {
     const clamped = Math.min(MAX_CYCLE_START_DAY, Math.max(MIN_CYCLE_START_DAY, next));
     if (clamped === cycleDay) return;
     setCycleDay(clamped);
-    try {
-      await setCycleStartDay(clamped);
-      setSelectedMonth(getCurrentCycle(clamped).key);
-      triggerRefresh();
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    } catch (e) {
-      console.warn('cycle day', e);
-      SparkToast.show(t('error_saving_data'), 'error');
-    }
+    setSelectedMonth(getCurrentCycle(clamped).key);
+    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
   }
 
   useEffect(() => {
@@ -111,7 +108,19 @@ export default function SettingsBudgetScreen() {
       SparkToast.show(t('enter_valid_budget'), 'error');
       return;
     }
-    await BudgetDao.setMonthlyBudget(amount, selectedMonth, currency);
+    if (cycleDay !== persistedCycleDay) {
+      await BudgetDao.transitionAndSetBudget({
+        amount,
+        currency,
+        previousStartDay: persistedCycleDay,
+        nextStartDay: cycleDay,
+        effectiveDate: getToday(),
+      });
+      setPersistedCycleDay(cycleDay);
+      setSelectedMonth(getCurrentCycle(cycleDay).key);
+    } else {
+      await BudgetDao.setMonthlyBudget(amount, selectedMonth, currency, cycleDay);
+    }
     triggerRefresh();
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     const curLabel = currency === 'TRY' ? 'TL' : currency;
@@ -335,6 +344,23 @@ export default function SettingsBudgetScreen() {
                 />
               </View>
             </View>
+          </Animated.View>
+
+          <Animated.View entering={FadeInDown.delay(210).duration(400)}>
+            <Pressable
+              testID="manage-category-limits"
+              onPress={() => router.push('/goal-settings')}
+              style={({ pressed }) => [styles.linkRow, pressed && styles.linkRowPressed]}
+            >
+              <View style={[styles.sectionIcon, { backgroundColor: Colors.primary + '22' }] }>
+                <MaterialCommunityIcons name="gauge" size={22} color={Colors.primary} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.linkText}>{t('goal_settings_limits_section')}</Text>
+                <Text style={styles.goalFeatureHint}>{t('goal_settings_month_hint')}</Text>
+              </View>
+              <MaterialCommunityIcons name="chevron-right" size={20} color={Colors.textSecondary} />
+            </Pressable>
           </Animated.View>
 
           {/* Categories link */}

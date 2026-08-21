@@ -12,7 +12,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Gesture, GestureDetector, GestureHandlerRootView } from 'react-native-gesture-handler';
-import { useAppTheme } from '../theme/themeStore';
+import { useAppTheme, useThemePalette } from '../theme/themeStore';
 import Animated, {
   Easing,
   runOnJS,
@@ -22,7 +22,6 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
-import { LightTheme, DarkTheme } from '../theme/colors';
 import { FontFamily } from '../theme/typography';
 import { Spacing, BorderRadius } from '../theme/spacing';
 import type { Language } from '../i18n/translations';
@@ -55,7 +54,7 @@ export default function LanguagePickerSheet({
   const windowDims = useWindowDimensions();
   const rnScheme = useAppTheme();
   const isLight = rnScheme === 'light';
-  const theme = isLight ? LightTheme : DarkTheme;
+  const theme = useThemePalette();
 
   const screen = Dimensions.get('screen');
   const rootWidth = Math.max(screen.width, windowDims.width);
@@ -178,7 +177,7 @@ export default function LanguagePickerSheet({
           backgroundColor: theme.primary,
         },
       }),
-    [isLight, rootWidth, rootHeight]
+    [isLight, rootWidth, rootHeight, theme]
   );
 
   const closeWithAnimation = useCallback(() => {

@@ -11,13 +11,14 @@ import {
   StyleSheet,
 } from 'react-native';
 import * as SplashScreen from 'expo-splash-screen';
+import Constants, { ExecutionEnvironment } from 'expo-constants';
 import * as SystemUI from 'expo-system-ui';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { ThemeProvider as NavigationThemeProvider } from '@react-navigation/native';
 import ThemeScheduler from '../src/components/ThemeScheduler';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { DarkTheme, LightTheme } from '../src/theme/colors';
-import { useAppTheme } from '../src/theme/themeStore';
+import { DarkTheme } from '../src/theme/colors';
+import { useAppTheme, useThemePalette } from '../src/theme/themeStore';
 import { FontFamily } from '../src/theme/typography';
 import { useDatabase } from '../src/hooks/useDatabase';
 import { SparkToastContainer } from '../src/components/SparkToast';
@@ -47,7 +48,9 @@ const BOOT_BACKGROUND = '#050505';
 // kapanmamalı. Global scope çağrısı Expo'nun önerdiği şekilde mümkün olan en
 // erken anda çalışır.
 void SplashScreen.preventAutoHideAsync().catch(() => {});
-SplashScreen.setOptions({ duration: 220, fade: true });
+if (Constants.executionEnvironment !== ExecutionEnvironment.StoreClient) {
+  SplashScreen.setOptions({ duration: 220, fade: true });
+}
 void SystemUI.setBackgroundColorAsync(BOOT_BACKGROUND).catch(() => {});
 
 function AndroidNotificationBootstrap({ enabled }: { enabled: boolean }) {
@@ -137,8 +140,11 @@ interface AppShellProps {
  * olana kadar sabit perdeyi tutar; ardından tek, kontrollü fade ile açar. */
 function AppShell({ onboardingLoading, onboardingCompleted }: AppShellProps) {
   const scheme = useAppTheme();
-  const theme = scheme === 'light' ? LightTheme : DarkTheme;
-  const navigationTheme = React.useMemo(() => createNavigationTheme(scheme), [scheme]);
+  const theme = useThemePalette();
+  const navigationTheme = React.useMemo(
+    () => createNavigationTheme(scheme, theme),
+    [scheme, theme]
+  );
   const { isLoaded: languageLoaded } = useLanguage();
   const { isLoaded: currencyLoaded } = useCurrency();
   const router = useRouter();
@@ -294,6 +300,14 @@ function AppShell({ onboardingLoading, onboardingCompleted }: AppShellProps) {
             }}
           />
           <Stack.Screen
+            name="recurring-payment"
+            options={{
+              presentation: 'card',
+              animation: 'slide_from_right',
+              contentStyle: { backgroundColor: theme.background },
+            }}
+          />
+          <Stack.Screen
             name="settings-general"
             options={{
               presentation: 'card',
@@ -336,7 +350,7 @@ function AppShell({ onboardingLoading, onboardingCompleted }: AppShellProps) {
 
 function RootLayoutContent() {
   const scheme = useAppTheme();
-  const theme = scheme === 'light' ? LightTheme : DarkTheme;
+  const theme = useThemePalette();
   const styles = React.useMemo(() => getStyles(theme), [theme]);
   const { isReady, error } = useDatabase();
   const {

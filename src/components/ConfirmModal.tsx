@@ -4,7 +4,7 @@
 // dışa aktarım, dil değişimi, bildirim toplu silme gibi "nötr/destekleyici"
 // aksiyonlar için daha sade ve tema uyumlu bir onay penceresi gerekiyor.
 // Bu bileşen:
-//   • İki renk varyantı destekler: 'primary' (yeşil) ve 'warning' (amber).
+//   • İki renk varyantı destekler: 'primary' (aktif vurgu) ve 'warning' (amber).
 //   • Hem aydınlık hem karanlık temada otomatik görünüm alır.
 //   • `BottomSheetModal` yerine ortada (centered dialog) sunar — hızlı kararlar
 //     için alt sheet açmak gereğinden fazla ağır hissettiriyordu.
@@ -22,7 +22,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 
 import { Colors } from '../theme/colors';
-import { useAppTheme } from '../theme/themeStore';
+import { useAppTheme, useThemeRevision } from '../theme/themeStore';
 import { Typography, FontFamily } from '../theme/typography';
 import { Spacing, BorderRadius } from '../theme/spacing';
 import { SparkToastContainer } from './SparkToast';
@@ -64,7 +64,8 @@ export default function ConfirmModal({
   onDismiss,
 }: ConfirmModalProps) {
   const scheme = useAppTheme();
-  const styles = React.useMemo(() => getStyles(), [scheme]);
+  const themeRevision = useThemeRevision();
+  const styles = React.useMemo(() => getStyles(), [scheme, themeRevision]);
 
   const scaleAnim = useRef(new Animated.Value(0.9)).current;
   const opacityAnim = useRef(new Animated.Value(0)).current;

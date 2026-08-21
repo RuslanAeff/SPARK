@@ -4,6 +4,7 @@ import { act, fireEvent, render, waitFor } from '@testing-library/react-native';
 import GoalSettingsScreen from '../../../app/goal-settings';
 import { GoalDao } from '../../db/goalDao';
 import { CategoryLimitDao } from '../../db/categoryLimitDao';
+import { CategoryDao } from '../../db/categoryDao';
 import { SparkToast } from '../SparkToast';
 
 const mockBack = jest.fn();
@@ -42,9 +43,7 @@ jest.mock('../../db/goalDao', () => ({
   },
 }));
 
-jest.mock('../../db/categoryDao', () => ({
-  CategoryDao: { getAll: jest.fn().mockResolvedValue([]) },
-}));
+jest.mock('../../db/categoryDao', () => ({ CategoryDao: { getAll: jest.fn() } }));
 
 jest.mock('../../db/categoryLimitDao', () => ({
   CategoryLimitDao: {
@@ -106,6 +105,8 @@ const goal = {
 describe('GoalSettingsScreen goal deletion', () => {
   const goalGet = GoalDao.get as jest.MockedFunction<typeof GoalDao.get>;
   const goalClear = GoalDao.clear as jest.MockedFunction<typeof GoalDao.clear>;
+  const goalUpsert = GoalDao.upsert as jest.MockedFunction<typeof GoalDao.upsert>;
+  const getCategories = CategoryDao.getAll as jest.MockedFunction<typeof CategoryDao.getAll>;
   const getLimits = CategoryLimitDao.getForMonth as jest.MockedFunction<
     typeof CategoryLimitDao.getForMonth
   >;
@@ -113,12 +114,14 @@ describe('GoalSettingsScreen goal deletion', () => {
     typeof CategoryLimitDao.deleteAll
   >;
   const toastShow = SparkToast.show as jest.MockedFunction<typeof SparkToast.show>;
+  const upsertLimit = CategoryLimitDao.upsert as jest.MockedFunction<typeof CategoryLimitDao.upsert>;
 
   beforeEach(() => {
     jest.clearAllMocks();
     getLimits.mockResolvedValue([
       { id: 12, category_id: 7, month: '2026-08', limit_amount: 300 },
     ]);
+    getCategories.mockResolvedValue([]);
   });
 
   it('does not expose a destructive action when no persisted goal exists', async () => {
@@ -162,5 +165,27 @@ describe('GoalSettingsScreen goal deletion', () => {
     expect(deleteAllLimits).not.toHaveBeenCalled();
     expect(mockTriggerRefresh).not.toHaveBeenCalled();
     expect(mockBack).not.toHaveBeenCalled();
+  });
+
+  it('birikim hedefi olmadan yalnız kategori limiti kaydeder', async () => {
+    goalGet.mockResolvedValue(null);
+    getLimits.mockResolvedValue([]);
+    getCategories.mockResolvedValue([
+      { id: 7, name: 'Market', icon: 'cart-outline', color: '#00FF66', parent_id: null },
+    ] as any);
+    const screen = await render(<GoalSettingsScreen />);
+
+    await act(async () => {
+      fireEvent.press(await screen.findByText('goal_settings_add_limit'));
+    });
+    await act(async () => {
+      fireEvent.press(await screen.findByText('Market'));
+    });
+    await act(async () => {
+      fireEvent.press(screen.getByTestId('goal-settings-save'));
+    });
+
+    await waitFor(() => expect(upsertLimit).toHaveBeenCalledWith(7, expect.any(String), 100));
+    expect(goalUpsert).not.toHaveBeenCalled();
   });
 });

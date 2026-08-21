@@ -5,21 +5,21 @@ import { createMaterialTopTabNavigator } from '@react-navigation/material-top-ta
 import * as Haptics from 'expo-haptics';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { DarkTheme, LightTheme } from '../../src/theme/colors';
-import { useAppTheme } from '../../src/theme/themeStore';
+import { useThemePalette } from '../../src/theme/themeStore';
 import { FontFamily } from '../../src/theme/typography';
 import { BorderRadius, Spacing } from '../../src/theme/spacing';
 import { useLanguage } from '../../src/i18n/LanguageContext';
+import { TabSwipeProvider, useTabSwipe } from '../../src/context/TabSwipeContext';
 
 const { Navigator } = createMaterialTopTabNavigator();
 const SwipeableTabs = withLayoutContext(Navigator);
 
-export default function TabLayout() {
-  // Merkezi store: OS + manuel setColorScheme her iki kanalı da dinler.
-  const scheme = useAppTheme();
-  const theme = scheme === 'light' ? LightTheme : DarkTheme;
+function TabNavigator() {
+  // Merkezi store, görünüm şeması ile kullanıcı vurgusunu tek snapshot'ta taşır.
+  const theme = useThemePalette();
   const { t } = useLanguage();
   const insets = useSafeAreaInsets();
+  const { swipeEnabled } = useTabSwipe();
   /** Sistem jest çubuğu / home indicator üstünde kalsın (Android gesture bar, iPhone çentik vb.) */
   const tabBarInsetBottom = Spacing.xl + insets.bottom;
 
@@ -45,7 +45,7 @@ export default function TabLayout() {
             style={{ flex: 1, backgroundColor: theme.background }}
           />
         ),
-        swipeEnabled: true,
+        swipeEnabled,
         tabBarActiveTintColor: theme.tabActive,
         tabBarInactiveTintColor: theme.tabInactive,
         tabBarShowIcon: true,
@@ -128,5 +128,13 @@ export default function TabLayout() {
         }}
       />
     </SwipeableTabs>
+  );
+}
+
+export default function TabLayout() {
+  return (
+    <TabSwipeProvider>
+      <TabNavigator />
+    </TabSwipeProvider>
   );
 }

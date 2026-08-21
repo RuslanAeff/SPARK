@@ -1,7 +1,14 @@
-import type { Debt, RecurringPaymentReminder } from '../../db/schema';
+import type { Budget, Debt, RecurringPaymentReminder } from '../../db/schema';
+import type { SavingsGoalRow } from '../../db/goalDao';
 
 const mockDebtListAll = jest.fn();
 const mockRecurringListAll = jest.fn();
+const mockGoalGet: jest.Mock<Promise<SavingsGoalRow | null>, []> = jest.fn(async () => null);
+const mockBudgetGetContainingDate: jest.Mock<Promise<Budget | null>, [string]> = jest.fn(
+  async (_date: string) => null,
+);
+const mockBudgetGetLatestActive: jest.Mock<Promise<Budget | null>, []> = jest.fn(async () => null);
+const mockGetCycleStartDay: jest.Mock<Promise<number>, []> = jest.fn(async () => 1);
 const mockLoadRulesState = jest.fn(async () => ({}));
 const mockIsReminderDismissed = jest.fn((_id?: string, _rules?: unknown) => false);
 const mockReconcile = jest.fn(async (items: unknown[], _options?: unknown) => ({
@@ -20,6 +27,21 @@ jest.mock('../../db/recurringPaymentReminderDao', () => ({
   RecurringPaymentReminderDao: {
     listAll: (...args: unknown[]) => mockRecurringListAll(...args),
   },
+}));
+
+jest.mock('../../db/goalDao', () => ({
+  GoalDao: { get: () => mockGoalGet() },
+}));
+
+jest.mock('../../db/budgetDao', () => ({
+  BudgetDao: {
+    getContainingDate: (date: string) => mockBudgetGetContainingDate(date),
+    getLatestActive: () => mockBudgetGetLatestActive(),
+  },
+}));
+
+jest.mock('../budgetCycleSettings', () => ({
+  getCycleStartDay: () => mockGetCycleStartDay(),
 }));
 
 jest.mock('../../notifications/storage', () => ({
@@ -78,6 +100,10 @@ describe('future reminder scheduler orchestration', () => {
     jest.clearAllMocks();
     mockDebtListAll.mockResolvedValue([debt]);
     mockRecurringListAll.mockResolvedValue([recurring]);
+    mockGoalGet.mockResolvedValue(null);
+    mockBudgetGetContainingDate.mockResolvedValue(null);
+    mockBudgetGetLatestActive.mockResolvedValue(null);
+    mockGetCycleStartDay.mockResolvedValue(1);
     mockIsReminderDismissed.mockImplementation(() => false);
   });
 
@@ -165,5 +191,44 @@ describe('future reminder scheduler orchestration', () => {
     expect(second[0].title).not.toBe(first[0].title);
     expect(second[0].body).not.toBe(first[0].body);
     expect(second[0].revision).not.toBe(first[0].revision);
+  });
+
+  it('adds dated goal and budget attention alarms and removes them through channel mutes', async () => {
+    const now = new Date(2026, 7, 1, 8, 0, 0, 0).getTime();
+    mockGoalGet.mockResolvedValue({
+      id: 1,
+      title: 'Emergency fund',
+      target_amount: 5_000,
+      current_amount: 1_200,
+      target_date: '2026-10-30',
+      currency: 'PLN',
+    });
+    mockBudgetGetContainingDate.mockResolvedValue({
+      id: 2,
+      monthly_amount: 3_600,
+      currency: 'PLN',
+      start_date: '2026-08-01',
+      period_start: '2026-08-01',
+      period_end: '2026-08-31',
+      cycle_start_day: 1,
+      active: 1,
+    });
+
+    await syncAndroidReminderSchedules((key: string) => key, {}, now);
+    const desired = mockReconcile.mock.calls[0][0] as Array<{ scheduleId: string }>;
+    expect(desired.some((item) => item.scheduleId.startsWith('goal:'))).toBe(true);
+    expect(desired.some((item) => item.scheduleId.startsWith('budget:'))).toBe(true);
+
+    mockReconcile.mockClear();
+    await syncAndroidReminderSchedules(
+      (key: string) => key,
+      { goal: true, budget: true },
+      now,
+    );
+    const muted = mockReconcile.mock.calls[0][0] as Array<{ scheduleId: string }>;
+    expect(muted.some((item) => item.scheduleId.startsWith('goal:'))).toBe(false);
+    expect(muted.some((item) => item.scheduleId.startsWith('budget:'))).toBe(false);
+    expect(muted.some((item) => item.scheduleId.startsWith('debt:'))).toBe(true);
+    expect(muted.some((item) => item.scheduleId.startsWith('plan:'))).toBe(true);
   });
 });

@@ -1,27 +1,27 @@
-// S.P.A.R.K. — Glassmorphic Check Button (theme primary green)
+// S.P.A.R.K. — Glassmorphic Check Button (aktif vurgu / semantik tehlike)
 import React from 'react';
 import { Pressable, View, StyleSheet, Platform } from 'react-native';
 import Svg, { Defs, RadialGradient, Stop, Circle } from 'react-native-svg';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Colors } from '../theme/colors';
-import { useAppTheme } from '../theme/themeStore';
+import { useThemeRevision } from '../theme/themeStore';
 
 const SIZE = 48;
 
 interface GlassCheckButtonProps {
   onPress: () => void;
-  /** 'confirm' (yeşil onay ✓) varsayılan; 'danger' (kırmızı sil ✕) aynı cam dil. */
+  /** 'confirm' (aktif vurgu ile onay ✓) varsayılan; 'danger' (kırmızı sil ✕) aynı cam dil. */
   variant?: 'confirm' | 'danger';
   accessibilityLabel?: string;
 }
 
 export default function GlassCheckButton({ onPress, variant = 'confirm', accessibilityLabel }: GlassCheckButtonProps) {
-  const isDark = useAppTheme() === 'dark';
+  useThemeRevision();
   const danger = variant === 'danger';
   // Aynı görsel dil (radial cam küre), yalnız renk + ikon değişir.
-  const primary = danger ? Colors.danger : Colors.primary;
-  const light = danger ? (Colors.dangerDark || '#CC0000') : (Colors.primaryLight || '#33FF85');
-  const pale = danger ? '#FF9999' : (isDark ? '#99FFCC' : '#99E6B3');
+  const primary = danger ? Colors.danger : Colors.primaryAction;
+  const light = danger ? (Colors.dangerDark || '#CC0000') : Colors.primary;
+  const pale = danger ? '#FF9999' : Colors.primary;
   const iconName = danger ? 'close-thick' : 'check-bold';
   // Aynı ekranda iki buton olabilir → gradient id'leri çakışmasın.
   const gradId = danger ? 'glassBtnGradDanger' : 'glassBtnGrad';
@@ -52,7 +52,7 @@ export default function GlassCheckButton({ onPress, variant = 'confirm', accessi
           />
         </Svg>
         <View style={styles.iconWrap} pointerEvents="none">
-          <MaterialCommunityIcons name={iconName} size={22} color="#FFFFFF" />
+          <MaterialCommunityIcons name={iconName} size={22} color={danger ? '#FFFFFF' : Colors.onPrimary} />
         </View>
       </View>
     </Pressable>

@@ -451,7 +451,7 @@ export function useBehavioralAnalytics(
         let localizedSegment = item.segment;
         if (item.segment === 'Zorunlu İhtiyaçlar') localizedSegment = translate('needs');
         if (item.segment === 'Keyfi Harcamalar') localizedSegment = translate('wants');
-        if (item.segment === 'Tasarruf / Diğer') localizedSegment = translate('savings_other');
+        if (item.segment === 'Diğer Harcamalar') localizedSegment = translate('savings_other');
 
         return {
           ...item,

@@ -5,6 +5,7 @@ import DebtReminderFields from '../DebtReminderFields';
 
 jest.mock('../../theme/themeStore', () => ({
   useAppTheme: () => 'light',
+  useThemeRevision: () => 0,
 }));
 
 jest.mock('../../i18n/LanguageContext', () => ({

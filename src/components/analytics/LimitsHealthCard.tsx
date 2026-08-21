@@ -1,18 +1,21 @@
 // S.P.A.R.K. — Analiz kartı: Kategori limit sağlığı (limit/harcama oranı barları)
 import React from 'react';
-import { View, Text } from 'react-native';
+import { View, Text, Pressable } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import AnimatedCard from '../AnimatedCard';
 import { Colors } from '../../theme/colors';
+import { useThemeRevision } from '../../theme/themeStore';
 import { formatCurrency } from '../../utils/formatCurrency';
 import type { BaseCardProps, LimitsHealthInfo } from './shared';
 
 interface LimitsHealthCardProps extends BaseCardProps {
   limitsHealthInfo: LimitsHealthInfo;
+  onManageLimits?: () => void;
 }
 
-function LimitsHealthCard({ styles, t, tc, currency, limitsHealthInfo }: LimitsHealthCardProps) {
+function LimitsHealthCard({ styles, t, tc, currency, limitsHealthInfo, onManageLimits }: LimitsHealthCardProps) {
+  useThemeRevision();
   const { count, overCount, warnCount, items } = limitsHealthInfo;
 
   if (count === 0) {
@@ -21,13 +24,24 @@ function LimitsHealthCard({ styles, t, tc, currency, limitsHealthInfo }: LimitsH
         <View style={styles.limitsHeader}>
           <View style={styles.limitsHeaderLeft}>
             <MaterialCommunityIcons name="gauge" size={18} color={Colors.textSecondary} />
-            <Text style={styles.sectionTitle}>{t('limits_health_title')}</Text>
+            <Text style={styles.cardHeaderTitle}>{t('limits_health_title')}</Text>
           </View>
         </View>
+        <Text style={styles.limitsScopeHint}>{t('goal_settings_month_hint')}</Text>
         <View style={styles.limitsEmptyWrap}>
           <MaterialCommunityIcons name="gauge-empty" size={36} color={Colors.textMuted} />
           <Text style={styles.limitsEmptyTitle}>{t('limits_health_empty_title')}</Text>
           <Text style={styles.limitsEmptyHint}>{t('limits_health_empty_hint')}</Text>
+          {onManageLimits && (
+            <Pressable
+              accessibilityRole="button"
+              onPress={onManageLimits}
+              style={({ pressed }) => [styles.expandButton, pressed && { opacity: 0.8 }]}
+            >
+              <MaterialCommunityIcons name="plus-circle-outline" size={18} color={Colors.primary} />
+              <Text style={styles.expandButtonText}>{t('goal_settings_add_limit')}</Text>
+            </Pressable>
+          )}
         </View>
       </AnimatedCard>
     );
@@ -40,7 +54,7 @@ function LimitsHealthCard({ styles, t, tc, currency, limitsHealthInfo }: LimitsH
           <View style={[styles.limitsHeaderIcon, { backgroundColor: Colors.primary + '1F' }]}>
             <MaterialCommunityIcons name="gauge" size={16} color={Colors.primary} />
           </View>
-          <Text style={styles.sectionTitle}>{t('limits_health_title')}</Text>
+          <Text style={styles.cardHeaderTitle}>{t('limits_health_title')}</Text>
         </View>
         <View style={styles.limitsHeaderStats}>
           {overCount > 0 && (
@@ -57,6 +71,7 @@ function LimitsHealthCard({ styles, t, tc, currency, limitsHealthInfo }: LimitsH
           )}
         </View>
       </View>
+      <Text style={styles.limitsScopeHint}>{t('goal_settings_month_hint')}</Text>
 
       <View style={styles.limitsList}>
         {items.map((l, i) => {

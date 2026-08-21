@@ -23,6 +23,7 @@ jest.mock('../../services/subscriptionDetector', () => ({
 jest.mock('../../db/budgetDao', () => ({
   BudgetDao: {
     getForMonth: jest.fn(async () => null),
+    getContainingDate: jest.fn(async () => null),
     getLatestActive: jest.fn(async () => null),
   },
 }));

@@ -9,7 +9,7 @@ import {
   ScrollView,
   Platform,
 } from 'react-native';
-import { useAppTheme } from '../theme/themeStore';
+import { useAppTheme, useThemeRevision } from '../theme/themeStore';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Colors } from '../theme/colors';
 import { Typography, FontFamily } from '../theme/typography';
@@ -47,6 +47,7 @@ export default function CustomDatePicker({
 }: CustomDatePickerProps) {
   const { t } = useLanguage();
   const scheme = useAppTheme();
+  const themeRevision = useThemeRevision();
   const isDark = scheme === 'dark';
   const [currentDate, setCurrentDate] = useState(() => getPickerInitialDate(initialDate));
   const [showYearPicker, setShowYearPicker] = useState(false);
@@ -202,7 +203,7 @@ export default function CustomDatePicker({
           justifyContent: 'center',
         },
         dayMarkSelected: {
-          backgroundColor: Colors.primary,
+          backgroundColor: Colors.primaryAction,
         },
         dayMarkToday: {
           borderWidth: 2,
@@ -221,7 +222,7 @@ export default function CustomDatePicker({
           }),
         },
         dayTextSelected: {
-          color: Colors.textInverse,
+          color: Colors.onPrimary,
           fontFamily: FontFamily.bold,
         },
         dayTextToday: {
@@ -282,7 +283,7 @@ export default function CustomDatePicker({
           color: Colors.textPrimary,
         },
       }),
-    [scheme]
+    [scheme, themeRevision]
   );
 
   return (

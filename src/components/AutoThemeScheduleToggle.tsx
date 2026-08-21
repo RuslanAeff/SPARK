@@ -1,4 +1,4 @@
-// S.P.A.R.K. — Otomatik tema anahtarı: yeşil (açık) / kırmızı (kapalı), Venom tarzı süpürme animasyonu
+// S.P.A.R.K. — Otomatik tema anahtarı: marka yeşili (açık) / kırmızı (kapalı)
 import React, { useEffect } from 'react';
 import { View, Text, StyleSheet, Pressable, Platform } from 'react-native';
 import Animated, {
@@ -9,21 +9,28 @@ import Animated, {
 } from 'react-native-reanimated';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
-import { Colors } from '../theme/colors';
 import { Typography, FontFamily } from '../theme/typography';
 import { Spacing, BorderRadius } from '../theme/spacing';
 
 const RED = '#C62828';
-const GREEN = Colors.primary;
-
+const GREEN = '#00C853';
 type Props = {
   enabled: boolean;
   onToggle: (next: boolean) => void;
   labelOn: string;
   labelOff: string;
+  disabled?: boolean;
+  testID?: string;
 };
 
-export default function AutoThemeScheduleToggle({ enabled, onToggle, labelOn, labelOff }: Props) {
+export default function AutoThemeScheduleToggle({
+  enabled,
+  onToggle,
+  labelOn,
+  labelOff,
+  disabled = false,
+  testID,
+}: Props) {
   const progress = useSharedValue(enabled ? 1 : 0);
 
   useEffect(() => {
@@ -38,16 +45,25 @@ export default function AutoThemeScheduleToggle({ enabled, onToggle, labelOn, la
   }));
 
   function handlePress() {
+    if (disabled) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     onToggle(!enabled);
   }
 
   return (
-    <Pressable onPress={handlePress} style={styles.press}>
+    <Pressable
+      testID={testID}
+      onPress={handlePress}
+      disabled={disabled}
+      style={[styles.press, disabled && styles.pressDisabled]}
+      accessibilityRole="switch"
+      accessibilityState={{ checked: enabled, disabled }}
+      accessibilityLabel={enabled ? labelOn : labelOff}
+    >
       <View style={styles.track}>
         {/* Kırmızı taban — "kapalı / gece" */}
         <View style={[StyleSheet.absoluteFill, { backgroundColor: RED, borderRadius: BorderRadius.round }]} />
-        {/* Yeşil süpürme — soldan sağa büyür (aktif) */}
+        {/* Eski görünüm sözleşmesi: yeşil süpürme yalnız otomatik modu anlatır. */}
         <Animated.View style={[styles.greenFill, fillStyle]} />
         <View style={styles.contentRow} pointerEvents="none">
           <MaterialCommunityIcons
@@ -69,6 +85,7 @@ const styles = StyleSheet.create({
   press: {
     marginTop: Spacing.md,
   },
+  pressDisabled: { opacity: 0.6 },
   track: {
     height: 52,
     borderRadius: BorderRadius.round,
@@ -106,6 +123,7 @@ const styles = StyleSheet.create({
   },
   label: {
     ...Typography.labelLarge,
+    color: '#FFF',
     fontFamily: FontFamily.extraBold,
     letterSpacing: 0.6,
     textTransform: 'uppercase',

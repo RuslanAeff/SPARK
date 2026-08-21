@@ -4,6 +4,7 @@ import { View, Text } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import AnimatedCard from '../AnimatedCard';
 import { Colors } from '../../theme/colors';
+import { useThemeRevision } from '../../theme/themeStore';
 import type { BaseCardProps, TimeOfDayInfo } from './shared';
 
 interface TimeOfDayCardProps extends BaseCardProps {
@@ -11,13 +12,14 @@ interface TimeOfDayCardProps extends BaseCardProps {
 }
 
 function TimeOfDayCard({ styles, t, timeOfDayInfo }: TimeOfDayCardProps) {
+  useThemeRevision();
   if (!timeOfDayInfo.available) {
     return (
       <AnimatedCard delay={170} style={styles.section}>
         <View style={styles.todHeader}>
           <View style={styles.todHeaderLeft}>
             <MaterialCommunityIcons name="clock-time-eight-outline" size={18} color={Colors.textSecondary} />
-            <Text style={styles.sectionTitle}>{t('timeofday_title')}</Text>
+            <Text style={styles.cardHeaderTitle}>{t('timeofday_title')}</Text>
           </View>
         </View>
         <View style={styles.todEmptyWrap}>
@@ -45,7 +47,7 @@ function TimeOfDayCard({ styles, t, timeOfDayInfo }: TimeOfDayCardProps) {
           <View style={[styles.todHeaderIcon, { backgroundColor: Colors.primary + '1F' }]}>
             <MaterialCommunityIcons name="clock-time-eight-outline" size={16} color={Colors.primary} />
           </View>
-          <Text style={styles.sectionTitle}>{t('timeofday_title')}</Text>
+          <Text style={styles.cardHeaderTitle}>{t('timeofday_title')}</Text>
         </View>
         {peakValue > 0 && (
           <View style={[styles.todPeakChip, { backgroundColor: Colors.primary + '14' }]}>

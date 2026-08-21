@@ -4,9 +4,15 @@ import { fireEvent, render } from '@testing-library/react-native';
 import TopTxCard from '../TopTxCard';
 import { getAnalyticsStyles } from '../analyticsStyles';
 
+const mockSetNestedHorizontalGestureActive = jest.fn();
+jest.mock('../../../context/TabSwipeContext', () => ({
+  useTabSwipe: () => ({ setNestedHorizontalGestureActive: mockSetNestedHorizontalGestureActive }),
+}));
+
 const base = { styles: getAnalyticsStyles(), t: (k: string) => k, tc: (k: string) => k, currency: 'PLN' as const };
 
 describe('TopTxCard', () => {
+  beforeEach(() => mockSetNestedHorizontalGestureActive.mockClear());
   it('işlem yoksa hiçbir şey render etmez (null)', async () => {
     const { toJSON } = await render(<TopTxCard {...base} topTx={[]} />);
     expect(toJSON()).toBeNull();
@@ -39,8 +45,8 @@ describe('TopTxCard', () => {
     expect(screen.getByText('04-05 • Kategori A')).toBeTruthy();
   });
 
-  it('genişletme gerçek işlem listesini açar ve erişilebilir durumunu günceller', async () => {
-    const topTx = Array.from({ length: 4 }, (_, index) => ({
+  it('en yüksek işlemleri beşerli sabit sayfalara böler ve sıra numarasını korur', async () => {
+    const topTx = Array.from({ length: 10 }, (_, index) => ({
       id: index + 1,
       vendor_name: `Satıcı ${index + 1}`,
       date: `2026-06-${String(21 - index).padStart(2, '0')}`,
@@ -48,14 +54,27 @@ describe('TopTxCard', () => {
       total_amount: 200 - index,
     })) as any;
     const screen = await render(<TopTxCard {...base} topTx={topTx} />);
-    const button = screen.getByRole('button');
+    expect(screen.getByTestId('top-tx-page-0')).toBeTruthy();
+    expect(screen.getByTestId('top-tx-page-1')).toBeTruthy();
+    expect(screen.getByText('10')).toBeTruthy();
+    expect(screen.getByTestId('top-tx-page-counter').props.children.join('')).toBe('1 / 2');
 
-    expect(screen.queryByText('Satıcı 4')).toBeNull();
-    expect(button.props.accessibilityState).toEqual({ expanded: false });
+  });
 
-    await fireEvent.press(button);
+  it('iç yatay kaydırma sırasında ana sekme swipe hareketini kilitler', async () => {
+    const topTx = Array.from({ length: 6 }, (_, index) => ({
+      id: index + 1,
+      vendor_name: `Satıcı ${index + 1}`,
+      date: '2026-06-21',
+      category_name: 'Market',
+      total_amount: 200 - index,
+    })) as any;
+    const screen = await render(<TopTxCard {...base} topTx={topTx} />);
+    const pager = screen.getByTestId('top-tx-pager');
 
-    expect(screen.getByText('Satıcı 4')).toBeTruthy();
-    expect(screen.getByRole('button').props.accessibilityState).toEqual({ expanded: true });
+    fireEvent(pager, 'touchStart');
+    fireEvent(pager, 'touchEnd');
+    expect(mockSetNestedHorizontalGestureActive).toHaveBeenNthCalledWith(1, true);
+    expect(mockSetNestedHorizontalGestureActive).toHaveBeenLastCalledWith(false);
   });
 });

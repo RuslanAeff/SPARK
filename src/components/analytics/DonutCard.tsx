@@ -5,9 +5,11 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import AnimatedCard from '../AnimatedCard';
 import DonutChart from '../DonutChart';
 import { Colors } from '../../theme/colors';
+import { useThemeRevision } from '../../theme/themeStore';
 import { ScreenPadding, Spacing } from '../../theme/spacing';
 import { formatCurrency } from '../../utils/formatCurrency';
 import type { BaseCardProps, BehaviorSegment, DonutSegment } from './shared';
+import { SettingsInfoHintModal, SettingsInfoIconButton } from '../SettingsInfoHint';
 
 interface DonutCardProps extends BaseCardProps {
   needsWants: BehaviorSegment[];
@@ -24,6 +26,7 @@ function DonutCard({
   styles, t, currency, needsWants, weekWeekend, nwSegments, wwSegments,
   selectedNWIdx, selectedWWIdx, handleNWSelect, handleWWSelect,
 }: DonutCardProps) {
+  useThemeRevision();
   if (needsWants.length === 0 && weekWeekend.length === 0) return null;
 
   const nwItem = selectedNWIdx !== null ? needsWants[selectedNWIdx] : null;
@@ -35,10 +38,17 @@ function DonutCard({
   // görünüm genişliğini alıp her sayfayı tam ona eşitliyoruz → kusursuz paging.
   const screenWidth = Dimensions.get('window').width;
   const [pageW, setPageW] = useState(screenWidth - ScreenPadding.horizontal * 2); // ilk render fallback
+  const [infoVisible, setInfoVisible] = useState(false);
 
   return (
     <AnimatedCard delay={300} style={{ ...styles.section, ...styles.primaryCard, paddingHorizontal: 0 }}>
-      <Text style={[styles.sectionTitle, { paddingHorizontal: Spacing.lg }]}>{t('behavioral_analysis')}</Text>
+      <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: Spacing.lg }}>
+        <Text style={[styles.sectionTitle, { flex: 1 }]}>{t('behavioral_analysis')}</Text>
+        <SettingsInfoIconButton
+          onPress={() => setInfoVisible(true)}
+          accessibilityLabel={t('behavioral_analysis_info_a11y')}
+        />
+      </View>
       <ScrollView
         horizontal
         pagingEnabled
@@ -86,7 +96,10 @@ function DonutCard({
                    : t('savings_other_analysis', { percentage: nwItem.percentage.toString() })}
               </Text>
             ) : (
-              <Text style={styles.donutAnalysisHint}>{t('donut_hint_swipe_right')}</Text>
+              <View style={styles.donutAnalysisHintRow}>
+                <Text style={styles.donutAnalysisHint}>{t('donut_hint_swipe_right')}</Text>
+                <MaterialCommunityIcons name="arrow-right" size={15} color={Colors.textMuted} />
+              </View>
             )}
           </View>
         </View>
@@ -123,12 +136,26 @@ function DonutCard({
                 {t('time_analysis', { percentage: wwItem.percentage.toString(), segment: wwItem.segment.toLowerCase() })}
               </Text>
             ) : (
-              <Text style={styles.donutAnalysisHint}>{t('donut_hint_swipe_left')}</Text>
+              <View style={styles.donutAnalysisHintRow}>
+                <MaterialCommunityIcons name="arrow-left" size={15} color={Colors.textMuted} />
+                <Text style={styles.donutAnalysisHint}>{t('donut_hint_swipe_left')}</Text>
+              </View>
             )}
           </View>
         </View>
 
       </ScrollView>
+      <SettingsInfoHintModal
+        visible={infoVisible}
+        onClose={() => setInfoVisible(false)}
+        title={t('behavioral_analysis_info_title')}
+        paragraphs={[
+          t('behavioral_analysis_info_needs'),
+          t('behavioral_analysis_info_wants'),
+          t('behavioral_analysis_info_other'),
+          t('behavioral_analysis_info_note'),
+        ]}
+      />
     </AnimatedCard>
   );
 }

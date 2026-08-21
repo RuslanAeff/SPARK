@@ -56,6 +56,33 @@ Değişiklik aşağıdaki alanlara dokunuyorsa development build veya APK smoke 
 
 Sıcak navigasyonun yanında cold start da test edilmelidir. Expo Go her native açılış yüzeyini yeniden üretmediğinden startup görsel düzeltmeleri standalone build içinde doğrulanmalıdır.
 
+Vurgu paleti değişikliği için standalone tema matrisi en az beş vurgu seçeneğini
+hem açık hem koyu görünümde kapsamalıdır. Her kombinasyonda birincil CTA
+metin/ikon kontrastı, aktif sekme, seçili kontrol, modal ve lazy scene yüzeyi;
+başarı/tehlike/uyarı/bilgi ile kategori/grafik renklerinin değişmeden kalması
+kontrol edilir. Çalışma zamanında art arda palet değiştirme aktif rotayı,
+scroll/sheet durumunu veya navigator ağacını sıfırlamamalı; ara beyaz/siyah kare
+üretmemelidir. Uygulama yeniden başlatıldığında kayıtlı şema ve vurgu ilk görünür
+kareden önce birlikte uygulanmalıdır. Logo ve splash marka rengi seçilen vurguya
+göre yeniden boyanmamalıdır.
+
+Vurgu carousel'i mikro geri bildirim kullanıyorsa gerçek ScrollView viewport'u
+üzerinde ilk, orta ve son adayın sabit merkez eksenine oturduğu; yavaş sürükleme,
+hızlı savurma ve doğrudan dokunmada her gerçek kademe geçişinin en fazla bir kısa
+haptic+klik ürettiği; programatik ilk hizalamanın ve rollback'in sessiz olduğu;
+DB tercihinin yalnız nihai snap'te bir kez yazıldığı fiziksel cihazda
+doğrulanmalıdır. Android'de hedef Samsung geri bildirimine göre seçilmiş OEM
+`CONTEXT_CLICK` eşlemesinin gerçekten tok ve kademe başına tek vuruş ürettiği;
+12 ms tiz “tik”in kovuk/rezonanslı duyulmadığı, yaklaşık 96 dp yuva mesafesi,
+100 ms ritim ve kuvvetli frenin hızlı swipe sırasında bile renkleri/vuruşları
+birbirine karıştırmadığı ayrıca kontrol edilmelidir. Test matrisi en az normal ses,
+sessiz/titreşim ve düşük medya
+sesi durumlarını; Android OEM haptic farkını ve ekran okuyucunun ayarlanabilir
+kontrol davranışını kapsamalıdır. Yerel klik best-effort'tur: ses/haptic hatası
+seçimi engellememeli, uygulama mikrofon/recording veya arka plan oynatma
+yeteneği kazanmamalıdır. Native izin ve plugin gerçeği yalnız `app.json` ile
+üretilen manifest üzerinden doğrulanır.
+
 Android sistem bildirimi değişikliklerinin APK smoke testi en az şu senaryoları kaydetmelidir: cold start sırasında reveal tamamlanmadan izin yüzeyi açılmaması; Android 13+ izin akışı; sessiz güncelleme ve dikkat gerektiren uyarı kanallarının önem/ses/titreşim farkı; kilit ekranında özel içerik görünürlüğü; resume ve yeniden başlatmada çift teslim olmaması; uygulama içi silmenin tray kopyasını kaldırması; warm/cold dokunuşun doğru kaydı okuyup Bildirimler'e yönlendirmesi. Geleceğe tarihli hatırlatıcılarda ayrıca seçilen saate planlama, settle/pause/delete/mute sonrası iptal, cold tap ile feed'e tek kayıt, process-kill, reboot, APK update, saat-dilimi değişiminden sonraki resume uzlaştırması ve Doze/OEM gecikmesi kaydedilmelidir. Force-stop sınırı ayrıca raporlanmalıdır. Expo Go sonucu bu davranışlar için cihaz kanıtı sayılmaz.
 
 ## Güvenlik modeli
@@ -123,6 +150,8 @@ Bildirim kurulumu Android sürüm davranışını ve Expo Go sınırlamalarını
 - Desteklenen payload'larda yeniden import idempotent olmalıdır.
 - Format sürümü artırımı, desteklenen eski sürümler için açık uyumluluk yolunu korumalıdır.
 - Saklanan URI mevcut olsa bile fiş dosya içerikleri taşınabilir kabul edilmez.
+- Görünüm şeması ve vurgu paleti cihaz-yerel UI tercihleridir; finansal backup
+  payload'ına eklenmez ve tek başına backup format sürümü artışı gerektirmez.
 
 ### Bildirim durumu
 
@@ -145,13 +174,14 @@ fiziksel cihaz kabulünde açık sınırlama olarak raporlanır.
 
 ### Açılış sürekliliği
 
-Native splash, Android penceresi, JavaScript açılış yüzeyi ve ilk uygulama karesi tek kontrollü görsel sıra kullanır. Tema, dil, para birimi, veritabanı, onboarding hedefi ve layout readiness gösterimden önce çözülür.
+Native splash, Android penceresi, JavaScript açılış yüzeyi ve ilk uygulama karesi tek kontrollü görsel sıra kullanır. Görünüm şeması ve vurgu tercihi atomik tema snapshot'ı olarak; dil, para birimi, veritabanı, onboarding hedefi ve layout readiness ile birlikte gösterimden önce çözülür.
 
 Ara bir beyaz/varsayılan/native yüzey üretebilecek değişikliklerden kaçının:
 
 - Splash'i erken gizlemeyin.
 - Provider child'larını geçici boş kare olarak render etmeyin.
 - Activity'yi yeniden oluşturan native görünüm değişikliklerini çağırmayın.
+- Şema ve vurgu tercihini ayrı görünür karelerde uygulamayın.
 - Yanlış ilk rotayı şeffaf yüzey arkasında animate etmeyin.
 - Nested navigator, lazy scene veya pager wrapper'ında React Navigation'ın varsayılan açık arka planını bırakmayın.
 - Hata yolunun splash'i gizleyip kurtarılabilir ekran gösterme yeteneğini koruyun.
@@ -168,6 +198,9 @@ Focus değişiklikleri, pull-to-refresh ve mutasyon invalidation'ı çakışan o
 - Navigasyon ve mod değişikliklerinde geçici swipe/sheet durumunu kapatın veya sıfırlayın.
 - Kısa süreli toast geri bildirimi için yeni native modal penceresi oluşturmayın.
 - Yalnız ikonlu veya gesture destekli eylemler için accessibility role, selected/checked state, label ve hint sağlayın.
+- Kademeli seçicilerde programatik scroll ile insan gesture'ını ayırın; her
+  eşik için en fazla bir geri bildirim üretin ve yüksek frekanslı ses/haptic'i
+  kalıcı yazma döngüsüne bağlamayın.
 
 ## Performans korumaları
 
@@ -192,6 +225,10 @@ Performans çalışması doğruluğu ve görsel sürekliliği korumalıdır.
 - [ ] İlgisiz kullanıcı değişikliklerinin üzerine yazılmamış.
 - [ ] Görünür metin dört dil akışını izliyor.
 - [ ] Açık ve koyu tema çalışma zamanı tema token'larını kullanıyor.
+- [ ] Vurgu kullanan stiller tam palet veya revision değişimine reaktif; `primaryAction`/`onPrimary` kontrastı doğrulanmış.
+- [ ] Semantik, kategori/grafik ve logo/splash renkleri kullanıcı vurgusundan bağımsız kalıyor.
+- [ ] Kademeli vurgu seçicisi adaptif merkezleniyor; geri bildirim yalnız insanın
+  geçtiği yeni kademede bir kez, kalıcılık yalnız nihai snap'te oluşuyor.
 - [ ] Async state daha eski istek tarafından ezilemiyor.
 
 ### Kalıcılık veya finansal mantık
@@ -215,6 +252,7 @@ Performans çalışması doğruluğu ve görsel sürekliliği korumalıdır.
 - [ ] CI temiz lockfile kurulumundan sonra geçiyor.
 - [ ] EAS profili ve ortam gereksinimleri doğrulanmış.
 - [ ] Cold start standalone build içinde kontrol edilmiş.
+- [ ] Beş vurgu × açık/koyu görünüm, runtime geçiş ve yeniden başlatma kalıcılığı standalone build içinde kontrol edilmiş.
 - [ ] Yayından etkilenen kamera/tarama/kaydetme, işlem yenileme, backup/restore, bildirim ve tema akışları smoke test edilmiş.
 
 ## Bu belgenin bakımı

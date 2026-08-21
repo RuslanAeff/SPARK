@@ -11,8 +11,8 @@ import * as ImagePicker from 'expo-image-picker';
 import Animated, { FadeInDown, FadeIn } from 'react-native-reanimated';
 
 import * as Haptics from 'expo-haptics';
-import { DarkTheme, LightTheme } from '../../src/theme/colors';
-import { useAppTheme } from '../../src/theme/themeStore';
+import { DarkTheme } from '../../src/theme/colors';
+import { useAppTheme, useThemePalette } from '../../src/theme/themeStore';
 import { Typography, FontFamily } from '../../src/theme/typography';
 import { Spacing, ScreenPadding, BorderRadius } from '../../src/theme/spacing';
 import { formatCurrency } from '../../src/utils/formatCurrency';
@@ -31,39 +31,49 @@ import {
 } from '../../src/utils/receiptLineDiscountUi';
 import { itemDisplayName } from '../../src/utils/itemDisplayName';
 import { compressImageToBase64 } from '../../src/utils/imageCompressor';
+import { formatMeasurementQuantity } from '../../src/utils/measurementUnit';
 import {
-  susevarButton,
+  createSusevarStyles,
   susevarButtonPressed,
   susevarButtonRow,
-  susevarButtonText,
 } from '../../src/theme/susevar';
 
 type ScanState = 'idle' | 'processing' | 'result' | 'error' | 'no_key';
 
-/** SPARK'a özgü belge-tarama işareti; platform ikon setine bağlı değildir. */
+/** Referanstaki açık tarama işaretinin tema uyumlu, platformdan bağımsız çizimi. */
 function ScannerDocumentMark({ color }: { color: string }) {
   return (
     <Svg
-      width={35}
-      height={35}
-      viewBox="0 0 36 36"
+      testID="scanner-document-mark"
+      width={40}
+      height={38}
+      viewBox="0 0 40 38"
       fill="none"
       accessibilityElementsHidden
       importantForAccessibility="no-hide-descendants"
     >
-      <Path d="M12 5H9a4 4 0 0 0-4 4v3" stroke={color} strokeWidth={2.2} strokeLinecap="round" />
-      <Path d="M24 5h3a4 4 0 0 1 4 4v3" stroke={color} strokeWidth={2.2} strokeLinecap="round" />
-      <Path d="M12 31H9a4 4 0 0 1-4-4v-3" stroke={color} strokeWidth={2.2} strokeLinecap="round" />
-      <Path d="M24 31h3a4 4 0 0 0 4-4v-3" stroke={color} strokeWidth={2.2} strokeLinecap="round" />
       <Path
-        d="M12.5 10.5h8.2l4.8 4.8v10.2h-13z"
+        d="M11 5.5H9A2.5 2.5 0 0 0 6.5 8v2.5M29 5.5h2A2.5 2.5 0 0 1 33.5 8v2.5M11 32.5H9A2.5 2.5 0 0 1 6.5 30v-2.5M29 32.5h2a2.5 2.5 0 0 0 2.5-2.5v-2.5"
         stroke={color}
-        strokeWidth={2.1}
+        strokeWidth={2.25}
+        strokeLinecap="round"
         strokeLinejoin="round"
       />
-      <Path d="M20.7 10.8v4.7h4.5" stroke={color} strokeWidth={2.1} strokeLinecap="round" strokeLinejoin="round" />
-      <Path d="M9.5 19h17" stroke={color} strokeWidth={2.35} strokeLinecap="round" />
-      <Path d="M16 22.8h6" stroke={color} strokeWidth={1.9} strokeLinecap="round" />
+      <Path
+        d="M10.5 15v-1.5A4.5 4.5 0 0 1 15 9h10a4.5 4.5 0 0 1 4.5 4.5V15"
+        stroke={color}
+        strokeWidth={2.25}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <Path d="M9 19h22" stroke={color} strokeWidth={2.25} strokeLinecap="round" />
+      <Path
+        d="M10.5 23v1.5A4.5 4.5 0 0 0 15 29h10a4.5 4.5 0 0 0 4.5-4.5V23"
+        stroke={color}
+        strokeWidth={2.25}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
     </Svg>
   );
 }
@@ -91,8 +101,8 @@ function ScannerGalleryMark({ color }: { color: string }) {
 
 export default function ScannerScreen() {
   const scheme = useAppTheme();
-  const theme = scheme === 'light' ? LightTheme : DarkTheme;
-  const styles = React.useMemo(() => getStyles(theme), [theme]);
+  const theme = useThemePalette();
+  const styles = React.useMemo(() => getStyles(theme, scheme === 'dark'), [scheme, theme]);
   const router = useRouter();
   const { t, language } = useLanguage();
   const { triggerRefresh } = useRefreshActions();
@@ -259,7 +269,7 @@ export default function ScannerScreen() {
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         {state === 'idle' && (
           <Animated.View entering={FadeIn.duration(400)} style={styles.idleContent}>
-            <View style={styles.heroIcon}>
+            <View testID="scanner-hero-mark" style={styles.heroIcon}>
               <ScannerDocumentMark color={theme.primary} />
             </View>
             <Text style={styles.idleTitle}>{t('scan_receipt')}</Text>
@@ -284,7 +294,7 @@ export default function ScannerScreen() {
                 accessibilityState={{ disabled: sourceBusy, busy: sourceBusy }}
               >
                 <View style={[styles.actionIconCapsule, styles.actionIconCapsulePrimary]}>
-                  <Ionicons name="camera-outline" size={25} color="#06130A" />
+                  <Ionicons name="camera-outline" size={25} color={theme.onPrimary} />
                 </View>
                 <Text style={[styles.actionLabel, styles.actionLabelPrimary]} numberOfLines={2}>
                   {t('camera')}
@@ -357,12 +367,12 @@ export default function ScannerScreen() {
               </Pressable>
               <Pressable
                 onPress={() => router.push('/settings-ai')}
-                style={[styles.actionButton, { backgroundColor: theme.primary, flex: 2 }]}
+                style={[styles.actionButton, { backgroundColor: theme.primaryAction, flex: 2 }]}
                 accessibilityRole="button"
                 accessibilityLabel={t('tab_settings')}
               >
-                <Ionicons name="settings-outline" size={20} color={theme.textInverse} />
-                <Text style={styles.actionText}>{t('tab_settings')}</Text>
+                <Ionicons name="settings-outline" size={20} color={theme.onPrimary} />
+                <Text style={[styles.actionText, { color: theme.onPrimary }]}>{t('tab_settings')}</Text>
               </Pressable>
             </View>
           </View>
@@ -430,8 +440,10 @@ export default function ScannerScreen() {
                     )}
                   </View>
                   <View style={styles.lineItemRight}>
-                    {item.quantity > 1 && (
-                      <Text style={styles.itemQty}>x{item.quantity}</Text>
+                    {(item.quantity !== 1 || item.measurement_unit !== 'piece') && (
+                      <Text style={styles.itemQty}>
+                        {formatMeasurementQuantity(item.quantity, item.measurement_unit)}
+                      </Text>
                     )}
                     {hasDisc && listAmt != null && listAmt > (item.total_price ?? 0) + 0.001 && (
                       <Text style={styles.itemWasPrice}>
@@ -472,7 +484,7 @@ export default function ScannerScreen() {
                 accessibilityLabel={t('save')}
                 accessibilityState={{ disabled: resultBusy, busy: resultBusy }}
               >
-                <Ionicons name="checkmark" size={20} color="#FFFFFF" />
+                <Ionicons name="checkmark" size={20} color={theme.onPrimary} />
                 <Text style={styles.savePillText}>{t('save')}</Text>
               </Pressable>
               <Pressable
@@ -511,7 +523,9 @@ export default function ScannerScreen() {
   );
 }
 
-const getStyles = (theme: typeof DarkTheme) => StyleSheet.create({
+const getStyles = (theme: typeof DarkTheme, isDark: boolean) => {
+  const susevar = createSusevarStyles(theme);
+  return StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: theme.background,
@@ -543,10 +557,8 @@ const getStyles = (theme: typeof DarkTheme) => StyleSheet.create({
   heroIcon: {
     width: 58,
     height: 58,
-    borderRadius: 18,
-    backgroundColor: theme.primaryGlow,
-    borderWidth: 1,
-    borderColor: theme.glassBorder,
+    borderRadius: 29,
+    backgroundColor: theme.primarySoft,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: Spacing.xl,
@@ -586,15 +598,15 @@ const getStyles = (theme: typeof DarkTheme) => StyleSheet.create({
   },
   actionRailPrimary: {
     backgroundColor: theme.cardSurface,
-    borderColor: theme === LightTheme ? `${theme.primary}33` : theme.cardBorder,
+    borderColor: !isDark ? `${theme.primary}33` : theme.cardBorder,
     ...Platform.select({
       ios: {
         shadowColor: '#000000',
         shadowOffset: { width: 0, height: 5 },
-        shadowOpacity: theme === LightTheme ? 0.07 : 0.16,
+        shadowOpacity: !isDark ? 0.07 : 0.16,
         shadowRadius: 14,
       },
-      android: { elevation: theme === LightTheme ? 2 : 1 },
+      android: { elevation: !isDark ? 2 : 1 },
     }),
   },
   actionRailSecondary: {
@@ -604,7 +616,7 @@ const getStyles = (theme: typeof DarkTheme) => StyleSheet.create({
       ios: {
         shadowColor: '#000000',
         shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: theme === LightTheme ? 0.055 : 0.16,
+        shadowOpacity: !isDark ? 0.055 : 0.16,
         shadowRadius: 12,
       },
       android: { elevation: 1 },
@@ -625,7 +637,7 @@ const getStyles = (theme: typeof DarkTheme) => StyleSheet.create({
     justifyContent: 'center',
   },
   actionIconCapsulePrimary: {
-    backgroundColor: theme.primaryLight,
+    backgroundColor: theme.primaryAction,
   },
   actionIconCapsuleSecondary: {
     backgroundColor: theme.primaryGlow,
@@ -668,14 +680,14 @@ const getStyles = (theme: typeof DarkTheme) => StyleSheet.create({
   },
   /** Durdur — şüşevar dili, kırmızı (danger) varyant */
   stopButton: {
-    ...susevarButton,
+    ...susevar.button,
     backgroundColor: theme.danger,
     shadowColor: theme.danger,
     marginTop: Spacing.xl,
   },
   stopButtonPressed: susevarButtonPressed,
   stopButtonRow: susevarButtonRow,
-  stopButtonText: susevarButtonText,
+  stopButtonText: susevar.text,
   // Error
   errorContent: {
     alignItems: 'center',
@@ -819,16 +831,16 @@ const getStyles = (theme: typeof DarkTheme) => StyleSheet.create({
     gap: Spacing.md,
   },
   savePill: {
-    ...susevarButton,
+    ...susevar.button,
     ...susevarButtonRow,
     // Shared susevar geometrisini korurken tema rengini runtime'da yenile.
-    backgroundColor: theme.primary,
-    shadowColor: theme.primary,
+    backgroundColor: theme.primaryAction,
+    shadowColor: theme.primaryAction,
   },
   savePillPressed: susevarButtonPressed,
   /**
-   * İkincil pill: outline stili — primaryGlow + gölge gri-yeşil “kirli halo” yapıyordu.
-   * Kart yüzeyi ile aynı düz dolgu + tam opak yeşil çerçeve, gölge yok (tam uyum).
+   * İkincil pill: outline stili — primaryGlow + gölge kirli bir halo yapıyordu.
+   * Kart yüzeyi ile aynı düz dolgu + tam opak vurgu çerçevesi, gölge yok.
    */
   editPill: {
     flexDirection: 'row',
@@ -848,7 +860,7 @@ const getStyles = (theme: typeof DarkTheme) => StyleSheet.create({
   resultActionDisabled: {
     opacity: 0.5,
   },
-  savePillText: susevarButtonText,
+  savePillText: susevar.text,
   editPillText: {
     color: theme.primary,
     fontFamily: FontFamily.extraBold,
@@ -865,4 +877,5 @@ const getStyles = (theme: typeof DarkTheme) => StyleSheet.create({
     color: theme.textSecondary,
     fontFamily: FontFamily.bold,
   },
-});
+  });
+};

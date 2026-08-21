@@ -8,9 +8,11 @@ import { normalizeToYYYYMMDD } from '../utils/dateUtils';
 import {
   formatMoneyInput,
   roundMoney,
+  roundUnitRate,
   sumMoney,
 } from '../utils/moneyMath';
 import { normalizeReceiptItemAmounts } from '../utils/receiptMoney';
+import { normalizeMeasurementInput } from '../utils/measurementUnit';
 
 const CATEGORY_MAP: Record<string, string> = {
   'market': 'Market',
@@ -145,8 +147,18 @@ export async function processReceipt(receipt: ParsedReceipt): Promise<number> {
   }> = [];
   for (const item of rawItems) {
     const itemCategoryId = await resolveCategory(item.suggested_category || 'Diğer');
-    const { quantity: qty, unitPrice, totalPrice } = normalizeReceiptItemAmounts(item);
-    resolvedItems.push({ item, itemCategoryId, qty, unitPrice, totalPrice });
+    const { quantity: rawQty, unitPrice, totalPrice } = normalizeReceiptItemAmounts(item);
+    const measurement = normalizeMeasurementInput(rawQty, item.measurement_unit);
+    const canonicalUnitPrice = measurement.quantity > 0 && totalPrice > 0
+      ? roundUnitRate(totalPrice / measurement.quantity)
+      : unitPrice;
+    resolvedItems.push({
+      item: { ...item, measurement_unit: measurement.measurementUnit },
+      itemCategoryId,
+      qty: measurement.quantity,
+      unitPrice: canonicalUnitPrice,
+      totalPrice,
+    });
   }
 
   // 4. Header + kalemler TEK transaction'da: ya hepsi kaydolur ya hiçbiri.
@@ -170,6 +182,7 @@ export async function processReceipt(receipt: ParsedReceipt): Promise<number> {
         name: String(r.item.name || '').trim() || 'Ürün',
         turkish_name: r.item.turkish_name || undefined,
         quantity: r.qty,
+        measurement_unit: r.item.measurement_unit ?? 'piece',
         unit_price: r.unitPrice,
         total_price: r.totalPrice,
         category_id: r.itemCategoryId,

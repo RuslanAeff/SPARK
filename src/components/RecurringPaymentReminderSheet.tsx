@@ -1,10 +1,18 @@
 // S.P.A.R.K. — Kullanıcı tarafından onaylanan düzenli ödeme planı formu
-// Bu yüzey yalnız tercihi kalıcılaştırır; işletim sistemi zamanlayıcısı Faz 5'tedir.
+// Form tercihi kalıcılaştırır; scheduler kayıttan sonra uygulama kökünde uzlaştırılır.
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import {
+  KeyboardAvoidingView,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 
-import BottomSheetModal from './BottomSheetModal';
 import CustomDatePicker from './CustomDatePicker';
 import { SparkToast } from './SparkToast';
 import { RecurringPaymentReminderDao } from '../db/recurringPaymentReminderDao';
@@ -14,11 +22,11 @@ import type {
   ReminderRecurrenceUnit,
 } from '../db/schema';
 import { useLanguage } from '../i18n/LanguageContext';
-import { BorderRadius, Spacing } from '../theme/spacing';
+import { BorderRadius, ScreenPadding, Spacing } from '../theme/spacing';
 import { Colors } from '../theme/colors';
-import { useAppTheme } from '../theme/themeStore';
+import { useAppTheme, useThemeRevision } from '../theme/themeStore';
 import { FontFamily, Typography } from '../theme/typography';
-import { susevarButton, susevarButtonPressed, susevarButtonText } from '../theme/susevar';
+import { createSusevarStyles, susevarButtonPressed } from '../theme/susevar';
 import { formatDateFull, getToday } from '../utils/dateUtils';
 
 export interface RecurringPaymentReminderFormValue {
@@ -39,7 +47,6 @@ export interface RecurringPaymentReminderFormValue {
 }
 
 interface Props {
-  visible: boolean;
   initialValue: RecurringPaymentReminderFormValue | null;
   defaultCurrency: string;
   onClose: () => void;
@@ -57,15 +64,15 @@ function parseDecimal(value: string): number | null {
   return Number(normalized);
 }
 
-export default function RecurringPaymentReminderSheet({
-  visible,
+export default function RecurringPaymentReminderForm({
   initialValue,
   defaultCurrency,
   onClose,
   onSaved,
 }: Props) {
   const scheme = useAppTheme();
-  const styles = useMemo(() => getStyles(), [scheme]);
+  const themeRevision = useThemeRevision();
+  const styles = useMemo(() => getStyles(), [scheme, themeRevision]);
   const { t } = useLanguage();
   const savingRef = useRef(false);
   const [saving, setSaving] = useState(false);
@@ -81,7 +88,6 @@ export default function RecurringPaymentReminderSheet({
   const [note, setNote] = useState('');
 
   useEffect(() => {
-    if (!visible) return;
     savingRef.current = false;
     setSaving(false);
     setDatePickerVisible(false);
@@ -94,16 +100,21 @@ export default function RecurringPaymentReminderSheet({
     setLeadDays(String(initialValue?.reminderDaysBefore ?? 3));
     setReminderTime(initialValue?.reminderTime ?? '09:00');
     setNote(initialValue?.note ?? '');
-  }, [defaultCurrency, initialValue, visible]);
+  }, [defaultCurrency, initialValue]);
 
   const customLead = !LEAD_PRESETS.includes(Number(leadDays) as (typeof LEAD_PRESETS)[number]);
   const [hour = '', minute = ''] = reminderTime.split(':');
-  const close = () => {
-    if (savingRef.current) return;
-    setDatePickerVisible(false);
-    onClose();
+  const intervalNumber = Math.max(1, Math.min(999, Number(interval) || 1));
+  const intervalSummary = t(
+    intervalNumber === 1
+      ? `recurring_plan_interval_every_${unit}`
+      : `recurring_plan_interval_${unit}`,
+    { interval: intervalNumber },
+  );
+  const changeInterval = (delta: number) => {
+    if (saving) return;
+    setInterval(String(Math.max(1, Math.min(999, intervalNumber + delta))));
   };
-
   const save = async () => {
     if (savingRef.current) return;
     const safeTitle = title.trim();
@@ -172,29 +183,18 @@ export default function RecurringPaymentReminderSheet({
   };
 
   return (
-    <BottomSheetModal
-      visible={visible}
-      onClose={close}
-      sheetStyle={styles.sheet}
-      backdropColor={scheme === 'light' ? 'rgba(0,0,0,0.35)' : 'rgba(0,0,0,0.55)'}
-      showHandle
-    >
-      <View style={styles.header}>
-        <View style={styles.headerIcon}>
-          <MaterialCommunityIcons name="calendar-sync-outline" size={22} color={Colors.primary} />
-        </View>
-        <View style={styles.headerCopy}>
-          <Text style={styles.title}>
-            {t(initialValue?.id ? 'recurring_plan_edit_title' : 'recurring_plan_add_title')}
-          </Text>
-          <Text style={styles.subtitle}>{t('recurring_plan_form_hint')}</Text>
-        </View>
-      </View>
+    <View style={styles.screen}>
+      <KeyboardAvoidingView
+        style={styles.keyboardArea}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      >
 
       <ScrollView
+        testID="recurring-plan-scroll"
         style={styles.scroll}
         contentContainerStyle={styles.content}
         keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
         showsVerticalScrollIndicator={false}
       >
         <Text style={styles.label}>{t('recurring_plan_name')}</Text>
@@ -271,17 +271,48 @@ export default function RecurringPaymentReminderSheet({
           ))}
         </View>
 
-        <View style={styles.compactField}>
+        <View style={styles.intervalSection}>
           <Text style={styles.label}>{t('recurring_plan_interval')}</Text>
-          <TextInput
-            testID="recurring-plan-interval"
-            style={[styles.input, styles.numberInput]}
-            value={interval}
-            onChangeText={(value) => setInterval(value.replace(/\D/g, '').slice(0, 3))}
-            keyboardType="number-pad"
-            maxLength={3}
-            editable={!saving}
-          />
+          <View style={styles.intervalRow}>
+            <Pressable
+              testID="recurring-plan-interval-minus"
+              accessibilityRole="button"
+              accessibilityLabel={t('recurring_plan_interval_decrease')}
+              disabled={saving || intervalNumber <= 1}
+              onPress={() => changeInterval(-1)}
+              style={({ pressed }) => [
+                styles.intervalButton,
+                intervalNumber <= 1 && styles.disabled,
+                pressed && styles.pressed,
+              ]}
+            >
+              <MaterialCommunityIcons name="minus" size={22} color={Colors.textPrimary} />
+            </Pressable>
+            <TextInput
+              testID="recurring-plan-interval"
+              style={[styles.input, styles.intervalInput]}
+              value={interval}
+              onChangeText={(value) => setInterval(value.replace(/\D/g, '').slice(0, 3))}
+              onBlur={() => setInterval(String(intervalNumber))}
+              keyboardType="number-pad"
+              maxLength={3}
+              editable={!saving}
+              selectTextOnFocus
+            />
+            <Pressable
+              testID="recurring-plan-interval-plus"
+              accessibilityRole="button"
+              accessibilityLabel={t('recurring_plan_interval_increase')}
+              disabled={saving || intervalNumber >= 999}
+              onPress={() => changeInterval(1)}
+              style={({ pressed }) => [styles.intervalButton, pressed && styles.pressed]}
+            >
+              <MaterialCommunityIcons name="plus" size={22} color={Colors.textPrimary} />
+            </Pressable>
+          </View>
+          <Text testID="recurring-plan-interval-summary" style={styles.intervalSummary}>
+            {intervalSummary}
+          </Text>
         </View>
 
         <Text style={styles.label}>{t('recurring_plan_remind_before')}</Text>
@@ -390,6 +421,7 @@ export default function RecurringPaymentReminderSheet({
         </Pressable>
         <View style={{ height: Spacing.lg }} />
       </ScrollView>
+      </KeyboardAvoidingView>
 
       <CustomDatePicker
         visible={datePickerVisible}
@@ -397,26 +429,19 @@ export default function RecurringPaymentReminderSheet({
         initialDate={nextDueDate || getToday()}
         onSelectDate={setNextDueDate}
       />
-    </BottomSheetModal>
+    </View>
   );
 }
 
 const getStyles = () => StyleSheet.create({
-  sheet: {
-    maxHeight: '92%',
-    backgroundColor: Colors.surfaceElevated,
-    paddingHorizontal: Spacing.lg,
+  screen: { flex: 1, backgroundColor: Colors.background },
+  keyboardArea: { flex: 1, minHeight: 0 },
+  scroll: { flex: 1, minHeight: 0 },
+  content: {
+    paddingHorizontal: ScreenPadding.horizontal,
+    paddingTop: Spacing.sm,
+    paddingBottom: Spacing.xxxl,
   },
-  header: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md, marginBottom: Spacing.md },
-  headerIcon: {
-    width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center',
-    backgroundColor: Colors.primary + '18',
-  },
-  headerCopy: { flex: 1, minWidth: 0 },
-  title: { ...Typography.headlineSmall, color: Colors.textPrimary, fontFamily: FontFamily.bold },
-  subtitle: { ...Typography.bodySmall, color: Colors.textSecondary, marginTop: 2 },
-  scroll: { flexGrow: 0 },
-  content: { paddingBottom: Spacing.md },
   label: {
     ...Typography.labelMedium, color: Colors.textSecondary, fontFamily: FontFamily.semiBold,
     marginTop: Spacing.md, marginBottom: Spacing.xs,
@@ -442,7 +467,15 @@ const getStyles = () => StyleSheet.create({
   chipSelected: { borderColor: Colors.primary, backgroundColor: Colors.primary + '18' },
   chipText: { ...Typography.labelSmall, color: Colors.textSecondary, fontFamily: FontFamily.semiBold },
   chipTextSelected: { color: Colors.primary },
-  compactField: { width: 120 },
+  intervalSection: { alignSelf: 'stretch' },
+  intervalRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
+  intervalButton: {
+    width: 48, height: 48, borderRadius: BorderRadius.md, borderWidth: 1,
+    borderColor: Colors.border, backgroundColor: Colors.surface,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  intervalInput: { width: 78, textAlign: 'center', fontFamily: FontFamily.bold },
+  intervalSummary: { ...Typography.bodySmall, color: Colors.textSecondary, marginTop: Spacing.xs },
   numberInput: { width: 104, textAlign: 'center' },
   timeRow: { flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start' },
   timeInput: {
@@ -457,8 +490,8 @@ const getStyles = () => StyleSheet.create({
     padding: Spacing.md, borderRadius: BorderRadius.md, backgroundColor: Colors.info + '12',
   },
   deliveryNoteText: { ...Typography.bodySmall, color: Colors.textSecondary, flex: 1 },
-  primaryButton: { ...susevarButton, backgroundColor: Colors.primary, marginTop: Spacing.lg },
-  primaryButtonText: susevarButtonText,
+  primaryButton: { ...createSusevarStyles(Colors).button, marginTop: Spacing.lg },
+  primaryButtonText: createSusevarStyles(Colors).text,
   disabled: { opacity: 0.6 },
   pressed: { opacity: 0.75 },
 });

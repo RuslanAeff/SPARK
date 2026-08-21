@@ -4,6 +4,7 @@ import { View, Text } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import AnimatedCard from '../AnimatedCard';
 import { Colors } from '../../theme/colors';
+import { useThemeRevision } from '../../theme/themeStore';
 import { Spacing } from '../../theme/spacing';
 import { formatCurrency } from '../../utils/formatCurrency';
 import type { BudgetInfo } from '../../hooks/useBudget';
@@ -14,6 +15,7 @@ interface BudgetCardProps extends BaseCardProps {
 }
 
 function BudgetCard({ styles, t, currency, budget }: BudgetCardProps) {
+  useThemeRevision();
   const pct = budget.percentage;
   const barColor = budget.isOverBudget ? Colors.danger : pct > 80 ? Colors.warning : Colors.primary;
 
@@ -25,7 +27,7 @@ function BudgetCard({ styles, t, currency, budget }: BudgetCardProps) {
             <View style={[styles.budgetIcon, { backgroundColor: barColor + '22' }]}>
               <MaterialCommunityIcons name={budget.isOverBudget ? 'alert' : 'wallet-outline'} size={18} color={barColor} />
             </View>
-            <Text style={styles.sectionTitle}>{t('budget_overview')}</Text>
+            <Text style={styles.cardHeaderTitle}>{t('budget_overview')}</Text>
           </View>
           <View style={[styles.budgetPctBadge, { backgroundColor: barColor + '22' }]}>
             <CountUpText value={pct} prefix="%" style={[styles.budgetPctText, { color: barColor }]} />
@@ -71,7 +73,7 @@ function BudgetCard({ styles, t, currency, budget }: BudgetCardProps) {
 
   return (
     <AnimatedCard delay={180} style={styles.section}>
-      <Text style={styles.sectionTitle}>{t('budget_overview')}</Text>
+      <Text style={styles.cardHeaderTitle}>{t('budget_overview')}</Text>
       <View style={styles.emptyBudget}>
         <MaterialCommunityIcons name="wallet-plus-outline" size={36} color={Colors.textMuted} />
         <Text style={styles.emptyBudgetTitle}>{t('no_budget_set')}</Text>

@@ -6,7 +6,7 @@ import { Colors } from '../theme/colors';
 import { Typography, FontFamily } from '../theme/typography';
 import { Spacing, BorderRadius } from '../theme/spacing';
 import { formatCurrency } from '../utils/formatCurrency';
-import { formatDayMonth } from '../utils/dateUtils';
+import { formatDayMonth, getToday } from '../utils/dateUtils';
 import { BudgetDao } from '../db/budgetDao';
 import { ExpenseDao } from '../db/expenseDao';
 import { Budget } from '../db/schema';
@@ -15,15 +15,17 @@ import {
   getCurrentCycle,
   getCycleForKey,
   getCycleForYmd,
+  budgetCycleFromBounds,
   BudgetCycle,
 } from '../utils/budgetCycle';
 import { useLanguage } from '../i18n/LanguageContext';
 import { useCurrency } from '../context/CurrencyContext';
 import { useRefresh } from '../context/RefreshContext';
-import { useAppTheme } from '../theme/themeStore';
+import { useAppTheme, useThemeRevision } from '../theme/themeStore';
 
 interface CycleEntry {
   key: string;        // YYYY-MM (döngünün başladığı ay)
+  renderKey: string;  // Aynı ayda birden fazla geçiş olsa da React kimliği benzersizdir.
   cycle: BudgetCycle;
   budget: Budget | null;
   spent: number;
@@ -32,7 +34,8 @@ interface CycleEntry {
 
 export default function BudgetHistoryCard() {
   const scheme = useAppTheme();
-  const styles = useMemo(() => getStyles(), [scheme]);
+  const themeRevision = useThemeRevision();
+  const styles = useMemo(() => getStyles(), [scheme, themeRevision]);
   const { t } = useLanguage();
   const { currency } = useCurrency();
   const { refreshKey } = useRefresh();
@@ -60,40 +63,67 @@ export default function BudgetHistoryCard() {
       const spendingMonths = await ExpenseDao.getMonthsWithSpending();
       const budgets = await BudgetDao.getAllBudgets();
 
-      const budgetMap = new Map<string, Budget>();
-      budgets.forEach(b => {
-        const normalized = b.start_date.substring(0, 7);
-        if (!budgetMap.has(normalized) || budgetMap.get(normalized)!.id < b.id) {
-          budgetMap.set(normalized, b);
-        }
-      });
-
-      // Gösterilecek döngü anahtarları: bütçesi olanlar + harcama olan aylar
-      // (ayın 15'i tek bir döngüye düşer → o döngünün anahtarı) + güncel döngü.
       const current = getCurrentCycle(anchorDay);
-      const keySet = new Set<string>(budgetMap.keys());
-      for (const ym of spendingMonths) {
-        const [y, m] = ym.split('-').map(Number);
-        keySet.add(getCycleForYmd(anchorDay, y, m - 1, 15).key);
-      }
-      keySet.add(current.key);
-
-      const keys = [...keySet].sort((a, b) => b.localeCompare(a));
-
+      const today = getToday();
       // Android / expo-sqlite: aynı DB üzerinde çok sayıda eşzamanlı sorgu prepareAsync
       // hatasına (NativeStatement / released object) yol açabiliyor — sırayla yükle.
       const withData: CycleEntry[] = [];
-      for (const key of keys) {
-        const cycle = getCycleForKey(anchorDay, key);
+      const representedPeriods = new Set<string>();
+      for (const budget of budgets) {
+        const key = budget.period_start ?? budget.start_date.slice(0, 7);
+        const cycle = budget?.period_start && budget.period_end
+          ? budgetCycleFromBounds(
+              budget.period_start,
+              budget.period_end,
+              budget.cycle_start_day ?? anchorDay,
+            )
+          : getCycleForKey(anchorDay, key);
         const spent = await ExpenseDao.getTotalByDateRange(cycle.start, cycle.end);
+        const periodKey = `${cycle.start}:${cycle.end}`;
+        // Eski sürümlerde aynı ay için birden fazla active bütçe kalmış olabilir.
+        // En yeni DAO satırını göster, aynı fiziksel dönemi ikinci kez üretme.
+        if (representedPeriods.has(periodKey)) continue;
+        representedPeriods.add(periodKey);
         withData.push({
           key,
+          renderKey: `budget:${periodKey}:${budget.id}`,
           cycle,
-          budget: budgetMap.get(key) ?? null,
+          budget,
           spent,
-          isCurrent: key === current.key,
+          isCurrent: cycle.start <= today && cycle.end >= today,
         });
       }
+
+      // Bütçesiz harcama aylarını yalnız mevcut dondurulmuş dönemlerden hiçbirine
+      // düşmüyorsa ekle; aynı ay içinde yapılan bir kural değişimi iki kaydı ezmez.
+      for (const ym of spendingMonths) {
+        const [y, m] = ym.split('-').map(Number);
+        const cycle = getCycleForYmd(anchorDay, y, m - 1, 15);
+        if (withData.some((entry) => entry.cycle.start <= cycle.start && entry.cycle.end >= cycle.start)) {
+          continue;
+        }
+        const spent = await ExpenseDao.getTotalByDateRange(cycle.start, cycle.end);
+        withData.push({
+          key: cycle.key,
+          renderKey: `spending:${cycle.start}:${cycle.end}`,
+          cycle,
+          budget: null,
+          spent,
+          isCurrent: cycle.start <= today && cycle.end >= today,
+        });
+      }
+      if (!withData.some((entry) => entry.isCurrent)) {
+        const spent = await ExpenseDao.getTotalByDateRange(current.start, current.end);
+        withData.push({
+          key: current.key,
+          renderKey: `current:${current.start}:${current.end}`,
+          cycle: current,
+          budget: null,
+          spent,
+          isCurrent: true,
+        });
+      }
+      withData.sort((a, b) => b.cycle.start.localeCompare(a.cycle.start));
 
       if (mountedRef.current) {
         setAnchor(anchorDay);
@@ -132,7 +162,7 @@ export default function BudgetHistoryCard() {
         decelerationRate="fast"
       >
         {entries.map((entry) => {
-          const { key, cycle, budget, spent, isCurrent } = entry;
+          const { key, renderKey, cycle, budget, spent, isCurrent } = entry;
           const hasBudget = budget !== null;
           const pct = hasBudget && budget!.monthly_amount > 0
             ? Math.min((spent / budget!.monthly_amount) * 100, 100)
@@ -141,12 +171,12 @@ export default function BudgetHistoryCard() {
           const remaining = hasBudget ? budget!.monthly_amount - spent : null;
           const barColor = overBudget ? Colors.danger : pct > 80 ? Colors.warning : Colors.primary;
           // anchor=1 → ay adı; aksi halde döngü tarih aralığı.
-          const label = anchor === 1
+          const label = cycle.startDay === 1
             ? formatMonth(key)
             : `${formatDayMonth(cycle.start, t)}–${formatDayMonth(cycle.end, t)}`;
 
           return (
-            <View key={key} style={[styles.card, isCurrent && styles.cardCurrent]}>
+            <View key={renderKey} style={[styles.card, isCurrent && styles.cardCurrent]}>
               {/* Header */}
               <View style={styles.cardHeader}>
                 {isCurrent ? (

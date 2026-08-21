@@ -32,13 +32,14 @@ import { useRefreshActions } from '../src/context/RefreshContext';
 import { refreshReceiptSavedNotification } from '../src/notifications/receiptNotifications';
 import { formatMoneyInput, parseMoneyInput } from '../src/utils/moneyMath';
 import {
-  susevarButton,
+  createSusevarStyles,
   susevarButtonMarginTop,
   susevarButtonPressed,
-  susevarButtonText,
 } from '../src/theme/susevar';
+import { useThemeRevision } from '../src/theme/themeStore';
 
 export default function AddExpenseScreen() {
+  useThemeRevision();
   const styles = getStyles();
   const router = useRouter();
   const { t, tc } = useLanguage();
@@ -765,7 +766,7 @@ const getStyles = () => StyleSheet.create({
   },
   /** Şüşevar — ana kayıt (KAYDET) */
   saveButton: {
-    ...susevarButton,
+    ...createSusevarStyles(Colors).button,
     ...susevarButtonMarginTop,
   },
   saveButtonPressed: susevarButtonPressed,
@@ -828,5 +829,5 @@ const getStyles = () => StyleSheet.create({
     color: Colors.textSecondary,
     marginTop: 2,
   },
-  saveButtonText: susevarButtonText,
+  saveButtonText: createSusevarStyles(Colors).text,
 });

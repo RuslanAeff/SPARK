@@ -26,6 +26,7 @@ jest.mock('../../i18n/LanguageContext', () => ({
 
 jest.mock('../../theme/themeStore', () => ({
   useAppTheme: () => 'light',
+  useThemeRevision: () => 0,
   getAppThemeSnapshot: () => 'light',
 }));
 
@@ -71,6 +72,17 @@ describe('LineChart price inspection', () => {
     expect(screen.getByText('6,50 zł')).toBeTruthy();
     expect(screen.getByTestId('line-chart-plot').props.accessibilityValue.text).toContain('24/07');
     expect(screen.getByTestId('line-chart-plot').props.accessibilityValue.text).toContain('6,50 zł');
+  });
+
+  it('her gözlem için parmak dostu 44px doğrudan dokunma hedefi sunar', async () => {
+    const screen = await render(<LineChart data={data} currency="PLN" />);
+    const target = screen.getByTestId('line-chart-hit-target-1');
+
+    expect(StyleSheet.flatten(target.props.style)).toMatchObject({ width: 44, height: 44 });
+    await fireEvent.press(target);
+
+    expect(screen.getByText('24/07')).toBeTruthy();
+    expect(screen.getByText('6,50 zł')).toBeTruthy();
   });
 
   it('clears selection through the explicit action', async () => {

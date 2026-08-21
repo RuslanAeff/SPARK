@@ -70,9 +70,9 @@
   "daily_fluctuation": "Дневные колебания",
   "main_categories": "ОСНОВНЫЕ КАТЕГОРИИ",
   "behavioral_analysis": "ПОВЕДЕНЧЕСКИЙ АНАЛИЗ",
-  "budget_philosophy": "Философия бюджета (нужды и желания)",
+  "budget_philosophy": "Структура расходов",
   "spending_type": "Тип расходов",
-  "needs_analysis": "Обязательные расходы составляют %{percentage} вашего бюджета.",
-  "wants_analysis": "Дискреционные расходы составляют %{percentage} вашего бюджета.",
-  "savings_other_analysis": "Сбережения и прочее — %{percentage} вашего бюджета."
+  "needs_analysis": "Необходимые расходы составляют {percentage}% расходов за этот период.",
+  "wants_analysis": "Необязательные покупки составляют {percentage}% расходов за этот период.",
+  "savings_other_analysis": "Категории вне групп необходимого и желаемого составляют {percentage}% расходов за этот период."
 }

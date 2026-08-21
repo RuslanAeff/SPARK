@@ -1,0 +1,10 @@
+{
+  "notif_system_schedule_ready": "В Android запланировано уведомлений по датам: {count}",
+  "notif_system_schedule_none": "Сейчас нет уведомлений по датам для планирования",
+  "notif_system_schedule_expo_go": "Доставку при закрытом приложении нельзя проверить в Expo Go; протестируйте APK",
+  "notif_goal_deadline_t": "Не забудьте о цели накопления",
+  "notif_goal_deadline_b": "До срока цели накопления осталось {days} дн. Проверьте свой прогресс.",
+  "notif_goal_deadline_today_b": "Срок цели накопления наступает сегодня. Проверьте свой прогресс.",
+  "notif_budget_review_t": "Время проверить бюджет",
+  "notif_budget_review_b": "Пройдено {progress}% бюджетного периода. Проверьте план расходов."
+}

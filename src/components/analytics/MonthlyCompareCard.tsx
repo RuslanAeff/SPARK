@@ -4,6 +4,7 @@ import { View, Text } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import AnimatedCard from '../AnimatedCard';
 import { Colors } from '../../theme/colors';
+import { useThemeRevision } from '../../theme/themeStore';
 import { formatCurrency } from '../../utils/formatCurrency';
 import type { BaseCardProps, Timeframe } from './shared';
 
@@ -17,6 +18,7 @@ interface MonthlyCompareCardProps extends BaseCardProps {
 function MonthlyCompareCard({
   styles, t, currency, timeframe, currentTotal, prevTotal, comparisonDelta,
 }: MonthlyCompareCardProps) {
+  useThemeRevision();
   if (timeframe === 'year') return null;
   return (
     <AnimatedCard delay={150} style={styles.section}>

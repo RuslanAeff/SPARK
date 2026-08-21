@@ -22,6 +22,9 @@ Bir kararı değiştirirken eski ADR sessizce yeniden yazılmaz. Yeni ADR oluşt
 | [ADR-004](ADR-004-receipt-total-integrity.md) | Accepted · retrospective | Gemini fişi, header/items transaction'ı, edit semantiği | AI eksik kalem çıkarsa bile gerçek ödenen toplamı korur. |
 | [ADR-005](ADR-005-generated-locale-sources.md) | Accepted · retrospective | TR/EN/AZ/RU sözlükleri ve üretim akışı | Üretilmiş locale dosyalarındaki sessiz çeviri kaybını önler. |
 | [ADR-006](ADR-006-reminder-domain-and-delivery-boundaries.md) | Accepted · prospective | Borç vadesi, kullanıcı hatırlatıcıları, takvim kuralları ve teslim sınırı | Türetilmiş abonelik tahmini ile kullanıcı taahhüdünün karışmasını ve kapalı-uygulama tesliminin erken vaat edilmesini engeller. |
+| [ADR-007](ADR-007-accent-palette-personalization.md) | Accepted · prospective | Açık/koyu görünümden bağımsız vurgu paleti, runtime reaktivite ve kontrast | Kişiselleştirmenin semantik/veri renklerini bozmasını ve tema flicker/remount regresyonunu engeller. |
+| [ADR-008](ADR-008-immutable-budget-periods.md) | Accepted · prospective | Tarihsel bütçe dönemleri ve başlangıç günü değişiklikleri | Yeni gelir gününün yalnız yeni dönemi etkilemesini, geçmiş aralıkların değişmemesini sağlar. |
+| [ADR-009](ADR-009-receipt-item-measurement-units.md) | Accepted · prospective | Fiş kalemi ölçüsü, kanonik birim fiyat ve fiyat geçmişi | Gramajlı ürünü adet gibi göstermeyi ve uyumsuz ölçülerin aynı fiyat serisinde birleşmesini engeller. |
 
 ## ADR ekleme kontrol listesi
 

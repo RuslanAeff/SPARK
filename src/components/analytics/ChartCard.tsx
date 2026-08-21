@@ -6,6 +6,7 @@ import BarChart from '../BarChart';
 import type { BaseCardProps, Timeframe } from './shared';
 
 interface BarDatum {
+  id?: string;
   label: string;
   value: number;
 }
@@ -22,7 +23,13 @@ function ChartCard({ styles, t, currency, timeframe, barData, prevBarData }: Cha
       <Text style={styles.trendTitle}>
         {timeframe === 'year' ? t('annual_distribution') : t('daily_fluctuation')}
       </Text>
-      <BarChart data={barData} prevData={prevBarData} height={160} currency={currency} />
+      <BarChart
+        data={barData}
+        prevData={prevBarData}
+        height={204}
+        currency={currency}
+        enableZoom={timeframe !== 'year'}
+      />
     </AnimatedCard>
   );
 }

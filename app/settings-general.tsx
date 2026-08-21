@@ -1,29 +1,35 @@
 // S.P.A.R.K. — Settings: General (language, currency, theme)
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { View, Text, ScrollView, StyleSheet, Pressable } from 'react-native';
-import { useAppTheme } from '../src/theme/themeStore';
+import {
+  useAppTheme,
+  useThemeAccent,
+  useThemePalette,
+} from '../src/theme/themeStore';
 import { useRouter } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
 
-import { Colors } from '../src/theme/colors';
+import { type ThemeAccent, type ThemePalette } from '../src/theme/colors';
 import { Typography, FontFamily } from '../src/theme/typography';
 import { Spacing, ScreenPadding, BorderRadius } from '../src/theme/spacing';
 import { useLanguage } from '../src/i18n/LanguageContext';
 import { languageNativeLabel } from '../src/i18n/languageOptions';
 import LanguagePickerSheet from '../src/components/LanguagePickerSheet';
+import AutoThemeScheduleToggle from '../src/components/AutoThemeScheduleToggle';
+import AccentPaletteCarousel from '../src/components/AccentPaletteCarousel';
 import {
   useCurrency,
   DISPLAY_CURRENCIES,
   CURRENCY_META,
   DisplayCurrency,
 } from '../src/context/CurrencyContext';
-import AutoThemeScheduleToggle from '../src/components/AutoThemeScheduleToggle';
 import {
   loadThemeSettings,
   setAutoThemeSchedule,
+  setThemeAccent,
   setManualTheme as persistManualTheme,
 } from '../src/utils/themeSchedule';
 import { SparkToast } from '../src/components/SparkToast';
@@ -34,7 +40,9 @@ import {
 
 export default function SettingsGeneralScreen() {
   const colorScheme = useAppTheme();
-  const styles = useMemo(() => getStyles(), [colorScheme]);
+  const activeAccent = useThemeAccent();
+  const palette = useThemePalette();
+  const styles = useMemo(() => getStyles(palette), [palette]);
   const safeAreaInsets = useSafeAreaInsets();
   const router = useRouter();
   const { t, language, setLanguage } = useLanguage();
@@ -45,6 +53,10 @@ export default function SettingsGeneralScreen() {
   const [langSheetOpen, setLangSheetOpen] = useState(false);
   const [currencyInfoOpen, setCurrencyInfoOpen] = useState(false);
   const [themeInfoOpen, setThemeInfoOpen] = useState(false);
+  const [accentInfoOpen, setAccentInfoOpen] = useState(false);
+  const [appearancePending, setAppearancePending] = useState(false);
+  const [accentPending, setAccentPending] = useState(false);
+  const themeMutationPending = useRef(false);
 
   useEffect(() => {
     let alive = true;
@@ -59,24 +71,71 @@ export default function SettingsGeneralScreen() {
     };
   }, []);
 
+  async function syncAppearancePreferences() {
+    try {
+      const settings = await loadThemeSettings();
+      setAutoScheduleEnabled(settings.autoEnabled);
+      setManualThemePref(settings.manual);
+    } catch {
+      // Mevcut ekrandaki son doğrulanmış seçim korunur.
+    }
+  }
+
   async function handleAutoScheduleToggle(next: boolean) {
+    if (next === autoScheduleEnabled || themeMutationPending.current) return;
+
+    themeMutationPending.current = true;
+    setAppearancePending(true);
     try {
       await setAutoThemeSchedule(next);
       setAutoScheduleEnabled(next);
       SparkToast.show(t('theme_changed'), 'success', t('theme_restart'));
     } catch (e) {
-      console.warn('Auto theme toggle', e);
-      SparkToast.show(t('theme_changed'), 'error');
+      if (__DEV__) console.warn('[Settings] auto appearance update failed', e);
+      await syncAppearancePreferences();
+      SparkToast.show(t('theme_change_failed'), 'error');
+    } finally {
+      themeMutationPending.current = false;
+      setAppearancePending(false);
     }
   }
 
   async function pickManualTheme(mode: 'light' | 'dark') {
+    if (mode === manualThemePref || themeMutationPending.current) return;
+
+    themeMutationPending.current = true;
+    setAppearancePending(true);
     try {
       await persistManualTheme(mode);
       setManualThemePref(mode);
+      void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       SparkToast.show(t('theme_changed'), 'success', t('theme_restart'));
     } catch (e) {
-      console.warn('Manual theme', e);
+      if (__DEV__) console.warn('[Settings] manual appearance update failed', e);
+      await syncAppearancePreferences();
+      SparkToast.show(t('theme_change_failed'), 'error');
+    } finally {
+      themeMutationPending.current = false;
+      setAppearancePending(false);
+    }
+  }
+
+  async function pickAccent(accent: ThemeAccent): Promise<boolean> {
+    if (themeMutationPending.current) return false;
+
+    themeMutationPending.current = true;
+    setAccentPending(true);
+    try {
+      await setThemeAccent(accent);
+      SparkToast.show(t('theme_accent_changed'), 'success', t('theme_restart'));
+      return true;
+    } catch (e) {
+      if (__DEV__) console.warn('[Settings] accent update failed', e);
+      SparkToast.show(t('theme_accent_change_failed'), 'error');
+      return false;
+    } finally {
+      themeMutationPending.current = false;
+      setAccentPending(false);
     }
   }
 
@@ -91,7 +150,7 @@ export default function SettingsGeneralScreen() {
             accessibilityLabel={t('settings_back')}
             hitSlop={8}
           >
-            <MaterialCommunityIcons name="chevron-left" size={28} color={Colors.textPrimary} />
+            <MaterialCommunityIcons name="chevron-left" size={28} color={palette.textPrimary} />
           </Pressable>
           <Text style={styles.subHeaderTitle} numberOfLines={1}>
             {t('settings_group_general')}
@@ -116,14 +175,14 @@ export default function SettingsGeneralScreen() {
                   <MaterialCommunityIcons
                     name="google-translate"
                     size={24}
-                    color={Colors.primary}
+                    color={palette.primary}
                   />
                 </View>
                 <View style={styles.languageRowText}>
                   <Text style={styles.languageRowTitle}>{t('language_row_label')}</Text>
                   <Text style={styles.languageRowSub}>{languageNativeLabel(language)}</Text>
                 </View>
-                <MaterialCommunityIcons name="chevron-right" size={22} color={Colors.textMuted} />
+                <MaterialCommunityIcons name="chevron-right" size={22} color={palette.textMuted} />
               </Pressable>
             </View>
           </Animated.View>
@@ -132,11 +191,11 @@ export default function SettingsGeneralScreen() {
           <Animated.View entering={FadeInDown.delay(160).duration(400)}>
             <View style={styles.section}>
               <View style={styles.sectionHeader}>
-                <View style={[styles.sectionIcon, { backgroundColor: Colors.chartOrange + '22' }]}>
+                <View style={[styles.sectionIcon, { backgroundColor: palette.chartOrange + '22' }]}>
                   <MaterialCommunityIcons
                     name="cash-multiple"
                     size={22}
-                    color={Colors.chartOrange}
+                    color={palette.chartOrange}
                   />
                 </View>
                 <Text
@@ -197,12 +256,12 @@ export default function SettingsGeneralScreen() {
             <View style={styles.section}>
               <View style={styles.sectionHeader}>
                 <View
-                  style={[styles.sectionIcon, { backgroundColor: Colors.chartPurple + '22' }]}
+                  style={[styles.sectionIcon, { backgroundColor: palette.chartPurple + '22' }]}
                 >
                   <MaterialCommunityIcons
                     name="theme-light-dark"
                     size={22}
-                    color={Colors.chartPurple}
+                    color={palette.chartPurple}
                   />
                 </View>
                 <Text
@@ -217,61 +276,87 @@ export default function SettingsGeneralScreen() {
                 />
               </View>
               <AutoThemeScheduleToggle
+                testID="theme-auto-toggle"
                 enabled={autoScheduleEnabled}
                 onToggle={handleAutoScheduleToggle}
                 labelOn={t('theme_auto_on')}
                 labelOff={t('theme_auto_off')}
+                disabled={appearancePending || accentPending}
               />
               {!autoScheduleEnabled && (
                 <View style={styles.themeBtnRow}>
-                  <Pressable
-                    onPress={() => pickManualTheme('light')}
-                    style={[
-                      styles.themeBtn,
-                      manualThemePref === 'light' && styles.themeBtnActive,
-                    ]}
-                  >
-                    <MaterialCommunityIcons
-                      name="white-balance-sunny"
-                      size={20}
-                      color={
-                        manualThemePref === 'light' ? Colors.background : Colors.textPrimary
-                      }
-                    />
-                    <Text
-                      style={[
-                        styles.themeBtnText,
-                        manualThemePref === 'light' && { color: Colors.background },
-                      ]}
-                    >
-                      {t('theme_light')}
-                    </Text>
-                  </Pressable>
-                  <Pressable
-                    onPress={() => pickManualTheme('dark')}
-                    style={[
-                      styles.themeBtn,
-                      manualThemePref === 'dark' && styles.themeBtnActive,
-                    ]}
-                  >
-                    <MaterialCommunityIcons
-                      name="moon-waning-crescent"
-                      size={20}
-                      color={
-                        manualThemePref === 'dark' ? Colors.background : Colors.textPrimary
-                      }
-                    />
-                    <Text
-                      style={[
-                        styles.themeBtnText,
-                        manualThemePref === 'dark' && { color: Colors.background },
-                      ]}
-                    >
-                      {t('theme_dark')}
-                    </Text>
-                  </Pressable>
+                  {(
+                    [
+                      ['light', 'white-balance-sunny', 'theme_light'],
+                      ['dark', 'moon-waning-crescent', 'theme_dark'],
+                    ] as const
+                  ).map(([mode, icon, labelKey]) => {
+                    const selected = manualThemePref === mode;
+                    const label = t(labelKey);
+                    return (
+                      <Pressable
+                        key={mode}
+                        testID={`theme-appearance-${mode}`}
+                        onPress={() => pickManualTheme(mode)}
+                        disabled={appearancePending || accentPending}
+                        style={({ pressed }) => [
+                          styles.themeBtn,
+                          selected && styles.themeBtnActive,
+                          pressed && !appearancePending && styles.optionPressed,
+                        ]}
+                        accessibilityRole="button"
+                        accessibilityLabel={label}
+                        accessibilityHint={t('theme_appearance_option_hint', { mode: label })}
+                        accessibilityState={{
+                          selected,
+                          disabled: appearancePending || accentPending,
+                        }}
+                      >
+                        <MaterialCommunityIcons
+                          name={icon}
+                          size={20}
+                          color={selected ? '#FFFFFF' : palette.textPrimary}
+                        />
+                        <Text style={[styles.themeBtnText, selected && styles.themeBtnTextActive]}>
+                          {label}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
                 </View>
               )}
+            </View>
+          </Animated.View>
+
+          {/* Accent color */}
+          <Animated.View entering={FadeInDown.delay(320).duration(400)}>
+            <View style={styles.section}>
+              <View style={styles.sectionHeader}>
+                <View style={[styles.sectionIcon, { backgroundColor: palette.primarySoft }]}>
+                  <MaterialCommunityIcons name="palette-outline" size={22} color={palette.primary} />
+                </View>
+                <Text style={[styles.sectionTitle, styles.sectionTitleWithInfo]} numberOfLines={2}>
+                  {t('theme_accent_title')}
+                </Text>
+                <SettingsInfoIconButton
+                  onPress={() => setAccentInfoOpen(true)}
+                  accessibilityLabel={t('settings_info_accessibility')}
+                />
+              </View>
+              <AccentPaletteCarousel
+                scheme={colorScheme}
+                selectedAccent={activeAccent}
+                // Carousel kendi latest-intent kuyruğuyla hızlı seçimleri seri
+                // uygular. İlk kayıt sürerken bile aynı gesture'ın son snap'i
+                // alınabilsin; yalnız görünüm mutasyonu sırasında kilitle.
+                disabled={appearancePending}
+                labelFor={(accent) => t(`theme_accent_${accent}`)}
+                optionHintFor={(accent) =>
+                  t('theme_accent_option_hint', { color: t(`theme_accent_${accent}`) })
+                }
+                swipeHint={t('theme_accent_swipe_hint')}
+                onSelect={pickAccent}
+              />
             </View>
           </Animated.View>
         </ScrollView>
@@ -292,6 +377,12 @@ export default function SettingsGeneralScreen() {
           t('theme_hint'),
         ]}
       />
+      <SettingsInfoHintModal
+        visible={accentInfoOpen}
+        onClose={() => setAccentInfoOpen(false)}
+        title={t('theme_accent_title')}
+        paragraphs={[t('theme_accent_hint'), t('theme_accent_semantic_hint')]}
+      />
       <LanguagePickerSheet
         visible={langSheetOpen}
         onClose={() => setLangSheetOpen(false)}
@@ -307,8 +398,8 @@ export default function SettingsGeneralScreen() {
   );
 }
 
-const getStyles = () => StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.background },
+const getStyles = (colors: ThemePalette) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: colors.background },
   subHeader: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -322,12 +413,12 @@ const getStyles = () => StyleSheet.create({
     borderRadius: 20,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: Colors.surfaceLight,
+    backgroundColor: colors.surfaceLight,
   },
   backBtnPressed: { opacity: 0.7 },
   subHeaderTitle: {
     ...Typography.headlineMedium,
-    color: Colors.textPrimary,
+    color: colors.textPrimary,
     fontFamily: FontFamily.extraBold,
     flex: 1,
   },
@@ -337,12 +428,12 @@ const getStyles = () => StyleSheet.create({
     paddingBottom: 40,
   },
   section: {
-    backgroundColor: Colors.cardSurface,
+    backgroundColor: colors.cardSurface,
     borderRadius: BorderRadius.xl,
     padding: Spacing.lg,
     marginBottom: Spacing.lg,
     borderWidth: 1,
-    borderColor: Colors.cardBorder,
+    borderColor: colors.cardBorder,
   },
   sectionHeader: {
     flexDirection: 'row',
@@ -359,7 +450,7 @@ const getStyles = () => StyleSheet.create({
   },
   sectionTitle: {
     ...Typography.headlineSmall,
-    color: Colors.textPrimary,
+    color: colors.textPrimary,
     fontSize: 16,
   },
   sectionTitleWithInfo: { flex: 1, flexShrink: 1, minWidth: 0 },
@@ -375,7 +466,7 @@ const getStyles = () => StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: BorderRadius.lg,
-    backgroundColor: Colors.primaryGlow,
+    backgroundColor: colors.primaryGlow,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -383,11 +474,11 @@ const getStyles = () => StyleSheet.create({
   languageRowTitle: {
     ...Typography.bodyLarge,
     fontFamily: FontFamily.bold,
-    color: Colors.textPrimary,
+    color: colors.textPrimary,
   },
   languageRowSub: {
     ...Typography.bodySmall,
-    color: Colors.textSecondary,
+    color: colors.textSecondary,
     marginTop: 2,
   },
   // Currency row
@@ -405,29 +496,29 @@ const getStyles = () => StyleSheet.create({
     paddingVertical: Spacing.md,
     paddingHorizontal: Spacing.xs,
     borderRadius: BorderRadius.lg,
-    backgroundColor: Colors.surfaceLight,
+    backgroundColor: colors.surfaceLight,
     borderWidth: 1.5,
-    borderColor: Colors.cardBorder,
+    borderColor: colors.cardBorder,
   },
   currencyChipActive: {
-    backgroundColor: Colors.primary + '22',
-    borderColor: Colors.primary,
+    backgroundColor: colors.primarySoft,
+    borderColor: colors.primary,
     borderWidth: 2,
   },
   currencyChipSymbol: {
     fontSize: 22,
     marginBottom: 4,
-    color: Colors.textPrimary,
+    color: colors.textPrimary,
   },
-  currencyChipSymbolActive: { color: Colors.primary },
+  currencyChipSymbolActive: { color: colors.primary },
   currencyChipCode: {
     ...Typography.labelSmall,
-    color: Colors.textSecondary,
+    color: colors.textSecondary,
     fontFamily: FontFamily.bold,
     letterSpacing: 0.5,
   },
-  currencyChipCodeActive: { color: Colors.primary },
-  // Theme buttons
+  currencyChipCodeActive: { color: colors.primary },
+  // Eski görünüm kontrolü: otomatik anahtar + yalnız manuelde iki seçenek.
   themeBtnRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -436,20 +527,22 @@ const getStyles = () => StyleSheet.create({
   },
   themeBtn: {
     flex: 1,
+    minHeight: 48,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: Spacing.md,
-    backgroundColor: Colors.surfaceLight,
+    backgroundColor: colors.surfaceLight,
     borderRadius: BorderRadius.md,
-    marginHorizontal: Spacing.xs,
     gap: Spacing.xs,
   },
-  themeBtnActive: { backgroundColor: Colors.primary },
+  themeBtnActive: { backgroundColor: '#00C853' },
   themeBtnText: {
-    color: Colors.textPrimary,
+    color: colors.textPrimary,
     fontFamily: FontFamily.extraBold,
     fontSize: 15,
     letterSpacing: 0.5,
   },
+  themeBtnTextActive: { color: '#FFFFFF' },
+  optionPressed: { opacity: 0.72 },
 });

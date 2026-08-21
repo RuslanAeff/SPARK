@@ -54,12 +54,13 @@ describe('ProjectionCard', () => {
       isCycle: false,
     };
 
-    const { getByText, getAllByText } = await render(
+    const { getByText, getAllByText, getByTestId } = await render(
       <ProjectionCard {...base} timeframe="month" projectionInfo={projectionInfo} />,
     );
 
     expect(getByText('projection_title')).toBeTruthy();
     expect(getAllByText('projection_estimated')).toHaveLength(2);
     expect(getByText('projection_daily_pace')).toBeTruthy();
+    expect(getByTestId('projection-budget-marker')).toHaveStyle({ left: '99%' });
   });
 });

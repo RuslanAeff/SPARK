@@ -84,6 +84,12 @@ export interface AndroidReminderScheduleResult {
   failedCancelIds: string[];
 }
 
+export interface AndroidFutureScheduleSummary {
+  status: AndroidNotificationSetupStatus;
+  count: number;
+  nextTriggerAt: number | null;
+}
+
 const DEFAULT_CHANNEL_COPY: AndroidNotificationChannelCopy = {
   updatesName: 'S.P.A.R.K updates',
   updatesDescription: 'Receipts, summaries and reminders',
@@ -445,6 +451,31 @@ function nativeFutureRequestMatches(
   return data?.sparkReminderRevision === desired.revision
     && data?.sparkNotificationId === desired.notificationId
     && Number(data?.sparkReminderTriggerAt) === desired.triggerAt;
+}
+
+/** Ayarlar ekranı için salt-okunur native alarm özeti. Ledger tahmini yerine
+ * Android'in gerçek scheduled envanterini kullanır. */
+export async function getAndroidFutureScheduleSummary(): Promise<AndroidFutureScheduleSummary> {
+  const unsupported = canUseAndroidNotifications();
+  if (unsupported) return { status: unsupported, count: 0, nextTriggerAt: null };
+  const status = await ensureAndroidNotificationSetup(false);
+  if (status !== 'ready') return { status, count: 0, nextTriggerAt: null };
+  try {
+    const Notifications = await loadNotificationsModule();
+    const owned = (await Notifications.getAllScheduledNotificationsAsync())
+      .filter(ownedFutureReminderRequest);
+    const triggerTimes = owned
+      .map((request) => Number(request.content.data?.sparkReminderTriggerAt))
+      .filter((value) => Number.isFinite(value) && value > Date.now())
+      .sort((left, right) => left - right);
+    return {
+      status: 'ready',
+      count: triggerTimes.length,
+      nextTriggerAt: triggerTimes[0] ?? null,
+    };
+  } catch {
+    return { status: 'error', count: 0, nextTriggerAt: null };
+  }
 }
 
 /**

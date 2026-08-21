@@ -8,7 +8,13 @@ import { ExpenseDao } from '../db/expenseDao';
 import { DebtDao } from '../db/debtDao';
 import { IncomeDao } from '../db/incomeDao';
 import { getCycleStartDay } from '../services/budgetCycleSettings';
-import { getCurrentCycle, getCycleForKey, getCycleProgress } from '../utils/budgetCycle';
+import {
+  budgetCycleFromBounds,
+  getCurrentCycle,
+  getCycleForKey,
+  getCycleProgress,
+} from '../utils/budgetCycle';
+import { getToday } from '../utils/dateUtils';
 import { computeDebtAdjustedBudget } from '../utils/debtMath';
 
 export interface BudgetInfo {
@@ -77,12 +83,23 @@ export function useBudget(specificMonth?: string) {
     try {
       const anchor = await getCycleStartDay();
       const currentCycle = getCurrentCycle(anchor);
-      // specificMonth verilirse o döngü anahtarını (YYYY-MM = döngü başlangıç ayı) çöz.
-      const cycle = specificMonth ? getCycleForKey(anchor, specificMonth) : currentCycle;
-      const isCurrent = cycle.key === currentCycle.key;
+      const exactBudget = specificMonth
+        ? await BudgetDao.getForMonth(specificMonth)
+        : await BudgetDao.getContainingDate(getToday());
+      const computedCycle = specificMonth ? getCycleForKey(anchor, specificMonth) : currentCycle;
+      const cycle = exactBudget?.period_start && exactBudget.period_end
+        ? budgetCycleFromBounds(
+            exactBudget.period_start,
+            exactBudget.period_end,
+            exactBudget.cycle_start_day ?? anchor,
+          )
+        : computedCycle;
+      const today = getToday();
+      const isCurrent = cycle.start <= today && cycle.end >= today;
 
-      // Bütçe tutarı döngünün başladığı ay anahtarıyla saklanır.
-      let activeBudget = await BudgetDao.getForMonth(cycle.key);
+      // Bu dönemin kendi bütçesi yoksa son bütçe yalnız tutar şablonudur;
+      // eski satırın tarih sınırları yeni döneme taşınmaz.
+      let activeBudget = exactBudget;
       if (!activeBudget) {
         // Bu döngü için bütçe yoksa en son aktif bütçeyi şablon olarak kullan (daha iyi UX).
         activeBudget = await BudgetDao.getLatestActive();
@@ -140,7 +157,7 @@ export function useBudget(specificMonth?: string) {
           currency: budgetCurrency,
           periodStart: cycle.start,
           periodEnd: cycle.end,
-          cycleStartDay: anchor,
+          cycleStartDay: cycle.startDay,
           borrowedIn,
           repaidIn,
           netDebtFlow,

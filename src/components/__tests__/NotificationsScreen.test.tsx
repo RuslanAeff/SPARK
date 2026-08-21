@@ -93,6 +93,7 @@ jest.mock('react-native-safe-area-context', () => {
 
 jest.mock('../../theme/themeStore', () => ({
   useAppTheme: () => 'light',
+  useThemeRevision: () => 0,
 }));
 
 jest.mock('../../i18n/LanguageContext', () => ({
@@ -145,6 +146,11 @@ jest.mock('../../context/NotificationsContext', () => ({
 
 jest.mock('../../services/androidNotificationsSetup', () => ({
   ensureAndroidNotificationSetup: () => mockEnsureAndroidNotificationSetup(),
+  getAndroidFutureScheduleSummary: async () => ({
+    status: await mockEnsureAndroidNotificationSetup(),
+    count: 0,
+    nextTriggerAt: null,
+  }),
 }));
 
 jest.mock('../BottomSheetModal', () => ({

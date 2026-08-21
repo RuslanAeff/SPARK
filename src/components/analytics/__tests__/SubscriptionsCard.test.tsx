@@ -31,4 +31,15 @@ describe('SubscriptionsCard', () => {
     expect(getByText('2')).toBeTruthy();        // sayı rozeti
     expect(getByText('Netflix')).toBeTruthy();  // yaklaşan abonelik
   });
+
+  it('tutarı girilmemiş onaylı planı sıfır gibi göstermeden listeler', async () => {
+    const info: SubscriptionInfo = {
+      count: 1,
+      monthlyTotal: 0,
+      upcoming: [{ id: 'confirmed:4', vendor_name: 'İnternet', amount: null, daysUntil: 2 } as any],
+    };
+    const { getByText } = await render(<SubscriptionsCard {...base} subscriptionInfo={info} />);
+    expect(getByText('İnternet')).toBeTruthy();
+    expect(getByText('—')).toBeTruthy();
+  });
 });

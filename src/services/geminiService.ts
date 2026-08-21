@@ -9,6 +9,7 @@ import {
 } from '../utils/receiptJsonRepair';
 import { stripDangerousKeys } from '../utils/inputValidation';
 import { roundMoney, roundUnitRate, sumMoney } from '../utils/moneyMath';
+import { normalizeMeasurementInput } from '../utils/measurementUnit';
 import type { Language } from '../i18n/translations';
 
 // Preferred model keywords in priority order (for auto-selection)
@@ -166,6 +167,7 @@ Return ONLY a valid JSON object (no markdown, no code blocks) with this exact st
       "name": "Item name exactly as printed on the receipt",
       "turkish_name": "${langName} translation of item name (e.g. ${examples})",
       "quantity": 1,
+      "measurement_unit": "piece",
       "unit_price": 0.00,
       "total_price": 0.00,
       "suggested_category": "Closest Turkish leaf category (e.g. Market, Bakkal, İlaç, Medikal Ürün & Cihaz, Elektrik, Ev Kirası, Yakıt, Diğer)",
@@ -182,6 +184,8 @@ Rules:
 - The "total" field MUST be the printed grand total on the receipt (the "SUMA PLN" / "SUMA" / "TOTAL" line, e.g. 68.80), read DIRECTLY from that line. Do NOT compute "total" by summing the items you extracted — if your item sum differs from the printed total, trust the printed total.
 - Prices must be numbers (not strings).
 - If quantity is not specified, assume 1.
+- measurement_unit MUST be one of "piece", "kg", "g", "l", or "ml". Use kg/g for weighed produce, meat and similar rows. A package name containing 1.75L or 500g is still one "piece" unless the receipt explicitly sells it by weight or volume.
+- For mass and volume rows, quantity is the measured amount printed on the receipt. unit_price represents the price per canonical kg or litre; total_price remains the paid line total.
 - For each PRODUCT row: total_price is the LINE TOTAL the customer pays AFTER any line-specific discount (net). unit_price = total_price / quantity.
 - DISCOUNTS ON A PRODUCT (e.g. Biedronka: product line then "Discount 1.41" under it, then net price): Do NOT output a separate item named "Discount". Instead, for that product set:
   - list_line_total_before_discount = price BEFORE discount (e.g. 6.99),
@@ -210,6 +214,7 @@ export interface ParsedItem {
   name: string;
   turkish_name?: string;
   quantity: number;
+  measurement_unit?: import('../utils/measurementUnit').MeasurementInputUnit;
   unit_price: number;
   total_price: number;
   suggested_category: string;
@@ -565,10 +570,14 @@ export function coerceParsedReceipt(raw: Record<string, unknown>): ParsedReceipt
   }
 
   const items = cappedItems.map((it) => {
-    const q = Math.max(0.001, toFiniteNumber(it.quantity, 1));
+    const rawQuantity = Math.max(0.001, toFiniteNumber(it.quantity, 1));
+    const { quantity: q, measurementUnit } = normalizeMeasurementInput(
+      rawQuantity,
+      String(it.measurement_unit ?? 'piece'),
+    );
     const total = roundMoney(toFiniteNumber(it.total_price, 0));
     let unit = roundUnitRate(toFiniteNumber(it.unit_price, 0));
-    if (unit <= 0 && q > 0 && total > 0) unit = roundUnitRate(total / q);
+    if (q > 0 && total > 0) unit = roundUnitRate(total / q);
     const lineDisc = it.line_discount !== undefined && it.line_discount !== null
       ? roundMoney(toFiniteNumber(it.line_discount, 0))
       : undefined;
@@ -580,6 +589,7 @@ export function coerceParsedReceipt(raw: Record<string, unknown>): ParsedReceipt
       name: String(it.name ?? 'Ürün'),
       turkish_name: it.turkish_name != null ? String(it.turkish_name) : undefined,
       quantity: q,
+      measurement_unit: measurementUnit,
       unit_price: unit,
       total_price: total,
       suggested_category: String(it.suggested_category ?? 'Diğer'),

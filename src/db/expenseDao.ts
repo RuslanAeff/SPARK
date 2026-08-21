@@ -11,6 +11,10 @@ import {
 } from '../utils/inputValidation';
 import { normalizeItemKey } from '../utils/itemNameNormalizer';
 import { fromMinorUnits, roundMoney } from '../utils/moneyMath';
+import {
+  sanitizeMeasurementUnit,
+  type MeasurementUnit,
+} from '../utils/measurementUnit';
 
 /**
  * `overall` gerçek işlemleri tutara göre doğrudan sıralar.
@@ -173,13 +177,14 @@ export const ExpenseDao = {
     const safeLineDiscount = ld != null && ld !== undefined ? sanitizeAmount(ld) : 0;
     const safeListBefore = lb != null && lb !== undefined ? sanitizeAmount(lb) : null;
     const result = await db.runAsync(
-      `INSERT INTO expense_items (expense_id, name, turkish_name, quantity, unit_price, total_price, category_id, line_discount, list_line_total_before_discount)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO expense_items (expense_id, name, turkish_name, quantity, measurement_unit, unit_price, total_price, category_id, line_discount, list_line_total_before_discount)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         item.expense_id,
         safeName,
         safeTurkishName,
         safeQuantity,
+        sanitizeMeasurementUnit(item.measurement_unit),
         safeUnitPrice,
         safeTotalPrice,
         item.category_id,
@@ -214,6 +219,10 @@ export const ExpenseDao = {
     if (item.quantity !== undefined) {
       fields.push('quantity = ?');
       values.push(sanitizeQuantity(item.quantity));
+    }
+    if (item.measurement_unit !== undefined) {
+      fields.push('measurement_unit = ?');
+      values.push(sanitizeMeasurementUnit(item.measurement_unit));
     }
     if (item.unit_price !== undefined) {
       fields.push('unit_price = ?');
@@ -393,7 +402,7 @@ export const ExpenseDao = {
          CASE 
            WHEN COALESCE(p.name, c.name) IN ('Faturalar', 'Sağlık', 'Eğitim', 'Ulaşım', 'Yeme-İçme', 'Konut') THEN 'Zorunlu İhtiyaçlar'
            WHEN COALESCE(p.name, c.name) IN ('Eğlence', 'Alışveriş') THEN 'Keyfi Harcamalar'
-           ELSE 'Tasarruf / Diğer'
+           ELSE 'Diğer Harcamalar'
          END as segment,
          COALESCE(SUM(e.total_amount), 0) as total
        FROM expenses e
@@ -543,7 +552,9 @@ export const ExpenseDao = {
       return b.total_spent - a.total_spent;
     });
 
-    return aggregated.slice(0, 10);
+    // Sayfalama arayüz katmanında yapılır. Burada ilk 10'a kesmek, satıcının
+    // geri kalan ürünlerini kullanıcıdan kalıcı olarak saklıyordu.
+    return aggregated;
   },
 
   async getSpendingByDays(startDate: string, endDate: string) {
@@ -558,7 +569,7 @@ export const ExpenseDao = {
     );
   },
 
-  async getItemAnalytics(itemName: string) {
+  async getItemAnalytics(itemName: string, requestedUnit?: MeasurementUnit) {
     const db = await getDatabase();
     // NOT: SQLite LOWER() ASCII dışında çalışmaz; ayrıca Ł/ł ve Türkçe
     // noktasız ı NFD ile ayrışmaz. Bu yüzden SQL'de toplama yapmak yerine
@@ -580,8 +591,9 @@ export const ExpenseDao = {
       total_price: number;
       quantity: number;
       vendor_name: string | null;
+      measurement_unit: MeasurementUnit;
     }>(
-      `SELECT i.name, e.date, i.unit_price, i.total_price, i.quantity,
+      `SELECT i.name, e.date, i.unit_price, i.total_price, i.quantity, i.measurement_unit,
               v.name as vendor_name
        FROM expense_items i
        JOIN expenses e ON i.expense_id = e.id
@@ -589,18 +601,26 @@ export const ExpenseDao = {
        ORDER BY e.date ASC, i.id ASC`
     );
 
-    const matched = rows.filter((r) => normalizeItemKey(r.name) === targetKey);
+    const nameMatched = rows.filter((r) => normalizeItemKey(r.name) === targetKey);
+    const unitCounts = new Map<MeasurementUnit, number>();
+    nameMatched.forEach(row => {
+      const unit = sanitizeMeasurementUnit(row.measurement_unit);
+      unitCounts.set(unit, (unitCounts.get(unit) ?? 0) + 1);
+    });
+    const dominantUnit = requestedUnit ?? Array.from(unitCounts.entries())
+      .sort((a, b) => b[1] - a[1])[0]?.[0] ?? 'piece';
+    const matched = nameMatched.filter(
+      row => sanitizeMeasurementUnit(row.measurement_unit) === dominantUnit,
+    );
 
     let total_spent = 0;
     let total_quantity = 0;
-    let unit_price_sum = 0;
     for (const r of matched) {
       total_spent += Number(r.total_price) || 0;
       total_quantity += Number(r.quantity) || 0;
-      unit_price_sum += Number(r.unit_price) || 0;
     }
     const purchase_count = matched.length;
-    const avg_price = purchase_count > 0 ? unit_price_sum / purchase_count : 0;
+    const avg_price = total_quantity > 0 ? total_spent / total_quantity : 0;
 
     const history = matched.map((r) => ({
       date: r.date,
@@ -608,10 +628,11 @@ export const ExpenseDao = {
       total_price: Number(r.total_price) || 0,
       quantity: Number(r.quantity) || 0,
       vendor_name: r.vendor_name || '',
+      measurement_unit: dominantUnit,
     }));
 
     return {
-      stats: { total_spent, avg_price, purchase_count, total_quantity },
+      stats: { total_spent, avg_price, purchase_count, total_quantity, measurement_unit: dominantUnit },
       history,
     };
   },
@@ -619,8 +640,8 @@ export const ExpenseDao = {
   async getPriceHistory(lookbackMonths: number = 6) {
     const db = await getDatabase();
     const safeMonths = Math.max(1, Math.floor(Math.abs(lookbackMonths)));
-    return db.getAllAsync<{ name: string; turkish_name: string | null; unit_price: number; date: string }>(
-      `SELECT TRIM(i.name) as name, i.turkish_name, i.unit_price, e.date
+    return db.getAllAsync<{ name: string; turkish_name: string | null; unit_price: number; total_price: number; quantity: number; date: string; measurement_unit: MeasurementUnit }>(
+      `SELECT TRIM(i.name) as name, i.turkish_name, i.unit_price, i.total_price, i.quantity, e.date, i.measurement_unit
        FROM expense_items i
        JOIN expenses e ON i.expense_id = e.id
        WHERE e.date >= date('now', '-' || ? || ' months')

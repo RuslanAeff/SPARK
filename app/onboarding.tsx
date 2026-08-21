@@ -21,8 +21,8 @@ import { useLanguage } from '../src/i18n/LanguageContext';
 import { LANGUAGE_OPTIONS } from '../src/i18n/languageOptions';
 import type { Language } from '../src/i18n/translations';
 import { useCurrency, DISPLAY_CURRENCIES, DisplayCurrency } from '../src/context/CurrencyContext';
-import { useAppTheme } from '../src/theme/themeStore';
-import { susevarButton, susevarButtonPressed, susevarButtonText } from '../src/theme/susevar';
+import { useAppTheme, useThemeRevision } from '../src/theme/themeStore';
+import { createSusevarStyles, susevarButtonPressed } from '../src/theme/susevar';
 import { sanitizeAmount, sanitizeText } from '../src/utils/inputValidation';
 import { BudgetDao } from '../src/db/budgetDao';
 import { getStartOfMonth } from '../src/utils/dateUtils';
@@ -41,7 +41,8 @@ function suggestCurrency(): DisplayCurrency {
 
 export default function OnboardingScreen() {
   const scheme = useAppTheme();
-  const styles = useMemo(() => getStyles(), [scheme]);
+  const themeRevision = useThemeRevision();
+  const styles = useMemo(() => getStyles(), [scheme, themeRevision]);
   const router = useRouter();
   const scrollRef = useRef<ScrollView | null>(null);
   const { width } = useWindowDimensions();
@@ -197,7 +198,7 @@ export default function OnboardingScreen() {
         <View style={[styles.page, { width }]}>
           <Animated.View entering={FadeInUp.duration(420)} style={styles.centered}>
             <Animated.View entering={ZoomIn.delay(120)} style={styles.doneIconWrap}>
-              <MaterialCommunityIcons name="check" size={40} color={Colors.textInverse} />
+              <MaterialCommunityIcons name="check" size={40} color={Colors.onPrimary} />
             </Animated.View>
             <Text style={styles.title}>{t('onboarding_done_title')}</Text>
             <Text style={styles.subtitle}>{t('onboarding_done_subtitle')}</Text>
@@ -329,7 +330,7 @@ const getStyles = () => StyleSheet.create({
     width: 72,
     height: 72,
     borderRadius: 36,
-    backgroundColor: Colors.primary,
+    backgroundColor: Colors.primaryAction,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -338,11 +339,11 @@ const getStyles = () => StyleSheet.create({
   dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: Colors.textMuted },
   dotActive: { width: 22, backgroundColor: Colors.primary },
   cta: {
-    ...susevarButton,
+    ...createSusevarStyles(Colors).button,
     width: '100%',
   },
   ctaText: {
-    ...susevarButtonText,
+    ...createSusevarStyles(Colors).text,
     textAlign: 'center',
   },
 });

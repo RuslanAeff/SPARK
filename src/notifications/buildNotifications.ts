@@ -13,6 +13,7 @@ import { peekPendingReceiptDraft } from '../services/pendingReceiptDraft';
 import { getScanSessionError } from '../services/scanSession';
 import { getCycleStartDay } from '../services/budgetCycleSettings';
 import {
+  budgetCycleFromBounds,
   getCurrentCycle,
   getCycleForKey,
   getCycleProgress,
@@ -41,6 +42,7 @@ import {
   type ReminderFeedEntity,
 } from './reminderNotificationFeed';
 import { presentReminderNotification } from './reminderNotificationPresentation';
+import { getCurrentAttentionNotifications } from './attentionNativeSchedule';
 
 function daysToDate(isoDate: string): number {
   return getCalendarDayOffset(getToday(), isoDate) ?? Number.NaN;
@@ -242,6 +244,48 @@ export async function runNotificationSync(
         }
       }
     }
+  }
+
+  // —— 3b) Kapalı uygulama dikkat planı ——
+  // Hedef son tarihi ve bütçe dönemi kontrol noktaları native tarafta önceden
+  // planlanır. Uygulama alarmdan sonra açıldığında aynı olayın yalnız en güncel
+  // kanonik kartını feed'e bağla; geçmiş milestone yığını oluşturma.
+  try {
+    const attentionGoal = await GoalDao.get();
+    const exactBudget = await BudgetDao.getContainingDate(todayIso());
+    const fallbackBudget = exactBudget ?? await BudgetDao.getLatestActive();
+    const attentionCycle = exactBudget?.period_start && exactBudget.period_end
+      ? budgetCycleFromBounds(
+          exactBudget.period_start,
+          exactBudget.period_end,
+          exactBudget.cycle_start_day ?? anchor,
+        )
+      : cycle;
+    const currentAttention = getCurrentAttentionNotifications({
+      nowMs: Date.now(),
+      goal: attentionGoal,
+      budgetCycle: attentionCycle,
+      budgetAmount: fallbackBudget?.monthly_amount ?? 0,
+    });
+    const currentAttentionIds = new Set(currentAttention.map((item) => item.id));
+    feed = feed.filter((item) => {
+      const managed = item.id.startsWith('goal-deadline-v1-')
+        || item.id.startsWith('budget-review-v1-');
+      if (!managed || currentAttentionIds.has(item.id)) return true;
+      retiredIds.add(item.id);
+      return false;
+    });
+    for (const item of currentAttention) {
+      const isGoal = item.id.startsWith('goal-deadline-v1-');
+      if (muted(mutes, isGoal ? 'goal' : 'budget')) continue;
+      const previous = isGoal ? rules.goalDeadlineLast : rules.budgetReviewLast;
+      if (previous === item.id) continue;
+      feed = mergeFeedItem(feed, item);
+      if (isGoal) rules.goalDeadlineLast = item.id;
+      else rules.budgetReviewLast = item.id;
+    }
+  } catch (e) {
+    if (__DEV__) console.warn('[notif] scheduled_attention', e);
   }
 
   // —— 4) Fiş taslağı (düzenleme bekliyor) ——

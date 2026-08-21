@@ -16,10 +16,10 @@ import DebtReminderFields from './DebtReminderFields';
 import GlassDeleteModal from './GlassDeleteModal';
 import { SparkToast } from './SparkToast';
 import { Colors } from '../theme/colors';
-import { useAppTheme } from '../theme/themeStore';
+import { useAppTheme, useThemeRevision } from '../theme/themeStore';
 import { Typography, FontFamily } from '../theme/typography';
 import { Spacing, ScreenPadding, BorderRadius } from '../theme/spacing';
-import { susevarButton, susevarButtonPressed, susevarButtonText } from '../theme/susevar';
+import { createSusevarStyles, susevarButtonPressed } from '../theme/susevar';
 import { formatCurrency } from '../utils/formatCurrency';
 import { formatDateFull, formatDayMonth, getToday } from '../utils/dateUtils';
 import {
@@ -57,7 +57,8 @@ function playSuccessHaptic(): void {
 
 export default function DebtSheet({ visible, onClose, currency, onChanged }: DebtSheetProps) {
   const scheme = useAppTheme();
-  const styles = useMemo(() => getStyles(), [scheme]);
+  const themeRevision = useThemeRevision();
+  const styles = useMemo(() => getStyles(), [scheme, themeRevision]);
   const { t } = useLanguage();
   const { triggerRefresh } = useRefreshActions();
   const today = getToday();
@@ -1337,7 +1338,7 @@ const getStyles = () => StyleSheet.create({
   },
   // Şüşevar birincil CTA
   primaryBtn: {
-    ...susevarButton,
+    ...createSusevarStyles(Colors).button,
     marginTop: Spacing.lg,
   },
   primaryBtnRow: {
@@ -1346,5 +1347,5 @@ const getStyles = () => StyleSheet.create({
     justifyContent: 'center',
     gap: Spacing.sm,
   },
-  primaryBtnText: susevarButtonText,
+  primaryBtnText: createSusevarStyles(Colors).text,
 });

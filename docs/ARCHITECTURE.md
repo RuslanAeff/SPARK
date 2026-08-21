@@ -86,7 +86,28 @@ Tarih aralıkları, bütçe döngüsü matematiği, borca göre düzeltilmiş b�
 
 ### Çapraz kesen yapılandırma — `src/theme/` ve `src/i18n/`
 
-Tema token'ları ve çalışma zamanı tema mağazası ortak altyapıdır. [`src/theme/navigationTheme.ts`](../src/theme/navigationTheme.ts), aynı paleti React Navigation context'ine taşır; stack, pager, scene wrapper ve lazy placeholder yüzeyleri ekran component'leriyle aynı arka planı kullanır. Çeviri anahtarları varsayılan ürün dili olarak Türkçeyi; ayrıca İngilizce, Azerbaycanca ve Rusça sözlükleri kullanır. Üretilen locale artifact'leri bağımsız doğruluk kaynağı değildir; geliştirme rehberindeki i18n akışına bakın.
+Tema token'ları ve çalışma zamanı tema mağazası ortak altyapıdır. Tema seçimi
+iki bağımsız eksenden oluşur: `light`/`dark` görünüm şeması ve
+`green`/`blue`/`orange`/`purple`/`red` vurgu kimliği. Mağazanın dışarı verdiği
+tek immutable snapshot; şema, vurgu, bunlardan çözülen tam palet ve değişiklik
+revision'ını birlikte taşır. Böylece yalnız vurgu değiştiğinde de stiller,
+birincil CTA'lar, seçili kontroller ve aktif navigasyon renkleri aynı React
+ağacında güncellenir.
+
+Nötr yüzey token'ları görünüm şemasına; `primary`, `primaryAction`,
+`onPrimary` ve tonal vurgu token'ları seçilen vurguya bağlıdır.
+`primaryAction`/`onPrimary` çifti dolu eylem kontrastının yetkili kaynağıdır.
+Başarı, tehlike, uyarı ve bilgi semantiği; kategori renkleri, grafik serileri,
+logo ve splash renkleri vurgu seçiminden bağımsızdır.
+
+[`src/theme/navigationTheme.ts`](../src/theme/navigationTheme.ts), aynı çözülmüş
+paleti React Navigation context'ine taşır; stack, pager, scene wrapper ve lazy
+placeholder yüzeyleri ekran component'leriyle aynı arka planı kullanır. Vurgu
+değişimi navigator'ı anahtarla yeniden mount etmez; mevcut rota ve geçiş durumu
+korunurken theme context'i güncellenir. Çeviri anahtarları varsayılan ürün dili
+olarak Türkçeyi; ayrıca İngilizce, Azerbaycanca ve Rusça sözlükleri kullanır.
+Üretilen locale artifact'leri bağımsız doğruluk kaynağı değildir; geliştirme
+rehberindeki i18n akışına bakın.
 
 ## Açılış yaşam döngüsü
 
@@ -94,7 +115,9 @@ Tema token'ları ve çalışma zamanı tema mağazası ortak altyapıdır. [`src
 
 1. Native splash modül başlatılırken tutulur.
 2. SQLite açılır; WAL ve foreign key'ler etkinleştirilir, hızlı bütünlük kontrolü yapılır, şema garanti edilir, uyumluluk değişiklikleri ve gerekli seed işi tamamlanır.
-3. Kalıcı tema, onboarding durumu, dil ve para birimi çözülür.
+3. Kalıcı görünüm şeması ve vurgu tercihi aynı DB readiness adımında okunur ve
+   tek tema snapshot'ı olarak atomik uygulanır; onboarding durumu, dil ve para
+   birimi de çözülür.
 4. Provider'lar native pencere ve splash ile eşleşen koyu bir açılış yüzeyinin arkasında mount edilir.
 5. Hedef rota perde opakken kesinleştirilir.
 6. Layout commit'lerinden sonra native splash gizlenir ve uygulama tek kontrollü fade ile gösterilir.
@@ -102,7 +125,14 @@ Tema token'ları ve çalışma zamanı tema mağazası ortak altyapıdır. [`src
 
 İlk kareyi etkileyen tercihler veya startup provider'ları değiştiğinde bu readiness gate güncellenmelidir. Native görünüm değişiklikleri bu akış sırasında Android activity'sini yeniden oluşturmamalıdır.
 
-Perde kalktıktan sonraki navigasyon da aynı süreklilik sözleşmesine tabidir. Root, aktif SPARK şemasını React Navigation `ThemeProvider` üzerinden yayınlar. Material tab scene'leri ve lazy içerik bekleme yüzeyleri ayrıca aktif tema arka planını açıkça taşır; lazy yükleme performans için korunurken varsayılan açık navigator rengi görünür olamaz.
+Perde kalktıktan sonraki navigasyon da aynı süreklilik sözleşmesine tabidir. Root, aktif SPARK paletini React Navigation `ThemeProvider` üzerinden yayınlar. Material tab scene'leri ve lazy içerik bekleme yüzeyleri ayrıca aktif tema arka planını açıkça taşır; lazy yükleme performans için korunurken varsayılan açık navigator rengi görünür olamaz.
+
+Görünüm ve vurgu, `settings` içindeki gizli olmayan cihaz-yerel tercihlerdir.
+Geçersiz veya eksik vurgu SPARK yeşiline normalize edilir. Bu tercih yeni tablo,
+şema migration'ı veya backup format artışı gerektirmez; taşınabilir finansal
+backup'ın parçası değildir. Çalışma zamanı değişikliği
+`Appearance.setColorScheme(...)` çağırmaz ve Android Activity yeniden
+oluşturmasına dayanmaz.
 
 ## Domain modeli
 
@@ -111,7 +141,7 @@ Perde kalktıktan sonraki navigasyon da aynı süreklilik sözleşmesine tabidir
 | `categories` | İkon, renk ve sistem sahipliği metaverisi bulunan iki seviyeli kategori ağacı. |
 | `vendors` | Kanonik satıcı kaydı; manuel ve taranmış harcamalarda kullanılan varsayılan kategori tutabilir. |
 | `expenses` | Finansal işlem başlığı. Kaydedilmiş fiş toplamı tüketim toplamıdır. |
-| `expense_items` | Harcamaya bağlı isteğe bağlı fiş satır ayrıntısı; harcama silinince kalemler cascade ile silinir. |
+| `expense_items` | Harcamaya bağlı isteğe bağlı fiş satır ayrıntısı; `measurement_unit` adet/kg/L fiyat tabanını ayırır, harcama silinince kalemler cascade ile silinir. |
 | `budgets` | Takvim ayı olmak zorunda olmayan bütçe döngüsü anahtarıyla ilişkili planlanan tutar. |
 | `savings_goal` | Tek aktif birikim hedefi ve mevcut katkı tutarı. |
 | `category_limits` | Döngü başına kategori harcama limitleri. |
@@ -145,6 +175,7 @@ sheet bileşenini kullanır.
 ### Fiş ve harcama bütünlüğü
 
 - Bir fiş, tek harcama ve sıfır veya daha fazla satır kalemi olarak saklanır.
+- Fiş miktarı kanonik `piece`, `kg` veya `l` ile saklanır; g/ml manuel veya AI girdisi hesap öncesinde kg/L tabanına çevrilir. Ürün fiyat geçmişi aynı normalize adın farklı ölçü boyutlarını birleştirmez.
 - Başlık ve kalem oluşturma atomiktir.
 - Model bir satırı kaçırsa bile ilk fiş importundan sonra basılı/taranmış harcama toplamı yetkili kalır.
 - Açık kullanıcı eylemiyle ürün düzenleme, kullanıcı yönlendirmeli bir düzeltme olduğu için toplamı yeniden hesaplayabilir.
@@ -155,7 +186,7 @@ sheet bileşenini kullanır.
 
 ### Bütçe döngüleri
 
-Bütçe dönemi kullanıcının belirlediği döngü başlangıç gününden türetilir. Başlangıç günü bir olduğunda takvim ayıyla eşleşir; diğer değerler aylar arası aralık üretir. Dashboard, analiz, bildirimler ve DAO sorguları aynı çözümlenmiş dönem sınırlarını kullanmalıdır.
+Bütçe dönemi kullanıcının belirlediği döngü başlangıç gününden türetilir. Başlangıç günü bir olduğunda takvim ayıyla eşleşir; diğer değerler aylar arası aralık üretir. Oluşturulan her bütçe kendi kesin başlangıç/bitiş sınırını ve başlangıç günü snapshot'ını saklar; global kural değişikliği geçmişi yeniden hesaplayamaz. Dashboard, analiz, bildirimler ve DAO sorguları aynı çözümlenmiş dönem sınırlarını kullanmalıdır.
 
 ### Harcama istatistikleri
 
@@ -295,6 +326,19 @@ uygulama kapalıyken yapılan saat-dilimi değişikliği ancak sonraki startup/r
 uzlaştırmasında yeni yerel saate çevrilir. Force-stop sonrası teslim garantisi
 verilmez ve bu sınırlar standalone APK kabulünde ayrıca sınanır.
 
+Aynı desired-state uzlaştırması, veri yazmadan yalnız önceden bilinen dikkat
+zamanlarını da taşır: tamamlanmamış birikim hedefi için son tarihe kalan
+`90/30/14/7/3/1/0` günler saat `09:00`, pozitif aktif bütçe için dönem
+ilerlemesinin `%50/%75/%90` takvim günleri saat `19:00` yerel alarmıdır. Kimlik
+hedef tarihi veya donmuş bütçe dönemi başlangıcını içerir; hedef/bütçe değişimi,
+tamamlanma ve kanal mute'u bir sonraki yazma-tetikli sync'te eski planı iptal
+eder. Uygulama uzun süre açılmazsa feed'e geçmiş eşik yığını eklenmez; her ailede
+yalnız son geçilmiş kilometre taşı kanonik karta bağlanır. Bu katman harcama
+verisini arka planda tahmin etmez. Bütçe tüketimi ve kategori aşımı yalnız yeni
+yerel finansal event geldiğinde hesaplanır ve event sonrası senkronizasyonda
+teslim edilir. Bildirim tercihleri ledger tahmini yerine Android'in gerçek SPARK
+scheduled envanter sayısını gösterir.
+
 ## Bağımlılık ve değişiklik sınırları
 
 - Ekranlar hook ve component'leri birleştirebilir; domain hesapları saf yardımcı fonksiyonlara çıkarılmalıdır.
@@ -305,6 +349,7 @@ verilmez ve bu sınırlar standalone APK kabulünde ayrıca sınanır.
 - Bir şema değişikliği yedekleme/geri yükleme ve geriye dönük uyumluluk incelenmeden tamamlanmış sayılmaz.
 - Harcanabilir nakdi etkileyen yeni kaynak, ortak bütçe hesabı, budget hook, analiz, bildirimler ve testler aynı döngü semantiğinde uzlaşmadan tamamlanmış sayılmaz.
 - İlk kareyi etkileyen yeni tercih, startup readiness ve flicker davranışı incelenmeden tamamlanmış sayılmaz.
+- Vurgu paleti değişikliği; tam tema snapshot reaktivitesi, navigator sürekliliği, semantik renk bağımsızlığı ve `primaryAction`/`onPrimary` kontrastı incelenmeden tamamlanmış sayılmaz.
 
 ## Bu belgenin bakımı
 

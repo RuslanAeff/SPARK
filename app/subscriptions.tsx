@@ -19,7 +19,7 @@ import Animated, { FadeInDown } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
 
 import { Colors } from '../src/theme/colors';
-import { useAppTheme } from '../src/theme/themeStore';
+import { useAppTheme, useThemeRevision } from '../src/theme/themeStore';
 import { Typography, FontFamily } from '../src/theme/typography';
 import { Spacing, ScreenPadding, BorderRadius } from '../src/theme/spacing';
 import { useLanguage } from '../src/i18n/LanguageContext';
@@ -35,14 +35,8 @@ import {
 import type { SubscriptionWithDetails } from '../src/db/schema';
 import { SparkToast } from '../src/components/SparkToast';
 import GlassDeleteModal from '../src/components/GlassDeleteModal';
-import RecurringPaymentReminderSheet, {
-  RecurringPaymentReminderFormValue,
-} from '../src/components/RecurringPaymentReminderSheet';
 import { RecurringPaymentReminderDao } from '../src/db/recurringPaymentReminderDao';
-import type {
-  RecurringPaymentReminder,
-  ReminderRecurrenceUnit,
-} from '../src/db/schema';
+import type { RecurringPaymentReminder } from '../src/db/schema';
 import { formatDateFull } from '../src/utils/dateUtils';
 import { useRefreshActions } from '../src/context/RefreshContext';
 
@@ -53,23 +47,10 @@ function daysUntil(dateIso: string): number {
   return Math.ceil((target - today.getTime()) / (86400 * 1000));
 }
 
-export function scheduleFromDetectedPeriod(periodDays: number): {
-  unit: ReminderRecurrenceUnit;
-  interval: number;
-} {
-  if (periodDays === 7 || periodDays === 14) {
-    return { unit: 'week', interval: periodDays / 7 };
-  }
-  if (periodDays >= 28 && periodDays <= 31) return { unit: 'month', interval: 1 };
-  if (periodDays >= 56 && periodDays <= 62) return { unit: 'month', interval: 2 };
-  if (periodDays >= 84 && periodDays <= 95) return { unit: 'month', interval: 3 };
-  if (periodDays >= 360 && periodDays <= 370) return { unit: 'year', interval: 1 };
-  return { unit: 'day', interval: Math.max(1, Math.min(999, Math.round(periodDays))) };
-}
-
 export default function SubscriptionsScreen() {
   const scheme = useAppTheme();
-  const styles = useMemo(() => getStyles(), [scheme]);
+  const themeRevision = useThemeRevision();
+  const styles = useMemo(() => getStyles(), [scheme, themeRevision]);
   const router = useRouter();
   const { t, language } = useLanguage();
   const { currency } = useCurrency();
@@ -79,8 +60,6 @@ export default function SubscriptionsScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [showDismissed, setShowDismissed] = useState(false);
-  const [formVisible, setFormVisible] = useState(false);
-  const [formInitial, setFormInitial] = useState<RecurringPaymentReminderFormValue | null>(null);
   const [deletePlan, setDeletePlan] = useState<RecurringPaymentReminder | null>(null);
   const planActionRef = React.useRef(false);
 
@@ -145,48 +124,21 @@ export default function SubscriptionsScreen() {
   }
 
   const openManualPlan = () => {
-    setFormInitial(null);
-    setFormVisible(true);
+    router.push('/recurring-payment');
   };
 
   const openDetectedPlan = (subscription: SubscriptionWithDetails) => {
-    const cadence = scheduleFromDetectedPeriod(subscription.period_days);
-    setFormInitial({
-      title: subscription.vendor_name,
-      vendorId: subscription.vendor_id,
-      expectedAmount: subscription.amount,
-      currency: subscription.currency,
-      anchorDate: subscription.next_expected_date,
-      nextDueDate: subscription.next_expected_date,
-      recurrenceUnit: cadence.unit,
-      recurrenceInterval: cadence.interval,
-      reminderDaysBefore: 3,
-      reminderTime: '09:00',
-      status: 'active',
-      source: 'detected',
-      note: null,
+    router.push({
+      pathname: '/recurring-payment',
+      params: { detectedVendorId: String(subscription.vendor_id) },
     });
-    setFormVisible(true);
   };
 
   const openEditPlan = (plan: RecurringPaymentReminder) => {
-    setFormInitial({
-      id: plan.id,
-      title: plan.title,
-      vendorId: plan.vendor_id,
-      expectedAmount: plan.expected_amount,
-      currency: plan.currency,
-      anchorDate: plan.anchor_date,
-      nextDueDate: plan.next_due_date,
-      recurrenceUnit: plan.recurrence_unit,
-      recurrenceInterval: plan.recurrence_interval,
-      reminderDaysBefore: plan.reminder_days_before,
-      reminderTime: plan.reminder_time,
-      status: plan.status,
-      source: plan.source,
-      note: plan.note,
+    router.push({
+      pathname: '/recurring-payment',
+      params: { id: String(plan.id) },
     });
-    setFormVisible(true);
   };
 
   const togglePlan = async (plan: RecurringPaymentReminder) => {
@@ -228,11 +180,6 @@ export default function SubscriptionsScreen() {
       planActionRef.current = false;
     }
   };
-
-  const handlePlanSaved = useCallback(async () => {
-    await refresh();
-    triggerRefresh();
-  }, [refresh, triggerRefresh]);
 
   const recurrenceLabel = (plan: RecurringPaymentReminder) => {
     const unitLabel = t(`recurring_plan_unit_${plan.recurrence_unit}`);
@@ -447,7 +394,7 @@ export default function SubscriptionsScreen() {
             onPress={openManualPlan}
             style={({ pressed }) => [styles.addPlanButton, pressed && styles.actionPressed]}
           >
-            <MaterialCommunityIcons name="plus" size={20} color="#FFFFFF" />
+            <MaterialCommunityIcons name="plus" size={20} color={Colors.onPrimary} />
           </Pressable>
         </View>
 
@@ -537,14 +484,6 @@ export default function SubscriptionsScreen() {
         <View style={{ height: 80 }} />
       </ScrollView>
 
-      <RecurringPaymentReminderSheet
-        visible={formVisible}
-        initialValue={formInitial}
-        defaultCurrency={currency}
-        onClose={() => setFormVisible(false)}
-        onSaved={handlePlanSaved}
-      />
-
       <GlassDeleteModal
         visible={deletePlan !== null}
         title={t('recurring_plan_delete_title')}
@@ -610,7 +549,7 @@ const getStyles = () =>
       borderRadius: 22,
       alignItems: 'center',
       justifyContent: 'center',
-      backgroundColor: Colors.primary,
+      backgroundColor: Colors.primaryAction,
     },
     detectedHeader: { marginTop: Spacing.xl, marginBottom: Spacing.md },
     planEmpty: {

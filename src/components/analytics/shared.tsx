@@ -4,17 +4,13 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Text, Animated as RNAnimated } from 'react-native';
 import type { AnalyticsStyles } from './analyticsStyles';
 import type { DisplayCurrency } from '../../context/CurrencyContext';
-import type { SubscriptionWithDetails } from '../../db/schema';
+import type { SubscriptionAnalyticsInfo } from '../../utils/subscriptionAnalytics';
 import type { SpendingStatsResult } from '../../utils/spendingStats';
 
 export type Timeframe = 'week' | 'month' | 'year' | 'custom';
 
 /** Abonelik kartı özeti (parent `subscriptionInfo` memo'sundan gelir). */
-export interface SubscriptionInfo {
-  count: number;
-  monthlyTotal: number;
-  upcoming: (SubscriptionWithDetails & { daysUntil: number })[];
-}
+export type SubscriptionInfo = SubscriptionAnalyticsInfo;
 
 /** Gün/zaman dilimi ısı haritası özeti (ayrımcı union — veri yoksa available:false). */
 export type TimeOfDayInfo =
@@ -146,6 +142,7 @@ export interface PriceChange {
   lastPrice: number;
   changePct: number;
   purchaseCount: number;
+  measurementUnit: import('../../utils/measurementUnit').MeasurementUnit;
 }
 
 /** Sayıyı 0'dan hedefe animasyonlu çıkaran küçük metin bileşeni (JS thread timing). */

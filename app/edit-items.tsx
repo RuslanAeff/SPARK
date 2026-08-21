@@ -34,12 +34,22 @@ import {
 } from '../src/utils/moneyMath';
 import { calculateReceiptLineAmounts } from '../src/utils/receiptMoney';
 import {
-  susevarButton,
+  createSusevarStyles,
   susevarButtonPressed,
-  susevarButtonText,
 } from '../src/theme/susevar';
+import { useThemeRevision } from '../src/theme/themeStore';
+import {
+  formatMeasurementQuantity,
+  measurementInputFromStored,
+  measurementUnitSuffix,
+  normalizeMeasurementInput,
+  type MeasurementInputUnit,
+} from '../src/utils/measurementUnit';
+
+const UNIT_OPTIONS: MeasurementInputUnit[] = ['piece', 'kg', 'g', 'l', 'ml'];
 
 export default function EditItemsScreen() {
+  useThemeRevision();
   const styles = getStyles();
   const router = useRouter();
   const { t } = useLanguage();
@@ -53,6 +63,7 @@ export default function EditItemsScreen() {
   const [editingItemId, setEditingItemId] = useState<number | null>(null);
   const [itemName, setItemName] = useState('');
   const [quantity, setQuantity] = useState('1');
+  const [measurementUnit, setMeasurementUnit] = useState<MeasurementInputUnit>('piece');
   const [unitPrice, setUnitPrice] = useState('');
   const [discount, setDiscount] = useState('');
   const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null);
@@ -76,6 +87,7 @@ export default function EditItemsScreen() {
     setEditingItemId(null);
     setItemName('');
     setQuantity('1');
+    setMeasurementUnit('piece');
     setUnitPrice('');
     setDiscount('');
   }
@@ -84,7 +96,9 @@ export default function EditItemsScreen() {
     setEditingItemId(item.id);
     // Kullanıcı listede çeviriyi (birincil) görüyor → düzenlemeye de ondan başlasın.
     setItemName(itemDisplayName(item).primary);
-    setQuantity(item.quantity.toString());
+    const measurement = measurementInputFromStored(item.quantity, item.measurement_unit);
+    setQuantity(Number(measurement.quantity.toFixed(3)).toString());
+    setMeasurementUnit(measurement.inputUnit);
     // Düzenlemede ETİKET (indirim öncesi) birim fiyatı göster; indirim ayrı alanda.
     // Net birim yerine etiket gösterilir ki tekrar kaydetmede indirim çift düşmesin.
     const eff = effectiveLineDiscount(item);
@@ -100,12 +114,14 @@ export default function EditItemsScreen() {
       return;
     }
 
-    const q = Number(quantity.replace(',', '.'));
+    const inputQuantity = Number(quantity.replace(',', '.'));
     const up = parseUnitRateInput(unitPrice);
-    if (!Number.isFinite(q) || up == null || q <= 0 || up <= 0) {
+    if (!Number.isFinite(inputQuantity) || up == null || inputQuantity <= 0 || up <= 0) {
       SparkToast.show(t('invalid_qty_price'), 'error');
       return;
     }
+    const normalizedMeasurement = normalizeMeasurementInput(inputQuantity, measurementUnit);
+    const q = normalizedMeasurement.quantity;
 
     const expenseId = parseInt(id);
 
@@ -136,6 +152,7 @@ export default function EditItemsScreen() {
           name: itemName.trim(),
           turkish_name: itemName.trim(),
           quantity: q,
+          measurement_unit: normalizedMeasurement.measurementUnit,
           unit_price: amounts.netUnitPrice,
           total_price: amounts.netTotal,
           ...discFields,
@@ -148,6 +165,7 @@ export default function EditItemsScreen() {
           name: itemName.trim(),
           turkish_name: itemName.trim(),
           quantity: q,
+          measurement_unit: normalizedMeasurement.measurementUnit,
           unit_price: amounts.netUnitPrice,
           total_price: amounts.netTotal,
           category_id: null,
@@ -233,7 +251,11 @@ export default function EditItemsScreen() {
                       )}
                     </View>
                   )}
-                  <Text style={styles.itemSubText}>{item.quantity}x {formatCurrency(item.unit_price, currency)}</Text>
+                  <Text style={styles.itemSubText}>
+                    {formatMeasurementQuantity(item.quantity, item.measurement_unit)} ·{' '}
+                    {formatCurrency(item.unit_price, currency)}
+                    {measurementUnitSuffix(item.measurement_unit, t('measurement_unit_piece'))}
+                  </Text>
                 </View>
                 <Text style={[styles.itemPrice, hasDisc && styles.itemPriceNet]}>
                   {formatCurrency(item.total_price, currency)}
@@ -287,12 +309,30 @@ export default function EditItemsScreen() {
             />
             <TextInput
               style={[styles.input, { flex: 0.6 }]}
-              placeholder={t('unit_price_placeholder')}
+              placeholder={`${t('unit_price_placeholder')} ${measurementUnitSuffix(normalizeMeasurementInput(1, measurementUnit).measurementUnit, t('measurement_unit_piece'))}`}
               placeholderTextColor={Colors.textMuted}
               keyboardType="decimal-pad"
               value={unitPrice}
               onChangeText={setUnitPrice}
             />
+          </View>
+          <View style={styles.unitSelector}>
+            {UNIT_OPTIONS.map(unit => {
+              const active = measurementUnit === unit;
+              return (
+                <Pressable
+                  key={unit}
+                  accessibilityRole="radio"
+                  accessibilityState={{ selected: active }}
+                  onPress={() => setMeasurementUnit(unit)}
+                  style={[styles.unitChip, active && styles.unitChipActive]}
+                >
+                  <Text style={[styles.unitChipText, active && styles.unitChipTextActive]}>
+                    {t(`measurement_unit_${unit}`)}
+                  </Text>
+                </Pressable>
+              );
+            })}
           </View>
           <TextInput
             style={styles.input}
@@ -480,8 +520,34 @@ const getStyles = () => StyleSheet.create({
     flexDirection: 'row',
     gap: Spacing.md,
   },
+  unitSelector: {
+    flexDirection: 'row',
+    gap: Spacing.xs,
+  },
+  unitChip: {
+    flex: 1,
+    minHeight: 38,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: BorderRadius.round,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    backgroundColor: Colors.background,
+  },
+  unitChipActive: {
+    borderColor: Colors.primary,
+    backgroundColor: Colors.primaryGlow,
+  },
+  unitChipText: {
+    ...Typography.labelSmall,
+    color: Colors.textSecondary,
+  },
+  unitChipTextActive: {
+    color: Colors.primary,
+    fontFamily: FontFamily.semiBold,
+  },
   /** Şüşevar — Ekle / Güncelle */
-  saveBtn: susevarButton,
+  saveBtn: createSusevarStyles(Colors).button,
   saveBtnPressed: susevarButtonPressed,
-  saveBtnText: susevarButtonText,
+  saveBtnText: createSusevarStyles(Colors).text,
 });

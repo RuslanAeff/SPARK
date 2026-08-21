@@ -5,6 +5,7 @@ import Animated, { FadeInDown } from 'react-native-reanimated';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import AnimatedCard from '../AnimatedCard';
 import { Colors } from '../../theme/colors';
+import { useThemeRevision } from '../../theme/themeStore';
 import { formatCurrency } from '../../utils/formatCurrency';
 import type { BaseCardProps, SubscriptionInfo } from './shared';
 
@@ -13,6 +14,7 @@ interface SubscriptionsCardProps extends BaseCardProps {
 }
 
 function SubscriptionsCard({ styles, t, currency, subscriptionInfo }: SubscriptionsCardProps) {
+  useThemeRevision();
   const { count, monthlyTotal, upcoming } = subscriptionInfo;
 
   if (count === 0) {
@@ -21,7 +23,7 @@ function SubscriptionsCard({ styles, t, currency, subscriptionInfo }: Subscripti
         <View style={styles.subsHeader}>
           <View style={styles.subsHeaderLeft}>
             <MaterialCommunityIcons name="sync-circle" size={18} color={Colors.textSecondary} />
-            <Text style={styles.sectionTitle}>{t('subs_card_title')}</Text>
+            <Text style={styles.cardHeaderTitle}>{t('subs_card_title')}</Text>
           </View>
         </View>
         <View style={styles.subsEmptyWrap}>
@@ -40,7 +42,7 @@ function SubscriptionsCard({ styles, t, currency, subscriptionInfo }: Subscripti
           <View style={[styles.subsHeaderIcon, { backgroundColor: Colors.info + '1F' }]}>
             <MaterialCommunityIcons name="sync-circle" size={16} color={Colors.info} />
           </View>
-          <Text style={styles.sectionTitle}>{t('subs_card_title')}</Text>
+          <Text style={styles.cardHeaderTitle}>{t('subs_card_title')}</Text>
         </View>
         <View style={[styles.subsCountBadge, { backgroundColor: Colors.surfaceLight }]}>
           <Text style={styles.subsCountText}>{count}</Text>
@@ -85,7 +87,9 @@ function SubscriptionsCard({ styles, t, currency, subscriptionInfo }: Subscripti
                   <Text style={[styles.subsRowDays, { color: dayAccent }]} numberOfLines={1}>{dayLabel}</Text>
                 </View>
               </View>
-              <Text style={styles.subsRowAmount}>{formatCurrency(s.amount, currency)}</Text>
+              <Text style={styles.subsRowAmount}>
+                {s.amount == null ? '—' : formatCurrency(s.amount, currency)}
+              </Text>
             </Animated.View>
           );
         })}

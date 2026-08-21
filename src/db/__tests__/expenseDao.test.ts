@@ -89,6 +89,55 @@ describe('ExpenseDao read projections', () => {
     await expect(ExpenseDao.getNotificationSubjectsByIds([0, -1])).resolves.toEqual([]);
     expect(getAllAsync).not.toHaveBeenCalled();
   });
+
+  it('ürün analizinde istenen ölçü türünü ayırır ve ağırlıklı birim fiyat hesaplar', async () => {
+    getAllAsync.mockResolvedValue([
+      { name: 'Çilek', date: '2026-08-01', unit_price: 10, total_price: 5, quantity: 0.5, vendor_name: 'A', measurement_unit: 'kg' },
+      { name: 'ÇİLEK', date: '2026-08-02', unit_price: 12, total_price: 12, quantity: 1, vendor_name: 'B', measurement_unit: 'kg' },
+      { name: 'Çilek', date: '2026-08-03', unit_price: 3, total_price: 3, quantity: 1, vendor_name: 'C', measurement_unit: 'piece' },
+    ]);
+
+    const result = await ExpenseDao.getItemAnalytics('cilek', 'kg');
+
+    expect(result.stats.purchase_count).toBe(2);
+    expect(result.stats.total_quantity).toBe(1.5);
+    expect(result.stats.avg_price).toBeCloseTo(17 / 1.5);
+    expect(result.stats.measurement_unit).toBe('kg');
+    expect(result.history).toHaveLength(2);
+  });
+
+  it('fiyat geçmişi sorgusunda ölçü, miktar ve satır toplamını birlikte taşır', async () => {
+    await ExpenseDao.getPriceHistory(6);
+    const [sql, params] = getAllAsync.mock.calls[0];
+    const normalized = normalizeSql(sql);
+    expect(normalized).toContain('i.total_price, i.quantity');
+    expect(normalized).toContain('i.measurement_unit');
+    expect(params).toEqual([6]);
+  });
+
+  it('satıcı ürünlerini ilk 10 kayıtta kesmeden alım sayısına göre döndürür', async () => {
+    getAllAsync.mockResolvedValue(Array.from({ length: 12 }, (_, index) => ({
+      name: `Ürün ${index + 1}`,
+      turkish_name: null,
+      unit_price: 10,
+      total_price: 10,
+      quantity: 1,
+      expense_date: `2026-08-${String(index + 1).padStart(2, '0')}`,
+    })));
+
+    const result = await ExpenseDao.getVendorItems(1, '2026-08-01', '2026-08-31');
+
+    expect(result).toHaveLength(12);
+    expect(result.every(item => item.purchase_count === 1)).toBe(true);
+  });
+
+  it('davranış analizinde sınıflandırılmayan harcamaları tasarruf diye sunmaz', async () => {
+    await ExpenseDao.getNeedsVsWants('2026-08-01', '2026-08-31');
+    const [sql] = getAllAsync.mock.calls[0];
+    const normalized = normalizeSql(sql);
+    expect(normalized).toContain("ELSE 'Diğer Harcamalar'");
+    expect(normalized).not.toContain('Tasarruf / Diğer');
+  });
 });
 
 describe('ExpenseDao receipt money writes', () => {

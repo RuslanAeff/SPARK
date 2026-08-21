@@ -96,7 +96,7 @@ export const getAnalyticsStyles = () => StyleSheet.create({
     borderColor: Colors.border,
   },
   editToggleBtnActive: {
-    backgroundColor: Colors.primary,
+    backgroundColor: Colors.primaryAction,
     borderColor: Colors.cardBorder,
   },
   editSectionHeader: {
@@ -196,6 +196,13 @@ export const getAnalyticsStyles = () => StyleSheet.create({
     letterSpacing: 1.5,
     marginBottom: Spacing.md,
   },
+  cardHeaderTitle: {
+    ...Typography.labelMedium,
+    color: Colors.textSecondary,
+    letterSpacing: 1.5,
+    marginBottom: 0,
+    flexShrink: 1,
+  },
   categoryRow: {
     flexDirection: 'row',
     gap: Spacing.md,
@@ -275,6 +282,12 @@ export const getAnalyticsStyles = () => StyleSheet.create({
     color: Colors.textMuted,
     textAlign: 'center',
   },
+  donutAnalysisHintRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 5,
+  },
   // Top Transactions
   topTxTitleWithHint: {
     marginBottom: Spacing.xs,
@@ -291,6 +304,21 @@ export const getAnalyticsStyles = () => StyleSheet.create({
     flex: 1,
     lineHeight: 16,
   },
+  topTxHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  topTxPagerViewport: {
+    width: '100%',
+    overflow: 'hidden',
+  },
+  topTxPage: {
+    width: '100%',
+  },
+  topTxPageFixed: {
+    minHeight: 260,
+  },
   topTxRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -298,6 +326,9 @@ export const getAnalyticsStyles = () => StyleSheet.create({
     gap: Spacing.md,
     borderBottomWidth: 1,
     borderBottomColor: Colors.divider,
+  },
+  topTxRowLast: {
+    borderBottomWidth: 0,
   },
   topTxRank: {
     width: 24,
@@ -349,6 +380,27 @@ export const getAnalyticsStyles = () => StyleSheet.create({
     fontFamily: FontFamily.semiBold,
   },
   // Vendor rows
+  vendorCardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  vendorPageCounter: {
+    ...Typography.labelSmall,
+    color: Colors.textMuted,
+    fontFamily: FontFamily.semiBold,
+    fontVariant: ['tabular-nums'],
+  },
+  vendorPagerViewport: {
+    width: '100%',
+    overflow: 'hidden',
+  },
+  vendorPage: {
+    width: '100%',
+  },
+  vendorPageFixed: {
+    minHeight: 345,
+  },
   vendorRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -356,6 +408,13 @@ export const getAnalyticsStyles = () => StyleSheet.create({
     gap: Spacing.md,
     borderBottomWidth: 1,
     borderBottomColor: Colors.divider,
+  },
+  vendorRowLast: {
+    borderBottomWidth: 0,
+  },
+  vendorRowPressed: {
+    opacity: 0.72,
+    backgroundColor: Colors.surfaceLight,
   },
   newBadge: {
     position: 'absolute',
@@ -388,6 +447,11 @@ export const getAnalyticsStyles = () => StyleSheet.create({
   vendorInfo: {
     flex: 1,
     gap: Spacing.xs,
+  },
+  vendorNameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
   },
   vendorName: {
     ...Typography.bodyLarge,
@@ -433,6 +497,46 @@ export const getAnalyticsStyles = () => StyleSheet.create({
     marginBottom: Spacing.md,
     textTransform: 'uppercase',
     letterSpacing: 1.2,
+  },
+  vendorItemSortControl: {
+    flexDirection: 'row',
+    padding: 3,
+    marginBottom: Spacing.md,
+    borderRadius: BorderRadius.round,
+    backgroundColor: Colors.surfaceLight,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  vendorItemSortButton: {
+    flex: 1,
+    minHeight: 34,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 5,
+    paddingHorizontal: Spacing.sm,
+    borderRadius: BorderRadius.round,
+  },
+  vendorItemSortButtonActive: {
+    backgroundColor: Colors.cardSurface,
+    borderWidth: 1,
+    borderColor: Colors.primary + '55',
+  },
+  vendorItemSortText: {
+    ...Typography.labelSmall,
+    color: Colors.textMuted,
+    fontFamily: FontFamily.medium,
+  },
+  vendorItemSortTextActive: {
+    color: Colors.primary,
+    fontFamily: FontFamily.semiBold,
+  },
+  vendorItemPagerViewport: {
+    width: '100%',
+    overflow: 'hidden',
+  },
+  vendorItemPage: {
+    minHeight: 285,
   },
   microItem: {
     paddingVertical: Spacing.sm,
@@ -757,6 +861,27 @@ export const getAnalyticsStyles = () => StyleSheet.create({
     flexWrap: 'wrap',
     gap: Spacing.sm,
   },
+  pricePagerViewport: {
+    width: '100%',
+    overflow: 'hidden',
+  },
+  pricePageDots: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    marginTop: Spacing.md,
+  },
+  pricePageDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: Colors.borderLight,
+  },
+  pricePageDotActive: {
+    width: 18,
+    backgroundColor: Colors.primary,
+  },
   priceTile: {
     // 2 sütun (gap: Spacing.sm) — küçük ekranlarda % hesabı kırpılmaz.
     width: '48.5%',
@@ -958,8 +1083,12 @@ export const getAnalyticsStyles = () => StyleSheet.create({
     height: 8,
     backgroundColor: Colors.surfaceLight,
     borderRadius: 4,
-    overflow: 'hidden',
     position: 'relative',
+  },
+  projTrackFillClip: {
+    ...StyleSheet.absoluteFillObject,
+    borderRadius: 4,
+    overflow: 'hidden',
   },
   projTrackCurrent: {
     position: 'absolute',
@@ -977,9 +1106,13 @@ export const getAnalyticsStyles = () => StyleSheet.create({
     position: 'absolute',
     top: -3,
     bottom: -3,
-    width: 2,
+    width: 4,
     backgroundColor: Colors.textPrimary,
-    borderRadius: 1,
+    borderRadius: 2,
+    borderWidth: 1,
+    borderColor: Colors.background,
+    transform: [{ translateX: -2 }],
+    zIndex: 3,
   },
   projTrackLegend: {
     flexDirection: 'row',
@@ -1241,6 +1374,13 @@ export const getAnalyticsStyles = () => StyleSheet.create({
   limitsHeaderStats: {
     flexDirection: 'row',
     gap: Spacing.xs,
+  },
+  limitsScopeHint: {
+    ...Typography.labelSmall,
+    color: Colors.textMuted,
+    lineHeight: 17,
+    marginTop: -Spacing.xs,
+    marginBottom: Spacing.md,
   },
   limitsStatChip: {
     flexDirection: 'row',
@@ -1647,11 +1787,28 @@ export const getAnalyticsStyles = () => StyleSheet.create({
   silentList: {
     gap: 2,
   },
+  silentPagerViewport: {
+    width: '100%',
+    overflow: 'hidden',
+  },
+  silentPage: {
+    width: '100%',
+    overflow: 'hidden',
+  },
+  silentPageFixed: {
+    minHeight: 250,
+  },
+  silentRowWrapper: {
+    width: '100%',
+    overflow: 'hidden',
+  },
   silentRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.md,
     paddingVertical: Spacing.sm,
+    width: '100%',
+    overflow: 'hidden',
   },
   silentAvatar: {
     width: 32,
@@ -1662,13 +1819,16 @@ export const getAnalyticsStyles = () => StyleSheet.create({
   },
   silentRowMain: {
     flex: 1,
+    flexShrink: 1,
     minWidth: 0,
     gap: 2,
+    overflow: 'hidden',
   },
   silentRowName: {
     ...Typography.bodyMedium,
     color: Colors.textPrimary,
     fontFamily: FontFamily.medium,
+    flexShrink: 1,
   },
   silentRowMeta: {
     flexDirection: 'row',
@@ -1696,6 +1856,9 @@ export const getAnalyticsStyles = () => StyleSheet.create({
     ...Typography.bodyMedium,
     fontFamily: FontFamily.bold,
     color: Colors.textPrimary,
+    flexShrink: 0,
+    maxWidth: '32%',
+    textAlign: 'right',
   },
   silentEmptyWrap: {
     alignItems: 'center',

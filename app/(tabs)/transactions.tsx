@@ -17,7 +17,7 @@ import {
   PanResponder,
   type ListRenderItemInfo,
 } from 'react-native';
-import { useAppTheme } from '../../src/theme/themeStore';
+import { useAppTheme, useThemeRevision } from '../../src/theme/themeStore';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useIsFocused } from '@react-navigation/native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -47,8 +47,9 @@ type Row =
 
 export default function TransactionsScreen() {
   const scheme = useAppTheme();
+  const themeRevision = useThemeRevision();
   // P10: StyleSheet sadece tema değiştiğinde yeniden oluşur.
-  const styles = useMemo(() => getStyles(), [scheme]);
+  const styles = useMemo(() => getStyles(), [scheme, themeRevision]);
   const router = useRouter();
   const { t } = useLanguage();
   const { items: expenses, loadingMore, hasMore, loadMore, refresh } = usePaginatedExpenses(60);

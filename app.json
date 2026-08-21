@@ -2,7 +2,7 @@
   "expo": {
     "name": "S.P.A.R.K",
     "slug": "spark-finance",
-    "version": "2.8.0",
+    "version": "3.1.0",
     "orientation": "portrait",
     "icon": "./assets/spark-icon.png",
     "userInterfaceStyle": "automatic",
@@ -13,12 +13,15 @@
       "bundleIdentifier": "com.spark.finance"
     },
     "android": {
+      "blockedPermissions": [
+        "android.permission.RECORD_AUDIO"
+      ],
       "adaptiveIcon": {
         "backgroundColor": "#050505",
         "foregroundImage": "./assets/spark-icon.png"
       },
       "package": "com.spark.finance",
-      "versionCode": 10,
+      "versionCode": 12,
       "permissions": [
         "android.permission.CAMERA",
         "android.permission.READ_EXTERNAL_STORAGE",
@@ -47,6 +50,15 @@
       "expo-system-ui",
       "expo-font",
       "expo-sqlite",
+      [
+        "expo-audio",
+        {
+          "microphonePermission": false,
+          "recordAudioAndroid": false,
+          "enableBackgroundPlayback": false,
+          "enableBackgroundRecording": false
+        }
+      ],
       [
         "expo-camera",
         {

@@ -106,6 +106,23 @@ teslim ve yedekten dönüşte bozuk ilişki riski oluşturur.
 - Uygulama içi feed kanonik kalır; native teslim başarısızlığı finansal veya
   hatırlatıcı verisini geri alamaz.
 
+## 22 Ağustos 2026 dikkat-planı genişletmesi
+
+- Aynı native actual-vs-desired mekanizması yalnız tarihi önceden bilinen iki
+  ek kaynağı planlar: tamamlanmamış birikim hedefinin `90/30/14/7/3/1/0` gün
+  kilometre taşları ve aktif bütçe döneminin `%50/%75/%90` kontrol günleri.
+- Bu planlar yeni finansal kayıt, hedef katkısı veya bütçe sonucu üretmez.
+  Harcama/kategori eşikleri arka planda tahmin edilmez; yeni yerel event
+  kaydedildiğinde mevcut bildirim senkronizasyonunda değerlendirilir.
+- Hedef ve bütçe kanalı mute'u kendi future planlarını desired-state'ten
+  çıkarır. Tarih/dönem değişikliği deterministik kimliği değiştirdiği için eski
+  OS isteği iptal edilir ve yeni istek kurulur.
+- İlk açılış ve Android bildirim izni ön koşuldur. Process kill ve reboot sonrası
+  planlar OS deposuna dayanır; kullanıcı Android ayarından **Zorla durdur**
+  uyguladığında teslim garantisi yoktur. Exact-alarm özel izni istenmez.
+- Tercih yüzeyi, uygulama ledger'ı yerine Android'in gerçek SPARK future-alarm
+  envanterini sayar. Expo Go bu davranış için kabul ortamı değildir.
+
 ## Sonuçlar ve ödünleşimler
 
 **Olumlu:** Borç, tahmin ve kullanıcı taahhüdü açıkça ayrılır; tarih hesabı ay

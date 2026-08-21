@@ -16,8 +16,7 @@ import {
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { DarkTheme, LightTheme } from '../theme/colors';
-import { useAppTheme } from '../theme/themeStore';
+import { useAppTheme, useThemePalette } from '../theme/themeStore';
 import { Typography, FontFamily } from '../theme/typography';
 import { BorderRadius, Spacing } from '../theme/spacing';
 import { useLanguage } from '../i18n/LanguageContext';
@@ -55,7 +54,7 @@ export const SparkToast = {
 export function SparkToastContainer() {
   const [toast, setToast] = useState<ToastData | null>(null);
   const scheme = useAppTheme();
-  const theme = scheme === 'dark' ? DarkTheme : LightTheme;
+  const theme = useThemePalette();
   const isDark = scheme === 'dark';
   const { top, bottom } = useSafeAreaInsets();
   const { t } = useLanguage();

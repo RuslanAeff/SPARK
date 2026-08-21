@@ -1,7 +1,7 @@
 import React from 'react';
 import { act, fireEvent, render, waitFor } from '@testing-library/react-native';
 
-import RecurringPaymentReminderSheet, {
+import RecurringPaymentReminderForm, {
   RecurringPaymentReminderFormValue,
 } from '../RecurringPaymentReminderSheet';
 import { RecurringPaymentReminderDao } from '../../db/recurringPaymentReminderDao';
@@ -13,7 +13,7 @@ jest.mock('../../db/recurringPaymentReminderDao', () => ({
   },
 }));
 
-jest.mock('../../theme/themeStore', () => ({ useAppTheme: () => 'light' }));
+jest.mock('../../theme/themeStore', () => ({ useAppTheme: () => 'light', useThemeRevision: () => 0 }));
 jest.mock('../../i18n/LanguageContext', () => ({
   useLanguage: () => ({
     t: (key: string, params?: Record<string, string | number>) => {
@@ -33,12 +33,6 @@ jest.mock('@expo/vector-icons', () => {
   };
 });
 jest.mock('../SparkToast', () => ({ SparkToast: { show: jest.fn() } }));
-jest.mock('../BottomSheetModal', () => {
-  const React = require('react');
-  const { View } = require('react-native');
-  return ({ visible, children }: { visible: boolean; children: React.ReactNode }) =>
-    visible ? React.createElement(View, null, children) : null;
-});
 jest.mock('../CustomDatePicker', () => {
   const React = require('react');
   const { Pressable } = require('react-native');
@@ -89,7 +83,7 @@ const detectedValue: RecurringPaymentReminderFormValue = {
   note: null,
 };
 
-describe('RecurringPaymentReminderSheet', () => {
+describe('RecurringPaymentReminderForm', () => {
   const create = RecurringPaymentReminderDao.create as jest.MockedFunction<
     typeof RecurringPaymentReminderDao.create
   >;
@@ -106,8 +100,7 @@ describe('RecurringPaymentReminderSheet', () => {
   it('manuel planı tek create çağrısıyla kaydeder', async () => {
     const onSaved = jest.fn(async () => undefined);
     const screen = await render(
-      <RecurringPaymentReminderSheet
-        visible
+      <RecurringPaymentReminderForm
         initialValue={null}
         defaultCurrency="PLN"
         onClose={jest.fn()}
@@ -141,8 +134,7 @@ describe('RecurringPaymentReminderSheet', () => {
 
   it('algılanan öneriyi vendor ve para birimiyle ancak açık kayıtta oluşturur', async () => {
     const screen = await render(
-      <RecurringPaymentReminderSheet
-        visible
+      <RecurringPaymentReminderForm
         initialValue={detectedValue}
         defaultCurrency="EUR"
         onClose={jest.fn()}
@@ -164,8 +156,7 @@ describe('RecurringPaymentReminderSheet', () => {
 
   it('tarih değişen düzenlemede takvimi yeni tarihe yeniden sabitler', async () => {
     const screen = await render(
-      <RecurringPaymentReminderSheet
-        visible
+      <RecurringPaymentReminderForm
         initialValue={{ ...detectedValue, id: 41, anchorDate: '2026-01-31' }}
         defaultCurrency="PLN"
         onClose={jest.fn()}
@@ -187,8 +178,7 @@ describe('RecurringPaymentReminderSheet', () => {
     const pending = deferred<number>();
     create.mockReturnValue(pending.promise);
     const screen = await render(
-      <RecurringPaymentReminderSheet
-        visible
+      <RecurringPaymentReminderForm
         initialValue={detectedValue}
         defaultCurrency="PLN"
         onClose={jest.fn()}
@@ -211,4 +201,29 @@ describe('RecurringPaymentReminderSheet', () => {
     });
     await waitFor(() => expect(create).toHaveBeenCalledTimes(1));
   });
+
+  it('tekrar aralığını anlaşılır özetler ve stepper değişikliğini kaydeder', async () => {
+    const screen = await render(
+      <RecurringPaymentReminderForm
+        initialValue={detectedValue}
+        defaultCurrency="PLN"
+        onClose={jest.fn()}
+        onSaved={jest.fn()}
+      />,
+    );
+
+    expect(screen.getByTestId('recurring-plan-interval-summary').props.children)
+      .toBe('recurring_plan_interval_every_month');
+    await fireEvent.press(screen.getByTestId('recurring-plan-interval-plus'));
+    expect(screen.getByTestId('recurring-plan-interval').props.value).toBe('2');
+    expect(screen.getByTestId('recurring-plan-interval-summary').props.children)
+      .toBe('recurring_plan_interval_month');
+
+    await fireEvent.press(screen.getByTestId('recurring-plan-save'));
+    await waitFor(() => expect(create).toHaveBeenCalledWith(expect.objectContaining({
+      recurrenceUnit: 'month',
+      recurrenceInterval: 2,
+    })));
+  });
+
 });

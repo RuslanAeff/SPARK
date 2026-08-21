@@ -8,6 +8,7 @@ jest.mock('../../i18n/LanguageContext', () => ({
 
 jest.mock('../../theme/themeStore', () => ({
   useAppTheme: () => 'dark',
+  useThemePalette: () => jest.requireActual('../../theme/colors').DarkTheme,
 }));
 
 jest.mock('react-native-safe-area-context', () => ({

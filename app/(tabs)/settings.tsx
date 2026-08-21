@@ -1,7 +1,7 @@
 // S.P.A.R.K. — Settings Screen (group menu)
 import React, { useMemo } from 'react';
 import { View, Text, ScrollView, StyleSheet, Pressable, Linking } from 'react-native';
-import { useAppTheme } from '../../src/theme/themeStore';
+import { useAppTheme, useThemeRevision } from '../../src/theme/themeStore';
 import { useRouter } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -25,7 +25,8 @@ interface SettingsGroup {
 
 export default function SettingsScreen() {
   const colorScheme = useAppTheme();
-  const styles = useMemo(() => getStyles(), [colorScheme]);
+  const themeRevision = useThemeRevision();
+  const styles = useMemo(() => getStyles(), [colorScheme, themeRevision]);
   const router = useRouter();
   const { t } = useLanguage();
 

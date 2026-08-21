@@ -29,6 +29,21 @@ export interface BudgetCycle {
   startDay: number;
 }
 
+/** Veritabanında dondurulmuş kesin dönem sınırlarını BudgetCycle biçimine taşır. */
+export function budgetCycleFromBounds(
+  start: string,
+  end: string,
+  startDayRaw: number,
+): BudgetCycle {
+  return {
+    start,
+    end,
+    key: start.slice(0, 7),
+    totalDays: dayDiff(start, end) + 1,
+    startDay: normalizeCycleStartDay(startDayRaw),
+  };
+}
+
 /** 1–31 aralığına kıst; geçersiz değerde varsayılana (1) döner. */
 export function normalizeCycleStartDay(day: unknown): number {
   const n = typeof day === 'number' ? day : parseInt(String(day ?? ''), 10);

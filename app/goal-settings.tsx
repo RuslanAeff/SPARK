@@ -22,7 +22,8 @@ import { SparkToast } from '../src/components/SparkToast';
 import GlassDeleteModal from '../src/components/GlassDeleteModal';
 import CustomDatePicker from '../src/components/CustomDatePicker';
 import { getToday, normalizeToYYYYMMDD } from '../src/utils/dateUtils';
-import { susevarButton, susevarButtonText } from '../src/theme/susevar';
+import { createSusevarStyles } from '../src/theme/susevar';
+import { useThemeRevision } from '../src/theme/themeStore';
 
 function monthKey(): string {
   const d = new Date();
@@ -30,6 +31,7 @@ function monthKey(): string {
 }
 
 export default function GoalSettingsScreen() {
+  useThemeRevision();
   const router = useRouter();
   const { t, tc } = useLanguage();
   const { currency } = useCurrency();
@@ -111,11 +113,12 @@ export default function GoalSettingsScreen() {
 
   async function handleSave() {
     const amt = parseFloat(amountStr.replace(',', '.'));
-    if (!title.trim()) {
+    const hasGoalDraft = Boolean(title.trim() || amountStr.trim() || currentAmountStr.trim());
+    if (hasGoalDraft && !title.trim()) {
       SparkToast.show(t('goal_title_required'), 'error');
       return;
     }
-    if (isNaN(amt) || amt <= 0) {
+    if (hasGoalDraft && (isNaN(amt) || amt <= 0)) {
       SparkToast.show(t('invalid_amount'), 'error');
       return;
     }
@@ -125,13 +128,15 @@ export default function GoalSettingsScreen() {
 
     setSaving(true);
     try {
-      await GoalDao.upsert({
-        title: title.trim(),
-        target_amount: amt,
-        target_date: normalizeToYYYYMMDD(targetDate),
-        currency,
-        current_amount,
-      });
+      if (hasGoalDraft) {
+        await GoalDao.upsert({
+          title: title.trim(),
+          target_amount: amt,
+          target_date: normalizeToYYYYMMDD(targetDate),
+          currency,
+          current_amount,
+        });
+      }
 
       const existing = await CategoryLimitDao.getForMonth(m);
       const kept = new Set(limits.map(l => l.category_id));
@@ -294,6 +299,7 @@ export default function GoalSettingsScreen() {
           </Pressable>
 
           <Pressable
+            testID="goal-settings-save"
             onPress={handleSave}
             disabled={saving || clearing || loading}
             style={({ pressed }) => [
@@ -480,10 +486,10 @@ const getStyles = () => StyleSheet.create({
   },
   /** Şüşevar — kaydet */
   saveBtn: {
-    ...susevarButton,
+    ...createSusevarStyles(Colors).button,
     marginTop: Spacing.xxl,
   },
-  saveBtnText: susevarButtonText,
+  saveBtnText: createSusevarStyles(Colors).text,
   clearBtn: {
     marginTop: Spacing.lg,
     backgroundColor: Colors.danger,

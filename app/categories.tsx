@@ -4,7 +4,14 @@ import {
   View, Text, ScrollView, StyleSheet, Pressable, TextInput, LayoutAnimation, Platform, UIManager,
 } from 'react-native';
 
-if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
+const isFabricEnabled = Boolean(
+  (globalThis as typeof globalThis & { nativeFabricUIManager?: unknown }).nativeFabricUIManager,
+);
+if (
+  Platform.OS === 'android'
+  && !isFabricEnabled
+  && UIManager.setLayoutAnimationEnabledExperimental
+) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
 }
 import { useRouter } from 'expo-router';
@@ -15,6 +22,7 @@ import Animated, { FadeInDown, LinearTransition } from 'react-native-reanimated'
 
 import * as Haptics from 'expo-haptics';
 import { Colors } from '../src/theme/colors';
+import { useThemeRevision } from '../src/theme/themeStore';
 import { Typography, FontFamily } from '../src/theme/typography';
 import { Spacing, ScreenPadding, BorderRadius } from '../src/theme/spacing';
 import { CategoryDao } from '../src/db/categoryDao';
@@ -24,6 +32,7 @@ import GlassDeleteModal from '../src/components/GlassDeleteModal';
 import { SparkToast } from '../src/components/SparkToast';
 
 export default function CategoriesScreen() {
+  useThemeRevision();
   const styles = getStyles();
   const router = useRouter();
   const { t, tc } = useLanguage();
@@ -132,7 +141,7 @@ export default function CategoriesScreen() {
               onPress={() => { setAddingTo(null); setShowAdd(true); }}
               style={styles.emptyCTA}
             >
-              <MaterialCommunityIcons name="plus" size={18} color={Colors.textInverse} />
+              <MaterialCommunityIcons name="plus" size={18} color={Colors.onPrimary} />
               <Text style={styles.emptyCTAText}>{t('empty_categories_cta')}</Text>
             </Pressable>
           </View>
@@ -348,7 +357,7 @@ const getStyles = () => StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.sm,
-    backgroundColor: Colors.primary,
+    backgroundColor: Colors.primaryAction,
     paddingHorizontal: Spacing.xl,
     paddingVertical: Spacing.md,
     borderRadius: BorderRadius.round,
@@ -356,7 +365,7 @@ const getStyles = () => StyleSheet.create({
   },
   emptyCTAText: {
     ...Typography.labelMedium,
-    color: Colors.textInverse,
+    color: Colors.onPrimary,
     fontFamily: FontFamily.semiBold,
   },
 });

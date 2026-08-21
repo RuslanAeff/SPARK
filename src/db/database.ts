@@ -5,16 +5,107 @@ import {
   DEFAULT_CATEGORIES,
   PAYMENT_REMINDERS_SCHEMA_SQL,
 } from './schema';
+import { getCycleForKey, normalizeCycleStartDay } from '../utils/budgetCycle';
 
 let db: SQLite.SQLiteDatabase | null = null;
 let initPromise: Promise<SQLite.SQLiteDatabase> | null = null;
 const RECEIPT_MONEY_PRECISION_MIGRATION = 'migration_receipt_money_precision_v1';
+export const ITEM_MEASUREMENT_UNIT_MIGRATION = 'migration_item_measurement_unit_v1';
+export const BUDGET_PERIOD_SNAPSHOT_MIGRATION = 'migration_budget_period_snapshot_v1';
 export const PAYMENT_REMINDERS_MIGRATION = 'migration_payment_reminders_v1';
 export const PAYMENT_REMINDER_VENDOR_DETACH_MIGRATION =
   'migration_payment_reminder_vendor_detach_v2';
 
 interface SqliteTableInfoRow {
   name: string;
+}
+
+/**
+ * Kalem miktarını ölçü boyutuyla birlikte saklar. Eski kayıtlarda açık `kg`
+ * ibaresi veya kesirli miktar, ağırlıklı ürün için güvenli geriye-dönük sinyal
+ * kabul edilir; diğer bütün satırlar adet olarak kalır.
+ */
+export async function migrateItemMeasurementUnitsOnce(
+  database: SQLite.SQLiteDatabase,
+): Promise<void> {
+  const applied = await database.getFirstAsync<{ value: string }>(
+    'SELECT value FROM settings WHERE key = ?',
+    [ITEM_MEASUREMENT_UNIT_MIGRATION],
+  );
+  if (applied?.value === '1') return;
+
+  const columns = await database.getAllAsync<SqliteTableInfoRow>(
+    'PRAGMA table_info(expense_items);',
+  );
+  const hasColumn = columns.some(column => column.name === 'measurement_unit');
+  await database.withTransactionAsync(async () => {
+    if (!hasColumn) {
+      await database.execAsync(
+        "ALTER TABLE expense_items ADD COLUMN measurement_unit TEXT NOT NULL DEFAULT 'piece';",
+      );
+    }
+    await database.runAsync(`
+      UPDATE expense_items
+         SET measurement_unit = 'kg'
+       WHERE measurement_unit = 'piece'
+         AND (
+           LOWER(name) LIKE '%(kg)%'
+           OR LOWER(COALESCE(turkish_name, '')) LIKE '%(kg)%'
+           OR (quantity > 0 AND quantity < 50 AND ABS(quantity - ROUND(quantity)) > 0.000001)
+         )
+    `);
+    await database.runAsync(
+      'INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)',
+      [ITEM_MEASUREMENT_UNIT_MIGRATION, '1'],
+    );
+  });
+}
+
+/** Mevcut bütçelerin tarih aralığını o anda kayıtlı döngü gününe göre dondurur. */
+export async function migrateBudgetPeriodSnapshotsOnce(
+  database: SQLite.SQLiteDatabase,
+): Promise<void> {
+  const applied = await database.getFirstAsync<{ value: string }>(
+    'SELECT value FROM settings WHERE key = ?',
+    [BUDGET_PERIOD_SNAPSHOT_MIGRATION],
+  );
+  if (applied?.value === '1') return;
+
+  const columns = await database.getAllAsync<SqliteTableInfoRow>('PRAGMA table_info(budgets);');
+  const existing = new Set(columns.map((column) => column.name));
+  const anchorRow = await database.getFirstAsync<{ value: string }>(
+    'SELECT value FROM settings WHERE key = ?',
+    ['budget_cycle_start_day'],
+  );
+  const anchor = normalizeCycleStartDay(anchorRow?.value ?? 1);
+
+  await database.withTransactionAsync(async () => {
+    if (!existing.has('period_start')) {
+      await database.execAsync('ALTER TABLE budgets ADD COLUMN period_start TEXT;');
+    }
+    if (!existing.has('period_end')) {
+      await database.execAsync('ALTER TABLE budgets ADD COLUMN period_end TEXT;');
+    }
+    if (!existing.has('cycle_start_day')) {
+      await database.execAsync('ALTER TABLE budgets ADD COLUMN cycle_start_day INTEGER;');
+    }
+    const rows = await database.getAllAsync<{ id: number; start_date: string }>(
+      'SELECT id, start_date FROM budgets WHERE period_start IS NULL OR period_end IS NULL',
+    );
+    for (const row of rows) {
+      const key = row.start_date.slice(0, 7);
+      if (!/^\d{4}-\d{2}$/.test(key)) continue;
+      const cycle = getCycleForKey(anchor, key);
+      await database.runAsync(
+        'UPDATE budgets SET period_start = ?, period_end = ?, cycle_start_day = ? WHERE id = ?',
+        [cycle.start, cycle.end, anchor, row.id],
+      );
+    }
+    await database.runAsync(
+      'INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)',
+      [BUDGET_PERIOD_SNAPSHOT_MIGRATION, '1'],
+    );
+  });
 }
 
 /**
@@ -144,6 +235,7 @@ export async function getDatabase(): Promise<SQLite.SQLiteDatabase> {
       if (__DEV__) console.warn('[DB] integrity check error', e);
     }
     await instance.execAsync(CREATE_TABLES_SQL);
+    await migrateBudgetPeriodSnapshotsOnce(instance);
     await migratePaymentRemindersOnce(instance);
     try {
       await instance.execAsync('ALTER TABLE expense_items ADD COLUMN turkish_name TEXT;');
@@ -156,6 +248,7 @@ export async function getDatabase(): Promise<SQLite.SQLiteDatabase> {
     try {
       await instance.execAsync('ALTER TABLE expense_items ADD COLUMN list_line_total_before_discount REAL;');
     } catch (_) {}
+    await migrateItemMeasurementUnitsOnce(instance);
     await normalizeReceiptMoneyPrecisionOnce(instance);
     try {
       await instance.execAsync(`
@@ -394,10 +487,14 @@ async function seedIfNeeded(database: SQLite.SQLiteDatabase): Promise<void> {
     'SELECT COUNT(*) as count FROM budgets WHERE active = 1'
   );
   if (budget && budget.count === 0) {
-    const today = new Date().toISOString().split('T')[0];
+    const now = new Date();
+    const month = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    const cycle = getCycleForKey(1, month);
     await database.runAsync(
-      'INSERT INTO budgets (monthly_amount, currency, start_date, active) VALUES (?, ?, ?, 1)',
-      [5000, 'PLN', today]
+      `INSERT INTO budgets
+        (monthly_amount, currency, start_date, period_start, period_end, cycle_start_day, active)
+       VALUES (?, ?, ?, ?, ?, ?, 1)`,
+      [5000, 'PLN', month, cycle.start, cycle.end, 1]
     );
   }
 }

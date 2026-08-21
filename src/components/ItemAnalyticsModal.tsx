@@ -16,11 +16,21 @@ import LineChart from './LineChart';
 import { buildAdaptivePriceHistorySeries } from '../utils/priceHistorySeries';
 import { useLanguage } from '../i18n/LanguageContext';
 import { useCurrency } from '../context/CurrencyContext';
-import { useAppTheme } from '../theme/themeStore';
+import { useAppTheme, useThemeRevision } from '../theme/themeStore';
+import {
+  formatMeasurementQuantity,
+  measurementUnitSuffix,
+  sanitizeMeasurementUnit,
+  type MeasurementUnit,
+} from '../utils/measurementUnit';
+import { useTabSwipe } from '../context/TabSwipeContext';
+
+const HISTORY_PAGE_SIZE = 6;
 
 interface ItemAnalyticsModalProps {
   visible: boolean;
   itemName: string;
+  measurementUnit?: MeasurementUnit;
   onClose: () => void;
 }
 
@@ -29,6 +39,7 @@ interface ItemStats {
   avg_price: number;
   purchase_count: number;
   total_quantity: number;
+  measurement_unit?: MeasurementUnit;
 }
 
 interface ItemHistoryEntry {
@@ -37,42 +48,52 @@ interface ItemHistoryEntry {
   total_price: number;
   quantity: number;
   vendor_name: string;
+  measurement_unit: MeasurementUnit;
 }
 
-export default function ItemAnalyticsModal({ visible, itemName, onClose }: ItemAnalyticsModalProps) {
+export default function ItemAnalyticsModal({ visible, itemName, measurementUnit, onClose }: ItemAnalyticsModalProps) {
   const scheme = useAppTheme();
-  const styles = useMemo(() => getStyles(), [scheme]);
+  const themeRevision = useThemeRevision();
+  const styles = useMemo(() => getStyles(), [scheme, themeRevision]);
   const { t } = useLanguage();
   const { currency } = useCurrency();
+  const { setNestedHorizontalGestureActive } = useTabSwipe();
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState<ItemStats | null>(null);
   const [history, setHistory] = useState<ItemHistoryEntry[]>([]);
-  const [showAllHistory, setShowAllHistory] = useState(false);
+  const [historyPageWidth, setHistoryPageWidth] = useState(0);
+  const [historyPageIndex, setHistoryPageIndex] = useState(0);
   const mountedRef = useRef(true);
   const requestSequenceRef = useRef(0);
 
-  useEffect(() => () => { mountedRef.current = false; }, []);
+  useEffect(() => () => {
+    mountedRef.current = false;
+    setNestedHorizontalGestureActive(false);
+  }, [setNestedHorizontalGestureActive]);
 
   useEffect(() => {
     if (visible && itemName) {
       const sequence = ++requestSequenceRef.current;
       setStats(null);
       setHistory([]);
-      setShowAllHistory(false);
+      setHistoryPageIndex(0);
       void loadData(itemName, sequence);
     } else {
       requestSequenceRef.current += 1;
-      setShowAllHistory(false);
+      setHistoryPageIndex(0);
+      setNestedHorizontalGestureActive(false);
     }
     return () => {
       requestSequenceRef.current += 1;
     };
-  }, [visible, itemName]);
+  }, [visible, itemName, measurementUnit]);
 
   async function loadData(targetItemName: string, sequence: number) {
     setLoading(true);
     try {
-      const result = await ExpenseDao.getItemAnalytics(targetItemName);
+      const result = measurementUnit
+        ? await ExpenseDao.getItemAnalytics(targetItemName, measurementUnit)
+        : await ExpenseDao.getItemAnalytics(targetItemName);
       if (!mountedRef.current || sequence !== requestSequenceRef.current) return;
       setStats(result.stats);
       setHistory(result.history);
@@ -89,23 +110,36 @@ export default function ItemAnalyticsModal({ visible, itemName, onClose }: ItemA
   const chartData = chartSeries.points;
 
   const { vendorPrices, cheapestPrice } = useMemo(() => {
-    const vendorMap = new Map<string, { total: number; count: number }>();
+    const vendorMap = new Map<string, { spent: number; quantity: number; count: number }>();
     history.forEach(h => {
       const vn = h.vendor_name || t('unknown');
-      const existing = vendorMap.get(vn) || { total: 0, count: 0 };
-      existing.total += h.unit_price;
+      const existing = vendorMap.get(vn) || { spent: 0, quantity: 0, count: 0 };
+      existing.spent += h.total_price;
+      existing.quantity += h.quantity;
       existing.count += 1;
       vendorMap.set(vn, existing);
     });
     const prices: { name: string; avgPrice: number; count: number }[] = [];
     vendorMap.forEach((val, key) => {
-      prices.push({ name: key, avgPrice: val.total / val.count, count: val.count });
+      prices.push({
+        name: key,
+        avgPrice: val.quantity > 0 ? val.spent / val.quantity : 0,
+        count: val.count,
+      });
     });
     prices.sort((a, b) => a.avgPrice - b.avgPrice);
     return { vendorPrices: prices, cheapestPrice: prices.length > 0 ? prices[0].avgPrice : 0 };
   }, [history, t]);
 
-  const visibleHistory = showAllHistory ? history : history.slice(-5);
+  const historyPages = useMemo(() => {
+    const newestFirst = [...history].reverse();
+    const pages: ItemHistoryEntry[][] = [];
+    for (let index = 0; index < newestFirst.length; index += HISTORY_PAGE_SIZE) {
+      pages.push(newestFirst.slice(index, index + HISTORY_PAGE_SIZE));
+    }
+    return pages;
+  }, [history]);
+  const resolvedUnit = sanitizeMeasurementUnit(stats?.measurement_unit ?? measurementUnit);
 
   // NOT: `if (!visible) return null;` KALDIRILDI. BottomSheetModal
   // kendi mount state'ini yönetiyor; erken return kapanış animasyonunu
@@ -155,15 +189,18 @@ export default function ItemAnalyticsModal({ visible, itemName, onClose }: ItemA
                     <MaterialCommunityIcons name="chart-line" size={18} color={Colors.warning} />
                     <Text style={styles.statValue}>
                       {formatCurrency(stats?.avg_price || 0, currency)}
+                      {measurementUnitSuffix(resolvedUnit, t('measurement_unit_piece'))}
                     </Text>
                     <Text style={styles.statLabel}>{t('avg_unit_price')}</Text>
                   </View>
                   <View style={styles.statCard}>
                     <MaterialCommunityIcons name="package-variant" size={18} color={Colors.info} />
                     <Text style={styles.statValue}>
-                      {(stats?.total_quantity || 0).toFixed(1)}
+                      {formatMeasurementQuantity(stats?.total_quantity || 0, resolvedUnit)}
                     </Text>
-                    <Text style={styles.statLabel}>{t('total_quantity_label')}</Text>
+                    <Text style={styles.statLabel}>
+                      {resolvedUnit === 'piece' ? t('total_quantity_label') : t('total_measurement_label')}
+                    </Text>
                   </View>
                 </View>
 
@@ -175,7 +212,7 @@ export default function ItemAnalyticsModal({ visible, itemName, onClose }: ItemA
                       {'  '}{t('price_change')}
                     </Text>
                     <LineChart
-                      key={itemName}
+                      key={`${itemName}-${resolvedUnit}`}
                       data={chartData}
                       height={160}
                       color={Colors.primary}
@@ -237,27 +274,74 @@ export default function ItemAnalyticsModal({ visible, itemName, onClose }: ItemA
                       <MaterialCommunityIcons name="history" size={14} color={Colors.textSecondary} />
                       {'  '}{t('purchase_history')}
                     </Text>
-                    {visibleHistory.map((h, i) => (
-                      <View key={`${h.date}-${i}`} style={styles.historyRow}>
-                        <View style={styles.historyDate}>
-                          <Text style={styles.historyDateText}>
-                            {h.date.split('-').reverse().join('.')}
-                          </Text>
-                        </View>
-                        <View style={styles.historyMid}>
-                          <Text style={styles.historyVendor} numberOfLines={1}>{h.vendor_name}</Text>
-                          <Text style={styles.historyQty}>{h.quantity}x</Text>
-                        </View>
-                        <Text style={styles.historyPrice}>
-                          {formatCurrency(h.total_price, currency)}
-                        </Text>
+                    <View
+                      testID="purchase-history-pager-viewport"
+                      style={styles.historyPagerViewport}
+                      onLayout={event => setHistoryPageWidth(Math.round(event.nativeEvent.layout.width))}
+                    >
+                      <ScrollView
+                        testID="purchase-history-pager"
+                        horizontal
+                        pagingEnabled
+                        nestedScrollEnabled
+                        directionalLockEnabled
+                        disableIntervalMomentum
+                        decelerationRate="fast"
+                        showsHorizontalScrollIndicator={false}
+                        onTouchStart={() => setNestedHorizontalGestureActive(true)}
+                        onTouchEnd={() => setNestedHorizontalGestureActive(false)}
+                        onTouchCancel={() => setNestedHorizontalGestureActive(false)}
+                        onMomentumScrollEnd={event => {
+                          if (historyPageWidth > 0) {
+                            setHistoryPageIndex(Math.round(
+                              event.nativeEvent.contentOffset.x / historyPageWidth,
+                            ));
+                          }
+                        }}
+                      >
+                        {historyPages.map((page, pageIndex) => (
+                          <View
+                            testID={`purchase-history-page-${pageIndex}`}
+                            key={`history-page-${pageIndex}`}
+                            style={[
+                              styles.historyPage,
+                              historyPageWidth > 0 && { width: historyPageWidth },
+                            ]}
+                          >
+                            {page.map((h, rowIndex) => (
+                              <View key={`${h.date}-${h.vendor_name}-${rowIndex}`} style={styles.historyRow}>
+                                <View style={styles.historyDate}>
+                                  <Text style={styles.historyDateText}>
+                                    {h.date.split('-').reverse().join('.')}
+                                  </Text>
+                                </View>
+                                <View style={styles.historyMid}>
+                                  <Text style={styles.historyVendor} numberOfLines={1}>{h.vendor_name}</Text>
+                                  <Text style={styles.historyQty}>
+                                    {formatMeasurementQuantity(h.quantity, h.measurement_unit)}
+                                  </Text>
+                                </View>
+                                <Text style={styles.historyPrice}>
+                                  {formatCurrency(h.total_price, currency)}
+                                </Text>
+                              </View>
+                            ))}
+                          </View>
+                        ))}
+                      </ScrollView>
+                    </View>
+                    {historyPages.length > 1 && (
+                      <View style={styles.historyPageDots}>
+                        {historyPages.map((_, index) => (
+                          <View
+                            key={`history-dot-${index}`}
+                            style={[
+                              styles.historyPageDot,
+                              index === historyPageIndex && styles.historyPageDotActive,
+                            ]}
+                          />
+                        ))}
                       </View>
-                    ))}
-                    {history.length > 5 && !showAllHistory && (
-                      <Pressable onPress={() => setShowAllHistory(true)} style={styles.showAllBtn}>
-                        <Text style={styles.showAllText}>{t('show_all_history', { count: history.length.toString() })}</Text>
-                        <MaterialCommunityIcons name="chevron-down" size={16} color={Colors.primary} />
-                      </Pressable>
                     )}
                   </View>
                 )}
@@ -270,7 +354,7 @@ export default function ItemAnalyticsModal({ visible, itemName, onClose }: ItemA
   );
 }
 
-const { height: SCREEN_H } = Dimensions.get('window');
+const { height: SCREEN_H, width: SCREEN_W } = Dimensions.get('window');
 
 const getStyles = () => StyleSheet.create({
   sheet: {
@@ -473,15 +557,28 @@ const getStyles = () => StyleSheet.create({
     width: 70,
     textAlign: 'right',
   },
-  showAllBtn: {
+  historyPagerViewport: {
+    width: '100%',
+    overflow: 'hidden',
+  },
+  historyPage: {
+    width: SCREEN_W - ScreenPadding.horizontal * 2,
+  },
+  historyPageDots: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: Spacing.md,
-    gap: 4,
+    gap: Spacing.xs,
+    paddingTop: Spacing.md,
   },
-  showAllText: {
-    ...Typography.labelMedium,
-    color: Colors.primary,
+  historyPageDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: Colors.divider,
+  },
+  historyPageDotActive: {
+    width: 18,
+    backgroundColor: Colors.primary,
   },
 });

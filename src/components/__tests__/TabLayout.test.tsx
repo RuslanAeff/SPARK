@@ -3,9 +3,10 @@ import { render } from '@testing-library/react-native';
 import { StyleSheet } from 'react-native';
 
 import TabLayout from '../../../app/(tabs)/_layout';
-import { DarkTheme, LightTheme } from '../../theme/colors';
+import { DarkTheme, LightTheme, resolveTheme, type ThemeAccent } from '../../theme/colors';
 
 let mockScheme: 'light' | 'dark' = 'dark';
+let mockAccent: ThemeAccent = 'green';
 let mockNavigatorProps: Record<string, any> = {};
 
 jest.mock('expo-router', () => ({
@@ -40,6 +41,7 @@ jest.mock('react-native-safe-area-context', () => ({
 
 jest.mock('../../theme/themeStore', () => ({
   useAppTheme: () => mockScheme,
+  useThemePalette: () => jest.requireActual('../../theme/colors').resolveTheme(mockScheme, mockAccent),
   getAppThemeSnapshot: () => mockScheme,
 }));
 
@@ -68,5 +70,18 @@ describe('Tab navigator themed transition surfaces', () => {
     expectThemeSurface(LightTheme.background);
 
     screen.unmount();
+  });
+
+  it('updates the active tab accent without remounting the navigator', async () => {
+    mockScheme = 'dark';
+    mockAccent = 'green';
+    const screen = await render(<TabLayout />);
+    expect(mockNavigatorProps.screenOptions({ route: { name: 'scanner' } }).tabBarActiveTintColor)
+      .toBe(resolveTheme('dark', 'green').tabActive);
+
+    mockAccent = 'red';
+    await screen.rerender(<TabLayout />);
+    expect(mockNavigatorProps.screenOptions({ route: { name: 'scanner' } }).tabBarActiveTintColor)
+      .toBe(resolveTheme('dark', 'red').tabActive);
   });
 });

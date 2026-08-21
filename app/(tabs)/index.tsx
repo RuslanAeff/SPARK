@@ -1,7 +1,7 @@
 // S.P.A.R.K. — Dashboard Screen (Home)
 import React, { useCallback } from 'react';
 import { View, Text, ScrollView, StyleSheet, RefreshControl, Pressable } from 'react-native';
-import { useAppTheme } from '../../src/theme/themeStore';
+import { useAppTheme, useThemeRevision } from '../../src/theme/themeStore';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useIsFocused } from '@react-navigation/native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -40,7 +40,8 @@ import { getDashboardGoalPresentation } from '../../src/utils/dashboardGoalPrese
 export default function DashboardScreen() {
   // İlk açılışta DB teması gelince tüm kartlar aynı React store'undan senkronlensin.
   const scheme = useAppTheme();
-  const styles = React.useMemo(() => getStyles(), [scheme]);
+  const themeRevision = useThemeRevision();
+  const styles = React.useMemo(() => getStyles(), [scheme, themeRevision]);
   const router = useRouter();
   const { t, tc } = useLanguage();
 
@@ -943,14 +944,14 @@ const getStyles = () => StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.sm,
-    backgroundColor: Colors.primary,
+    backgroundColor: Colors.primaryAction,
     paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.md,
     borderRadius: BorderRadius.round,
   },
   emptyCTAPrimaryText: {
     ...Typography.labelMedium,
-    color: Colors.textInverse,
+    color: Colors.onPrimary,
     fontFamily: FontFamily.semiBold,
   },
   emptyCTASecondary: {

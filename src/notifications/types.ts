@@ -25,6 +25,10 @@ export interface RulesState {
   budget?: Record<string, { b80?: boolean; b100?: boolean; over?: boolean }>;
   cat?: Record<string, { near?: boolean; over?: boolean }>;
   goalRisk?: Record<string, boolean>;
+  /** Son kanonik hedef-tarihi kilometre taşı; silinen aynı eşik geri dirilmez. */
+  goalDeadlineLast?: string;
+  /** Son kanonik bütçe-dönemi kontrol noktası; yalnız yeni eşikte ilerler. */
+  budgetReviewLast?: string;
   monthBudgetHint?: Record<string, boolean>;
   apiDismissed?: boolean;
   scanErrorDismissed?: boolean;

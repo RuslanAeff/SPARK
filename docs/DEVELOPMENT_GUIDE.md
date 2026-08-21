@@ -64,25 +64,42 @@ Splash sürekliliği, gesture, izinler, kamera, paylaşım, bildirimler veya SQL
 
 ## Tema ve görsel sistem
 
-[`src/theme/themeStore.ts`](../src/theme/themeStore.ts) içindeki çalışma zamanı tema mağazası uygulama temasının yetkili kaynağıdır.
+[`src/theme/themeStore.ts`](../src/theme/themeStore.ts) içindeki çalışma zamanı
+tema mağazası uygulama temasının yetkili kaynağıdır. Yetkili snapshot görünüm
+şemasını, vurgu kimliğini, çözülmüş paleti ve revision'ı birlikte taşır.
 
-Tema duyarlı component'ler stilleri mevcut uygulama şemasından çözmelidir:
+Yalnız açık/koyu yüzey kullanan component mevcut uygulama şemasını; vurgu token'ı
+kullanan component ise tam paleti veya revision'ı izlemelidir:
 
 ```tsx
 const scheme = useAppTheme();
 const styles = useMemo(() => getStyles(), [scheme]);
+
+const palette = useThemePalette();
+const styles = useMemo(() => getStyles(palette), [palette]);
+
+// Colors proxy kullanan mevcut getStyles fabrikaları için:
+const revision = useThemeRevision();
+const styles = useMemo(() => getStyles(), [scheme, revision]);
 ```
 
-`getStyles` açıkça tema nesnesi veya `isDark` parametresi alacak şekilde tasarlanmışsa parametreli eşdeğer kalıp kullanılabilir; bağımlılık dizisi yine aktif şemayı izlemelidir.
+`getStyles` açıkça tema nesnesi veya `isDark` parametresi alacak şekilde
+tasarlanmışsa parametreli eşdeğer kalıp kullanılabilir. Bağımlılık dizisi,
+fonksiyonun okuduğu bütün tema eksenlerini izlemelidir; yalnız `[scheme]`, vurgu
+token'ı kullanan bir StyleSheet için yeterli değildir.
 
 Kurallar:
 
 - `Colors` proxy değerlerini modül seviyesindeki `StyleSheet.create` içine hapsetmeyin; bu değerler yanlış şemada donabilir.
 - Uygulama içi tema değişiklikleri için `Appearance.setColorScheme` kullanmayın. Android activity'sini yeniden oluşturup açılış/tema flicker sorununu geri getirebilir.
+- Kalıcı şema ve vurgu tercihini başlangıçta ayrı ara render'lara sızdırmayın; DB readiness içinde birlikte okuyup tek snapshot olarak uygulayın.
+- Vurgu değişiminde root navigator'a `key` vermeyin veya navigation ağacını yeniden mount etmeyin. Aktif rota, sheet ve gesture durumu korunurken theme context'i güncellenmelidir.
 - Route arka planları, modal yüzeyleri, status-bar stili ve yükleme yüzeyleri aynı uygulama temasından çözülmelidir.
 - React Navigation renk context'i [`src/theme/navigationTheme.ts`](../src/theme/navigationTheme.ts) üzerinden aktif SPARK şemasıyla eşleşmelidir. Nested navigator eklerken varsayılan `DefaultTheme` arka planına güvenmeyin.
 - Lazy sekmelerde `sceneStyle` ve `lazyPlaceholder` aktif tema renginde opak kalmalıdır. Flicker'ı gizlemek için lazy loading veya geçiş animasyonunu kapatmak yerine ara yüzeyin temasını düzeltin.
-- Yeni birincil CTA'lar `src/theme/susevar.ts` içindeki ortak `susevar` yaklaşımını yeniden kullanmalıdır.
+- Yeni birincil CTA'lar `src/theme/susevar.ts` içindeki runtime palet fabrikasını kullanmalıdır. Dolu eylem yüzeyi `primaryAction`, üzerindeki metin/ikon `onPrimary` olmalıdır; yalnız dekoratif `primary` tonuna beyaz metin varsaymayın.
+- `success`, `danger`, `warning` ve `info` kullanıcı vurgusu değildir. Kategori, grafik serisi, logo ve splash renklerini vurgu seçimine bağlamayın.
+- Yeni vurgu değeri eklemek yalnız bir hex eklemek değildir: açık/koyu display ve action tonları, `onPrimary` kontrastı, ayar çevirileri, geçersiz tercih fallback'i ve cihaz matrisi birlikte ele alınır.
 - Glass yüzey dilini ayrı hardcoded renkler yerine tema token'larıyla koruyun.
 - Safe-area inset'lerine uyun; cihaza özgü alt boşluğu sabit padding ile taklit etmeyin.
 
@@ -98,6 +115,7 @@ Kurallar:
 ## Sheet, dialog ve geri bildirim
 
 - Yeni bottom sheet'ler [`src/components/BottomSheetModal.tsx`](../src/components/BottomSheetModal.tsx) kullanmalıdır.
+- Bir ekranı aşması beklenen, birden çok klavye alanı içeren create/edit formları yüzde-yükseklikli sheet'e sıkıştırmayın. Safe-area içinde sabit başlıklı ve yalnız gövdesi kaydırılan gerçek card route kullanın.
 - İkinci statik tutamaç render etmek yerine ortak handle davranışını kullanın.
 - Yıkıcı işlemler ortak onay yüzeyini ve danger token'larını kullanmalıdır.
 - Toast'lar kalıcı `SparkToast` host'unu kullanmalıdır. Kısa süreli geri bildirim için geçici native `Modal` oluşturmayın; native pencere churn'ü daha önce flicker üretmiştir.
@@ -184,7 +202,7 @@ Tüm görünür ürün metinleri Türkçe, İngilizce, Azerbaycanca ve Rusça ç
 | Değişiklik | Ayrıca incelenecekler |
 |---|---|
 | Yeni route veya startup provider | Root stack, startup readiness, arka plan sürekliliği, back davranışı |
-| Tema token'ı veya scheduler | Theme store, memoize stiller, startup perdesi, açık/koyu cihaz kontrolleri |
+| Tema token'ı, vurgu paleti veya scheduler | Theme store tam snapshot/revision, memoize stiller, startup perdesi, navigation context'i, semantik renk ayrımı, açık/koyu × vurgu cihaz kontrolleri |
 | Yeni veritabanı tablosu/kolonu | Şema init, uyumluluk migration'ı, DAO, backup/restore, index'ler, testler |
 | Yeni analiz kartı | Kart registry/sıra migration'ı, memoize prop'lar, ortak stiller, i18n, boş durumlar |
 | Yeni bildirim kuralı | Tip, feed builder, mute channel, dismissal kalıcılığı, Expo Go guard, testler |

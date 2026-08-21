@@ -3,9 +3,10 @@ import { fireEvent, render, waitFor } from '@testing-library/react-native';
 import { StyleSheet } from 'react-native';
 
 import ScannerScreen from '../../../app/(tabs)/scanner';
-import { DarkTheme, LightTheme } from '../../theme/colors';
+import { DarkTheme, LightTheme, resolveTheme, type ThemeAccent } from '../../theme/colors';
 
 let mockScheme: 'light' | 'dark' = 'dark';
+let mockAccent: ThemeAccent = 'green';
 const mockUseAppTheme = jest.fn(() => mockScheme);
 const mockRequestCameraPermissionsAsync = jest.fn();
 const mockRequestMediaLibraryPermissionsAsync = jest.fn();
@@ -37,6 +38,7 @@ jest.mock('expo-haptics', () => ({
 
 jest.mock('../../theme/themeStore', () => ({
   useAppTheme: () => mockUseAppTheme(),
+  useThemePalette: () => jest.requireActual('../../theme/colors').resolveTheme(mockUseAppTheme(), mockAccent),
   getAppThemeSnapshot: () => mockScheme,
 }));
 
@@ -85,6 +87,7 @@ jest.mock('../AnimatedCard', () => {
 describe('Scanner runtime theme', () => {
   beforeEach(() => {
     mockScheme = 'dark';
+    mockAccent = 'green';
     mockUseAppTheme.mockClear();
     mockRequestCameraPermissionsAsync.mockReset();
     mockRequestMediaLibraryPermissionsAsync.mockReset();
@@ -136,6 +139,18 @@ describe('Scanner runtime theme', () => {
     expect(
       StyleSheet.flatten(screen.getByTestId('scanner-gallery-action').props.style).backgroundColor,
     ).toBe(LightTheme.cardSurface);
+  });
+
+  it('updates accent surfaces on the mounted scanner without changing scheme', async () => {
+    const screen = await render(<ScannerScreen />);
+    expect(StyleSheet.flatten(screen.getByTestId('scanner-hero-mark').props.style).backgroundColor)
+      .toBe(resolveTheme('dark', 'green').primarySoft);
+
+    mockAccent = 'purple';
+    await screen.rerender(<ScannerScreen />);
+
+    expect(StyleSheet.flatten(screen.getByTestId('scanner-hero-mark').props.style).backgroundColor)
+      .toBe(resolveTheme('dark', 'purple').primarySoft);
   });
 
   it('routes camera and gallery capsules to their matching picker APIs', async () => {

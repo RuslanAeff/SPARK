@@ -8,7 +8,7 @@ import { Pressable, StyleSheet, Switch, Text, TextInput, View } from 'react-nati
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 
 import { Colors } from '../theme/colors';
-import { useAppTheme } from '../theme/themeStore';
+import { useAppTheme, useThemeRevision } from '../theme/themeStore';
 import { BorderRadius, Spacing } from '../theme/spacing';
 import { FontFamily, Typography } from '../theme/typography';
 import { useLanguage } from '../i18n/LanguageContext';
@@ -48,7 +48,8 @@ export default function DebtReminderFields({
   onReminderTimeChange,
 }: DebtReminderFieldsProps) {
   const scheme = useAppTheme();
-  const styles = useMemo(() => getStyles(), [scheme]);
+  const themeRevision = useThemeRevision();
+  const styles = useMemo(() => getStyles(), [scheme, themeRevision]);
   const { t } = useLanguage();
   const numericDays = /^\d+$/.test(reminderDaysBefore) ? Number(reminderDaysBefore) : null;
   const isPreset = numericDays != null
@@ -443,4 +444,3 @@ const getStyles = () => StyleSheet.create({
   pressed: { opacity: 0.78 },
   disabled: { opacity: 0.5 },
 });
-

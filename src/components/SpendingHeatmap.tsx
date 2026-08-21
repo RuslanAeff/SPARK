@@ -6,7 +6,7 @@ import { Spacing, BorderRadius } from '../theme/spacing';
 import { formatCurrency } from '../utils/formatCurrency';
 import { useLanguage } from '../i18n/LanguageContext';
 import { useCurrency } from '../context/CurrencyContext';
-import { useAppTheme } from '../theme/themeStore';
+import { useAppTheme, useThemeRevision } from '../theme/themeStore';
 
 interface HeatmapProps {
   data: { date: string; total: number }[];
@@ -29,7 +29,8 @@ export default function SpendingHeatmap({ data, startDate, endDate }: HeatmapPro
   const { t } = useLanguage();
   const { currency } = useCurrency();
   const scheme = useAppTheme();
-  const styles = useMemo(() => getStyles(), [scheme]);
+  const themeRevision = useThemeRevision();
+  const styles = useMemo(() => getStyles(), [scheme, themeRevision]);
 
   const { rows, maxTotal, spendingMap, todayStr } = useMemo(() => {
     const firstDay = parseLocalYmd(startDate);

@@ -18,7 +18,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 
 import BottomSheetModal from './BottomSheetModal';
 import { Colors } from '../theme/colors';
-import { useAppTheme } from '../theme/themeStore';
+import { useAppTheme, useThemeRevision } from '../theme/themeStore';
 import { Typography, FontFamily } from '../theme/typography';
 import { Spacing, ScreenPadding, BorderRadius } from '../theme/spacing';
 import { formatCurrency } from '../utils/formatCurrency';
@@ -107,7 +107,8 @@ export default function StreakDetailsSheet({
   t,
 }: StreakDetailsSheetProps) {
   const scheme = useAppTheme();
-  const styles = useMemo(() => getStyles(), [scheme]);
+  const themeRevision = useThemeRevision();
+  const styles = useMemo(() => getStyles(), [scheme, themeRevision]);
   const locale = intlLocaleForLanguage(language);
   const { color, icon } = variantTheme(variant);
 

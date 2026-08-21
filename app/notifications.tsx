@@ -33,7 +33,7 @@ import GlassDeleteModal from '../src/components/GlassDeleteModal';
 import NotificationSwipeCard from '../src/components/NotificationSwipeCard';
 import { SparkToast } from '../src/components/SparkToast';
 import { Colors } from '../src/theme/colors';
-import { useAppTheme } from '../src/theme/themeStore';
+import { useAppTheme, useThemeRevision } from '../src/theme/themeStore';
 import { Typography, FontFamily } from '../src/theme/typography';
 import { Spacing, ScreenPadding, BorderRadius } from '../src/theme/spacing';
 import { useLanguage } from '../src/i18n/LanguageContext';
@@ -46,7 +46,7 @@ import type {
 import { localizeNotificationParams } from '../src/notifications/presentation';
 import { notificationMuteChannelFromId } from '../src/notifications/channels';
 import {
-  ensureAndroidNotificationSetup,
+  getAndroidFutureScheduleSummary,
   type AndroidNotificationSetupStatus,
 } from '../src/services/androidNotificationsSetup';
 import { formatDate } from '../src/utils/dateUtils';
@@ -128,7 +128,7 @@ function notificationAccent(severity: NotificationSeverity, isDark: boolean): st
       return isDark ? '#F6C453' : '#A86400';
     case 'info':
     default:
-      return isDark ? Colors.primaryLight : '#007A33';
+      return Colors.primary;
   }
 }
 
@@ -163,8 +163,9 @@ const SCREEN = Dimensions.get('screen');
 
 export default function NotificationsScreen() {
   const scheme = useAppTheme();
+  const themeRevision = useThemeRevision();
   const insets = useSafeAreaInsets();
-  const styles = useMemo(() => getStyles(scheme === 'dark'), [scheme]);
+  const styles = useMemo(() => getStyles(scheme === 'dark'), [scheme, themeRevision]);
   const router = useRouter();
   const { t } = useLanguage();
   const {
@@ -183,6 +184,7 @@ export default function NotificationsScreen() {
   const [muteModal, setMuteModal] = useState(false);
   const [systemNotificationStatus, setSystemNotificationStatus] =
     useState<AndroidNotificationSetupStatus | null>(null);
+  const [futureScheduleCount, setFutureScheduleCount] = useState(0);
   const [detailNotifId, setDetailNotifId] = useState<string | null>(null);
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -194,13 +196,20 @@ export default function NotificationsScreen() {
   useEffect(() => {
     if (!muteModal || Platform.OS !== 'android') return;
     let cancelled = false;
-    void ensureAndroidNotificationSetup(false).then((status) => {
-      if (!cancelled) setSystemNotificationStatus(status);
-    });
+    void (async () => {
+      // Ayarlar açıldığında önce desired-state'i yenile; ardından kullanıcının
+      // gördüğü sayı ledger tahmini değil Android'in gerçek alarm envanteri olsun.
+      await sync();
+      const summary = await getAndroidFutureScheduleSummary();
+      if (!cancelled) {
+        setSystemNotificationStatus(summary.status);
+        setFutureScheduleCount(summary.count);
+      }
+    })();
     return () => {
       cancelled = true;
     };
-  }, [muteModal]);
+  }, [muteModal, sync]);
 
   const closeOpenSwipe = useCallback(() => {
     openSwipeRef.current?.close();
@@ -448,7 +457,7 @@ export default function NotificationsScreen() {
                   <MaterialCommunityIcons
                     name="check-all"
                     size={19}
-                    color={isDark ? Colors.primaryLight : '#007A33'}
+                    color={Colors.primary}
                   />
                 </Pressable>
               )}
@@ -714,6 +723,7 @@ export default function NotificationsScreen() {
             {Platform.OS === 'android' &&
               (systemNotificationStatus === 'ready' ||
                 systemNotificationStatus === 'denied' ||
+                systemNotificationStatus === 'expo_go' ||
                 systemNotificationStatus === 'error') && (
                 <View
                   style={styles.systemNotificationRow}
@@ -734,13 +744,23 @@ export default function NotificationsScreen() {
                     />
                   </View>
                   <Text style={styles.systemNotificationText}>
-                    {t(
-                      systemNotificationStatus === 'ready'
-                        ? 'notif_system_permission_ready'
-                        : 'notif_system_permission_disabled',
-                    )}
+                    {systemNotificationStatus === 'expo_go'
+                      ? t('notif_system_schedule_expo_go')
+                      : `${t(
+                          systemNotificationStatus === 'ready'
+                            ? 'notif_system_permission_ready'
+                            : 'notif_system_permission_disabled',
+                        )}\n${systemNotificationStatus === 'ready'
+                          ? t(
+                              futureScheduleCount > 0
+                                ? 'notif_system_schedule_ready'
+                                : 'notif_system_schedule_none',
+                              { count: String(futureScheduleCount) },
+                            )
+                          : ''}`.trim()}
                   </Text>
-                  {systemNotificationStatus !== 'ready' && (
+                  {systemNotificationStatus !== 'ready'
+                    && systemNotificationStatus !== 'expo_go' && (
                     <Pressable
                       onPress={() => {
                         void Linking.openSettings().catch(() => {
@@ -775,7 +795,7 @@ export default function NotificationsScreen() {
                   }}
                   trackColor={{
                     false: Colors.surfaceLight,
-                    true: isDark ? 'rgba(0, 235, 100, 0.5)' : 'rgba(0, 178, 72, 0.55)',
+                    true: Colors.primary + '88',
                   }}
                   thumbColor={mutes[key] ? Colors.primary : Colors.textMuted}
                   accessibilityLabel={t(labelKey)}
@@ -797,18 +817,7 @@ export default function NotificationsScreen() {
   );
 }
 
-/** Şüşevar — yarı saydam cam yeşil (aydınlıkta daha doygun G + yüksek alfa → beyazımsı solma azalır) */
-function susevarGlassFill(isDark: boolean): string {
-  return isDark ? 'rgba(0, 235, 100, 0.52)' : 'rgba(0, 178, 72, 0.62)';
-}
-
-function susevarGlassBorder(isDark: boolean): string {
-  return isDark ? 'rgba(160, 255, 200, 0.55)' : 'rgba(0, 155, 62, 0.38)';
-}
-
 const getStyles = (isDark: boolean) => {
-  const glassFill = susevarGlassFill(isDark);
-  const glassBorder = susevarGlassBorder(isDark);
   return StyleSheet.create({
     container: {
       flex: 1,
@@ -952,7 +961,7 @@ const getStyles = (isDark: boolean) => {
       }),
     },
     chipTextActive: {
-      color: isDark ? Colors.primaryLight : Colors.primaryDark,
+      color: Colors.primary,
       fontFamily: FontFamily.bold,
     },
     sectionList: {
@@ -1300,13 +1309,13 @@ const getStyles = (isDark: boolean) => {
     modalPrimaryBtn: {
       marginTop: Spacing.lg,
       width: '100%',
-      backgroundColor: glassFill,
+      backgroundColor: Colors.primaryAction,
       borderRadius: BorderRadius.round,
       paddingVertical: Spacing.lg,
       alignItems: 'center',
       justifyContent: 'center',
       borderWidth: 1,
-      borderColor: glassBorder,
+      borderColor: Colors.glassBorder,
       ...Platform.select({
         ios: {
           shadowColor: Colors.primary,
@@ -1324,7 +1333,7 @@ const getStyles = (isDark: boolean) => {
       opacity: 0.92,
     },
     modalPrimaryBtnText: {
-      color: '#FFFFFF',
+      color: Colors.onPrimary,
       fontFamily: FontFamily.extraBold,
       fontSize: 16,
       letterSpacing: 0.85,

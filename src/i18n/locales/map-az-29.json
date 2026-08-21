@@ -1,0 +1,10 @@
+{
+  "notif_system_schedule_ready": "Android-də {count} tarixli xəbərdarlıq planlaşdırılıb",
+  "notif_system_schedule_none": "Hazırda planlaşdırılacaq tarixli xəbərdarlıq yoxdur",
+  "notif_system_schedule_expo_go": "Tətbiq bağlı olarkən çatdırılma Expo Go-da yoxlanmır; APK ilə sınaqdan keçirin",
+  "notif_goal_deadline_t": "Yığım hədəfini unutma",
+  "notif_goal_deadline_b": "Yığım hədəfinin son tarixinə {days} gün qalıb. İrəliləyişini nəzərdən keçir.",
+  "notif_goal_deadline_today_b": "Yığım hədəfinin son tarixi bu gündür. İrəliləyişini nəzərdən keçir.",
+  "notif_budget_review_t": "Büdcəni yoxlama vaxtıdır",
+  "notif_budget_review_b": "Büdcə dövrünün {progress}% hissəsindəsən. Xərc planını nəzərdən keçir."
+}

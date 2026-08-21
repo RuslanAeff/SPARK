@@ -12,7 +12,7 @@ import {
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { Colors } from '../theme/colors';
-import { useAppTheme } from '../theme/themeStore';
+import { useAppTheme, useThemeRevision } from '../theme/themeStore';
 import { Typography, FontFamily } from '../theme/typography';
 import { Spacing, BorderRadius, ScreenPadding } from '../theme/spacing';
 import { useLanguage } from '../i18n/LanguageContext';
@@ -29,7 +29,8 @@ type InfoModalProps = {
 export function SettingsInfoHintModal({ visible, onClose, title, paragraphs }: InfoModalProps) {
   const { t } = useLanguage();
   const scheme = useAppTheme();
-  const styles = useMemo(() => getModalStyles(), [scheme]);
+  const themeRevision = useThemeRevision();
+  const styles = useMemo(() => getModalStyles(), [scheme, themeRevision]);
 
   return (
     <Modal
@@ -77,7 +78,8 @@ type IconProps = {
 
 export function SettingsInfoIconButton({ onPress, accessibilityLabel }: IconProps) {
   const scheme = useAppTheme();
-  const styles = useMemo(() => getIconStyles(), [scheme]);
+  const themeRevision = useThemeRevision();
+  const styles = useMemo(() => getIconStyles(), [scheme, themeRevision]);
 
   return (
     <Pressable

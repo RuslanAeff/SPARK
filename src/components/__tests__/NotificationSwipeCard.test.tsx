@@ -46,6 +46,7 @@ jest.mock('react-native-gesture-handler/ReanimatedSwipeable', () => {
 
 jest.mock('../../theme/themeStore', () => ({
   useAppTheme: () => 'light',
+  useThemeRevision: () => 0,
 }));
 
 jest.mock('expo-haptics', () => ({

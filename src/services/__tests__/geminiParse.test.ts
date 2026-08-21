@@ -42,6 +42,16 @@ describe('coerceParsedReceipt', () => {
     expect(out.items[0].unit_price).toBe(5);
   });
 
+  it('gram miktarını kg tabanına çevirip kilogram fiyatını türetir', () => {
+    const out = coerceParsedReceipt({
+      vendor_name: 'Market', date: '2026-08-21', total: 7.94, currency: 'PLN',
+      items: [{ name: 'Çilek', quantity: 530, measurement_unit: 'g', unit_price: 0.015, total_price: 7.94 }],
+    })!;
+    expect(out.items[0].quantity).toBe(0.53);
+    expect(out.items[0].measurement_unit).toBe('kg');
+    expect(out.items[0].unit_price).toBeCloseTo(14.9811, 4);
+  });
+
   it('#4: kalem sayısını 500 ile sınırlar', () => {
     const many = Array.from({ length: 600 }, () => ({
       name: 'x', quantity: 1, unit_price: 1, total_price: 1, suggested_category: 'Market',

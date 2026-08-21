@@ -7,7 +7,7 @@ import ReanimatedSwipeable, {
 import * as Haptics from 'expo-haptics';
 
 import { Colors } from '../theme/colors';
-import { useAppTheme } from '../theme/themeStore';
+import { useAppTheme, useThemeRevision } from '../theme/themeStore';
 import { BorderRadius, Spacing } from '../theme/spacing';
 import { FontFamily } from '../theme/typography';
 
@@ -36,7 +36,8 @@ export default function NotificationSwipeCard({
   testID,
 }: NotificationSwipeCardProps) {
   const scheme = useAppTheme();
-  const styles = useMemo(() => getStyles(scheme === 'dark'), [scheme]);
+  const themeRevision = useThemeRevision();
+  const styles = useMemo(() => getStyles(scheme === 'dark'), [scheme, themeRevision]);
   const swipeableRef = useRef<SwipeableMethods>(null);
   const registeredMethodsRef = useRef<SwipeableMethods | null>(null);
   const deletingRef = useRef(false);

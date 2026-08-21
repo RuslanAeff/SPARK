@@ -10,7 +10,7 @@ import {
   Platform,
   TextInput,
 } from 'react-native';
-import { useAppTheme } from '../src/theme/themeStore';
+import { useAppTheme, useThemeRevision } from '../src/theme/themeStore';
 import { useRouter } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -36,7 +36,8 @@ import {
 
 export default function SettingsDataScreen() {
   const colorScheme = useAppTheme();
-  const styles = useMemo(() => getStyles(), [colorScheme]);
+  const themeRevision = useThemeRevision();
+  const styles = useMemo(() => getStyles(), [colorScheme, themeRevision]);
   const router = useRouter();
   const { t } = useLanguage();
   const { refreshKey, triggerRefresh } = useRefresh();
@@ -253,7 +254,7 @@ export default function SettingsDataScreen() {
                                   <MaterialCommunityIcons
                                     name="auto-fix"
                                     size={10}
-                                    color="#fff"
+                                    color={Colors.onPrimary}
                                   />
                                 </View>
                               )}
@@ -474,7 +475,7 @@ const getStyles = () => StyleSheet.create({
     width: 18,
     height: 18,
     borderRadius: 9,
-    backgroundColor: Colors.primary,
+    backgroundColor: Colors.primaryAction,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1.5,

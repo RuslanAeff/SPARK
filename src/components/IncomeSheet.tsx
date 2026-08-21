@@ -17,10 +17,10 @@ import CustomDatePicker from './CustomDatePicker';
 import GlassDeleteModal from './GlassDeleteModal';
 import { SparkToast } from './SparkToast';
 import { Colors } from '../theme/colors';
-import { useAppTheme } from '../theme/themeStore';
+import { useAppTheme, useThemeRevision } from '../theme/themeStore';
 import { Typography, FontFamily } from '../theme/typography';
 import { Spacing, ScreenPadding, BorderRadius } from '../theme/spacing';
-import { susevarButton, susevarButtonPressed, susevarButtonText } from '../theme/susevar';
+import { createSusevarStyles, susevarButtonPressed } from '../theme/susevar';
 import { formatCurrency } from '../utils/formatCurrency';
 import { formatDayMonth, getToday } from '../utils/dateUtils';
 import { IncomeDao } from '../db/incomeDao';
@@ -50,7 +50,8 @@ export default function IncomeSheet({
   visible, onClose, currency, cycleStart, cycleEnd, onChanged,
 }: IncomeSheetProps) {
   const scheme = useAppTheme();
-  const styles = useMemo(() => getStyles(), [scheme]);
+  const themeRevision = useThemeRevision();
+  const styles = useMemo(() => getStyles(), [scheme, themeRevision]);
   const { t } = useLanguage();
 
   const [view, setView] = useState<IncomeView>('list');
@@ -576,7 +577,7 @@ const getStyles = () => StyleSheet.create({
     flex: 1,
   },
   primaryBtn: {
-    ...susevarButton,
+    ...createSusevarStyles(Colors).button,
     marginTop: Spacing.lg,
   },
   primaryBtnRow: {
@@ -585,5 +586,5 @@ const getStyles = () => StyleSheet.create({
     justifyContent: 'center',
     gap: Spacing.sm,
   },
-  primaryBtnText: susevarButtonText,
+  primaryBtnText: createSusevarStyles(Colors).text,
 });

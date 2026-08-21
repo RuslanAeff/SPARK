@@ -13,7 +13,7 @@ import {
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { Colors } from '../theme/colors';
-import { useAppTheme } from '../theme/themeStore';
+import { useAppTheme, useThemeRevision } from '../theme/themeStore';
 import { Typography, FontFamily } from '../theme/typography';
 import { Spacing, BorderRadius } from '../theme/spacing';
 import { useLanguage } from '../i18n/LanguageContext';
@@ -66,7 +66,8 @@ type PresetId = 'this_month' | 'last_month' | 'last_3_months' | 'this_year' | 'c
 export default function BackupSection() {
   const { t, language } = useLanguage();
   const scheme = useAppTheme();
-  const styles = useMemo(() => getStyles(), [scheme]);
+  const themeRevision = useThemeRevision();
+  const styles = useMemo(() => getStyles(), [scheme, themeRevision]);
   const { triggerRefresh } = useRefreshActions();
 
   const [startDate, setStartDate] = useState<string>(startOfMonth(0));
@@ -347,11 +348,11 @@ export default function BackupSection() {
           style={[styles.actionBtn, styles.exportBtn, (exporting || importing) && styles.btnDisabled]}
         >
           {exporting ? (
-            <ActivityIndicator color={Colors.background} />
+            <ActivityIndicator color={Colors.onPrimary} />
           ) : (
             <>
-              <MaterialCommunityIcons name="tray-arrow-up" size={18} color={Colors.background} />
-              <Text style={[styles.actionText, { color: Colors.background }]}>
+              <MaterialCommunityIcons name="tray-arrow-up" size={18} color={Colors.onPrimary} />
+              <Text style={[styles.actionText, { color: Colors.onPrimary }]}>
                 {t('backup_export_btn')}
               </Text>
             </>
@@ -551,7 +552,7 @@ const getStyles = () =>
       borderRadius: BorderRadius.lg,
     },
     exportBtn: {
-      backgroundColor: Colors.primary,
+      backgroundColor: Colors.primaryAction,
     },
     importBtn: {
       backgroundColor: Colors.primary + '18',

@@ -75,7 +75,7 @@ Temel ihtiyaçlar:
 | Ödeme hatırlatıcıları | Borç vadelerini ve kullanıcının açıkça tanımladığı/onayladığı düzenli ödemeleri, tahmini aboneliklerden ayrı bir takvim kaydı olarak tutar |
 | Bildirim merkezi | Bütçe, hedef, kategori, fiş ve sistem uyarılarını kalıcı, filtrelenebilir ve yönetilebilir biçimde gösterir |
 | Yedekleme | Seçilen tarih aralığındaki veriyi sürümlü JSON olarak dışa aktarır ve doğrulanmış veriyi atomik geri yükler |
-| Ayarlar | Dil, para birimi, tema, bütçe, veri ve AI tercihlerini yönetir |
+| Ayarlar | Dil, para birimi, açık/koyu görünüm, vurgu paleti, bütçe, veri ve AI tercihlerini yönetir |
 
 ## 5. Kritik kullanıcı akışları
 
@@ -95,10 +95,11 @@ Kullanıcı tutar, tarih, satıcı, kategori ve isteğe bağlı not girer. Kayı
 AI sonucu doğrudan finansal gerçek kabul edilmez. Kullanıcı kontrol noktası akışın zorunlu ürün ilkesidir.
 
 Tarayıcı giriş yüzeyi, büyük dekoratif ikon ve ağır kart yığınları yerine tek bir
-sayfa başlığı, kompakt tarama işareti ve aynı kontrol ailesindeki iki kaynak
-kapsülü kullanır. Kamera önerilen hızlı yol olarak canlı yeşil ikon kapsülüyle
+sayfa başlığı, dairesel tonal yüzeyde köşe hedefleri ve ortadaki tarama
+bantlarından oluşan kompakt outline işaret ile aynı kontrol ailesindeki iki kaynak
+kapsülü kullanır. Kamera önerilen hızlı yol olarak aktif vurgu ikon kapsülüyle
 önceliklendirilir; dış ray açık temada siyaha dönmez ve galeri seçimi aynı
-geometriyi daha sakin ikincil vurguyla sürdürür. Canlı yeşil bölüm
+geometriyi daha sakin ikincil vurguyla sürdürür. Canlı vurgu bölümü
 yalnız eylem ikonunu taşır; ince outline ikonlar, doğal metin ölçüsü ve ölçülü
 gölge açık/koyu temada aynı bilgi hiyerarşisini korur. Bu kaynak seçiciler bir
 sonuç CTA'sı olmadığı için `susevar` sözleşmesini kullanmaz; fiş sonucu
@@ -108,6 +109,11 @@ beklerken hızlı tekrar dokunma ikinci bir sistem akışı başlatmamalıdır.
 ### 5.3 Bütçe döngüsü
 
 Bütçe dönemi takvim ayıyla sınırlı değildir. Kullanıcının seçtiği başlangıç günü, Dashboard, analiz, kategori limitleri, bildirimler, borç etkisi ve ek gelir hesabında ortak dönem sınırı olmalıdır.
+
+Başlangıç günü değiştirilince yeni düzen bütçe onayıyla birlikte yeni döneme
+uygulanır. Tamamlanmış dönemlerin tarih aralığı ve planlanan tutarı değişmez;
+kullanıcı gerçek gelir veya işlem tarihini yapay biçimde ileri almak zorunda
+kalmaz.
 
 Harcama istatistikleri yalnız tamamlanmış takvim günlerini değerlendirir; bugün sıfır-harcama günü, hedef-altı gün veya değerlendirme paydasına katılmaz, ancak bugünkü gerçek harcama aktif sıfır-harcama serisini keser. Takip-temelli uzun dönem görünümünde gözlem ilk gerçek işlemle başlar. Bugünü içermeyen geçmiş bir aralıkta gösterilen seri, güncel seri gibi değil dönem sonu serisi olarak adlandırılır. Sabit günlük plan hedefi yalnız aktif bütçenin kanonik aylık döngüsünde `etkin bütçe / toplam döngü günü` hesabıyla sunulur; diğer aralıklarda yapay bir hedef üretilmez.
 
@@ -124,6 +130,17 @@ Kullanıcı bildirimleri kanala göre filtreleyebilir, okuyabilir, detayını a�
 Fiş bildirimi AI'ın ilk önerisini kalıcı bir metin kopyası olarak göstermemelidir. Kullanıcı satıcıyı düzenlediğinde bildirim, işlem kimliği üzerinden son kaydedilmiş satıcıyla uzlaşmalı; satıcı adı birincil başlık, kayıt sonucu ise kısa destek metni olarak sunulmalıdır.
 
 Uygulama içi feed finansal bildirim geçmişinin kalıcı yüzeyidir; Android sistem bildirimi bunun ikincil teslim kanalıdır. Native bildirim aktivasyonu ilk uygulama karesi gösterildikten sonra başlamalı, Expo Go'da desteklenmeyen API'lere girilmemeli ve tekrar açma/özgeçmişten dönme aynı kaydı ikinci kez teslim etmemelidir. Rutin güncellemeler ile dikkat gerektiren uyarılar ayrı ve yerelleştirilmiş önem kanallarında sunulmalı; kilit ekranı içeriği gizli kalmalıdır. Sistem izni kapalıysa Bildirimler tercihleri durumu açıkça göstermeli ve kullanıcıyı işletim sistemi ayarlarına taşımalıdır. Ham tarama/ağ tanısı sistem paneline çıkarılmamalı; ayrıntı yalnız uygulama içinde gösterilmelidir.
+
+Kapalı uygulama teslimi yalnız önceden bilinen tarihler için işletim sistemine
+planlanır. Borç/ödeme vadelerine ek olarak tamamlanmamış birikim hedefi
+`90/30/14/7/3/1/0` gün kala, aktif bütçe dönemi ise `%50/%75/%90`
+noktalarında sınırlı bir kontrol uyarısı üretir. Bu alarmlar dikkat kanalını
+kullanır; ilgili bildirim kanalı sessize alındığında eski plan iptal edilir.
+Harcama ve kategori limitleri ancak yeni yerel kayıt geldiğinde yeniden
+hesaplanabildiği için sahte arka plan takibi vaat etmez; eşik uyarısı işlemin
+kaydedildiği senkronizasyonda teslim edilir. İlk kurulumda uygulamanın bir kez
+açılması ve Android izninin verilmesi gerekir. Sistem tarafından **Zorla
+durdurulan** uygulamanın alarm teslimi garanti edilmez.
 
 ### 5.6 Yedekleme ve geri yükleme
 
@@ -153,8 +170,16 @@ geçmişinden türetilmiş **Algılanan ödemeler** alanlarını birbirinden ay�
 Algılanan bir ödeme ancak kullanıcı plan formunu gözden geçirip açıkça
 kaydettiğinde kalıcı plana dönüşür. Kullanıcı manuel plan oluşturabilir; tutar,
 para birimi, sıradaki ödeme, tekrar aralığı ve hatırlatma tercihini düzenleyebilir;
-planı veri kaybetmeden duraklatabilir veya onayla silebilir. Duraklatılmış plan
-gizlenmez. Etkin plan için mevcut ve sonraki gerçek takvim oluşumları sınırlı
+planı veri kaybetmeden duraklatabilir veya onayla silebilir. Çok alanlı ödeme
+planı formu geçici bottom sheet değildir; safe-area başlığı sabit kalan, klavye
+açıldığında yalnız gövdesi daralıp dikey kaydırılabilen tam ekran bir akıştır.
+Analiz'deki **Aktif Abonelikler** kartı yalnız otomatik tahmin tablosunu değil,
+kullanıcının kaydettiği etkin ödeme planlarını da gösterir. Aynı satıcı hem
+onaylı planda hem otomatik tespitte bulunuyorsa kullanıcı kararı kanoniktir ve
+kartta tek kez yer alır; tutarı belirtilmeyen plan sıfır tutarlıymış gibi
+sunulmaz. Aylık yük, planın gün/hafta/ay/yıl tekrar aralığından 30 günlük
+karşılığa normalize edilir.
+Duraklatılmış plan gizlenmez. Etkin plan için mevcut ve sonraki gerçek takvim oluşumları sınırlı
 bir rolling horizon içinde planlanır; uygulama her açılış, resume ve veri
 değişikliğinde bu pencereyi yeniler.
 
@@ -197,6 +222,7 @@ Bu kurallar ürün davranışıdır; uygulama ayrıntısı gibi sessizce değiş
 11. **Hedef ve kategori limiti bağımsız kayıtlardır.** “Hedefi sil” yalnız gerçekten var olan birikim hedefini kaldırır; kategori limitlerini sessizce silmez. Kayıt yoksa yıkıcı eylem sunulmaz ve eskimiş ekran durumunda sahte başarı gösterilmez.
 12. **Dashboard önceliği kontrollüdür.** Açık borç uyarısı isteğe bağlı hedef özetinden önce gelir; aktif hedef kompakt veya tam karttan yalnız biriyle gösterilir ve görünüm tercihi finansal veriyi değiştirmez.
 13. **Hatırlatma taahhüdü tahminden ayrıdır.** Türetilmiş abonelik önerisi kullanıcı onayı olmadan kalıcı ödeme hatırlatıcısına dönüşmez; borç vadesi borcun işlem tarihini veya bütçe etkisini değiştirmez.
+14. **Kategori sınırı hedeften bağımsız ve erişilebilir olmalıdır.** Kullanıcı birikim hedefi oluşturmadan aylık kategori harcama sınırı kaydedebilir; giriş yolu Bütçe ve Analiz yüzeylerinde görünürdür. Fiyat değişimi özeti, kart yüksekliğini büyütmeden altılı yatay sayfalarda tüm değişimlere eriştirir; kart içindeki yatay jest üst sekme gezinmesine devredilmez. Satıcı özeti de ilk beşten başlayarak sabit yükseklikte yatay sayfalanır; satıcıya dokunmak ana kartı büyütmez, donut ve ürün analizi ayrı bir yüksek alt panelde açılır. Satıcı ürünleri panel içinde beşerli yatay sayfalarda sunulur ve kullanıcı sıralamayı alım sayısı veya toplam harcama olarak açıkça seçebilir. Fiyat karşılaştırması ürün adıyla birlikte kanonik ölçü türünü kullanır; adet, kg ve litre serileri karıştırılmaz, g/ml girişi anlaşılır gösterilip kanonik tabana çevrilir. Analiz kartı başlıklarında ikon ve metin aynı optik ekseni paylaşır. Projeksiyon şeridi veri göstergesidir, kullanıcı ayarı değildir; bütçe eşiği dolgu üzerinde ve uç konumlarda da kontrastlı görünür.
 
 Ayrıntılı teknik sözleşmeler için [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) ve karar kayıtları kullanılır.
 
@@ -204,13 +230,48 @@ Ayrıntılı teknik sözleşmeler için [`docs/ARCHITECTURE.md`](docs/ARCHITECTU
 
 ### Görsel kimlik
 
-- Temel kimlik: koyu yüzey, canlı yeşil vurgu ve ölçülü cam hissi
+- Temel kimlik: sakin nötr yüzeyler, ölçülü cam hissi ve kullanıcı tarafından seçilebilen kontrollü vurgu rengi
+- Görünüm ile vurgu iki ayrı tercihtir: açık/koyu/otomatik görünüm yüzey ve metin kontrastını; vurgu paleti birincil eylem, aktif sekme ve seçili kontrol kimliğini belirler
+- Desteklenen vurgu ailesi beş küratörlü seçenektir: SPARK yeşili, okyanus mavisi, kehribar turuncusu, menekşe moru ve yakut kırmızısı
+- Başarı, tehlike, uyarı ve bilgi renkleri kullanıcı vurgusundan bağımsız semantik anlamlarını korur; kategori ve grafik serisi renkleri de veri kimliğini kaybetmemek için yeniden renklendirilmez
+- Uygulama logosu ve splash kimliği SPARK markasına bağlı kalır; kullanıcı paleti bunları yeniden boyamaz
 - Açık ve koyu temada aynı bilgi hiyerarşisi
-- Birincil CTA: `susevar` sözleşmesine bağlı, belirgin fakat ekranı domine etmeyen eylem
+- Birincil CTA: `susevar` sözleşmesine ve kontrastı doğrulanmış `primaryAction`/`onPrimary` çiftine bağlı, belirgin fakat ekranı domine etmeyen eylem
 - Kartlarda düzenli hizalama, tutarlı radius, sınır ve iç boşluk
 - İkonlarda işlevsel boyut ve optik denge; dekoratif büyüklükten kaçınma
 
 Kod tarafındaki kesin renk, tipografi ve spacing değerlerinin kaynağı `src/theme/` dizinidir.
+
+Vurgu tercihi cihazda yerel bir kişiselleştirmedir. Finansal veri değildir,
+cihazlar arası görünüm sözü vermez ve taşınabilir yedek biçimine eklenmez.
+Eksik veya artık tanınmayan bir tercih güvenli biçimde SPARK yeşiline döner.
+
+Genel Ayarlar'da görünüm ve vurgu ayrı, kompakt kartlarla yönetilir. Görünüm
+kartı yerleşik tam genişlikte otomatik zamanlama kontrolünü korur; otomatik mod
+kapalıyken yalnız Açık ve Koyu seçeneklerini gösterir. Vurgu kartı beş ayrı
+dikey ayar satırı üretmez: renkler yatay kaydırılan ve her adımda merkeze oturan
+bir seçicide sunulur. Seçici, gerçek görünür genişliğe göre aralık ve kenar
+boşluğunu uyarlayarak ilk, orta ve son rengin aynı sabit merkez halkasına optik
+olarak oturmasını sağlar. Kullanıcı bir renk kademesini geçtiğinde önizleme
+hemen değişir ve desteklenen cihazda tek, kısa bir dokunsal tık ile yerel kısa
+mekanik mandal sesi aynı etkileşim adımında best-effort olarak üretilir. İlk
+`CLOCK_TICK` denemesi hedef Samsung cihazda fazla hafif kaldığı için Android,
+kademe başına daha tok tek vuruşlu `CONTEXT_CLICK`; iOS ise `RIGID` impact
+kullanır. Ses; bas gövdesi, ikinci mandal ve uzun rezonans içermeyen 12 ms'lik
+tiz ve kuru bir “tik”tir. Yaklaşık 96 dp yuva mesafesi, 100 ms geri bildirim
+aralığı ve kuvvetli kaydırma freni renklerin fazla hızlı geçmesini ve vuruşların
+birbirine karışmasını önler. Kalıcı tercih
+yalnız son snap konumunda bir kez yazılır. Programatik ilk konumlandırma,
+rollback ve dışarıdan gelen tercih eşitlemesi geri bildirim üretmez. Ses,
+platformun desteklediği ölçüde sistem sessizliği/medya ayarlarına saygı gösterir
+ve seçim ekranı yeniden açıldığında kalıcı vurgu, ray konumu, merkez halkası ile
+etiket içerik ölçümü tamamlandıktan sonra yeniden aynı kademede uzlaştırılır.
+Açık görünümdeki gösterim tonları, nötr yüzey üzerinde kirli veya mat görünmemesi
+için canlı tutulur; dolu CTA'lar ise okunabilirliği koruyan ayrı koyu
+`primaryAction` tonlarını kullanır.
+ve ses ya da haptic kullanılamadığında renk seçimini engellemez. Kısa kart yüzeyi
+yalnız seçim görevine ayrılır, uzun
+açıklamalar başlıktaki bilgi eyleminden açılan ayrı modalda tutulur.
 
 ### Etkileşim ilkeleri
 
@@ -231,7 +292,9 @@ Kod tarafındaki kesin renk, tipografi ve spacing değerlerinin kaynağı `src/t
 - Grafik çizgileri gözlenmemiş tepe veya dipler üretmemeli; para değerleri karar için gerekli hassasiyeti ve aktif para birimi biçimini korumalıdır.
 - Yoğun veride dokunma alanları birbirinin eylemini çalmamalı; grafik etkileşimi bulunduğu scroll ve modal gesture'larını kilitlememelidir.
 - Yoğun seriler sadeleştirilecekse ham geçmiş erişilebilir kalmalı; ilk/son gözlem, kaynak gözlem konumu ve gerçek uç değerler korunmalı, ortalama veya yapay nokta üretilmemeli ve gösterilen/kaynak kayıt sayısı kullanıcıya açıklanmalıdır.
+- Zaman grafiğindeki ayrık yakınlaştırma kademeleri deterministik olmalıdır. Günlük dalgalanma görünümünde tüm dönem, 14 gün ve 7 gün pencereleri en güncel tarihten geriye hizalanır; yalnız en eski sayfa eksik gün içerebilir. Kademe değişimi incelenen sayfanın sağ uç tarihini korur, görünen tarih aralığı ile sayfa sayacı aynı durumdan üretilir ve yalnız görünüm değişti diye veri giriş animasyonu yeniden oynatılmaz.
 - Sıralı analiz kartları seçim veya gruplama kuralını başlık ve kısa açıklamayla dürüstçe belirtmelidir; yıllık uzun dönem özetleri aynı satıcının tekrarları yerine satıcı başına en yüksek tek gerçek işlemi gösterebilir.
+- En yüksek işlemler kartı odağını kaybetmemesi için yalnız ilk 10 sonucu beşerli iki yatay sayfada; sessiz harcamalar ise en yüksek toplam etkili ilk 15 kalemi beşerli en fazla üç sayfada sunar. Her iki iç pager yatay hareket sırasında üst sekme geçişini geçici olarak kilitler ve kart yüksekliği sayfalar arasında değişmez.
 - Yıllık görünümde anlamını kaybeden aylık projeksiyon kartları boş açıklama yüzeyi olarak yer kaplamamalıdır; kısa ve özel aralıklarda mevcut yönlendirici açıklama korunabilir.
 - Seçili durum yalnız renkle aktarılmamalı; tarih, değer ve bağlam için erişilebilir bir metin karşılığı bulunmalıdır.
 
@@ -249,6 +312,7 @@ Kod tarafındaki kesin renk, tipografi ve spacing değerlerinin kaynağı `src/t
 | Finansal doğruluk | Saf domain testleri, DAO testleri ve ekranlar arası aynı dönem karşılaştırması |
 | Veri bütünlüğü | Transaction, migration ve backup/restore senaryoları |
 | Başlangıç sürekliliği | Cold-start, açık/koyu tema ve temiz kurulum cihaz testi |
+| Tema kişiselleştirmesi | Beş vurgu × açık/koyu görünüm kontrastı, anlık geçiş, yeniden başlatma kalıcılığı ve flicker/remount cihaz kontrolü |
 | Etkileşim güvenilirliği | Gesture, seçim, scroll, modal ve toast cihaz senaryoları |
 | Gizlilik | Yerel saklama, SecureStore ve dış veri sınırlarının incelenmesi |
 | Dil tutarlılığı | Dört dil anahtar paritesi ve insan dil kontrolü |

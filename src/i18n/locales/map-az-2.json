@@ -70,9 +70,9 @@
   "daily_fluctuation": "Günlük dəyişkənlik",
   "main_categories": "ƏSAS KATEQORİYALAR",
   "behavioral_analysis": "DAVRANIŞ ANALİZİ",
-  "budget_philosophy": "Büdcə fəlsəfəsi (ehtiyac və istək)",
+  "budget_philosophy": "Xərc bölgüsü",
   "spending_type": "Xərcləmə növü",
-  "needs_analysis": "Məcburi xərclər büdcənizin %{percentage}-ni əhatə edir.",
-  "wants_analysis": "İstəyə bağlı xərclər büdcənizin %{percentage}-ni təşkil edir.",
-  "savings_other_analysis": "Yığım və digər məqamlar büdcənizin %{percentage}-dir."
+  "needs_analysis": "Ehtiyaclar bu dövrdəki xərclərin {percentage}%-ni təşkil edir.",
+  "wants_analysis": "İxtiyari alışlar bu dövrdəki xərclərin {percentage}%-ni təşkil edir.",
+  "savings_other_analysis": "Ehtiyac və istək qruplarına daxil olmayan kateqoriyalar bu dövrdəki xərclərin {percentage}%-ni təşkil edir."
 }

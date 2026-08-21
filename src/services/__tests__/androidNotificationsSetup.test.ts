@@ -139,6 +139,7 @@ import {
   deliverAndroidSystemNotifications,
   dismissAndroidSystemNotifications,
   ensureAndroidNotificationSetup,
+  getAndroidFutureScheduleSummary,
   reconcileAndroidReminderSchedules,
   subscribeAndroidNotificationResponses,
   __setAndroidNotificationsModuleForTests,
@@ -257,6 +258,23 @@ describe('Android system notification bridge', () => {
     expect(mockSetHandler).not.toHaveBeenCalled();
     expect(mockSetChannel).not.toHaveBeenCalled();
     expect(mockGetPermissions).not.toHaveBeenCalled();
+  });
+
+  it('reports the actual owned Android future-alarm inventory', async () => {
+    const now = Date.now();
+    const later = reminder('plan:later', now + 120_000);
+    const sooner = reminder('goal:sooner', now + 60_000);
+    mockScheduledRequests = [
+      ownedFutureRequest(later),
+      { identifier: 'foreign-request', content: { data: {} } },
+      ownedFutureRequest(sooner),
+    ];
+
+    await expect(getAndroidFutureScheduleSummary()).resolves.toEqual({
+      status: 'ready',
+      count: 2,
+      nextTriggerAt: sooner.triggerAt,
+    });
   });
 
   it('creates both channels before requesting Android 13 permission', async () => {

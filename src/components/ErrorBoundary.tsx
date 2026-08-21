@@ -2,6 +2,12 @@ import React, { Component, ErrorInfo, ReactNode } from "react";
 import { View, Text, ScrollView, SafeAreaView, Pressable } from "react-native";
 import * as SplashScreen from "expo-splash-screen";
 import { Colors } from "../theme/colors";
+import { useThemeRevision } from "../theme/themeStore";
+
+function ThemeAwareErrorSurface({ children }: { children: () => ReactNode }) {
+  useThemeRevision();
+  return <>{children()}</>;
+}
 
 interface Props {
   children: ReactNode;
@@ -41,6 +47,7 @@ export class ErrorBoundary extends Component<Props, State> {
       // Geliştirme: tam tanılama (mesaj + component stack + JS stack).
       if (__DEV__) {
         return (
+          <ThemeAwareErrorSurface>{() => (
           <SafeAreaView style={{ flex: 1, backgroundColor: Colors.background }}>
             <ScrollView style={{ flex: 1, padding: 20 }}>
               <Text style={{ color: Colors.danger, fontSize: 24, fontWeight: 'bold', marginBottom: 10 }}>🚨 Crash Detected</Text>
@@ -68,11 +75,13 @@ export class ErrorBoundary extends Component<Props, State> {
               </Pressable>
             </ScrollView>
           </SafeAreaView>
+          )}</ThemeAwareErrorSurface>
         );
       }
 
       // Üretim: kullanıcı dostu, sade kurtarma ekranı (ham hata gösterilmez).
       return (
+        <ThemeAwareErrorSurface>{() => (
         <SafeAreaView style={{ flex: 1, backgroundColor: Colors.background }}>
           <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 32, gap: 14 }}>
             <Text style={{ fontSize: 52 }}>⚠️</Text>
@@ -100,6 +109,7 @@ export class ErrorBoundary extends Component<Props, State> {
             </Pressable>
           </View>
         </SafeAreaView>
+        )}</ThemeAwareErrorSurface>
       );
     }
 
