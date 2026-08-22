@@ -17,23 +17,7 @@ function SubscriptionsCard({ styles, t, currency, subscriptionInfo }: Subscripti
   useThemeRevision();
   const { count, monthlyTotal, upcoming } = subscriptionInfo;
 
-  if (count === 0) {
-    return (
-      <AnimatedCard delay={160} style={styles.section}>
-        <View style={styles.subsHeader}>
-          <View style={styles.subsHeaderLeft}>
-            <MaterialCommunityIcons name="sync-circle" size={18} color={Colors.textSecondary} />
-            <Text style={styles.cardHeaderTitle}>{t('subs_card_title')}</Text>
-          </View>
-        </View>
-        <View style={styles.subsEmptyWrap}>
-          <MaterialCommunityIcons name="autorenew-off" size={36} color={Colors.textMuted} />
-          <Text style={styles.subsEmptyTitle}>{t('subs_card_empty_title')}</Text>
-          <Text style={styles.subsEmptyHint}>{t('subs_card_empty_hint')}</Text>
-        </View>
-      </AnimatedCard>
-    );
-  }
+  if (count === 0) return null;
 
   return (
     <AnimatedCard delay={160} style={styles.section}>

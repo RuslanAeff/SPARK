@@ -131,6 +131,24 @@ export const getAnalyticsStyles = () => StyleSheet.create({
     borderRadius: BorderRadius.round,
     overflow: 'hidden',
   },
+  editRemoveAllButton: {
+    minHeight: 36,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: Spacing.xs,
+    paddingHorizontal: Spacing.sm,
+    borderRadius: BorderRadius.round,
+    backgroundColor: Colors.danger + '12',
+    borderWidth: 1,
+    borderColor: Colors.danger + '40',
+  },
+  editRemoveAllText: {
+    ...Typography.labelSmall,
+    color: Colors.danger,
+    fontFamily: FontFamily.semiBold,
+    flexShrink: 1,
+  },
   editCardChip: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -648,23 +666,6 @@ export const getAnalyticsStyles = () => StyleSheet.create({
     fontFamily: FontFamily.semiBold,
     flexShrink: 0,
   },
-  expandButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: Spacing.md,
-    marginTop: Spacing.sm,
-    gap: Spacing.xs,
-    backgroundColor: Colors.surface,
-    borderRadius: BorderRadius.md,
-    borderWidth: 1,
-    borderColor: Colors.cardBorder,
-  },
-  expandButtonText: {
-    ...Typography.labelMedium,
-    color: Colors.primary,
-    fontFamily: FontFamily.medium,
-  },
   primaryCard: {
     borderColor: Colors.cardBorder,
     borderWidth: 1,
@@ -695,6 +696,13 @@ export const getAnalyticsStyles = () => StyleSheet.create({
     fontFamily: FontFamily.bold,
     color: Colors.textPrimary,
     fontSize: 18,
+  },
+  compareRangeLabel: {
+    ...Typography.labelSmall,
+    color: Colors.textMuted,
+    marginTop: 4,
+    textAlign: 'center',
+    fontSize: 10,
   },
   deltaBadge: {
     flexDirection: 'row',
@@ -1461,24 +1469,6 @@ export const getAnalyticsStyles = () => StyleSheet.create({
     fontFamily: FontFamily.medium,
     fontSize: 11,
   },
-  limitsEmptyWrap: {
-    alignItems: 'center',
-    paddingVertical: Spacing.xl,
-    gap: Spacing.xs,
-  },
-  limitsEmptyTitle: {
-    ...Typography.bodyLarge,
-    color: Colors.textSecondary,
-    fontFamily: FontFamily.medium,
-    marginTop: Spacing.xs,
-  },
-  limitsEmptyHint: {
-    ...Typography.bodySmall,
-    color: Colors.textMuted,
-    textAlign: 'center',
-    paddingHorizontal: Spacing.lg,
-  },
-
   // ── A11: Savings Goal ──
   goalHeader: {
     flexDirection: 'row',

@@ -86,6 +86,27 @@ describe('CustomDatePicker', () => {
 
     expect(screen.getByLabelText('15 month_05 2026')).toHaveProp('accessibilityState', {
       selected: true,
+      disabled: false,
     });
+  });
+
+  it('maximumDate sonrasındaki günleri ve ay geçişini devre dışı bırakır', async () => {
+    const onSelectDate = jest.fn();
+    const screen = await render(
+      <CustomDatePicker
+        visible
+        initialDate="2026-08-20"
+        maximumDate="2026-08-22"
+        onSelectDate={onSelectDate}
+        onClose={jest.fn()}
+      />,
+    );
+
+    expect(screen.getByLabelText('23 month_08 2026')).toBeDisabled();
+    expect(screen.getByLabelText('calendar_next_month')).toBeDisabled();
+    await fireEvent.press(screen.getByLabelText('23 month_08 2026'));
+    expect(onSelectDate).not.toHaveBeenCalled();
+    await fireEvent.press(screen.getByLabelText('22 month_08 2026'));
+    expect(onSelectDate).toHaveBeenCalledWith('2026-08-22');
   });
 });

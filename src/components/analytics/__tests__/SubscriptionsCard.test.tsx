@@ -13,11 +13,10 @@ const tc = (k: string) => k;
 const base = { styles, t, tc, currency: 'PLN' as const };
 
 describe('SubscriptionsCard', () => {
-  it('abonelik yoksa boş durumu gösterir', async () => {
+  it('abonelik yoksa kartı göstermez', async () => {
     const info: SubscriptionInfo = { count: 0, monthlyTotal: 0, upcoming: [] };
-    const { getByText } = await render(<SubscriptionsCard {...base} subscriptionInfo={info} />);
-    expect(getByText('subs_card_empty_title')).toBeTruthy();
-    expect(getByText('subs_card_empty_hint')).toBeTruthy();
+    const { toJSON } = await render(<SubscriptionsCard {...base} subscriptionInfo={info} />);
+    expect(toJSON()).toBeNull();
   });
 
   it('abonelik varsa sayıyı, başlığı ve yaklaşan satıcıyı gösterir', async () => {

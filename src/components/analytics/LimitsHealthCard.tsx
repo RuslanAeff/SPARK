@@ -1,6 +1,6 @@
 // S.P.A.R.K. — Analiz kartı: Kategori limit sağlığı (limit/harcama oranı barları)
 import React from 'react';
-import { View, Text, Pressable } from 'react-native';
+import { View, Text } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import AnimatedCard from '../AnimatedCard';
@@ -9,43 +9,13 @@ import { useThemeRevision } from '../../theme/themeStore';
 import { formatCurrency } from '../../utils/formatCurrency';
 import type { BaseCardProps, LimitsHealthInfo } from './shared';
 
-interface LimitsHealthCardProps extends BaseCardProps {
-  limitsHealthInfo: LimitsHealthInfo;
-  onManageLimits?: () => void;
-}
+interface LimitsHealthCardProps extends BaseCardProps { limitsHealthInfo: LimitsHealthInfo; }
 
-function LimitsHealthCard({ styles, t, tc, currency, limitsHealthInfo, onManageLimits }: LimitsHealthCardProps) {
+function LimitsHealthCard({ styles, t, tc, currency, limitsHealthInfo }: LimitsHealthCardProps) {
   useThemeRevision();
   const { count, overCount, warnCount, items } = limitsHealthInfo;
 
-  if (count === 0) {
-    return (
-      <AnimatedCard delay={200} style={styles.section}>
-        <View style={styles.limitsHeader}>
-          <View style={styles.limitsHeaderLeft}>
-            <MaterialCommunityIcons name="gauge" size={18} color={Colors.textSecondary} />
-            <Text style={styles.cardHeaderTitle}>{t('limits_health_title')}</Text>
-          </View>
-        </View>
-        <Text style={styles.limitsScopeHint}>{t('goal_settings_month_hint')}</Text>
-        <View style={styles.limitsEmptyWrap}>
-          <MaterialCommunityIcons name="gauge-empty" size={36} color={Colors.textMuted} />
-          <Text style={styles.limitsEmptyTitle}>{t('limits_health_empty_title')}</Text>
-          <Text style={styles.limitsEmptyHint}>{t('limits_health_empty_hint')}</Text>
-          {onManageLimits && (
-            <Pressable
-              accessibilityRole="button"
-              onPress={onManageLimits}
-              style={({ pressed }) => [styles.expandButton, pressed && { opacity: 0.8 }]}
-            >
-              <MaterialCommunityIcons name="plus-circle-outline" size={18} color={Colors.primary} />
-              <Text style={styles.expandButtonText}>{t('goal_settings_add_limit')}</Text>
-            </Pressable>
-          )}
-        </View>
-      </AnimatedCard>
-    );
-  }
+  if (count === 0) return null;
 
   return (
     <AnimatedCard delay={200} style={styles.section}>

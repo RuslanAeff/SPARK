@@ -35,6 +35,8 @@ function result(overrides: Partial<StreakData> = {}): StreakData {
     currentStreak: 1,
     underBudgetDays: 0,
     totalDays: 1,
+    recordedDays: 0,
+    coveragePct: 0,
     zeroSpendDates: ['2026-08-01'],
     currentStreakDates: ['2026-08-01'],
     underBudgetEntries: [],
@@ -88,6 +90,81 @@ describe('StreakCard', () => {
     );
 
     expect(screen.getByText('streak_no_data')).toBeTruthy();
-    expect(screen.queryByText('streak_scope_summary')).toBeNull();
+    expect(screen.queryByText('streak_coverage_summary')).toBeNull();
+  });
+
+  it('bases its encouragement on the whole period and shows tracking coverage', async () => {
+    const screen = await render(
+      <StreakCard
+        {...base}
+        streakData={result({
+          zeroSpendDays: 4,
+          currentStreak: 0,
+          totalDays: 10,
+          recordedDays: 6,
+          coveragePct: 60,
+        })}
+      />,
+    );
+
+    expect(screen.getByText('streak_tracking_great')).toBeTruthy();
+    expect(screen.getByText('streak_coverage_summary')).toBeTruthy();
+  });
+
+  it('does not treat a period with no spending records as a saving success', async () => {
+    const screen = await render(
+      <StreakCard
+        {...base}
+        streakData={result({
+          zeroSpendDays: 10,
+          currentStreak: 10,
+          totalDays: 10,
+          recordedDays: 0,
+          coveragePct: 0,
+        })}
+      />,
+    );
+
+    expect(screen.getByText('streak_no_recorded_days')).toBeTruthy();
+    expect(screen.queryByText('streak_great')).toBeNull();
+  });
+
+  it('uses the whole period’s within-plan ratio when a daily plan exists', async () => {
+    const screen = await render(
+      <StreakCard
+        {...base}
+        streakData={result({
+          dailyTarget: 100,
+          zeroSpendDays: 2,
+          underBudgetDays: 4,
+          totalDays: 10,
+          recordedDays: 8,
+          coveragePct: 80,
+        })}
+      />,
+    );
+
+    expect(screen.getByText('streak_great')).toBeTruthy();
+  });
+
+  it('does not render short history as zero-valued achievements', async () => {
+    const screen = await render(
+      <StreakCard
+        {...base}
+        streakData={result({
+          status: 'insufficient_history',
+          zeroSpendDays: 0,
+          currentStreak: 0,
+          totalDays: 2,
+          recordedDays: 1,
+          coveragePct: 50,
+          zeroSpendDates: [],
+          currentStreakDates: [],
+        })}
+      />,
+    );
+
+    expect(screen.getByText('streak_insufficient_history')).toBeTruthy();
+    expect(screen.getAllByText('—')).toHaveLength(2);
   });
 });

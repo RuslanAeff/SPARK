@@ -42,6 +42,7 @@ interface VendorAnalyticsSheetProps extends Pick<BaseCardProps, 't' | 'currency'
   items: VendorItem[];
   loading: boolean;
   onClose: () => void;
+  onSuspendForItem: () => void;
   onSelectItem: (name: string) => void;
 }
 
@@ -51,6 +52,7 @@ export default function VendorAnalyticsSheet({
   items,
   loading,
   onClose,
+  onSuspendForItem,
   onSelectItem,
   t,
   currency,
@@ -132,7 +134,7 @@ export default function VendorAnalyticsSheet({
   const openProductAfterDismiss = (name: string) => {
     pendingItemName.current = name;
     setNestedHorizontalGestureActive(false);
-    onClose();
+    onSuspendForItem();
   };
 
   const handleDismiss = () => {

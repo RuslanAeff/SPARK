@@ -8,6 +8,12 @@ export interface AnalyticsDateRange {
   end: string;
 }
 
+export interface AnalyticsComparisonRanges {
+  current: AnalyticsDateRange;
+  previous: AnalyticsDateRange;
+  completedDays: number;
+}
+
 interface ResolveAnalyticsDateRangeOptions {
   timeframe: AnalyticsTimeframe;
   customStart: string;
@@ -92,4 +98,45 @@ export function resolvePreviousAnalyticsDateRange(
   const days = inclusiveDayCount(current);
   const end = addLocalDays(current.start, -1);
   return { start: addLocalDays(end, -(days - 1)), end };
+}
+
+/**
+ * Resolve like-for-like completed-day ranges for the spending comparison.
+ *
+ * An active period never compares today's partial spend or future empty days
+ * with a fully completed previous period. Different-length budget cycles are
+ * capped to the shorter comparable progress window.
+ */
+export function resolveComparableAnalyticsRanges(
+  timeframe: AnalyticsTimeframe,
+  current: AnalyticsDateRange,
+  cycleStartDay: number,
+  now: Date = new Date(),
+): AnalyticsComparisonRanges | null {
+  const fullPrevious = resolvePreviousAnalyticsDateRange(timeframe, current, cycleStartDay);
+  if (!fullPrevious) return null;
+
+  const yesterday = addLocalDays(toLocalYmd(now), -1);
+  const completedCurrentEnd = current.end < yesterday ? current.end : yesterday;
+  if (completedCurrentEnd < current.start) return null;
+
+  const completedCurrentDays = inclusiveDayCount({
+    start: current.start,
+    end: completedCurrentEnd,
+  });
+  const previousDays = inclusiveDayCount(fullPrevious);
+  const completedDays = Math.min(completedCurrentDays, previousDays);
+  if (completedDays <= 0) return null;
+
+  return {
+    current: {
+      start: current.start,
+      end: addLocalDays(current.start, completedDays - 1),
+    },
+    previous: {
+      start: fullPrevious.start,
+      end: addLocalDays(fullPrevious.start, completedDays - 1),
+    },
+    completedDays,
+  };
 }

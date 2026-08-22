@@ -20,16 +20,19 @@ import { parseLocalYYYYMMDD } from '../utils/dateUtils';
 const MIN_YEAR = 2000;
 const MAX_YEAR = 2100;
 
-function getPickerInitialDate(value: string): Date {
+function getPickerInitialDate(value: string, maximumDate?: string): Date {
   const parsed = parseLocalYYYYMMDD(value);
+  const parsedMaximum = maximumDate ? parseLocalYYYYMMDD(maximumDate) : null;
   if (
     parsed &&
     parsed.getFullYear() >= MIN_YEAR &&
     parsed.getFullYear() <= MAX_YEAR
   ) {
+    if (parsedMaximum && parsed > parsedMaximum) return parsedMaximum;
     return parsed;
   }
-  return new Date();
+  const today = new Date();
+  return parsedMaximum && today > parsedMaximum ? parsedMaximum : today;
 }
 
 interface CustomDatePickerProps {
@@ -37,34 +40,46 @@ interface CustomDatePickerProps {
   onClose: () => void;
   initialDate: string; // YYYY-MM-DD
   onSelectDate: (date: string) => void;
+  maximumDate?: string;
 }
 
 export default function CustomDatePicker({
   visible,
   onClose,
   initialDate,
-  onSelectDate
+  onSelectDate,
+  maximumDate,
 }: CustomDatePickerProps) {
   const { t } = useLanguage();
   const scheme = useAppTheme();
   const themeRevision = useThemeRevision();
   const isDark = scheme === 'dark';
-  const [currentDate, setCurrentDate] = useState(() => getPickerInitialDate(initialDate));
+  const [currentDate, setCurrentDate] = useState(() => getPickerInitialDate(initialDate, maximumDate));
   const [showYearPicker, setShowYearPicker] = useState(false);
 
   useLayoutEffect(() => {
     if (visible) {
-      setCurrentDate(getPickerInitialDate(initialDate));
+      setCurrentDate(getPickerInitialDate(initialDate, maximumDate));
       setShowYearPicker(false);
     }
-  }, [visible, initialDate]);
+  }, [visible, initialDate, maximumDate]);
+
+  const maximum = maximumDate && parseLocalYYYYMMDD(maximumDate)
+    ? maximumDate
+    : `${MAX_YEAR}-12-31`;
+  const [maximumYear, maximumMonth] = maximum.split('-').map(Number);
 
   const changeMonth = (delta: number) => {
     const absoluteMonth = currentDate.getMonth() + delta;
     const targetYear = currentDate.getFullYear() + Math.floor(absoluteMonth / 12);
     const targetMonth = ((absoluteMonth % 12) + 12) % 12;
 
-    if (targetYear < MIN_YEAR || targetYear > MAX_YEAR) return;
+    if (
+      targetYear < MIN_YEAR ||
+      targetYear > MAX_YEAR ||
+      targetYear > maximumYear ||
+      (targetYear === maximumYear && targetMonth > maximumMonth - 1)
+    ) return;
 
     // Görüntülenen ayın gününü 1'e sabitlemek 29–31 kaynaklı ay taşmasını önler.
     setCurrentDate(new Date(targetYear, targetMonth, 1));
@@ -74,7 +89,9 @@ export default function CustomDatePicker({
     const y = currentDate.getFullYear();
     const m = (currentDate.getMonth() + 1).toString().padStart(2, '0');
     const d = day.toString().padStart(2, '0');
-    onSelectDate(`${y}-${m}-${d}`);
+    const selected = `${y}-${m}-${d}`;
+    if (selected > maximum) return;
+    onSelectDate(selected);
     onClose();
   };
 
@@ -83,7 +100,8 @@ export default function CustomDatePicker({
     const y = now.getFullYear();
     const m = (now.getMonth() + 1).toString().padStart(2, '0');
     const d = now.getDate().toString().padStart(2, '0');
-    onSelectDate(`${y}-${m}-${d}`);
+    const today = `${y}-${m}-${d}`;
+    onSelectDate(today > maximum ? maximum : today);
     onClose();
   };
 
@@ -96,7 +114,7 @@ export default function CustomDatePicker({
   const year = currentDate.getFullYear();
   const month = currentDate.getMonth();
   const canGoPrevious = year > MIN_YEAR || month > 0;
-  const canGoNext = year < MAX_YEAR || month < 11;
+  const canGoNext = year < maximumYear || (year === maximumYear && month < maximumMonth - 1);
   const daysInMonth = getDaysInMonth(year, month);
   const firstDay = getFirstDayOfMonth(year, month);
 
@@ -229,6 +247,10 @@ export default function CustomDatePicker({
           color: Colors.primary,
           fontFamily: FontFamily.bold,
         },
+        dayTextDisabled: {
+          color: Colors.textMuted,
+          opacity: 0.4,
+        },
         footer: {
           flexDirection: 'row',
           justifyContent: 'space-between',
@@ -343,12 +365,15 @@ export default function CustomDatePicker({
           {showYearPicker ? (
             <View style={styles.yearContainer}>
               <ScrollView showsVerticalScrollIndicator={false}>
-                {Array.from({ length: MAX_YEAR - MIN_YEAR + 1 }, (_, i) => MIN_YEAR + i).map(y => (
+                {Array.from({ length: maximumYear - MIN_YEAR + 1 }, (_, i) => MIN_YEAR + i).map(y => (
                   <Pressable 
                     key={y} 
                     style={[styles.yearItem, y === year && { backgroundColor: Colors.primary + '18' }]}
                     onPress={() => {
-                      setCurrentDate(new Date(y, month, 1));
+                      const targetMonth = y === maximumYear
+                        ? Math.min(month, maximumMonth - 1)
+                        : month;
+                      setCurrentDate(new Date(y, targetMonth, 1));
                       setShowYearPicker(false);
                     }}
                     accessibilityRole="button"
@@ -374,14 +399,17 @@ export default function CustomDatePicker({
                    
                    const selected = isSelectedDate(day);
                    const today = isToday(day);
+                   const dayValue = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+                   const disabled = dayValue > maximum;
                    return (
                      <Pressable
                        key={day}
                        onPress={() => selectDay(day)}
+                       disabled={disabled}
                        style={styles.dayBox}
                        accessibilityRole="button"
                        accessibilityLabel={`${day} ${monthNames[month]} ${year}`}
-                       accessibilityState={{ selected }}
+                       accessibilityState={{ selected, disabled }}
                      >
                        {({ pressed }) => (
                          <View
@@ -389,7 +417,7 @@ export default function CustomDatePicker({
                              styles.dayMark,
                              selected && styles.dayMarkSelected,
                              today && !selected && styles.dayMarkToday,
-                             pressed && !selected && !today && { backgroundColor: dayHoverBg },
+                             pressed && !selected && !today && !disabled && { backgroundColor: dayHoverBg },
                              pressed && !selected && { opacity: 0.92 },
                            ]}
                          >
@@ -398,6 +426,7 @@ export default function CustomDatePicker({
                                styles.dayText,
                                selected && styles.dayTextSelected,
                                today && !selected && styles.dayTextToday,
+                               disabled && styles.dayTextDisabled,
                              ]}
                            >
                              {day}

@@ -23,17 +23,33 @@ function StreakCard({ styles, t, streakData, setStreakDetailVariant }: StreakCar
     currentStreak,
     underBudgetDays,
     totalDays,
+    recordedDays,
+    coveragePct,
   } = streakData;
-  const streakType = currentStreak >= 3 ? 'great' : currentStreak >= 1 ? 'good' : 'start';
+  const canShowStats = status === 'ready';
+  const behaviorRatio = dailyTarget !== null
+    ? (recordedDays > 0 ? underBudgetDays / recordedDays : 0)
+    : coveragePct / 100;
+  const streakType = behaviorRatio >= 0.5 ? 'great' : behaviorRatio >= 0.25 ? 'good' : 'start';
   const streakMsg = status === 'no_data'
     ? t('streak_no_data')
     : status === 'no_completed_days'
       ? t('streak_no_completed_days')
-      : streakType === 'great'
-        ? t('streak_great')
-        : streakType === 'good'
-          ? t('streak_good')
-          : t('streak_start');
+      : status === 'insufficient_history'
+        ? t('streak_insufficient_history')
+        : recordedDays === 0
+          ? t('streak_no_recorded_days')
+          : dailyTarget === null
+            ? streakType === 'great'
+              ? t('streak_tracking_great')
+              : streakType === 'good'
+                ? t('streak_tracking_good')
+                : t('streak_tracking_start')
+            : streakType === 'great'
+              ? t('streak_great')
+              : streakType === 'good'
+                ? t('streak_good')
+                : t('streak_start');
   const StreakIcon = streakType === 'great' ? 'fire' : streakType === 'good' ? 'thumb-up' : 'target';
   const streakLabel = streakMode === 'current' ? t('current_streak') : t('period_end_streak');
 
@@ -44,38 +60,47 @@ function StreakCard({ styles, t, streakData, setStreakDetailVariant }: StreakCar
         <Pressable
           style={({ pressed }) => [styles.streakCard, pressed && styles.streakCardPressed]}
           onPress={() => setStreakDetailVariant('zero')}
+          disabled={!canShowStats}
           accessibilityRole="button"
           accessibilityLabel={t('zero_spend_days')}
         >
           <View style={[styles.streakIconBg, { backgroundColor: Colors.success + '18' }]}>
             <MaterialCommunityIcons name="calendar-check" size={22} color={Colors.success} />
           </View>
-          <CountUpText value={zeroSpendDays} style={styles.streakNumber} duration={900} />
+          {canShowStats
+            ? <CountUpText value={zeroSpendDays} style={styles.streakNumber} duration={900} />
+            : <Text style={styles.streakNumber}>—</Text>}
           <Text style={styles.streakLabel}>{t('zero_spend_days')}</Text>
         </Pressable>
         <Pressable
           style={({ pressed }) => [styles.streakCard, pressed && styles.streakCardPressed]}
           onPress={() => setStreakDetailVariant('streak')}
+          disabled={!canShowStats}
           accessibilityRole="button"
           accessibilityLabel={streakLabel}
         >
           <View style={[styles.streakIconBg, { backgroundColor: Colors.warning + '18' }]}>
             <MaterialCommunityIcons name="fire" size={22} color={Colors.warning} />
           </View>
-          <CountUpText value={currentStreak} style={styles.streakNumber} duration={900} />
+          {canShowStats
+            ? <CountUpText value={currentStreak} style={styles.streakNumber} duration={900} />
+            : <Text style={styles.streakNumber}>—</Text>}
           <Text style={styles.streakLabel}>{streakLabel}</Text>
         </Pressable>
         {dailyTarget !== null && (
           <Pressable
             style={({ pressed }) => [styles.streakCard, pressed && styles.streakCardPressed]}
             onPress={() => setStreakDetailVariant('under')}
+            disabled={!canShowStats}
             accessibilityRole="button"
             accessibilityLabel={t('under_budget_days')}
           >
             <View style={[styles.streakIconBg, { backgroundColor: Colors.primary + '18' }]}>
               <MaterialCommunityIcons name="shield-check" size={22} color={Colors.primary} />
             </View>
-            <CountUpText value={underBudgetDays} style={styles.streakNumber} duration={900} />
+            {canShowStats
+              ? <CountUpText value={underBudgetDays} style={styles.streakNumber} duration={900} />
+              : <Text style={styles.streakNumber}>—</Text>}
             <Text style={styles.streakLabel}>{t('under_budget_days')}</Text>
           </Pressable>
         )}
@@ -92,7 +117,7 @@ function StreakCard({ styles, t, streakData, setStreakDetailVariant }: StreakCar
           <MarqueeText text={streakMsg} style={styles.streakMsgTextInner} containerStyle={styles.streakMsgText} />
           {totalDays > 0 && (
             <Text style={styles.streakMsgSub}>
-              {t('streak_scope_summary', { zero: zeroSpendDays, total: totalDays })}
+              {t('streak_coverage_summary', { recorded: recordedDays, total: totalDays })}
             </Text>
           )}
         </View>

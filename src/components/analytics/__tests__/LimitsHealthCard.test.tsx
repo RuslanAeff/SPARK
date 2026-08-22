@@ -1,6 +1,6 @@
 // react-native-reanimated → __mocks__/react-native-reanimated.js (otomatik)
 import React from 'react';
-import { fireEvent, render } from '@testing-library/react-native';
+import { render } from '@testing-library/react-native';
 import LimitsHealthCard from '../LimitsHealthCard';
 import { getAnalyticsStyles } from '../analyticsStyles';
 import type { LimitsHealthInfo } from '../shared';
@@ -8,15 +8,10 @@ import type { LimitsHealthInfo } from '../shared';
 const base = { styles: getAnalyticsStyles(), t: (k: string) => k, tc: (k: string) => k, currency: 'PLN' as const };
 
 describe('LimitsHealthCard', () => {
-  it('limit yoksa boş durumu gösterir', async () => {
-    const onManageLimits = jest.fn();
+  it('limit yoksa kartı göstermez', async () => {
     const info: LimitsHealthInfo = { count: 0, overCount: 0, warnCount: 0, safeCount: 0, items: [] };
-    const { getByText } = await render(
-      <LimitsHealthCard {...base} limitsHealthInfo={info} onManageLimits={onManageLimits} />,
-    );
-    expect(getByText('limits_health_empty_title')).toBeTruthy();
-    fireEvent.press(getByText('goal_settings_add_limit'));
-    expect(onManageLimits).toHaveBeenCalledTimes(1);
+    const { toJSON } = await render(<LimitsHealthCard {...base} limitsHealthInfo={info} />);
+    expect(toJSON()).toBeNull();
   });
 
   it('limiti aşan kategoriyi adı ve yüzdesiyle gösterir', async () => {

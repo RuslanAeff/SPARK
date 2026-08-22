@@ -24,6 +24,7 @@ describe('computeSpendingStats', () => {
       startDate: '2026-08-01',
       endDate: '2026-08-02',
       today: '2026-08-02',
+      minimumCompletedDays: 1,
     });
 
     expect(result).toMatchObject({
@@ -33,6 +34,8 @@ describe('computeSpendingStats', () => {
       totalDays: 1,
       zeroSpendDays: 1,
       currentStreak: 0,
+      recordedDays: 0,
+      coveragePct: 0,
     });
   });
 
@@ -81,6 +84,8 @@ describe('computeSpendingStats', () => {
       zeroSpendDays: 1,
     });
     expect(result.zeroSpendDates).toEqual(['2026-04-11']);
+    expect(result.recordedDays).toBe(2);
+    expect(result.coveragePct).toBe(67);
   });
 
   it('returns no_data for an empty tracking period instead of treating it as zero spending', () => {
@@ -99,6 +104,8 @@ describe('computeSpendingStats', () => {
       totalDays: 0,
       zeroSpendDays: 0,
       currentStreak: 0,
+      recordedDays: 0,
+      coveragePct: 0,
     });
   });
 
@@ -114,6 +121,7 @@ describe('computeSpendingStats', () => {
       today: '2026-08-03',
       dailyTarget: 10,
       targetRange: { start: '2026-08-01', end: '2026-08-02' },
+      minimumCompletedDays: 1,
     });
 
     expect(result.dailyTarget).toBe(10);
@@ -169,6 +177,94 @@ describe('computeSpendingStats', () => {
       scopeEnd: null,
       totalDays: 0,
     });
+  });
+
+  it('does not turn a short tracking history into an achievement or streak', () => {
+    const result = computeSpendingStats({
+      dailyData: [
+        { date: '2026-08-01', total: 10 },
+        { date: '2026-08-02', total: 0 },
+      ],
+      startDate: '2026-08-01',
+      endDate: '2026-08-02',
+      today: '2026-08-03',
+      trackingMode: true,
+      minimumCompletedDays: 3,
+    });
+
+    expect(result).toMatchObject({
+      status: 'insufficient_history',
+      totalDays: 2,
+      recordedDays: 1,
+      coveragePct: 50,
+      zeroSpendDays: 0,
+      currentStreak: 0,
+    });
+  });
+
+  it('ignores chart-only synthetic zeros when resolving the first tracked day', () => {
+    const result = computeSpendingStats({
+      dailyData: [
+        { date: '2026-08-01', total: 0 },
+        { date: '2026-08-02', total: 0 },
+        { date: '2026-08-03', total: 5 },
+        { date: '2026-08-04', total: 0 },
+        { date: '2026-08-05', total: 0 },
+      ],
+      startDate: '2026-08-01',
+      endDate: '2026-08-05',
+      today: '2026-08-06',
+      trackingMode: true,
+    });
+
+    expect(result).toMatchObject({
+      status: 'ready',
+      scopeStart: '2026-08-03',
+      totalDays: 3,
+      recordedDays: 1,
+      zeroSpendDays: 2,
+      coveragePct: 33,
+    });
+  });
+
+  it('uses the global tracking start so missing days before this period’s first expense stay in scope', () => {
+    const result = computeSpendingStats({
+      dailyData: [
+        { date: '2026-08-01', total: 0 },
+        { date: '2026-08-02', total: 0 },
+        { date: '2026-08-03', total: 5 },
+        { date: '2026-08-04', total: 0 },
+        { date: '2026-08-05', total: 0 },
+      ],
+      startDate: '2026-08-01',
+      endDate: '2026-08-05',
+      today: '2026-08-06',
+      trackingMode: true,
+      trackingStartDate: '2026-07-10',
+    });
+
+    expect(result).toMatchObject({
+      status: 'ready',
+      scopeStart: '2026-08-01',
+      totalDays: 5,
+      recordedDays: 1,
+      zeroSpendDays: 4,
+      coveragePct: 20,
+    });
+  });
+
+  it('returns no_data when the database has no global tracking start', () => {
+    const result = computeSpendingStats({
+      dailyData: [{ date: '2026-08-01', total: 0 }],
+      startDate: '2026-08-01',
+      endDate: '2026-08-05',
+      today: '2026-08-06',
+      trackingMode: true,
+      trackingStartDate: null,
+    });
+
+    expect(result.status).toBe('no_data');
+    expect(result.totalDays).toBe(0);
   });
 
   it('rejects invalid or reversed selected ranges', () => {

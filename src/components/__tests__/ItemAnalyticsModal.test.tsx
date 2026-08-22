@@ -9,9 +9,14 @@ jest.mock('../../db/expenseDao', () => ({
 }));
 
 jest.mock('../BottomSheetModal', () => {
-  const { View } = require('react-native');
-  return function MockBottomSheetModal({ visible, children }: any) {
-    return visible ? <View>{children}</View> : null;
+  const { Pressable, View } = require('react-native');
+  return function MockBottomSheetModal({ visible, children, onDismiss }: any) {
+    return visible ? (
+      <View>
+        {children}
+        <Pressable testID="mock-item-sheet-dismiss" onPress={onDismiss} />
+      </View>
+    ) : null;
   };
 });
 
@@ -131,5 +136,21 @@ describe('ItemAnalyticsModal latest request davranışı', () => {
     expect(newestPage.queryByText('02.08.2026')).toBeNull();
     expect(oldestPage.getByText('02.08.2026')).toBeTruthy();
     expect(oldestPage.getByText('01.08.2026')).toBeTruthy();
+  });
+
+  it('native kapanış tamamlandığında onDismiss geri dönüşünü iletir', async () => {
+    const onDismiss = jest.fn();
+    (ExpenseDao.getItemAnalytics as jest.Mock).mockResolvedValue(resultFor(7, 8));
+    const screen = await render(
+      <ItemAnalyticsModal
+        visible
+        itemName="Ürün"
+        onClose={jest.fn()}
+        onDismiss={onDismiss}
+      />,
+    );
+
+    await fireEvent.press(screen.getByTestId('mock-item-sheet-dismiss'));
+    expect(onDismiss).toHaveBeenCalledTimes(1);
   });
 });

@@ -150,6 +150,7 @@ describe('VendorAnalyticsSheet', () => {
         items={items}
         loading={false}
         onClose={jest.fn()}
+        onSuspendForItem={jest.fn()}
         onSelectItem={jest.fn()}
       />,
     );
@@ -170,6 +171,7 @@ describe('VendorAnalyticsSheet', () => {
         items={items}
         loading={false}
         onClose={jest.fn()}
+        onSuspendForItem={jest.fn()}
         onSelectItem={jest.fn()}
       />,
     );
@@ -181,6 +183,7 @@ describe('VendorAnalyticsSheet', () => {
 
   it('ürün ayrıntısını satıcı paneli kapandıktan sonra açar', async () => {
     const onClose = jest.fn();
+    const onSuspendForItem = jest.fn();
     const onSelectItem = jest.fn();
     const screen = await render(
       <VendorAnalyticsSheet
@@ -190,12 +193,14 @@ describe('VendorAnalyticsSheet', () => {
         items={items}
         loading={false}
         onClose={onClose}
+        onSuspendForItem={onSuspendForItem}
         onSelectItem={onSelectItem}
       />,
     );
 
     await fireEvent.press(within(await screen.findByTestId('vendor-item-page-0')).getByText('Sık Ürün'));
-    expect(onClose).toHaveBeenCalledTimes(1);
+    expect(onSuspendForItem).toHaveBeenCalledTimes(1);
+    expect(onClose).not.toHaveBeenCalled();
     expect(onSelectItem).not.toHaveBeenCalled();
 
     await fireEvent.press(screen.getByTestId('mock-bottom-sheet-dismiss'));

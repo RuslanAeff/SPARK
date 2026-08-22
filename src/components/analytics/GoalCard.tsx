@@ -15,23 +15,7 @@ interface GoalCardProps extends BaseCardProps {
 
 function GoalCard({ styles, t, currency, goalInfo }: GoalCardProps) {
   useThemeRevision();
-  if (!goalInfo.available) {
-    return (
-      <AnimatedCard delay={140} style={styles.section}>
-        <View style={styles.goalHeader}>
-          <View style={styles.goalHeaderLeft}>
-            <MaterialCommunityIcons name="flag-checkered" size={18} color={Colors.textSecondary} />
-            <Text style={styles.cardHeaderTitle}>{t('goal_card_title')}</Text>
-          </View>
-        </View>
-        <View style={styles.goalEmptyWrap}>
-          <MaterialCommunityIcons name="flag-outline" size={36} color={Colors.textMuted} />
-          <Text style={styles.goalEmptyTitle}>{t('goal_card_empty_title')}</Text>
-          <Text style={styles.goalEmptyHint}>{t('goal_card_empty_hint')}</Text>
-        </View>
-      </AnimatedCard>
-    );
-  }
+  if (!goalInfo.available) return null;
 
   const { title, target, current, remaining, ratio, pctNum, daysToTarget, monthlyNeed, status } = goalInfo;
   const accent =

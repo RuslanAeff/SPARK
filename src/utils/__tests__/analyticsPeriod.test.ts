@@ -1,5 +1,6 @@
 import {
   resolveAnalyticsDateRange,
+  resolveComparableAnalyticsRanges,
   resolvePreviousAnalyticsDateRange,
 } from '../analyticsPeriod';
 
@@ -19,6 +20,41 @@ describe('analytics period resolution', () => {
       start: '2026-06-23',
       end: '2026-07-22',
     });
+  });
+
+  it('aktif özel aralıkta bugünü ve geleceği dışlayıp eşit ilerlemeyi karşılaştırır', () => {
+    expect(resolveComparableAnalyticsRanges(
+      'custom',
+      { start: '2026-07-22', end: '2026-08-30' },
+      23,
+      new Date(2026, 7, 22, 12),
+    )).toEqual({
+      current: { start: '2026-07-22', end: '2026-08-21' },
+      previous: { start: '2026-06-12', end: '2026-07-12' },
+      completedDays: 31,
+    });
+  });
+
+  it('aktif bütçe döngüsünü önceki döngünün aynı tamamlanmış günleriyle eşler', () => {
+    expect(resolveComparableAnalyticsRanges(
+      'month',
+      { start: '2026-07-23', end: '2026-08-22' },
+      23,
+      new Date(2026, 7, 5, 12),
+    )).toEqual({
+      current: { start: '2026-07-23', end: '2026-08-04' },
+      previous: { start: '2026-06-23', end: '2026-07-05' },
+      completedDays: 13,
+    });
+  });
+
+  it('seçili dönem bugün başlıyorsa henüz karşılaştırma üretmez', () => {
+    expect(resolveComparableAnalyticsRanges(
+      'custom',
+      { start: '2026-08-22', end: '2026-08-22' },
+      1,
+      new Date(2026, 7, 22, 12),
+    )).toBeNull();
   });
 
   it('başlangıç günü 1 olduğunda takvim ayı geriye uyumluluğunu korur', () => {

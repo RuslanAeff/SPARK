@@ -16,14 +16,22 @@ export interface ComputeSpendingStatsInput {
   endDate: string;
   /** Deterministic local "today", supplied as YYYY-MM-DD by the caller. */
   today: string;
-  /** All-time mode: observation begins with the first real source entry. */
+  /** Tracking mode: observation never begins before the first real expense. */
   trackingMode?: boolean;
+  /** First expense date across the database; null explicitly means no tracking history. */
+  trackingStartDate?: string | null;
   /** Stable daily target. It is used only together with a valid targetRange. */
   dailyTarget?: number | null;
   targetRange?: SpendingStatsTargetRange | null;
+  /** A result becomes an achievement/statistic only after this many completed days. */
+  minimumCompletedDays?: number;
 }
 
-export type SpendingStatsStatus = 'ready' | 'no_data' | 'no_completed_days';
+export type SpendingStatsStatus =
+  | 'ready'
+  | 'no_data'
+  | 'no_completed_days'
+  | 'insufficient_history';
 export type SpendingStatsStreakMode = 'current' | 'period_end';
 
 export interface SpendingStatsResult {
@@ -36,6 +44,8 @@ export interface SpendingStatsResult {
   currentStreak: number;
   underBudgetDays: number;
   totalDays: number;
+  recordedDays: number;
+  coveragePct: number;
   zeroSpendDates: string[];
   currentStreakDates: string[];
   underBudgetEntries: { date: string; total: number }[];
@@ -131,6 +141,8 @@ function emptyResult(
     currentStreak: 0,
     underBudgetDays: 0,
     totalDays: 0,
+    recordedDays: 0,
+    coveragePct: 0,
     zeroSpendDates: [],
     currentStreakDates: [],
     underBudgetEntries: [],
@@ -150,8 +162,10 @@ export function computeSpendingStats({
   endDate,
   today,
   trackingMode = false,
+  trackingStartDate,
   dailyTarget,
   targetRange,
+  minimumCompletedDays = 3,
 }: ComputeSpendingStatsInput): SpendingStatsResult {
   const selectedStart = requireOrdinal(startDate, 'startDate');
   const selectedEnd = requireOrdinal(endDate, 'endDate');
@@ -178,17 +192,28 @@ export function computeSpendingStats({
       continue;
     }
     totalsByOrdinal.set(ordinal, (totalsByOrdinal.get(ordinal) ?? 0) + cents);
-    if (firstSourceOrdinal === null || ordinal < firstSourceOrdinal) {
+    // useDailySpending short ranges for charts with synthetic zero rows. Only
+    // a real non-zero expense day proves that tracking has started.
+    if (cents !== 0 && (firstSourceOrdinal === null || ordinal < firstSourceOrdinal)) {
       firstSourceOrdinal = ordinal;
     }
   }
 
-  if (trackingMode && firstSourceOrdinal === null) {
+  let resolvedTrackingStart = firstSourceOrdinal;
+  if (trackingMode && trackingStartDate !== undefined) {
+    resolvedTrackingStart = trackingStartDate === null
+      ? null
+      : requireOrdinal(trackingStartDate, 'trackingStartDate');
+  }
+  if (
+    trackingMode &&
+    (resolvedTrackingStart === null || resolvedTrackingStart > selectedEnd)
+  ) {
     return emptyResult('no_data', streakMode, target?.amount ?? null);
   }
 
   const scopeStartOrdinal = trackingMode
-    ? Math.max(selectedStart, firstSourceOrdinal as number)
+    ? Math.max(selectedStart, resolvedTrackingStart as number)
     : selectedStart;
   const completedEndOrdinal = Math.min(selectedEnd, todayOrdinal - 1);
   const scopeStart = ordinalToYmd(scopeStartOrdinal);
@@ -204,11 +229,13 @@ export function computeSpendingStats({
 
   const zeroSpendDates: string[] = [];
   const underBudgetEntries: { date: string; total: number }[] = [];
+  let recordedDays = 0;
 
   for (let ordinal = scopeStartOrdinal; ordinal <= completedEndOrdinal; ordinal += 1) {
     const totalCents = totalsByOrdinal.get(ordinal) ?? 0;
     const date = ordinalToYmd(ordinal);
     if (totalCents === 0) zeroSpendDates.push(date);
+    else recordedDays += 1;
 
     if (
       target &&
@@ -219,6 +246,28 @@ export function computeSpendingStats({
     ) {
       underBudgetEntries.push({ date, total: totalCents / 100 });
     }
+  }
+
+  const totalDays = completedEndOrdinal - scopeStartOrdinal + 1;
+  const coveragePct = totalDays > 0 ? Math.round((recordedDays / totalDays) * 100) : 0;
+  const normalizedMinimumDays = Math.max(1, Math.floor(minimumCompletedDays));
+  if (totalDays < normalizedMinimumDays) {
+    return {
+      status: 'insufficient_history',
+      streakMode,
+      scopeStart,
+      scopeEnd: ordinalToYmd(completedEndOrdinal),
+      dailyTarget: target?.amount ?? null,
+      zeroSpendDays: 0,
+      currentStreak: 0,
+      underBudgetDays: 0,
+      totalDays,
+      recordedDays,
+      coveragePct,
+      zeroSpendDates: [],
+      currentStreakDates: [],
+      underBudgetEntries: [],
+    };
   }
 
   const currentStreakDates: string[] = [];
@@ -240,7 +289,9 @@ export function computeSpendingStats({
     zeroSpendDays: zeroSpendDates.length,
     currentStreak: currentStreakDates.length,
     underBudgetDays: underBudgetEntries.length,
-    totalDays: completedEndOrdinal - scopeStartOrdinal + 1,
+    totalDays,
+    recordedDays,
+    coveragePct,
     zeroSpendDates,
     currentStreakDates,
     underBudgetEntries,

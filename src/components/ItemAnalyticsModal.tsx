@@ -32,6 +32,7 @@ interface ItemAnalyticsModalProps {
   itemName: string;
   measurementUnit?: MeasurementUnit;
   onClose: () => void;
+  onDismiss?: () => void;
 }
 
 interface ItemStats {
@@ -51,7 +52,13 @@ interface ItemHistoryEntry {
   measurement_unit: MeasurementUnit;
 }
 
-export default function ItemAnalyticsModal({ visible, itemName, measurementUnit, onClose }: ItemAnalyticsModalProps) {
+export default function ItemAnalyticsModal({
+  visible,
+  itemName,
+  measurementUnit,
+  onClose,
+  onDismiss,
+}: ItemAnalyticsModalProps) {
   const scheme = useAppTheme();
   const themeRevision = useThemeRevision();
   const styles = useMemo(() => getStyles(), [scheme, themeRevision]);
@@ -146,7 +153,13 @@ export default function ItemAnalyticsModal({ visible, itemName, measurementUnit,
   // kırardı.
 
   return (
-    <BottomSheetModal visible={visible} onClose={onClose} sheetStyle={styles.sheet} showHandle>
+    <BottomSheetModal
+      visible={visible}
+      onClose={onClose}
+      onDismiss={onDismiss}
+      sheetStyle={styles.sheet}
+      showHandle
+    >
 
           {/* Kapat (X) yok — sürükle-kapat kulpu zaten var (gereksiz tekrar). */}
           <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>

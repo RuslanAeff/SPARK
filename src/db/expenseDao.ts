@@ -317,6 +317,14 @@ export const ExpenseDao = {
     return result?.total || 0;
   },
 
+  async getFirstExpenseDate(): Promise<string | null> {
+    const db = await getDatabase();
+    const result = await db.getFirstAsync<{ first_date: string | null }>(
+      'SELECT MIN(date) as first_date FROM expenses',
+    );
+    return result?.first_date ?? null;
+  },
+
   async getSpendingByMonth(month: string): Promise<number> {
     // month format: 'YYYY-MM'
     const startDate = `${month}-01`;

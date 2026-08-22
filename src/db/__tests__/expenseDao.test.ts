@@ -11,11 +11,20 @@ function normalizeSql(sql: string): string {
 
 describe('ExpenseDao read projections', () => {
   const getAllAsync = jest.fn();
+  const getFirstAsync = jest.fn();
 
   beforeEach(() => {
     jest.clearAllMocks();
     getAllAsync.mockResolvedValue([]);
-    getDatabaseMock.mockResolvedValue({ getAllAsync } as any);
+    getFirstAsync.mockResolvedValue(null);
+    getDatabaseMock.mockResolvedValue({ getAllAsync, getFirstAsync } as any);
+  });
+
+  it('global takip başlangıcını ilk harcama tarihinden okur', async () => {
+    getFirstAsync.mockResolvedValue({ first_date: '2026-07-10' });
+
+    await expect(ExpenseDao.getFirstExpenseDate()).resolves.toBe('2026-07-10');
+    expect(getFirstAsync).toHaveBeenCalledWith('SELECT MIN(date) as first_date FROM expenses');
   });
 
   it('seçim verilmediğinde geriye uyumlu overall sorgusunu ve kararlı sıralamayı kullanır', async () => {
