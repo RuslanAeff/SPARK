@@ -1,4 +1,4 @@
-// S.P.A.R.K. — Settings: Data & backup (vendors, subscriptions, backup)
+// S.P.A.R.K. — Settings: Data & backup (vendors, export, restore)
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import {
   View,
@@ -297,29 +297,8 @@ export default function SettingsDataScreen() {
             </View>
           </Animated.View>
 
-          {/* Subscriptions link */}
-          <Animated.View entering={FadeInDown.delay(160).duration(400)}>
-            <Pressable
-              onPress={() => {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                router.push('/subscriptions');
-              }}
-              style={({ pressed }) => [styles.linkRow, pressed && styles.linkRowPressed]}
-            >
-              <View style={[styles.sectionIcon, { backgroundColor: Colors.primary + '22' }]}>
-                <MaterialCommunityIcons name="autorenew" size={22} color={Colors.primary} />
-              </View>
-              <Text style={styles.linkText}>{t('subscriptions_title')}</Text>
-              <MaterialCommunityIcons
-                name="chevron-right"
-                size={20}
-                color={Colors.textSecondary}
-              />
-            </Pressable>
-          </Animated.View>
-
           {/* Backup */}
-          <Animated.View entering={FadeInDown.delay(240).duration(400)}>
+          <Animated.View entering={FadeInDown.delay(160).duration(400)}>
             <BackupSection />
           </Animated.View>
         </ScrollView>
@@ -541,23 +520,5 @@ const getStyles = () => StyleSheet.create({
     color: Colors.textMuted,
     fontStyle: 'italic',
     textAlign: 'center',
-  },
-  linkRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: Colors.cardSurface,
-    borderRadius: BorderRadius.xl,
-    padding: Spacing.lg,
-    marginBottom: Spacing.lg,
-    gap: Spacing.md,
-    borderWidth: 1,
-    borderColor: Colors.cardBorder,
-  },
-  linkRowPressed: { opacity: 0.85, transform: [{ scale: 0.99 }] },
-  linkText: {
-    ...Typography.bodyLarge,
-    fontFamily: FontFamily.medium,
-    color: Colors.textPrimary,
-    flex: 1,
   },
 });

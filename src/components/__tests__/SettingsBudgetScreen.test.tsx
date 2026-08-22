@@ -9,9 +9,10 @@ import {
 } from '../../services/goalFeatureSettings';
 
 const mockTriggerRefresh = jest.fn();
+const mockRouterPush = jest.fn();
 
 jest.mock('expo-router', () => ({
-  useRouter: () => ({ back: jest.fn(), push: jest.fn() }),
+  useRouter: () => ({ back: jest.fn(), push: mockRouterPush }),
 }));
 
 jest.mock('react-native-safe-area-context', () => {
@@ -157,6 +158,20 @@ describe('SettingsBudgetScreen goal focus preference', () => {
       expect(screen.getByTestId('goal-focus-switch').props.disabled).toBe(true);
     });
     expect(setDashboardFocus).not.toHaveBeenCalled();
+  });
+
+  it('keeps planning rows concise and opens recurring payments from this group', async () => {
+    getPreferences.mockResolvedValue({ enabled: true, dashboardFocusEnabled: false });
+
+    const screen = await render(<SettingsBudgetScreen />);
+    await waitFor(() => expect(getPreferences).toHaveBeenCalledTimes(1));
+
+    expect(screen.queryByText('goal_focus_hint')).toBeNull();
+    expect(screen.queryByText('goal_settings_month_hint')).toBeNull();
+    expect(screen.getByText('subscriptions_title')).toBeTruthy();
+
+    await fireEvent.press(screen.getByTestId('manage-recurring-payments'));
+    expect(mockRouterPush).toHaveBeenCalledWith('/subscriptions');
   });
 
   it('keeps cycle steps as a draft and persists the transition only with budget save', async () => {

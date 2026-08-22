@@ -330,10 +330,7 @@ export default function SettingsBudgetScreen() {
                   !goalFeatureOn && styles.goalFeatureRowDisabled,
                 ]}
               >
-                <View style={styles.goalPreferenceText}>
-                  <Text style={styles.goalFeatureLabel}>{t('goal_focus_toggle')}</Text>
-                  <Text style={styles.goalFeatureHint}>{t('goal_focus_hint')}</Text>
-                </View>
+                <Text style={styles.goalFeatureLabel}>{t('goal_focus_toggle')}</Text>
                 <Switch
                   testID="goal-focus-switch"
                   value={goalFocusOn}
@@ -355,16 +352,35 @@ export default function SettingsBudgetScreen() {
               <View style={[styles.sectionIcon, { backgroundColor: Colors.primary + '22' }] }>
                 <MaterialCommunityIcons name="gauge" size={22} color={Colors.primary} />
               </View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.linkText}>{t('goal_settings_limits_section')}</Text>
-                <Text style={styles.goalFeatureHint}>{t('goal_settings_month_hint')}</Text>
-              </View>
+              <Text style={styles.linkText}>{t('goal_settings_limits_section')}</Text>
               <MaterialCommunityIcons name="chevron-right" size={20} color={Colors.textSecondary} />
             </Pressable>
           </Animated.View>
 
-          {/* Categories link */}
+          {/* Recurring payments link */}
           <Animated.View entering={FadeInDown.delay(240).duration(400)}>
+            <Pressable
+              testID="manage-recurring-payments"
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                router.push('/subscriptions');
+              }}
+              style={({ pressed }) => [styles.linkRow, pressed && styles.linkRowPressed]}
+            >
+              <View style={[styles.sectionIcon, { backgroundColor: Colors.chartBlue + '22' }]}>
+                <MaterialCommunityIcons name="calendar-sync-outline" size={22} color={Colors.chartBlue} />
+              </View>
+              <Text style={styles.linkText}>{t('subscriptions_title')}</Text>
+              <MaterialCommunityIcons
+                name="chevron-right"
+                size={20}
+                color={Colors.textSecondary}
+              />
+            </Pressable>
+          </Animated.View>
+
+          {/* Categories link */}
+          <Animated.View entering={FadeInDown.delay(280).duration(400)}>
             <Pressable
               onPress={() => {
                 Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -565,16 +581,6 @@ const getStyles = () => StyleSheet.create({
   },
   goalFeatureRowDisabled: {
     opacity: 0.48,
-  },
-  goalPreferenceText: {
-    flex: 1,
-    minWidth: 0,
-    paddingRight: Spacing.md,
-  },
-  goalFeatureHint: {
-    ...Typography.bodySmall,
-    color: Colors.textSecondary,
-    marginTop: Spacing.xs,
   },
   linkRow: {
     flexDirection: 'row',
