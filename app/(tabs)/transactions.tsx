@@ -537,8 +537,12 @@ export default function TransactionsScreen() {
 
       <GlassDeleteModal
         visible={bulkDeleteVisible}
-        title={t('delete')}
-        message={t('confirm_delete_transactions', { count: selectedCount.toString() })}
+        title={selectedCount === 1
+          ? t('delete_transaction_title')
+          : t('delete_transactions_title')}
+        message={selectedCount === 1
+          ? t('confirm_delete_transaction')
+          : t('confirm_delete_transactions', { count: selectedCount.toString() })}
         onCancel={() => !deleting && setBulkDeleteVisible(false)}
         onDelete={runBulkDelete}
         onDismiss={() => {
