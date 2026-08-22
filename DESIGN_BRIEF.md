@@ -115,7 +115,11 @@ uygulanır. Tamamlanmış dönemlerin tarih aralığı ve planlanan tutarı değ
 kullanıcı gerçek gelir veya işlem tarihini yapay biçimde ileri almak zorunda
 kalmaz.
 
-Harcama istatistikleri yalnız tamamlanmış takvim günlerini değerlendirir; bugün sıfır-harcama günü, hedef-altı gün veya değerlendirme paydasına katılmaz, ancak bugünkü gerçek harcama aktif sıfır-harcama serisini keser. Takip-temelli uzun dönem görünümünde gözlem ilk gerçek işlemle başlar. Bugünü içermeyen geçmiş bir aralıkta gösterilen seri, güncel seri gibi değil dönem sonu serisi olarak adlandırılır. Sabit günlük plan hedefi yalnız aktif bütçenin kanonik aylık döngüsünde `etkin bütçe / toplam döngü günü` hesabıyla sunulur; diğer aralıklarda yapay bir hedef üretilmez.
+Harcama istatistikleri yalnız tamamlanmış takvim günlerini değerlendirir; bugün harcama kaydı olmayan gün, hedef-altı gün veya değerlendirme paydasına katılmaz, ancak bugünkü gerçek harcama aktif seriyi keser. Takip-temelli görünümde gözlem veritabanındaki ilk gerçek işlemle başlar. Üç tamamlanmış günden kısa kapsam başarı veya seri üretmez; kart kaç tamamlanmış günün kaçında harcama kaydı bulunduğunu açıkça gösterir. Mesaj yalnız son seri uzunluğuna dayanmaz: günlük plan varsa tüm dönemdeki kayıtlı harcama günlerinin ne kadarının plan içinde kaldığını, plan yoksa yalnız kayıt kapsamının güvenini açıklar. Kayıt bulunmayan gün tasarruf kanıtı sayılmaz. Bugünü içermeyen geçmiş bir aralıkta gösterilen seri, güncel seri gibi değil dönem sonu serisi olarak adlandırılır. Sabit günlük plan hedefi yalnız aktif bütçenin kanonik aylık döngüsünde `etkin bütçe / toplam döngü günü` hesabıyla sunulur; diğer aralıklarda yapay bir hedef üretilmez.
+
+Analiz karşılaştırması bütçeyi değil, iki tarih aralığındaki kayıtlı harcama toplamını karşılaştırır. Devam eden dönemde bugün ve gelecek günler dışarıda bırakılır; mevcut dönemin ilk tamamlanmış `N` günü, önceki dönemin ilk `N` günüyle karşılaştırılır ve iki gerçek tarih aralığı kartta görünür. Başarılı sorgudaki sıfır harcama ile verinin yüklenememesi aynı durum gibi sunulmaz.
+
+Analiz, Dashboard'da zaten bulunan **Bütçe Durumu** kartını ve kayıt oluşturma saatini gerçek satın alma saati gibi yorumlama riski taşıyan **Ne Zaman Harcıyorsun** kartını tekrarlamaz. **En Yüksek İşlemler** seçili aralığın somut tepe işlemlerini gösterdiği için korunur. Limit Sağlığı, Fiyat Takibi, Aktif Abonelikler ve Birikim Hedefi yalnız ilgili kalıcı veya türetilmiş veri varsa render edilir; veri yokken boş kart yığını oluşturmaz. Kart düzenleme yüzeyinde kullanıcı tüm aktif kartları tek ve geri alınabilir bir eylemle Kullanılabilir Kartlar bölümüne taşıyabilir. Kart ekleme, kaldırma ve sıralama işlemleri onaya kadar yalnız taslaktır; düzenleme sırasında ana sekmeler arasında yatay kaydırma kilitlenir, sekme düğmesiyle ayrılınca taslak atılıp son onaylanmış yapı geri yüklenir. Boş taslakta en az bir kart yeniden eklenmeden onay kabul edilmez veya boş ayar kalıcılaştırılmaz; eski bir boş ayar bulunursa Günlük Grafik kartıyla güvenli biçimde onarılır.
 
 Dashboard sırası tamamen serbest sürükle-bırak kişiselleştirmesine açılmaz. Kullanıcı, aktif ve tamamlanmamış birikim hedefini isteğe bağlı olarak üst bölgede kompakt bir özetle öne çıkarabilir. Açık borç uyarısı daha yüksek öncelikte kalır; öne çıkarılan hedef aynı ekranda ikinci kez tam kart olarak tekrarlanmaz. Tamamlanmış hedef standart ayrıntı konumunda kalır ve kategori limitleri hedef kaydının varlığına bağlanmaz.
 
@@ -223,6 +227,7 @@ Bu kurallar ürün davranışıdır; uygulama ayrıntısı gibi sessizce değiş
 12. **Dashboard önceliği kontrollüdür.** Açık borç uyarısı isteğe bağlı hedef özetinden önce gelir; aktif hedef kompakt veya tam karttan yalnız biriyle gösterilir ve görünüm tercihi finansal veriyi değiştirmez.
 13. **Hatırlatma taahhüdü tahminden ayrıdır.** Türetilmiş abonelik önerisi kullanıcı onayı olmadan kalıcı ödeme hatırlatıcısına dönüşmez; borç vadesi borcun işlem tarihini veya bütçe etkisini değiştirmez.
 14. **Kategori sınırı hedeften bağımsız ve erişilebilir olmalıdır.** Kullanıcı birikim hedefi oluşturmadan aylık kategori harcama sınırı kaydedebilir; giriş yolu Bütçe ve Analiz yüzeylerinde görünürdür. Fiyat değişimi özeti, kart yüksekliğini büyütmeden altılı yatay sayfalarda tüm değişimlere eriştirir; kart içindeki yatay jest üst sekme gezinmesine devredilmez. Satıcı özeti de ilk beşten başlayarak sabit yükseklikte yatay sayfalanır; satıcıya dokunmak ana kartı büyütmez, donut ve ürün analizi ayrı bir yüksek alt panelde açılır. Satıcı ürünleri panel içinde beşerli yatay sayfalarda sunulur ve kullanıcı sıralamayı alım sayısı veya toplam harcama olarak açıkça seçebilir. Fiyat karşılaştırması ürün adıyla birlikte kanonik ölçü türünü kullanır; adet, kg ve litre serileri karıştırılmaz, g/ml girişi anlaşılır gösterilip kanonik tabana çevrilir. Analiz kartı başlıklarında ikon ve metin aynı optik ekseni paylaşır. Projeksiyon şeridi veri göstergesidir, kullanıcı ayarı değildir; bütçe eşiği dolgu üzerinde ve uç konumlarda da kontrastlı görünür.
+15. **Analiz güveni görünür ve karşılaştırma eş olmalıdır.** Harcama kaydı olmayan gün başarı etiketi değildir; kısa takip geçmişi başarı/seri üretmez ve kapsam sayısı kullanıcıya gösterilir. Devam eden harcama dönemi, önceki dönemin aynı sayıda tamamlanmış günüyle karşılaştırılır; bugün ve gelecek günler toplamlara katılmaz. Veri yükleme hatası ile geçerli `0 harcama` sonucu ayrıdır. İlgili veri bulunmayan opsiyonel analiz kartları boş yüzey olarak yer kaplamaz.
 
 Ayrıntılı teknik sözleşmeler için [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) ve karar kayıtları kullanılır.
 
@@ -273,12 +278,22 @@ ve ses ya da haptic kullanılamadığında renk seçimini engellemez. Kısa kart
 yalnız seçim görevine ayrılır, uzun
 açıklamalar başlıktaki bilgi eyleminden açılan ayrı modalda tutulur.
 
+Ayar bilgi mimarisi işin anlamına göre ayrılır. **Bütçe ve planlama**; bütçe,
+birikim hedefi, kategori limitleri ve kullanıcı tarafından yönetilen düzenli
+ödeme planlarını içerir. **Veri ve yedek** yalnız satıcı verisi, dışa aktarma,
+geri yükleme ve veri yaşam döngüsü işlemlerini taşır. Kira ve internet gibi
+düzenli ödemeler yalnız abonelik olmadığı için yönetim girişi **Düzenli
+ödemeler** olarak adlandırılır. Bir ayarın açıklaması aynı karttaki bilgi
+eyleminde zaten bulunuyorsa kontrol satırında ikinci kez gösterilmez; kısa başlık
+ve doğrudan kontrol korunur.
+
 ### Etkileşim ilkeleri
 
 - Ana eylem ilk bakışta anlaşılmalı; ikincil eylemler görsel gürültü yaratmamalıdır.
 - Dashboard kişiselleştirmesi kritik finansal öncelikleri bozmamalı; kullanıcı tercihi bir kartı öne çıkarabilir fakat aynı bilgiyi tekrarlamamalı veya açık borç uyarısını aşağı itememelidir.
 - Okunmamış bildirim, kalın bir yan şerit yerine hafif tonal yüzey, ince sınır, güçlendirilmiş başlık ve küçük durum noktasıyla belirtilmelidir; durum ekran okuyucu etiketinde de açıkça söylenmelidir.
 - Silme gibi geri alınması zor eylemler kasıtlı bir jest, seçim veya onay gerektirir.
+- Silme onayı sakin ve tema uyumlu bir karar penceresidir: tek semantik ikon, açık başlık ve geri alınamazlık metni kullanır; yalnız yıkıcı onay düğmesi kırmızı vurgulanır. HUD köşeleri, tarama çizgisi, yoğun kırmızı parlama veya başlık/düğme tekrarıyla kullanıcıyı gereksiz yere alarm durumuna sokmaz.
 - Swipe, uzun basma, scroll ve pull-to-refresh aynı yüzeyde birbirini kilitlememelidir.
 - Toast ve popup geri bildirimi içeriği örterek veya ekranı karartarak cezalandırmamalıdır.
 - Animasyonun başlangıç ve bitiş yüzeyleri aynı tema bağlamında olmalıdır; beyaz/siyah ara kare kabul edilmez.
@@ -294,6 +309,7 @@ açıklamalar başlıktaki bilgi eyleminden açılan ayrı modalda tutulur.
 - Yoğun seriler sadeleştirilecekse ham geçmiş erişilebilir kalmalı; ilk/son gözlem, kaynak gözlem konumu ve gerçek uç değerler korunmalı, ortalama veya yapay nokta üretilmemeli ve gösterilen/kaynak kayıt sayısı kullanıcıya açıklanmalıdır.
 - Zaman grafiğindeki ayrık yakınlaştırma kademeleri deterministik olmalıdır. Günlük dalgalanma görünümünde tüm dönem, 14 gün ve 7 gün pencereleri en güncel tarihten geriye hizalanır; yalnız en eski sayfa eksik gün içerebilir. Kademe değişimi incelenen sayfanın sağ uç tarihini korur, görünen tarih aralığı ile sayfa sayacı aynı durumdan üretilir ve yalnız görünüm değişti diye veri giriş animasyonu yeniden oynatılmaz.
 - Sıralı analiz kartları seçim veya gruplama kuralını başlık ve kısa açıklamayla dürüstçe belirtmelidir; yıllık uzun dönem özetleri aynı satıcının tekrarları yerine satıcı başına en yüksek tek gerçek işlemi gösterebilir.
+- Devam eden dönem karşılaştırmaları eş ilerleme kullanmalı; kart karşılaştırılan iki gerçek tarih aralığını göstermeli ve bütçe yerine harcama toplamı kullandığını başlığıyla açık etmelidir.
 - En yüksek işlemler kartı odağını kaybetmemesi için yalnız ilk 10 sonucu beşerli iki yatay sayfada; sessiz harcamalar ise en yüksek toplam etkili ilk 15 kalemi beşerli en fazla üç sayfada sunar. Her iki iç pager yatay hareket sırasında üst sekme geçişini geçici olarak kilitler ve kart yüksekliği sayfalar arasında değişmez.
 - Yıllık görünümde anlamını kaybeden aylık projeksiyon kartları boş açıklama yüzeyi olarak yer kaplamamalıdır; kısa ve özel aralıklarda mevcut yönlendirici açıklama korunabilir.
 - Seçili durum yalnız renkle aktarılmamalı; tarih, değer ve bağlam için erişilebilir bir metin karşılığı bulunmalıdır.

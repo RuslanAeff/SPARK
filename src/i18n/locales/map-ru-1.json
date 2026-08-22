@@ -2,6 +2,7 @@
   "cancel": "Отмена",
   "save": "Сохранить",
   "delete": "Удалить",
+  "delete_confirmation_title": "Подтвердите удаление",
   "edit": "Изменить",
   "ok": "ОК",
   "close": "Закрыть",
