@@ -33,12 +33,18 @@ export default function CategoryPill({
   const radius = (ringSize - strokeWidth * 2) / 2;
   const circumference = 2 * Math.PI * radius;
   const progress = percentage != null ? (percentage / 100) * circumference : 0;
+  const itemWidth = size === 'large' ? 92 : size === 'medium' ? 80 : 68;
+  const accessibilityLabel = percentage == null ? name : `${name}, ${percentage}%`;
 
   return (
     <Pressable
       onPress={onPress}
+      accessible
+      accessibilityRole={onPress ? 'button' : 'text'}
+      accessibilityLabel={accessibilityLabel}
       style={({ pressed }) => [
         styles.container,
+        { width: itemWidth },
         { opacity: pressed ? 0.7 : 1 },
       ]}
     >
@@ -78,9 +84,18 @@ export default function CategoryPill({
           />
         </View>
       </View>
-      {percentage != null && (
-        <Text style={[styles.percentage, { color }]}>{percentage}%</Text>
-      )}
+      <View style={styles.details}>
+        <Text
+          style={styles.name}
+          numberOfLines={2}
+          ellipsizeMode="tail"
+        >
+          {name}
+        </Text>
+        {percentage != null && (
+          <Text style={[styles.percentage, { color }]}>{percentage}%</Text>
+        )}
+      </View>
     </Pressable>
   );
 }
@@ -103,8 +118,19 @@ const getStyles = () => StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  details: {
+    width: '100%',
+    alignItems: 'center',
+    gap: Spacing.xxs,
+  },
+  name: {
+    ...Typography.labelSmall,
+    color: Colors.textPrimary,
+    fontFamily: FontFamily.medium,
+    textAlign: 'center',
+  },
   percentage: {
-    ...Typography.labelMedium,
+    ...Typography.labelSmall,
     fontFamily: FontFamily.semiBold,
   },
 });

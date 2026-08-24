@@ -1,0 +1,6 @@
+{
+  "debt_tile_empty": "Açıq borc yoxdur",
+  "income_tile_empty": "Bu dövrdə əlavə gəlir yoxdur",
+  "debt_tile_balance_hint": "Açıq qalıq",
+  "income_tile_applied_hint": "Büdcəyə əlavə edildi"
+}

@@ -14,7 +14,11 @@ const SILENT_SPEND_PAGE_SIZE = 5;
 
 interface SilentSpendCardProps extends BaseCardProps {
   silentSpendInfo: SilentSpendInfo;
-  onSelectItem: (name: string) => void;
+  onSelectItem: (
+    name: string,
+    measurementUnit?: import('../../utils/measurementUnit').MeasurementUnit,
+    canonicalProductId?: number | null,
+  ) => void;
 }
 
 function SilentSpendCard({ styles, t, currency, silentSpendInfo, onSelectItem }: SilentSpendCardProps) {
@@ -130,7 +134,7 @@ function SilentSpendCard({ styles, t, currency, silentSpendInfo, onSelectItem }:
               ]}
             >
         {page.map((it, i) => {
-          const displayName = itemDisplayName(it).primary;
+          const displayName = it.canonical_name || itemDisplayName(it).primary;
           const catColor = it.category_color || Colors.warning;
           const icon = (it.category_icon as any) || 'water-outline';
           return (
@@ -140,7 +144,16 @@ function SilentSpendCard({ styles, t, currency, silentSpendInfo, onSelectItem }:
               style={styles.silentRowWrapper}
             >
               <Pressable
-                onPress={() => onSelectItem(it.name)}
+                onPress={() => {
+                  const name = it.canonical_name || it.name;
+                  if (it.canonical_product_id != null) {
+                    onSelectItem(name, it.measurement_unit, it.canonical_product_id);
+                  } else if (it.measurement_unit) {
+                    onSelectItem(name, it.measurement_unit);
+                  } else {
+                    onSelectItem(name);
+                  }
+                }}
                 style={({ pressed }) => [styles.silentRow, pressed && { opacity: 0.85 }]}
                 accessibilityRole="button"
               >

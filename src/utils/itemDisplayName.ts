@@ -16,10 +16,25 @@ export interface ItemDisplayName {
 }
 
 export function itemDisplayName(
-  item: { name?: string | null; turkish_name?: string | null },
+  item: {
+    name?: string | null;
+    turkish_name?: string | null;
+    user_label?: string | null;
+  },
 ): ItemDisplayName {
+  const userLabel = (item.user_label ?? '').trim();
   const translated = (item.turkish_name ?? '').trim();
   const original = (item.name ?? '').trim();
+
+  // Kullanıcı düzeltmesi ayrı alanda saklanır; fişteki ham `name` hiçbir zaman
+  // ezilmez ve farklıysa ikincil satırda görünür kalır.
+  if (userLabel) {
+    const secondary = original
+      && userLabel.toLocaleLowerCase() !== original.toLocaleLowerCase()
+      ? original
+      : null;
+    return { primary: userLabel, secondary };
+  }
 
   if (
     translated &&

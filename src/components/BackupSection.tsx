@@ -22,6 +22,7 @@ import { SparkToast } from './SparkToast';
 import ConfirmModal from './ConfirmModal';
 import CustomDatePicker from './CustomDatePicker';
 import { SettingsInfoHintModal, SettingsInfoIconButton } from './SettingsInfoHint';
+import { SettingsSection } from './SettingsList';
 import {
   exportBackupToFile,
   pickAndImportBackup,
@@ -253,9 +254,15 @@ export default function BackupSection() {
   ];
 
   return (
-    <View style={styles.section}>
+    <SettingsSection testID="settings-data-backup-section" last>
       <View style={styles.sectionHeader}>
-        <MaterialCommunityIcons name="database-export-outline" size={22} color={Colors.chartBlue} />
+        <View style={[styles.sectionIcon, { backgroundColor: Colors.chartBlue + '22' }]}>
+          <MaterialCommunityIcons
+            name="database-export-outline"
+            size={22}
+            color={Colors.chartBlue}
+          />
+        </View>
         <Text style={styles.sectionTitle} numberOfLines={2}>
           {t('backup_title')}
         </Text>
@@ -451,25 +458,24 @@ export default function BackupSection() {
         onCancel={() => setExportConfirm(false)}
         onConfirm={handleExport}
       />
-    </View>
+    </SettingsSection>
   );
 }
 
 const getStyles = () =>
   StyleSheet.create({
-    section: {
-      backgroundColor: Colors.cardSurface,
-      borderRadius: BorderRadius.xl,
-      padding: Spacing.lg,
-      marginBottom: Spacing.lg,
-      borderWidth: 1,
-      borderColor: Colors.cardBorder,
-    },
     sectionHeader: {
       flexDirection: 'row',
       alignItems: 'center',
       gap: Spacing.sm,
       marginBottom: Spacing.md,
+    },
+    sectionIcon: {
+      width: 40,
+      height: 40,
+      borderRadius: BorderRadius.md,
+      alignItems: 'center',
+      justifyContent: 'center',
     },
     sectionTitle: {
       ...Typography.headlineSmall,
@@ -570,13 +576,11 @@ const getStyles = () =>
       flexDirection: 'row',
       alignItems: 'center',
       gap: Spacing.sm,
-      backgroundColor: Colors.success + '14',
-      borderRadius: BorderRadius.md,
       paddingVertical: Spacing.sm,
-      paddingHorizontal: Spacing.md,
+      paddingLeft: Spacing.md,
       marginBottom: Spacing.md,
-      borderWidth: StyleSheet.hairlineWidth,
-      borderColor: Colors.success + '55',
+      borderLeftWidth: 2,
+      borderLeftColor: Colors.success,
     },
     lastBackupIcon: {
       width: 32,

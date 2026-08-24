@@ -25,6 +25,7 @@ module.exports = {
   },
   FadeInDown: anim(),
   FadeOutUp: anim(),
+  FadeOut: anim(),
   FadeIn: anim(),
   SlideInRight: anim(),
   LinearTransition: anim(),

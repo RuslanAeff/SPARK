@@ -36,6 +36,10 @@ import {
   SettingsInfoHintModal,
   SettingsInfoIconButton,
 } from '../src/components/SettingsInfoHint';
+import {
+  SettingsNavigationRow,
+  SettingsSection,
+} from '../src/components/SettingsList';
 
 export default function SettingsBudgetScreen() {
   const colorScheme = useAppTheme();
@@ -187,7 +191,7 @@ export default function SettingsBudgetScreen() {
         <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
           {/* Budget */}
           <Animated.View entering={FadeInDown.delay(80).duration(400)}>
-            <View style={styles.section}>
+            <SettingsSection testID="settings-budget-main-section">
               <View style={styles.sectionHeader}>
                 <View style={[styles.sectionIcon, { backgroundColor: Colors.primaryGlow }]}>
                   <MaterialCommunityIcons name="wallet-outline" size={22} color={Colors.primary} />
@@ -288,12 +292,12 @@ export default function SettingsBudgetScreen() {
                 <Text style={styles.historyDividerText}>{t('past_budgets')}</Text>
               </View>
               <BudgetHistoryCard />
-            </View>
+            </SettingsSection>
           </Animated.View>
 
           {/* Goal feature toggle */}
           <Animated.View entering={FadeInDown.delay(160).duration(400)}>
-            <View style={styles.section}>
+            <SettingsSection testID="settings-budget-goal-section">
               <View style={styles.sectionHeader}>
                 <View style={[styles.sectionIcon, { backgroundColor: Colors.primary + '22' }]}>
                   <MaterialCommunityIcons
@@ -340,68 +344,49 @@ export default function SettingsBudgetScreen() {
                   thumbColor={goalFocusOn && goalFeatureOn ? Colors.primary : Colors.textMuted}
                 />
               </View>
-            </View>
+            </SettingsSection>
           </Animated.View>
 
           <Animated.View entering={FadeInDown.delay(210).duration(400)}>
-            <Pressable
+            <SettingsNavigationRow
               testID="manage-category-limits"
+              title={t('goal_settings_limits_section')}
+              icon="gauge"
+              iconColor={Colors.primary}
+              iconBackgroundColor={Colors.primary + '22'}
               onPress={() => router.push('/goal-settings')}
-              style={({ pressed }) => [styles.linkRow, pressed && styles.linkRowPressed]}
-            >
-              <View style={[styles.sectionIcon, { backgroundColor: Colors.primary + '22' }] }>
-                <MaterialCommunityIcons name="gauge" size={22} color={Colors.primary} />
-              </View>
-              <Text style={styles.linkText}>{t('goal_settings_limits_section')}</Text>
-              <MaterialCommunityIcons name="chevron-right" size={20} color={Colors.textSecondary} />
-            </Pressable>
+            />
           </Animated.View>
 
           {/* Recurring payments link */}
           <Animated.View entering={FadeInDown.delay(240).duration(400)}>
-            <Pressable
+            <SettingsNavigationRow
               testID="manage-recurring-payments"
+              title={t('subscriptions_title')}
+              icon="calendar-sync-outline"
+              iconColor={Colors.chartBlue}
+              iconBackgroundColor={Colors.chartBlue + '22'}
               onPress={() => {
                 Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                 router.push('/subscriptions');
               }}
-              style={({ pressed }) => [styles.linkRow, pressed && styles.linkRowPressed]}
-            >
-              <View style={[styles.sectionIcon, { backgroundColor: Colors.chartBlue + '22' }]}>
-                <MaterialCommunityIcons name="calendar-sync-outline" size={22} color={Colors.chartBlue} />
-              </View>
-              <Text style={styles.linkText}>{t('subscriptions_title')}</Text>
-              <MaterialCommunityIcons
-                name="chevron-right"
-                size={20}
-                color={Colors.textSecondary}
-              />
-            </Pressable>
+            />
           </Animated.View>
 
           {/* Categories link */}
           <Animated.View entering={FadeInDown.delay(280).duration(400)}>
-            <Pressable
+            <SettingsNavigationRow
+              testID="manage-categories"
+              title={t('category_management')}
+              icon="shape-outline"
+              iconColor={Colors.chartPurple}
+              iconBackgroundColor={Colors.chartPurple + '22'}
+              last
               onPress={() => {
                 Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                 router.push('/categories');
               }}
-              style={({ pressed }) => [styles.linkRow, pressed && styles.linkRowPressed]}
-            >
-              <View style={[styles.sectionIcon, { backgroundColor: Colors.chartPurple + '22' }]}>
-                <MaterialCommunityIcons
-                  name="shape-outline"
-                  size={22}
-                  color={Colors.chartPurple}
-                />
-              </View>
-              <Text style={styles.linkText}>{t('category_management')}</Text>
-              <MaterialCommunityIcons
-                name="chevron-right"
-                size={20}
-                color={Colors.textSecondary}
-              />
-            </Pressable>
+            />
           </Animated.View>
         </ScrollView>
       </SafeAreaView>
@@ -448,14 +433,6 @@ const getStyles = () => StyleSheet.create({
   },
   headerSpacer: { width: 40 },
   content: { paddingHorizontal: ScreenPadding.horizontal, paddingBottom: 40 },
-  section: {
-    backgroundColor: Colors.cardSurface,
-    borderRadius: BorderRadius.xl,
-    padding: Spacing.lg,
-    marginBottom: Spacing.lg,
-    borderWidth: 1,
-    borderColor: Colors.cardBorder,
-  },
   sectionHeader: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -488,9 +465,7 @@ const getStyles = () => StyleSheet.create({
   monthArrow: { padding: Spacing.xs },
   monthText: { ...Typography.labelLarge, color: Colors.textPrimary },
   cycleBox: {
-    backgroundColor: Colors.surfaceLight,
-    borderRadius: BorderRadius.md,
-    padding: Spacing.md,
+    paddingVertical: Spacing.sm,
     marginBottom: Spacing.md,
     gap: Spacing.sm,
   },
@@ -581,23 +556,5 @@ const getStyles = () => StyleSheet.create({
   },
   goalFeatureRowDisabled: {
     opacity: 0.48,
-  },
-  linkRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: Colors.cardSurface,
-    borderRadius: BorderRadius.xl,
-    padding: Spacing.lg,
-    marginBottom: Spacing.lg,
-    gap: Spacing.md,
-    borderWidth: 1,
-    borderColor: Colors.cardBorder,
-  },
-  linkRowPressed: { opacity: 0.85, transform: [{ scale: 0.99 }] },
-  linkText: {
-    ...Typography.bodyLarge,
-    fontFamily: FontFamily.medium,
-    color: Colors.textPrimary,
-    flex: 1,
   },
 });

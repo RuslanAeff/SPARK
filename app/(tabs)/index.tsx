@@ -5,7 +5,7 @@ import { useAppTheme, useThemeRevision } from '../../src/theme/themeStore';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useIsFocused } from '@react-navigation/native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import Animated, { FadeInDown, FadeIn, FadeOut, LinearTransition } from 'react-native-reanimated';
+import Animated, { FadeInDown, LinearTransition } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 
@@ -13,14 +13,14 @@ import { Colors } from '../../src/theme/colors';
 import { Typography, FontFamily } from '../../src/theme/typography';
 import { Spacing, ScreenPadding, BorderRadius } from '../../src/theme/spacing';
 import { formatCurrency } from '../../src/utils/formatCurrency';
-import { formatDayMonth, formatMonthYear } from '../../src/utils/dateUtils';
+import { formatPeriodRange } from '../../src/utils/dateUtils';
 import { getCurrentCycle, shiftCycleKey } from '../../src/utils/budgetCycle';
 import { getCycleStartDay } from '../../src/services/budgetCycleSettings';
 import { useBudget } from '../../src/hooks/useBudget';
 import { useCategorySpending, useVendorSpending, useMonthlyTotal } from '../../src/hooks/useExpenses';
 import { useSavingsGoal, useCategoryLimitsProgress, useGoalFeatureEnabled } from '../../src/hooks/useSavingsGoalData';
 
-import DonutChart from '../../src/components/DonutChart';
+import DashboardBudgetDonut from '../../src/components/DashboardBudgetDonut';
 import SavingsGoalCard from '../../src/components/SavingsGoalCard';
 import SavingsGoalPulseCard from '../../src/components/SavingsGoalPulseCard';
 import SavingsGoalContributionSheet from '../../src/components/SavingsGoalContributionSheet';
@@ -31,6 +31,8 @@ import IncomeSheet from '../../src/components/IncomeSheet';
 import AnimatedCard from '../../src/components/AnimatedCard';
 import CategoryPill from '../../src/components/CategoryPill';
 import VendorAvatar from '../../src/components/VendorAvatar';
+import MarqueeText from '../../src/components/MarqueeText';
+import DashboardCashEntryTiles from '../../src/components/DashboardCashEntryTiles';
 import { useLanguage } from '../../src/i18n/LanguageContext';
 import { useExpenseDataRefresh } from '../../src/context/RefreshContext';
 import { useCurrency } from '../../src/context/CurrencyContext';
@@ -76,7 +78,6 @@ export default function DashboardScreen() {
     refresh: refreshGoalFeature,
   } = useGoalFeatureEnabled();
   const [refreshing, setRefreshing] = React.useState(false);
-  const [selectedIndex, setSelectedIndex] = React.useState<number | null>(null);
   // Borç yönetim alt sayfası (açık borç rozetine dokununca açılır — Faz 4a).
   const [debtSheetVisible, setDebtSheetVisible] = React.useState(false);
   const [incomeSheetVisible, setIncomeSheetVisible] = React.useState(false);
@@ -98,9 +99,6 @@ export default function DashboardScreen() {
   useFocusEffect(
     useCallback(() => {
       refreshAll();
-      return () => {
-        setSelectedIndex(null);
-      };
     }, [refreshAll])
   );
 
@@ -130,24 +128,6 @@ export default function DashboardScreen() {
     setRefreshing(false);
   };
 
-  const donutSegments = React.useMemo(() => {
-    if (categories.length === 0) {
-      return [{ value: 1, color: Colors.surfaceLight, label: t('empty') }];
-    }
-    return categories.map(c => ({
-      value: c.total,
-      color: c.category_color,
-      label: tc(c.category_name),
-    }));
-  }, [categories, t, tc]);
-
-  // Güvenli seçim indeksi ve seçili kategori
-  const selectedCat = selectedIndex !== null && selectedIndex >= 0 && selectedIndex < categories.length
-    ? categories[selectedIndex] 
-    : null;
-
-  // Döngü bilgisi: anchor ≠ 1 ise tarih aralığını göster
-  const showCycleRange = budget.cycleStartDay !== 1 && budget.periodStart && budget.periodEnd;
   const goalSurfacesReady = !goalLoading && !goalPreferencesLoading;
   const goalPresentation = getDashboardGoalPresentation({
     goal,
@@ -244,25 +224,35 @@ export default function DashboardScreen() {
 
         {/* Main Amount & Donut */}
         <Animated.View entering={FadeInDown.delay(100).duration(500)} layout={LinearTransition.duration(750)} style={styles.chartSection}>
-          {/* Ay navigasyonu — seçilen döngü tüm dashboard'ı (donut + bütçe + kategoriler) yansıtır */}
-          <View style={styles.monthNav}>
+          {/* Dönem navigasyonu — ay adı yerine gerçek tarih aralığı kanoniktir. */}
+          <View style={styles.periodNav}>
             <Pressable
               onPress={() => setCycleOffset((o) => o - 1)}
               hitSlop={10}
-              style={({ pressed }) => [styles.monthNavBtn, pressed && styles.monthNavBtnPressed]}
+              style={({ pressed }) => [styles.periodNavBtn, pressed && styles.periodNavBtnPressed]}
               accessibilityRole="button"
               accessibilityLabel={t('dashboard_prev_cycle')}
             >
               <MaterialCommunityIcons name="chevron-left" size={26} color={Colors.textSecondary} />
             </Pressable>
-            <Text style={styles.monthNavLabel}>
-              {budget.periodStart ? formatMonthYear(budget.periodStart, t) : ''}
-            </Text>
+            <View style={styles.periodIdentity}>
+              <Text style={styles.periodKicker}>{t('dashboard_budget_period')}</Text>
+              <Text
+                style={styles.periodRangeLabel}
+                numberOfLines={1}
+                adjustsFontSizeToFit
+                minimumFontScale={0.78}
+              >
+                {budget.periodStart && budget.periodEnd
+                  ? formatPeriodRange(budget.periodStart, budget.periodEnd, t)
+                  : ''}
+              </Text>
+            </View>
             <Pressable
               onPress={() => setCycleOffset((o) => Math.min(0, o + 1))}
               disabled={cycleOffset === 0}
               hitSlop={10}
-              style={({ pressed }) => [styles.monthNavBtn, pressed && styles.monthNavBtnPressed]}
+              style={({ pressed }) => [styles.periodNavBtn, pressed && styles.periodNavBtnPressed]}
               accessibilityRole="button"
               accessibilityLabel={t('dashboard_next_cycle')}
             >
@@ -273,59 +263,14 @@ export default function DashboardScreen() {
               />
             </Pressable>
           </View>
-          {cycleOffset === 0 && <Text style={styles.totalLabel}>{t('this_month_spent')}</Text>}
-          {showCycleRange && (
-            <Text style={styles.cycleDateRange}>
-              {formatDayMonth(budget.periodStart, t)} – {formatDayMonth(budget.periodEnd, t)}
-            </Text>
-          )}
-          <Text style={styles.totalAmount}>
-            {formatCurrency(monthlyTotal, currency)}
-          </Text>
 
-          <DonutChart
-            segments={donutSegments}
-            size={220}
-            strokeWidth={26}
-            selectedIndex={selectedIndex}
-            onSelect={(idx) => {
-              setSelectedIndex(prev => (prev === idx ? null : idx));
-            }}
-            innerContent={
-              <Pressable
-                onPress={() => setSelectedIndex(null)}
-                style={({ pressed }) => [
-                  styles.donutCenter,
-                  selectedIndex !== null && pressed && styles.donutCenterPressed,
-                ]}
-                hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-                accessibilityRole="button"
-                accessibilityLabel={t('donut_center_clear')}
-              >
-                <MaterialCommunityIcons
-                  name={selectedIndex !== null ? 'close' : 'arrow-right'}
-                  size={selectedIndex !== null ? 26 : 32}
-                  color={Colors.primary}
-                />
-              </Pressable>
-            }
+          <DashboardBudgetDonut
+            categories={categories}
+            totalSpent={monthlyTotal}
+            effectiveBudget={budget.effectiveBudget}
+            currency={currency}
+            periodKey={`${budget.periodStart}:${budget.periodEnd}`}
           />
-
-          {/* Selected category info */}
-          {categories.length > 0 && selectedCat && (
-            <Animated.View
-              entering={FadeIn.duration(320)}
-              exiting={FadeOut.duration(220)}
-              style={styles.selectedCategory}
-            >
-              <Text style={[styles.categoryHighlight, { color: selectedCat.category_color }]}>
-                {tc(selectedCat.category_name)} {selectedCat.percentage}%
-              </Text>
-              <Text style={styles.categoryAmount}>
-                {formatCurrency(selectedCat.total, currency)}
-              </Text>
-            </Animated.View>
-          )}
         </Animated.View>
 
         {/* Budget Card — layout değişince yumuşak kayma */}
@@ -335,55 +280,18 @@ export default function DashboardScreen() {
           </Animated.View>
         )}
 
-        {/* Borç + Ek gelir girişleri — YAN YANA (dikey yer kazanmak için; ikisi
-            alt alta pill iken kart yığınını gereksiz uzatıyordu). Her ikisi de
-            bütçenin harcanabilir tutarını etkileyen nakit kaynakları olduğundan
-            aynı satırda durmaları anlamsal olarak da doğru.
-            Metin iki satıra bölünür (ikon solda): yarım genişlikte Rusça
-            "Операции с долгами" / AZ "Əlavə gəlir" tek satıra sığmıyor. */}
+        {/* Borç + ek gelir girişleri yan yana kalır. Boş durumda açıklayıcı metin;
+            veri varsa tutar ile finansal bağlam (açık bakiye / bütçeye eklendi)
+            ortak bileşen tarafından gösterilir. */}
         {budget.monthlyBudget > 0 && (
-          <Animated.View layout={LinearTransition.duration(750)} style={styles.cashEntryRow}>
-            <Pressable
-              onPress={() => setDebtSheetVisible(true)}
-              style={({ pressed }) => [styles.cashEntryTile, pressed && { opacity: 0.9 }]}
-              accessibilityRole="button"
-              accessibilityLabel={t('debt_manage_cta')}
-            >
-              <View style={[styles.cashEntryIcon, { backgroundColor: Colors.danger + '1A' }]}>
-                <MaterialCommunityIcons name="hand-coin-outline" size={17} color={Colors.danger} />
-              </View>
-              <View style={styles.cashEntryTextWrap}>
-                <Text style={styles.cashEntryLabel} numberOfLines={1}>{t('debt_tile_label')}</Text>
-                {budget.outstandingDebt > 0 ? (
-                  <Text style={[styles.cashEntryValue, { color: Colors.danger }]} numberOfLines={1}>
-                    {formatCurrency(budget.outstandingDebt, currency, false)}
-                  </Text>
-                ) : (
-                  <Text style={styles.cashEntryValueEmpty}>—</Text>
-                )}
-              </View>
-            </Pressable>
-
-            <Pressable
-              onPress={() => setIncomeSheetVisible(true)}
-              style={({ pressed }) => [styles.cashEntryTile, pressed && { opacity: 0.9 }]}
-              accessibilityRole="button"
-              accessibilityLabel={t('income_manage_cta')}
-            >
-              <View style={[styles.cashEntryIcon, { backgroundColor: Colors.success + '1A' }]}>
-                <MaterialCommunityIcons name="cash-plus" size={17} color={Colors.success} />
-              </View>
-              <View style={styles.cashEntryTextWrap}>
-                <Text style={styles.cashEntryLabel} numberOfLines={1}>{t('income_tile_label')}</Text>
-                {budget.extraIncomeIn > 0 ? (
-                  <Text style={[styles.cashEntryValue, { color: Colors.success }]} numberOfLines={1}>
-                    +{formatCurrency(budget.extraIncomeIn, currency, false)}
-                  </Text>
-                ) : (
-                  <Text style={styles.cashEntryValueEmpty}>—</Text>
-                )}
-              </View>
-            </Pressable>
+          <Animated.View layout={LinearTransition.duration(750)}>
+            <DashboardCashEntryTiles
+              outstandingDebt={budget.outstandingDebt}
+              extraIncomeIn={budget.extraIncomeIn}
+              currency={currency}
+              onDebtPress={() => setDebtSheetVisible(true)}
+              onIncomePress={() => setIncomeSheetVisible(true)}
+            />
           </Animated.View>
         )}
 
@@ -442,7 +350,7 @@ export default function DashboardScreen() {
                 {categories.slice(0, 6).map(c => (
                   <CategoryPill
                     key={c.category_id}
-                    name={c.category_name}
+                    name={tc(c.category_name)}
                     icon={c.category_icon}
                     color={c.category_color}
                     percentage={c.percentage}
@@ -492,69 +400,23 @@ export default function DashboardScreen() {
                       logoUri={v.vendor_logo}
                       size={40}
                     />
-                    <Text style={styles.vendorName} numberOfLines={1}>{v.vendor_name}</Text>
-                    <Text style={styles.vendorPercent}>{v.percentage}%</Text>
+                    <View style={styles.vendorMeta}>
+                      <MarqueeText
+                        text={v.vendor_name}
+                        style={styles.vendorName}
+                        containerStyle={styles.vendorNameViewport}
+                        speed={28}
+                        gap={Spacing.xxl}
+                        startDelay={1400}
+                      />
+                      <Text style={styles.vendorPercent}>{v.percentage}%</Text>
+                    </View>
                   </View>
                 ))}
               </View>
             </AnimatedCard>
           </Animated.View>
         )}
-
-        {/* Quick Stats — Modern Icons */}
-        <Animated.View layout={LinearTransition.duration(750)}>
-          <AnimatedCard delay={500} style={styles.statsCard}>
-            <View style={styles.statRow}>
-              {/* Aylık Bütçe */}
-              <View style={styles.statItem}>
-                <View style={[styles.statIconCircle, { backgroundColor: Colors.primary + '22' }]}>
-                  <MaterialCommunityIcons name="wallet-outline" size={22} color={Colors.primary} />
-                </View>
-                <Text style={styles.statValue}>
-                  {formatCurrency(budget.monthlyBudget, currency, false)}
-                </Text>
-                <Text style={styles.statLabel}>{t('budget_monthly')}</Text>
-              </View>
-
-              <View style={styles.statDivider} />
-
-              {/* Kullanılan */}
-              <View style={styles.statItem}>
-                <View style={[styles.statIconCircle, { backgroundColor: Colors.chartOrange + '22' }]}>
-                  <MaterialCommunityIcons name="chart-donut" size={22} color={Colors.chartOrange} />
-                </View>
-                <Text style={styles.statValue}>{budget.percentage}%</Text>
-                <Text style={styles.statLabel}>{t('budget_used')}</Text>
-              </View>
-
-              <View style={styles.statDivider} />
-
-              {/* Kalan Gün */}
-              <View style={styles.statItem}>
-                <View style={[styles.statIconCircle, { backgroundColor: Colors.chartBlue + '22' }]}>
-                  <MaterialCommunityIcons name="calendar-clock" size={22} color={Colors.chartBlue} />
-                </View>
-                <Text style={styles.statValue}>{budget.daysRemaining}</Text>
-                <Text style={styles.statLabel}>{t('budget_days_left')}</Text>
-              </View>
-            </View>
-
-            {/* Budget micro-bar */}
-            {budget.monthlyBudget > 0 && (
-              <View style={styles.microBar}>
-                <View style={[
-                  styles.microBarFill,
-                  {
-                    width: `${Math.min(budget.percentage, 100)}%`,
-                    backgroundColor: budget.isOverBudget ? Colors.danger
-                      : budget.percentage > 80 ? Colors.warning
-                      : Colors.primary,
-                  },
-                ]} />
-              </View>
-            )}
-          </AnimatedCard>
-        </Animated.View>
 
         <View style={{ height: 100 }} />
       </ScrollView>
@@ -666,54 +528,6 @@ const getStyles = () => StyleSheet.create({
     fontFamily: FontFamily.bold,
     marginTop: 2,
   },
-  /** Borç + Ek gelir giriş kutuları — yan yana, eşit genişlikte. */
-  cashEntryRow: {
-    flexDirection: 'row',
-    gap: Spacing.sm,
-    marginTop: Spacing.sm,
-  },
-  cashEntryTile: {
-    flex: 1,
-    minWidth: 0,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.sm,
-    backgroundColor: Colors.surface,
-    borderRadius: BorderRadius.lg,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.md,
-    borderWidth: 1,
-    borderColor: Colors.border,
-  },
-  cashEntryIcon: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  cashEntryTextWrap: {
-    flex: 1,
-    minWidth: 0,
-  },
-  cashEntryLabel: {
-    ...Typography.labelSmall,
-    color: Colors.textSecondary,
-    fontFamily: FontFamily.semiBold,
-  },
-  /** Kutunun ikinci satırı: açık borç / dönemin ek geliri. */
-  cashEntryValue: {
-    ...Typography.labelMedium,
-    fontFamily: FontFamily.bold,
-    marginTop: 1,
-  },
-  /** Değer yokken em-dash — iki kutu eşit yükseklikte kalsın (i18n gerektirmez). */
-  cashEntryValueEmpty: {
-    ...Typography.labelMedium,
-    color: Colors.textMuted,
-    fontFamily: FontFamily.bold,
-    marginTop: 1,
-  },
   /** Aylık bütçe kartı ile birikim kartı arasında nefes payı */
   goalBlockSpacing: {
     marginTop: Spacing.lg,
@@ -754,14 +568,14 @@ const getStyles = () => StyleSheet.create({
     alignItems: 'center',
     paddingVertical: Spacing.lg,
   },
-  monthNav: {
+  periodNav: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    gap: Spacing.lg,
+    justifyContent: 'space-between',
+    width: '100%',
     marginBottom: Spacing.sm,
   },
-  monthNavBtn: {
+  periodNavBtn: {
     width: 36,
     height: 36,
     borderRadius: 18,
@@ -769,56 +583,29 @@ const getStyles = () => StyleSheet.create({
     justifyContent: 'center',
     backgroundColor: Colors.surface,
   },
-  monthNavBtnPressed: {
+  periodNavBtnPressed: {
     opacity: 0.7,
     transform: [{ scale: 0.94 }],
   },
-  monthNavLabel: {
-    ...Typography.labelLarge,
-    color: Colors.textPrimary,
-    fontFamily: FontFamily.bold,
-    minWidth: 150,
-    textAlign: 'center',
+  periodIdentity: {
+    flex: 1,
+    alignItems: 'center',
+    marginHorizontal: Spacing.sm,
   },
-  totalLabel: {
-    ...Typography.bodyMedium,
-    color: Colors.textSecondary,
-    marginBottom: Spacing.xs,
-  },
-  cycleDateRange: {
+  periodKicker: {
     ...Typography.labelSmall,
     color: Colors.textSecondary,
-    marginBottom: Spacing.xs,
+    fontFamily: FontFamily.semiBold,
+    letterSpacing: 1,
+    textTransform: 'uppercase',
+    marginBottom: Spacing.xxs,
   },
-  totalAmount: {
-    ...Typography.displayMedium,
+  periodRangeLabel: {
+    ...Typography.bodyLarge,
     color: Colors.textPrimary,
-    marginBottom: Spacing.xxl,
-  },
-  donutCenter: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: Colors.surface,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  donutCenterPressed: {
-    opacity: 0.88,
-    transform: [{ scale: 0.94 }],
-  },
-  selectedCategory: {
-    alignItems: 'center',
-    marginTop: Spacing.lg,
-  },
-  categoryHighlight: {
-    ...Typography.bodyMedium,
-    fontFamily: FontFamily.medium,
-  },
-  categoryAmount: {
-    ...Typography.headlineMedium,
-    color: Colors.textPrimary,
-    marginTop: Spacing.xxs,
+    fontFamily: FontFamily.bold,
+    width: '100%',
+    textAlign: 'center',
   },
   sectionTitle: {
     ...Typography.labelLarge,
@@ -848,69 +635,34 @@ const getStyles = () => StyleSheet.create({
   vendorGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: Spacing.lg,
+    columnGap: Spacing.sm,
+    rowGap: Spacing.lg,
   },
   vendorItem: {
-    width: '45%',
+    width: '48%',
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.sm,
+    minWidth: 0,
+  },
+  vendorMeta: {
+    flex: 1,
+    minWidth: 0,
+    justifyContent: 'center',
+  },
+  vendorNameViewport: {
+    width: '100%',
+    minWidth: 0,
   },
   vendorName: {
     ...Typography.bodyMedium,
     color: Colors.textPrimary,
     fontFamily: FontFamily.medium,
-    flex: 1,
   },
   vendorPercent: {
     ...Typography.labelSmall,
     color: Colors.textSecondary,
-  },
-  statsCard: {
-    marginTop: Spacing.lg,
-  },
-  statRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  statItem: {
-    flex: 1,
-    alignItems: 'center',
-    gap: Spacing.xs,
-  },
-  statIconCircle: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 4,
-  },
-  statValue: {
-    ...Typography.headlineSmall,
-    color: Colors.textPrimary,
-    fontFamily: FontFamily.bold,
-  },
-  statLabel: {
-    ...Typography.labelSmall,
-    color: Colors.textSecondary,
-  },
-  statDivider: {
-    width: 1,
-    height: 50,
-    backgroundColor: Colors.divider,
-  },
-  microBar: {
-    height: 4,
-    backgroundColor: Colors.surface,
-    borderRadius: 2,
-    overflow: 'hidden',
-    marginTop: Spacing.lg,
-  },
-  microBarFill: {
-    height: '100%',
-    borderRadius: 2,
+    marginTop: Spacing.xxs,
   },
   emptyState: {
     alignItems: 'center',

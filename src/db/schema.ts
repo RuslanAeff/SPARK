@@ -1,4 +1,37 @@
 // S.P.A.R.K. — Database Schema Definitions
+
+/** Kanonik ürün ve öğrenilmiş alias tabloları; eski/yeni DB'de idempotenttir. */
+export const PRODUCT_IDENTITY_TABLES_SCHEMA_SQL = `
+  CREATE TABLE IF NOT EXISTS canonical_products (
+    id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+    uid                 TEXT NOT NULL UNIQUE CHECK(length(uid) = 36),
+    canonical_name      TEXT NOT NULL CHECK(length(trim(canonical_name)) BETWEEN 1 AND 500),
+    canonical_key       TEXT NOT NULL CHECK(length(trim(canonical_key)) BETWEEN 1 AND 500),
+    measurement_unit    TEXT NOT NULL CHECK(measurement_unit IN ('piece', 'kg', 'l')),
+    brand               TEXT,
+    variant             TEXT,
+    package_descriptor  TEXT,
+    created_at          TEXT NOT NULL,
+    updated_at          TEXT NOT NULL
+  );
+
+  CREATE TABLE IF NOT EXISTS product_aliases (
+    id                    INTEGER PRIMARY KEY AUTOINCREMENT,
+    canonical_product_id  INTEGER NOT NULL REFERENCES canonical_products(id) ON DELETE CASCADE,
+    normalized_alias      TEXT NOT NULL CHECK(length(trim(normalized_alias)) BETWEEN 1 AND 500),
+    measurement_unit      TEXT NOT NULL CHECK(measurement_unit IN ('piece', 'kg', 'l')),
+    source                TEXT NOT NULL CHECK(source IN ('deterministic', 'ai', 'user')),
+    confidence            REAL CHECK(confidence IS NULL OR (confidence >= 0 AND confidence <= 1)),
+    created_at            TEXT NOT NULL,
+    UNIQUE(normalized_alias, measurement_unit)
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_canonical_products_match
+    ON canonical_products(canonical_key, measurement_unit);
+  CREATE INDEX IF NOT EXISTS idx_product_aliases_product
+    ON product_aliases(canonical_product_id);
+`;
+
 export const CREATE_TABLES_SQL = `
   CREATE TABLE IF NOT EXISTS categories (
     id          INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -17,6 +50,11 @@ export const CREATE_TABLES_SQL = `
     created_at          TEXT DEFAULT (datetime('now'))
   );
 
+  -- Fişteki ham ad değişmeden kalır; analiz kimliği bu taşınabilir UUID'li
+  -- kanonik ürün üzerinden kurulur. canonical_key otomatik eşleştirme için
+  -- yerel ve deterministik anahtardır, kullanıcıya gösterilen ad değildir.
+  ${PRODUCT_IDENTITY_TABLES_SCHEMA_SQL}
+
   CREATE TABLE IF NOT EXISTS expenses (
     id           INTEGER PRIMARY KEY AUTOINCREMENT,
     vendor_id    INTEGER REFERENCES vendors(id),
@@ -34,8 +72,10 @@ export const CREATE_TABLES_SQL = `
     expense_id  INTEGER REFERENCES expenses(id) ON DELETE CASCADE,
     name        TEXT NOT NULL,
     turkish_name TEXT,
+    user_label  TEXT CHECK(user_label IS NULL OR length(user_label) <= 500),
     quantity    REAL DEFAULT 1,
     measurement_unit TEXT NOT NULL DEFAULT 'piece' CHECK(measurement_unit IN ('piece', 'kg', 'l')),
+    canonical_product_id INTEGER REFERENCES canonical_products(id) ON DELETE SET NULL,
     unit_price  REAL NOT NULL,
     total_price REAL NOT NULL,
     category_id INTEGER REFERENCES categories(id)
@@ -156,6 +196,79 @@ export const CREATE_TABLES_SQL = `
     created_at  TEXT NOT NULL
   );
   CREATE INDEX IF NOT EXISTS idx_extra_incomes_date ON extra_incomes(date);
+`;
+
+/**
+ * `expense_items.canonical_product_id` eski kurulumlarda ALTER TABLE ile
+ * eklendikten sonra kurulması gereken indeks ve çapraz-birim korumaları.
+ * CREATE_TABLES_SQL içine alınmaz: CREATE TABLE IF NOT EXISTS eski tabloya yeni
+ * kolon eklemez ve trigger oluşturma aşamasında açılışı kırardı.
+ */
+export const PRODUCT_IDENTITY_LINKS_SCHEMA_SQL = `
+  CREATE INDEX IF NOT EXISTS idx_expense_items_canonical_product
+    ON expense_items(canonical_product_id);
+
+  CREATE TRIGGER IF NOT EXISTS trg_expense_item_canonical_unit_insert
+    BEFORE INSERT ON expense_items
+    FOR EACH ROW
+    WHEN NEW.canonical_product_id IS NOT NULL
+      AND NOT EXISTS (
+        SELECT 1 FROM canonical_products p
+         WHERE p.id = NEW.canonical_product_id
+           AND p.measurement_unit = NEW.measurement_unit
+      )
+  BEGIN
+    SELECT RAISE(ABORT, 'CANONICAL_PRODUCT_UNIT_MISMATCH');
+  END;
+
+  CREATE TRIGGER IF NOT EXISTS trg_expense_item_canonical_unit_update
+    BEFORE UPDATE OF canonical_product_id, measurement_unit ON expense_items
+    FOR EACH ROW
+    WHEN NEW.canonical_product_id IS NOT NULL
+      AND NOT EXISTS (
+        SELECT 1 FROM canonical_products p
+         WHERE p.id = NEW.canonical_product_id
+           AND p.measurement_unit = NEW.measurement_unit
+      )
+  BEGIN
+    SELECT RAISE(ABORT, 'CANONICAL_PRODUCT_UNIT_MISMATCH');
+  END;
+
+  CREATE TRIGGER IF NOT EXISTS trg_product_alias_canonical_unit_insert
+    BEFORE INSERT ON product_aliases
+    FOR EACH ROW
+    WHEN NOT EXISTS (
+      SELECT 1 FROM canonical_products p
+       WHERE p.id = NEW.canonical_product_id
+         AND p.measurement_unit = NEW.measurement_unit
+    )
+  BEGIN
+    SELECT RAISE(ABORT, 'CANONICAL_PRODUCT_UNIT_MISMATCH');
+  END;
+
+  CREATE TRIGGER IF NOT EXISTS trg_product_alias_canonical_unit_update
+    BEFORE UPDATE OF canonical_product_id, measurement_unit ON product_aliases
+    FOR EACH ROW
+    WHEN NOT EXISTS (
+      SELECT 1 FROM canonical_products p
+       WHERE p.id = NEW.canonical_product_id
+         AND p.measurement_unit = NEW.measurement_unit
+    )
+  BEGIN
+    SELECT RAISE(ABORT, 'CANONICAL_PRODUCT_UNIT_MISMATCH');
+  END;
+
+  CREATE TRIGGER IF NOT EXISTS trg_canonical_product_unit_immutable
+    BEFORE UPDATE OF measurement_unit ON canonical_products
+    FOR EACH ROW
+    WHEN NEW.measurement_unit <> OLD.measurement_unit
+      AND (
+        EXISTS (SELECT 1 FROM expense_items i WHERE i.canonical_product_id = OLD.id)
+        OR EXISTS (SELECT 1 FROM product_aliases a WHERE a.canonical_product_id = OLD.id)
+      )
+  BEGIN
+    SELECT RAISE(ABORT, 'CANONICAL_PRODUCT_UNIT_IMMUTABLE');
+  END;
 `;
 
 /**
@@ -348,8 +461,11 @@ export interface ExpenseItem {
   expense_id: number;
   name: string;
   turkish_name?: string | null;
+  /** Kullanıcının görünüm düzeltmesi; ham fiş/OCR adlarını değiştirmez. */
+  user_label?: string | null;
   quantity: number;
   measurement_unit?: import('../utils/measurementUnit').MeasurementUnit;
+  canonical_product_id?: number | null;
   unit_price: number;
   total_price: number;
   category_id: number | null;
@@ -357,6 +473,29 @@ export interface ExpenseItem {
   line_discount?: number | null;
   /** İndirim öncesi satır toplamı */
   list_line_total_before_discount?: number | null;
+}
+
+export interface CanonicalProduct {
+  id: number;
+  uid: string;
+  canonical_name: string;
+  canonical_key: string;
+  measurement_unit: import('../utils/measurementUnit').MeasurementUnit;
+  brand: string | null;
+  variant: string | null;
+  package_descriptor: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ProductAlias {
+  id: number;
+  canonical_product_id: number;
+  normalized_alias: string;
+  measurement_unit: import('../utils/measurementUnit').MeasurementUnit;
+  source: 'deterministic' | 'ai' | 'user';
+  confidence: number | null;
+  created_at: string;
 }
 
 export interface Budget {

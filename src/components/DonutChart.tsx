@@ -14,6 +14,7 @@ import { Pressable, GestureResponderEvent } from 'react-native';
 import { Colors } from '../theme/colors';
 import { ChartColorArray } from '../theme/colors';
 import { useAppTheme } from '../theme/themeStore';
+import { buildDonutGeometry } from '../utils/donutGeometry';
 
 const AnimatedCircle = Animated.createAnimatedComponent(Circle);
 const AnimatedG = Animated.createAnimatedComponent(G);
@@ -26,6 +27,14 @@ interface DonutSegment {
 
 interface DonutChartProps {
   segments: DonutSegment[];
+  /**
+   * Halkanın tamamını temsil eden değer. Verilmezse kategori toplamı kullanılır.
+   * Örn. Dashboard bütçe görünümünde segmentler harcamalar, totalValue ise
+   * etkin bütçedir; aradaki fark nötr ray olarak görünür.
+   */
+  totalValue?: number;
+  /** Nötr ray ve renkli tüpün iç/dış sınırına ince cam kenarı ekler. */
+  showTrackGlassEdge?: boolean;
   size?: number;
   strokeWidth?: number;
   innerContent?: React.ReactNode;
@@ -35,6 +44,8 @@ interface DonutChartProps {
 
 export default function DonutChart({
   segments,
+  totalValue,
+  showTrackGlassEdge = false,
   size = 240,
   strokeWidth = 28,
   innerContent,
@@ -51,25 +62,23 @@ export default function DonutChart({
   const circumference = 2 * Math.PI * radius;
   const center = size / 2;
 
-  const total = useMemo(() => segments.reduce((sum, s) => sum + s.value, 0), [segments]);
+  const geometry = useMemo(
+    () => buildDonutGeometry(segments.map(segment => segment.value), circumference, totalValue),
+    [circumference, segments, totalValue],
+  );
 
   // Compute segment angles
   const segmentData = useMemo(() => {
-    let accumulated = 0;
     return segments.map((seg, i) => {
-      const ratio = total > 0 ? seg.value / total : 0;
-      const length = ratio * circumference;
-      const gap = segments.length > 1 ? 4 : 0; // gap between segments
-      const offset = accumulated;
-      accumulated += length + gap;
+      const arc = geometry.arcs[i];
       return {
         ...seg,
-        dashArray: `${Math.max(0, length - gap)} ${circumference}`,
-        dashOffset: -offset,
+        dashArray: `${arc.dashLength} ${circumference}`,
+        dashOffset: -arc.offset,
         color: seg.color || ChartColorArray[i % ChartColorArray.length],
       };
     });
-  }, [segments, total, circumference]);
+  }, [segments, geometry, circumference]);
 
   const handlePress = (e: GestureResponderEvent) => {
     if (!onSelect) return;
@@ -95,7 +104,7 @@ export default function DonutChart({
       
       let accumulated = 0;
       for (let i = 0; i < segments.length; i++) {
-        const segRatio = total > 0 ? segments[i].value / total : 0;
+        const segRatio = geometry.arcs[i]?.ratio ?? 0;
         // Dokunulan oran, bu segmentin başlangıç ve bitiş oranları arasında mı?
         if (ratio >= accumulated && ratio <= accumulated + segRatio) {
           onSelect(i);
@@ -122,6 +131,14 @@ export default function DonutChart({
             <Stop offset="90%" stopColor="#000000" stopOpacity="0.05" />
             <Stop offset="100%" stopColor="#000000" stopOpacity="0.25" />
           </LinearGradient>
+          {showTrackGlassEdge && (
+            <LinearGradient id="trackGlassEdge" x1="0" y1="0" x2="0" y2={size} gradientUnits="userSpaceOnUse">
+              <Stop offset="0%" stopColor={Colors.textPrimary} stopOpacity="0.42" />
+              <Stop offset="38%" stopColor={Colors.textSecondary} stopOpacity="0.14" />
+              <Stop offset="70%" stopColor={Colors.textPrimary} stopOpacity="0.08" />
+              <Stop offset="100%" stopColor={Colors.textPrimary} stopOpacity="0.22" />
+            </LinearGradient>
+          )}
         </Defs>
 
         {/* Background ring (Şeffaf cam oluğu) */}
@@ -132,7 +149,7 @@ export default function DonutChart({
           stroke={Colors.surfaceLight}
           strokeWidth={strokeWidth}
           fill="none"
-          opacity={0.3}
+          opacity={showTrackGlassEdge ? 0.44 : 0.3}
         />
         <G rotation="-90" origin={`${center}, ${center}`}>
           {segmentData.map((seg, i) => (
@@ -150,6 +167,34 @@ export default function DonutChart({
             />
           ))}
         </G>
+        {showTrackGlassEdge && (
+          <>
+            {/* İki ince sınır, kalın bir çerçeve eklemeden cam tüpün gerçek
+                iç/dış kenarını hem nötr rayda hem renkli yaylarda tanımlar. */}
+            <Circle
+              testID="donut-track-outer-edge"
+              cx={center}
+              cy={center}
+              r={radius + (strokeWidth / 2) - 0.5}
+              stroke="url(#trackGlassEdge)"
+              strokeWidth={1}
+              fill="none"
+              opacity={0.72}
+              pointerEvents="none"
+            />
+            <Circle
+              testID="donut-track-inner-edge"
+              cx={center}
+              cy={center}
+              r={radius - (strokeWidth / 2) + 0.5}
+              stroke="url(#trackGlassEdge)"
+              strokeWidth={1}
+              fill="none"
+              opacity={0.46}
+              pointerEvents="none"
+            />
+          </>
+        )}
       </Svg>
       </Pressable>
       {/* Inner content (icon / amount) */}

@@ -1,17 +1,37 @@
 import React from 'react';
-import { fireEvent, render, waitFor } from '@testing-library/react-native';
-import { StyleSheet } from 'react-native';
+import { act, fireEvent, render, waitFor } from '@testing-library/react-native';
+import { Platform, StyleSheet } from 'react-native';
 
 import ScannerScreen from '../../../app/(tabs)/scanner';
 import { DarkTheme, LightTheme, resolveTheme, type ThemeAccent } from '../../theme/colors';
 
 let mockScheme: 'light' | 'dark' = 'dark';
 let mockAccent: ThemeAccent = 'green';
+let mockLanguage: 'tr' | 'en' | 'az' | 'ru' = 'tr';
 const mockUseAppTheme = jest.fn(() => mockScheme);
 const mockRequestCameraPermissionsAsync = jest.fn();
 const mockRequestMediaLibraryPermissionsAsync = jest.fn();
 const mockLaunchCameraAsync = jest.fn();
 const mockLaunchImageLibraryAsync = jest.fn();
+const mockGetPendingResultAsync = jest.fn();
+const mockParseReceipt = jest.fn();
+const mockHasApiKey = jest.fn();
+const mockProcessReceipt = jest.fn();
+const mockCompressImageToBase64 = jest.fn();
+
+function getPressHandler(instance: any): () => any {
+  let node = instance;
+  while (node) {
+    if (typeof node.props?.onPress === 'function') return node.props.onPress;
+    node = node.parent;
+  }
+  let fiber = instance.unstable_fiber;
+  while (fiber) {
+    if (typeof fiber.memoizedProps?.onPress === 'function') return fiber.memoizedProps.onPress;
+    fiber = fiber.return;
+  }
+  throw new Error('Press handler not found');
+}
 
 jest.mock('expo-router', () => ({
   useRouter: () => ({ push: jest.fn() }),
@@ -27,6 +47,7 @@ jest.mock('expo-image-picker', () => ({
   requestMediaLibraryPermissionsAsync: (...args: unknown[]) => mockRequestMediaLibraryPermissionsAsync(...args),
   launchCameraAsync: (...args: unknown[]) => mockLaunchCameraAsync(...args),
   launchImageLibraryAsync: (...args: unknown[]) => mockLaunchImageLibraryAsync(...args),
+  getPendingResultAsync: (...args: unknown[]) => mockGetPendingResultAsync(...args),
 }));
 jest.mock('expo-file-system/legacy', () => ({}));
 jest.mock('expo-haptics', () => ({
@@ -45,7 +66,8 @@ jest.mock('../../theme/themeStore', () => ({
 jest.mock('../../i18n/LanguageContext', () => ({
   useLanguage: () => ({
     t: (key: string) => key,
-    language: 'tr',
+    tc: (name: string) => `tc:${name}`,
+    language: mockLanguage,
   }),
 }));
 
@@ -58,12 +80,12 @@ jest.mock('../../context/CurrencyContext', () => ({
 }));
 
 jest.mock('../../services/geminiService', () => ({
-  parseReceipt: jest.fn(),
-  hasApiKey: jest.fn(),
+  parseReceipt: (...args: unknown[]) => mockParseReceipt(...args),
+  hasApiKey: (...args: unknown[]) => mockHasApiKey(...args),
 }));
 
 jest.mock('../../services/receiptParser', () => ({
-  processReceipt: jest.fn(),
+  processReceipt: (...args: unknown[]) => mockProcessReceipt(...args),
 }));
 
 jest.mock('../../services/scanSession', () => ({
@@ -71,7 +93,7 @@ jest.mock('../../services/scanSession', () => ({
 }));
 
 jest.mock('../../utils/imageCompressor', () => ({
-  compressImageToBase64: jest.fn(),
+  compressImageToBase64: (...args: unknown[]) => mockCompressImageToBase64(...args),
 }));
 
 jest.mock('../SparkToast', () => ({
@@ -85,14 +107,33 @@ jest.mock('../AnimatedCard', () => {
 });
 
 describe('Scanner runtime theme', () => {
+  const receipt = {
+    vendor_name: 'Biedronka',
+    date: '2026-08-23',
+    translation_language: 'en',
+    total: 6,
+    currency: 'PLN',
+    items: [{
+      name: 'Chleb', turkish_name: 'Bread', quantity: 1,
+      measurement_unit: 'piece', unit_price: 6, total_price: 6,
+      category_key: 'market', suggested_category: 'Market',
+    }],
+  };
+
   beforeEach(() => {
     mockScheme = 'dark';
     mockAccent = 'green';
+    mockLanguage = 'tr';
     mockUseAppTheme.mockClear();
     mockRequestCameraPermissionsAsync.mockReset();
     mockRequestMediaLibraryPermissionsAsync.mockReset();
     mockLaunchCameraAsync.mockReset();
     mockLaunchImageLibraryAsync.mockReset();
+    mockGetPendingResultAsync.mockReset().mockResolvedValue(null);
+    mockParseReceipt.mockReset().mockResolvedValue(receipt);
+    mockHasApiKey.mockReset().mockResolvedValue(true);
+    mockProcessReceipt.mockReset().mockResolvedValue(1);
+    mockCompressImageToBase64.mockReset().mockResolvedValue('compressed-base64');
   });
 
   it('rebuilds its mounted shell when the app switches from dark to light', async () => {
@@ -167,5 +208,102 @@ describe('Scanner runtime theme', () => {
     await fireEvent.press(screen.getByTestId('scanner-gallery-action'));
     await waitFor(() => expect(mockLaunchImageLibraryAsync).toHaveBeenCalledTimes(1));
     expect(mockLaunchCameraAsync).toHaveBeenCalledTimes(1);
+  });
+
+  it.each(['tr', 'en', 'az', 'ru'] as const)(
+    'passes the active %s language through the successful camera pipeline',
+    async (language) => {
+      mockLanguage = language;
+      mockRequestCameraPermissionsAsync.mockResolvedValue({ granted: true });
+      mockLaunchCameraAsync.mockResolvedValue({
+        canceled: false,
+        assets: [{ uri: 'file://receipt.jpg', width: 1600, height: 4000, type: 'image' }],
+      });
+      const screen = await render(<ScannerScreen />);
+
+      await fireEvent.press(screen.getByTestId('scanner-camera-action'));
+      await waitFor(() => expect(mockParseReceipt).toHaveBeenCalled());
+
+      expect(mockCompressImageToBase64).toHaveBeenCalledWith(
+        'file://receipt.jpg',
+        expect.objectContaining({ width: 1600, height: 4000, signal: expect.objectContaining({ aborted: false }) }),
+      );
+      expect(mockParseReceipt).toHaveBeenCalledWith(
+        'compressed-base64',
+        language,
+        expect.objectContaining({ aborted: false }),
+      );
+      expect(screen.getByText('tc:Market')).toBeTruthy();
+    },
+  );
+
+  it('shows a localized safe error instead of accepting an invalid AI result', async () => {
+    mockRequestCameraPermissionsAsync.mockResolvedValue({ granted: true });
+    mockLaunchCameraAsync.mockResolvedValue({
+      canceled: false,
+      assets: [{ uri: 'file://bad.jpg', width: 1000, height: 1600, type: 'image' }],
+    });
+    mockParseReceipt.mockRejectedValue(new Error('RECEIPT_INVALID_RESULT'));
+    const screen = await render(<ScannerScreen />);
+
+    await fireEvent.press(screen.getByTestId('scanner-camera-action'));
+    await waitFor(() => expect(screen.getByText('scan_invalid_result')).toBeTruthy());
+    expect(mockProcessReceipt).not.toHaveBeenCalled();
+  });
+
+  it('recovers an Android camera result after the Activity is recreated', async () => {
+    const originalOS = Platform.OS;
+    Object.defineProperty(Platform, 'OS', { configurable: true, value: 'android' });
+    mockGetPendingResultAsync.mockResolvedValue({
+      canceled: false,
+      assets: [{ uri: 'file://recovered.jpg', width: 1800, height: 3600, type: 'image' }],
+    });
+    const screen = await render(<ScannerScreen />);
+
+    try {
+      await waitFor(() => expect(mockGetPendingResultAsync).toHaveBeenCalled());
+      await waitFor(() => expect(mockParseReceipt).toHaveBeenCalledWith(
+        'compressed-base64',
+        'tr',
+        expect.objectContaining({ aborted: false }),
+      ));
+      expect(mockCompressImageToBase64).toHaveBeenCalledWith(
+        'file://recovered.jpg',
+        expect.objectContaining({ width: 1800, height: 3600 }),
+      );
+    } finally {
+      screen.unmount();
+      Object.defineProperty(Platform, 'OS', { configurable: true, value: originalOS });
+    }
+  });
+
+  it('releases the source lock immediately when an active scan is stopped', async () => {
+    mockRequestCameraPermissionsAsync.mockResolvedValue({ granted: true });
+    mockLaunchCameraAsync.mockResolvedValue({
+      canceled: false,
+      assets: [{ uri: 'file://slow.jpg', width: 1600, height: 4000, type: 'image' }],
+    });
+    mockParseReceipt.mockImplementation(
+      (_base64: string, _language: string, signal: AbortSignal) => new Promise((_, reject) => {
+        signal.addEventListener('abort', () => {
+          const error = new Error('aborted');
+          error.name = 'AbortError';
+          reject(error);
+        }, { once: true });
+      }),
+    );
+    const screen = await render(<ScannerScreen />);
+
+    let scanPromise: Promise<void> = Promise.resolve();
+    await act(async () => {
+      scanPromise = getPressHandler(screen.getByTestId('scanner-camera-action'))();
+      while (mockParseReceipt.mock.calls.length === 0) await Promise.resolve();
+    });
+    await act(async () => {
+      getPressHandler(screen.getByTestId('scanner-stop-action'))();
+      await scanPromise;
+    });
+
+    expect(screen.getByTestId('scanner-camera-action').props.accessibilityState.disabled).toBe(false);
   });
 });

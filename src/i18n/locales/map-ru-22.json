@@ -1,0 +1,6 @@
+{
+  "debt_tile_empty": "Нет открытого долга",
+  "income_tile_empty": "Нет доп. дохода за период",
+  "debt_tile_balance_hint": "Остаток долга",
+  "income_tile_applied_hint": "Добавлено в бюджет"
+}

@@ -53,10 +53,11 @@ export default function EditItemsScreen() {
   const styles = getStyles();
   const router = useRouter();
   const { t } = useLanguage();
-  const { currency } = useCurrency();
+  const { currency: displayCurrency } = useCurrency();
   const { id } = useLocalSearchParams<{ id: string }>();
 
   const [items, setItems] = useState<ExpenseItem[]>([]);
+  const [recordCurrency, setRecordCurrency] = useState<string>(displayCurrency);
   const [loading, setLoading] = useState(true);
 
   // Form state
@@ -75,8 +76,9 @@ export default function EditItemsScreen() {
   async function loadItems() {
     setLoading(true);
     try {
-      const data = await ExpenseDao.getItems(parseInt(id));
-      setItems(data);
+      const expense = await ExpenseDao.getById(parseInt(id));
+      setItems(expense?.items ?? []);
+      setRecordCurrency(expense?.currency || displayCurrency);
     } catch (e) {
       SparkToast.show(t('error_loading_items'), 'error');
     }
@@ -149,8 +151,9 @@ export default function EditItemsScreen() {
     try {
       if (editingItemId) {
         await ExpenseDao.updateItemAndSyncTotal(expenseId, editingItemId, {
-          name: itemName.trim(),
-          turkish_name: itemName.trim(),
+          // Gösterim düzeltmesi ham fiş adını/ilk çeviriyi ezmez. Böylece ürün
+          // kimliği ayrılabilir ve fiş kanıtı daha sonra da denetlenebilir.
+          user_label: itemName.trim(),
           quantity: q,
           measurement_unit: normalizedMeasurement.measurementUnit,
           unit_price: amounts.netUnitPrice,
@@ -213,7 +216,7 @@ export default function EditItemsScreen() {
         {/* Grand Total Bar */}
         <View style={styles.totalBar}>
           <Text style={styles.totalBarText}>{t('current_total')}</Text>
-          <Text style={styles.totalBarAmount}>{formatCurrency(currentTotal, currency)}</Text>
+          <Text style={styles.totalBarAmount}>{formatCurrency(currentTotal, recordCurrency)}</Text>
         </View>
 
         <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
@@ -238,14 +241,14 @@ export default function EditItemsScreen() {
                       {listAmt != null && listAmt > item.total_price + 0.001 && (
                         <Text style={styles.itemWasPrice}>
                           {t('receipt_line_was', {
-                            amount: formatCurrency(listAmt, currency),
+                            amount: formatCurrency(listAmt, recordCurrency),
                           })}
                         </Text>
                       )}
                       {discAmt > 0.001 && (
                         <Text style={styles.itemDiscountHint}>
                           {t('receipt_line_discount', {
-                            amount: formatReceiptDiscountAmount(discAmt, currency),
+                            amount: formatReceiptDiscountAmount(discAmt, recordCurrency),
                           })}
                         </Text>
                       )}
@@ -253,12 +256,12 @@ export default function EditItemsScreen() {
                   )}
                   <Text style={styles.itemSubText}>
                     {formatMeasurementQuantity(item.quantity, item.measurement_unit)} ·{' '}
-                    {formatCurrency(item.unit_price, currency)}
+                    {formatCurrency(item.unit_price, recordCurrency)}
                     {measurementUnitSuffix(item.measurement_unit, t('measurement_unit_piece'))}
                   </Text>
                 </View>
                 <Text style={[styles.itemPrice, hasDisc && styles.itemPriceNet]}>
-                  {formatCurrency(item.total_price, currency)}
+                  {formatCurrency(item.total_price, recordCurrency)}
                 </Text>
                 
                 <View style={styles.itemActions}>

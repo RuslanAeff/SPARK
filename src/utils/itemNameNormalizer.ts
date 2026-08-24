@@ -13,7 +13,13 @@
 // sorgularında (`getVendorItems`) hem de ürün geçmişi sorgusunda
 // (`getItemAnalytics`) eşleşme anahtarı olarak kullanılır.
 
-/** Ürünün mantıksal tek anahtarı. Boş/undefined için boş string döner. */
+/**
+ * Ürün etiketinin yalnız yazımsal anahtarı. Boş/undefined için boş string döner.
+ *
+ * Bu yardımcı semantik ürün kimliği değildir: ölçü birimi, paket bilgisi veya
+ * ürün varyantı hakkında karar vermez. Ürünleri gruplamak için
+ * `productIdentity` katmanındaki birim-duyarlı yardımcılar kullanılmalıdır.
+ */
 export function normalizeItemKey(name: string | null | undefined): string {
   if (!name) return '';
   return name

@@ -33,6 +33,10 @@ import {
   SettingsInfoHintModal,
   SettingsInfoIconButton,
 } from '../src/components/SettingsInfoHint';
+import {
+  SettingsNavigationRow,
+  SettingsSection,
+} from '../src/components/SettingsList';
 
 export default function SettingsDataScreen() {
   const colorScheme = useAppTheme();
@@ -139,7 +143,7 @@ export default function SettingsDataScreen() {
         <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
           {/* Vendors */}
           <Animated.View entering={FadeInDown.delay(80).duration(400)}>
-            <View style={styles.section}>
+            <SettingsSection testID="settings-data-vendors-section">
               <View style={styles.sectionHeader}>
                 <View style={[styles.sectionIcon, { backgroundColor: Colors.chartGreen + '22' }]}>
                   <MaterialCommunityIcons
@@ -294,11 +298,29 @@ export default function SettingsDataScreen() {
                   <Text style={styles.emptyText}>{t('no_vendors_yet')}</Text>
                 </View>
               )}
-            </View>
+            </SettingsSection>
+          </Animated.View>
+
+          {/* Persistent product identity review */}
+          <Animated.View entering={FadeInDown.delay(160).duration(400)}>
+            <SettingsNavigationRow
+              testID="manage-product-matching"
+              title={t('product_match_entry_title')}
+              description={t('product_match_entry_hint')}
+              icon="tag-multiple-outline"
+              iconColor={Colors.primary}
+              iconBackgroundColor={Colors.primarySoft}
+              onPress={() => {
+                Haptics.selectionAsync();
+                router.push('/product-matching');
+              }}
+              accessibilityLabel={t('product_match_entry_title')}
+              accessibilityHint={t('product_match_entry_hint')}
+            />
           </Animated.View>
 
           {/* Backup */}
-          <Animated.View entering={FadeInDown.delay(160).duration(400)}>
+          <Animated.View entering={FadeInDown.delay(240).duration(400)}>
             <BackupSection />
           </Animated.View>
         </ScrollView>
@@ -368,14 +390,6 @@ const getStyles = () => StyleSheet.create({
   },
   headerSpacer: { width: 40 },
   content: { paddingHorizontal: ScreenPadding.horizontal, paddingBottom: 40 },
-  section: {
-    backgroundColor: Colors.cardSurface,
-    borderRadius: BorderRadius.xl,
-    padding: Spacing.lg,
-    marginBottom: Spacing.lg,
-    borderWidth: 1,
-    borderColor: Colors.cardBorder,
-  },
   sectionHeader: {
     flexDirection: 'row',
     alignItems: 'center',

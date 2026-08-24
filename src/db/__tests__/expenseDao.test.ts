@@ -140,6 +140,60 @@ describe('ExpenseDao read projections', () => {
     expect(result.every(item => item.purchase_count === 1)).toBe(true);
   });
 
+  it('satıcı analizinde kalıcı kimliği aynı, yazımı farklı kg satırlarını birleştirir', async () => {
+    getAllAsync.mockResolvedValue([
+      {
+        name: 'Tavuk Baget', turkish_name: null, user_label: null,
+        canonical_product_id: 42, canonical_name: 'Tavuk Baget', measurement_unit: 'kg',
+        unit_price: 19, total_price: 9.5, quantity: 0.5, expense_date: '2026-08-01',
+      },
+      {
+        name: 'TAVUK BAGET KG', turkish_name: null, user_label: null,
+        canonical_product_id: 42, canonical_name: 'Tavuk Baget', measurement_unit: 'kg',
+        unit_price: 21, total_price: 21, quantity: 1, expense_date: '2026-08-02',
+      },
+    ]);
+
+    const result = await ExpenseDao.getVendorItems(1, '2026-08-01', '2026-08-31');
+
+    expect(result).toHaveLength(1);
+    expect(result[0]).toMatchObject({
+      canonical_product_id: 42,
+      measurement_unit: 'kg',
+      purchase_count: 2,
+      total_quantity: 1.5,
+      total_spent: 30.5,
+    });
+  });
+
+  it('ürün detayında aynı kalıcı kimliğin farklı fiş adlarını birlikte getirir', async () => {
+    getAllAsync.mockResolvedValue([
+      {
+        name: 'Tavuk Kanadı', turkish_name: null, user_label: null,
+        canonical_product_id: 8, canonical_name: 'Tavuk Kanat',
+        date: '2026-08-01', unit_price: 17, total_price: 8.5, quantity: 0.5,
+        vendor_name: 'A', measurement_unit: 'kg',
+      },
+      {
+        name: 'Tavuk Kanat Kg', turkish_name: null, user_label: null,
+        canonical_product_id: 8, canonical_name: 'Tavuk Kanat',
+        date: '2026-08-02', unit_price: 20, total_price: 20, quantity: 1,
+        vendor_name: 'B', measurement_unit: 'kg',
+      },
+      {
+        name: 'Tavuk Baget', turkish_name: null, user_label: null,
+        canonical_product_id: 9, canonical_name: 'Tavuk Baget',
+        date: '2026-08-03', unit_price: 22, total_price: 22, quantity: 1,
+        vendor_name: 'C', measurement_unit: 'kg',
+      },
+    ]);
+
+    const result = await ExpenseDao.getItemAnalytics('Tavuk Kanat', 'kg', 8);
+
+    expect(result.stats.purchase_count).toBe(2);
+    expect(result.history.map(item => item.name)).toEqual(['Tavuk Kanadı', 'Tavuk Kanat Kg']);
+  });
+
   it('davranış analizinde sınıflandırılmayan harcamaları tasarruf diye sunmaz', async () => {
     await ExpenseDao.getNeedsVsWants('2026-08-01', '2026-08-31');
     const [sql] = getAllAsync.mock.calls[0];
@@ -184,6 +238,15 @@ describe('ExpenseDao receipt money writes', () => {
     expect(runAsync).toHaveBeenCalledWith(
       'UPDATE expense_items SET total_price = ?, line_discount = ?, list_line_total_before_discount = ? WHERE id = ?',
       [6.32, 3.17, 9.49, 4],
+    );
+  });
+
+  it('kullanıcı etiketini ham name ve turkish_name alanlarını ezmeden günceller', async () => {
+    await ExpenseDao.updateItem(4, { user_label: 'Tavuk Kanat' });
+
+    expect(runAsync).toHaveBeenCalledWith(
+      'UPDATE expense_items SET user_label = ? WHERE id = ?',
+      ['Tavuk Kanat', 4],
     );
   });
 

@@ -37,6 +37,10 @@ import {
   SettingsInfoHintModal,
   SettingsInfoIconButton,
 } from '../src/components/SettingsInfoHint';
+import {
+  SettingsNavigationRow,
+  SettingsSection,
+} from '../src/components/SettingsList';
 
 export default function SettingsGeneralScreen() {
   const colorScheme = useAppTheme();
@@ -161,35 +165,24 @@ export default function SettingsGeneralScreen() {
         <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
           {/* Language */}
           <Animated.View entering={FadeInDown.delay(80).duration(400)}>
-            <View style={styles.section}>
-              <Pressable
-                onPress={() => {
-                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                  setLangSheetOpen(true);
-                }}
-                style={({ pressed }) => [styles.languageRow, pressed && styles.languageRowPressed]}
-                accessibilityRole="button"
-                accessibilityLabel={t('language_title')}
-              >
-                <View style={styles.languageIconWrap}>
-                  <MaterialCommunityIcons
-                    name="google-translate"
-                    size={24}
-                    color={palette.primary}
-                  />
-                </View>
-                <View style={styles.languageRowText}>
-                  <Text style={styles.languageRowTitle}>{t('language_row_label')}</Text>
-                  <Text style={styles.languageRowSub}>{languageNativeLabel(language)}</Text>
-                </View>
-                <MaterialCommunityIcons name="chevron-right" size={22} color={palette.textMuted} />
-              </Pressable>
-            </View>
+            <SettingsNavigationRow
+              testID="settings-general-language-row"
+              title={t('language_row_label')}
+              description={languageNativeLabel(language)}
+              icon="google-translate"
+              iconColor={palette.primary}
+              iconBackgroundColor={palette.primaryGlow}
+              accessibilityLabel={t('language_title')}
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                setLangSheetOpen(true);
+              }}
+            />
           </Animated.View>
 
           {/* Currency */}
           <Animated.View entering={FadeInDown.delay(160).duration(400)}>
-            <View style={styles.section}>
+            <SettingsSection testID="settings-general-currency-section">
               <View style={styles.sectionHeader}>
                 <View style={[styles.sectionIcon, { backgroundColor: palette.chartOrange + '22' }]}>
                   <MaterialCommunityIcons
@@ -248,12 +241,12 @@ export default function SettingsGeneralScreen() {
                   );
                 })}
               </ScrollView>
-            </View>
+            </SettingsSection>
           </Animated.View>
 
           {/* Theme */}
           <Animated.View entering={FadeInDown.delay(240).duration(400)}>
-            <View style={styles.section}>
+            <SettingsSection testID="settings-general-theme-section">
               <View style={styles.sectionHeader}>
                 <View
                   style={[styles.sectionIcon, { backgroundColor: palette.chartPurple + '22' }]}
@@ -325,12 +318,12 @@ export default function SettingsGeneralScreen() {
                   })}
                 </View>
               )}
-            </View>
+            </SettingsSection>
           </Animated.View>
 
           {/* Accent color */}
           <Animated.View entering={FadeInDown.delay(320).duration(400)}>
-            <View style={styles.section}>
+            <SettingsSection testID="settings-general-accent-section" last>
               <View style={styles.sectionHeader}>
                 <View style={[styles.sectionIcon, { backgroundColor: palette.primarySoft }]}>
                   <MaterialCommunityIcons name="palette-outline" size={22} color={palette.primary} />
@@ -357,7 +350,7 @@ export default function SettingsGeneralScreen() {
                 swipeHint={t('theme_accent_swipe_hint')}
                 onSelect={pickAccent}
               />
-            </View>
+            </SettingsSection>
           </Animated.View>
         </ScrollView>
       </SafeAreaView>
@@ -427,14 +420,6 @@ const getStyles = (colors: ThemePalette) => StyleSheet.create({
     paddingHorizontal: ScreenPadding.horizontal,
     paddingBottom: 40,
   },
-  section: {
-    backgroundColor: colors.cardSurface,
-    borderRadius: BorderRadius.xl,
-    padding: Spacing.lg,
-    marginBottom: Spacing.lg,
-    borderWidth: 1,
-    borderColor: colors.cardBorder,
-  },
   sectionHeader: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -454,33 +439,6 @@ const getStyles = (colors: ThemePalette) => StyleSheet.create({
     fontSize: 16,
   },
   sectionTitleWithInfo: { flex: 1, flexShrink: 1, minWidth: 0 },
-  // Language row
-  languageRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.md,
-    paddingVertical: Spacing.sm,
-  },
-  languageRowPressed: { opacity: 0.92 },
-  languageIconWrap: {
-    width: 48,
-    height: 48,
-    borderRadius: BorderRadius.lg,
-    backgroundColor: colors.primaryGlow,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  languageRowText: { flex: 1, gap: 4 },
-  languageRowTitle: {
-    ...Typography.bodyLarge,
-    fontFamily: FontFamily.bold,
-    color: colors.textPrimary,
-  },
-  languageRowSub: {
-    ...Typography.bodySmall,
-    color: colors.textSecondary,
-    marginTop: 2,
-  },
   // Currency row
   currencyRow: {
     flexDirection: 'row',

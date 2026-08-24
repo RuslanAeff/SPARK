@@ -7,6 +7,7 @@ import {
   getToday,
   parseLocalYYYYMMDD,
   formatDateFull,
+  formatPeriodRange,
 } from '../dateUtils';
 
 describe('parseLocalYYYYMMDD', () => {
@@ -27,6 +28,34 @@ describe('parseLocalYYYYMMDD', () => {
   it('kanonik tarihi yerel gün kayması olmadan biçimlendirir', () => {
     const t = (key: string) => key;
     expect(formatDateFull('2026-01-31', t)).toBe('31 month_01 2026');
+  });
+});
+
+describe('formatPeriodRange', () => {
+  const t = (key: string) => ({
+    month_short_01: 'Oca',
+    month_short_08: 'Ağu',
+    month_short_09: 'Eyl',
+    month_short_12: 'Ara',
+  })[key] ?? key;
+
+  it('aynı yıl içindeki iki ayı tek yıl bilgisiyle gösterir', () => {
+    expect(formatPeriodRange('2026-08-22', '2026-09-21', t))
+      .toBe('22 Ağu – 21 Eyl 2026');
+  });
+
+  it('aynı ay içindeki tekrar eden ay adını sıkıştırır', () => {
+    expect(formatPeriodRange('2026-08-01', '2026-08-31', t))
+      .toBe('1–31 Ağu 2026');
+  });
+
+  it('yıl değişiminde iki yılı da açıkça gösterir', () => {
+    expect(formatPeriodRange('2026-12-22', '2027-01-21', t))
+      .toBe('22 Ara 2026 – 21 Oca 2027');
+  });
+
+  it('geçersiz aralıkta bozuk tarih metni üretmez', () => {
+    expect(formatPeriodRange('geçersiz', '2026-09-21', t)).toBe('');
   });
 });
 

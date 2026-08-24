@@ -36,8 +36,10 @@ jest.mock('../../i18n/LanguageContext', () => ({
             .join('; ');
         case 'goal_focus_open_hint':
           return 'Opens goal details';
-        case 'goal_add_contribution':
-          return 'Add contribution';
+        case 'goal_update_savings':
+          return 'Update savings';
+        case 'goal_update_savings_hint':
+          return 'Add or reduce the saved amount';
         default:
           return key;
       }
@@ -117,7 +119,10 @@ describe('SavingsGoalPulseCard', () => {
     expect(onContribute).toHaveBeenCalledTimes(1);
     expect(onOpen).toHaveBeenCalledTimes(1);
     expect(screen.getByTestId('goal-pulse-contribute').props.accessibilityLabel)
-      .toBe('Add contribution');
+      .toBe('Update savings');
+    expect(screen.getByTestId('goal-pulse-contribute').props.accessibilityHint)
+      .toBe('Add or reduce the saved amount');
+    expect(screen.getByTestId('icon-plus-minus-variant')).toBeTruthy();
   });
 
   it('renders an overdue goal with explicit warning text and icon', async () => {

@@ -36,7 +36,11 @@ import { intlLocaleForLanguage } from '../../src/i18n/languageOptions';
 import ItemAnalyticsModal from '../../src/components/ItemAnalyticsModal';
 import StreakDetailsSheet from '../../src/components/StreakDetailsSheet';
 import { getAnalyticsStyles } from '../../src/components/analytics/analyticsStyles';
-import { type Timeframe, type PriceChange } from '../../src/components/analytics/shared';
+import {
+  type Timeframe,
+  type PriceChange,
+  type SilentSpendItem,
+} from '../../src/components/analytics/shared';
 import ChartCard from '../../src/components/analytics/ChartCard';
 import HeatmapCard from '../../src/components/analytics/HeatmapCard';
 import TopTxCard from '../../src/components/analytics/TopTxCard';
@@ -539,6 +543,7 @@ export default function AnalyticsScreen() {
   const [vendorAnalysisVisible, setVendorAnalysisVisible] = useState(false);
   const [selectedItemName, setSelectedItemName] = useState<string | null>(null);
   const [selectedItemUnit, setSelectedItemUnit] = useState<MeasurementUnit | undefined>();
+  const [selectedItemCanonicalProductId, setSelectedItemCanonicalProductId] = useState<number | null>(null);
   const [itemAnalysisVisible, setItemAnalysisVisible] = useState(false);
   const [returnToVendorAfterItem, setReturnToVendorAfterItem] = useState(false);
   const [streakDetailVariant, setStreakDetailVariant] = useState<'zero' | 'streak' | 'under' | null>(null);
@@ -557,17 +562,7 @@ export default function AnalyticsScreen() {
   }[]>([]);
   const [savingsGoal, setSavingsGoal] = useState<SavingsGoalRow | null>(null);
   const [silentSpendData, setSilentSpendData] = useState<{
-    items: {
-      name: string;
-      turkish_name: string | null;
-      purchase_count: number;
-      total_spent: number;
-      avg_price: number;
-      category_name: string | null;
-      category_icon: string | null;
-      category_color: string | null;
-      normalized_key: string;
-    }[];
+    items: SilentSpendItem[];
     totalAmount: number;
     totalCount: number;
     distinctItems: number;
@@ -1099,16 +1094,26 @@ export default function AnalyticsScreen() {
     setSelectedVendor(null);
   }, []);
 
-  const openItemAnalysis = useCallback((name: string, unit?: MeasurementUnit) => {
+  const openItemAnalysis = useCallback((
+    name: string,
+    unit?: MeasurementUnit,
+    canonicalProductId?: number | null,
+  ) => {
     setReturnToVendorAfterItem(false);
     setSelectedItemUnit(unit);
+    setSelectedItemCanonicalProductId(canonicalProductId ?? null);
     setSelectedItemName(name);
     setItemAnalysisVisible(true);
   }, []);
 
-  const openVendorItemAnalysis = useCallback((name: string) => {
+  const openVendorItemAnalysis = useCallback((
+    name: string,
+    unit?: MeasurementUnit,
+    canonicalProductId?: number | null,
+  ) => {
     setReturnToVendorAfterItem(true);
-    setSelectedItemUnit(undefined);
+    setSelectedItemUnit(unit);
+    setSelectedItemCanonicalProductId(canonicalProductId ?? null);
     setSelectedItemName(name);
     setItemAnalysisVisible(true);
   }, []);
@@ -1116,6 +1121,7 @@ export default function AnalyticsScreen() {
   const dismissItemAnalysis = useCallback(() => {
     setSelectedItemName(null);
     setSelectedItemUnit(undefined);
+    setSelectedItemCanonicalProductId(null);
     if (returnToVendorAfterItem && selectedVendor !== null) {
       setVendorAnalysisVisible(true);
     }
@@ -1540,6 +1546,7 @@ export default function AnalyticsScreen() {
       visible={itemAnalysisVisible}
       itemName={selectedItemName || ''}
       measurementUnit={selectedItemUnit}
+      canonicalProductId={selectedItemCanonicalProductId}
       onClose={() => setItemAnalysisVisible(false)}
       onDismiss={dismissItemAnalysis}
     />

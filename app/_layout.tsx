@@ -332,6 +332,14 @@ function AppShell({ onboardingLoading, onboardingCompleted }: AppShellProps) {
             }}
           />
           <Stack.Screen
+            name="product-matching"
+            options={{
+              presentation: 'card',
+              animation: 'slide_from_right',
+              contentStyle: { backgroundColor: theme.background },
+            }}
+          />
+          <Stack.Screen
             name="settings-ai"
             options={{
               presentation: 'card',

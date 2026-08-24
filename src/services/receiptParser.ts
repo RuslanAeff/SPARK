@@ -1,5 +1,5 @@
 // S.P.A.R.K. — Receipt Parser (process Gemini output into DB)
-import { ParsedReceipt, ParsedItem } from './geminiService';
+import { ParsedReceipt, ParsedItem, validateParsedReceipt } from './geminiService';
 import { getDatabase } from '../db/database';
 import { ExpenseDao } from '../db/expenseDao';
 import { VendorDao } from '../db/vendorDao';
@@ -13,49 +13,16 @@ import {
 } from '../utils/moneyMath';
 import { normalizeReceiptItemAmounts } from '../utils/receiptMoney';
 import { normalizeMeasurementInput } from '../utils/measurementUnit';
+import { canonicalReceiptCategoryName } from '../utils/receiptCategory';
 
-const CATEGORY_MAP: Record<string, string> = {
-  'market': 'Market',
-  'süpermarket': 'Market',
-  'supermarket': 'Market',
-  'grocery': 'Market',
-  'restoran': 'Restoran',
-  'restaurant': 'Restoran',
-  'fast food': 'Fast Food',
-  'fastfood': 'Fast Food',
-  'kafe': 'Kafe',
-  'cafe': 'Kafe',
-  'coffee': 'Kafe',
-  'giyim': 'Giyim',
-  'clothing': 'Giyim',
-  'elektronik': 'Elektronik',
-  'electronics': 'Elektronik',
-  'ev eşyası': 'Ev Eşyası',
-  'home': 'Ev Eşyası',
-  'ilaç': 'İlaç',
-  'pharmacy': 'İlaç',
-  'yakıt': 'Yakıt',
-  'fuel': 'Yakıt',
-  'gas': 'Yakıt',
-  'diğer': 'Diğer',
-  'other': 'Diğer',
-};
-
-async function resolveCategory(suggestedCategory: string): Promise<number> {
-  const normalized = (suggestedCategory || '').toLowerCase().trim();
-  const mapped = CATEGORY_MAP[normalized] || suggestedCategory;
-  
-  const category = await CategoryDao.findByName(mapped);
+async function resolveCategory(item: Pick<ParsedItem, 'category_key' | 'suggested_category'>): Promise<number> {
+  const canonicalName = canonicalReceiptCategoryName(
+    item.category_key,
+    item.suggested_category,
+  );
+  const category = await CategoryDao.findByName(canonicalName);
   if (category) return category.id;
-  
-  // Try finding parent category
-  for (const [key, value] of Object.entries(CATEGORY_MAP)) {
-    if (normalized.includes(key)) {
-      const cat = await CategoryDao.findByName(value);
-      if (cat) return cat.id;
-    }
-  }
-  
+
   // Always fallback to "Diğer" — analytics JOIN excludes null category_id
   const other = await CategoryDao.findByName('Diğer');
   if (other) return other.id;
@@ -68,11 +35,14 @@ async function resolveCategory(suggestedCategory: string): Promise<number> {
 /** Tarayıcıdan "Kaydet" etmeden add-expense formunu doldurmak için (processReceipt ile aynı toplam/kategori mantığı) */
 export async function getPrefillFromParsedReceipt(receipt: ParsedReceipt): Promise<{
   amount: string;
+  currency: string;
   vendorName: string;
   date: string;
   note: string;
   categoryId: number;
 }> {
+  const validation = validateParsedReceipt(receipt);
+  if (!validation.valid) throw new Error(`INVALID_RECEIPT_${validation.code}`);
   const vendorName = String(receipt.vendor_name || '').trim() || 'Bilinmeyen';
 
   // Önce satıcının önceden belirlenmiş varsayılan kategorisi var mı diye bak;
@@ -84,12 +54,12 @@ export async function getPrefillFromParsedReceipt(receipt: ParsedReceipt): Promi
   if (primaryCategoryId == null) {
     const categoryCounts: Record<string, number> = {};
     for (const item of receipt.items || []) {
-      const cat = item.suggested_category || 'Diğer';
+      const cat = canonicalReceiptCategoryName(item.category_key, item.suggested_category);
       categoryCounts[cat] = (categoryCounts[cat] || 0) + 1;
     }
     const primaryCategory = Object.entries(categoryCounts)
       .sort(([, a], [, b]) => b - a)[0]?.[0] || 'Diğer';
-    primaryCategoryId = await resolveCategory(primaryCategory);
+    primaryCategoryId = await resolveCategory({ suggested_category: primaryCategory });
   }
   const itemsSum = sumMoney(
     (receipt.items || []).map((item) => Number(item.total_price)).filter(Number.isFinite),
@@ -100,6 +70,7 @@ export async function getPrefillFromParsedReceipt(receipt: ParsedReceipt): Promi
   const normalizedDate = normalizeToYYYYMMDD(receipt.date);
   return {
     amount: formatMoneyInput(totalAmount),
+    currency: receipt.currency || 'PLN',
     vendorName,
     date: normalizedDate,
     note: `Fiş: ${vendorName}`,
@@ -108,6 +79,8 @@ export async function getPrefillFromParsedReceipt(receipt: ParsedReceipt): Promi
 }
 
 export async function processReceipt(receipt: ParsedReceipt): Promise<number> {
+  const validation = validateParsedReceipt(receipt);
+  if (!validation.valid) throw new Error(`INVALID_RECEIPT_${validation.code}`);
   const vendorName = String(receipt.vendor_name || '').trim() || 'Bilinmeyen';
   const existingVendor = await VendorDao.findByName(vendorName);
   const vendorId = existingVendor?.id ?? (await VendorDao.findOrCreate(vendorName));
@@ -120,12 +93,12 @@ export async function processReceipt(receipt: ParsedReceipt): Promise<number> {
   } else {
     const categoryCounts: Record<string, number> = {};
     for (const item of receipt.items) {
-      const cat = item.suggested_category || 'Diğer';
+      const cat = canonicalReceiptCategoryName(item.category_key, item.suggested_category);
       categoryCounts[cat] = (categoryCounts[cat] || 0) + 1;
     }
     const primaryCategory = Object.entries(categoryCounts)
       .sort(([, a], [, b]) => b - a)[0]?.[0] || 'Diğer';
-    primaryCategoryId = await resolveCategory(primaryCategory);
+    primaryCategoryId = await resolveCategory({ suggested_category: primaryCategory });
   }
   const normalizedDate = normalizeToYYYYMMDD(receipt.date);
 
@@ -146,7 +119,7 @@ export async function processReceipt(receipt: ParsedReceipt): Promise<number> {
     totalPrice: number;
   }> = [];
   for (const item of rawItems) {
-    const itemCategoryId = await resolveCategory(item.suggested_category || 'Diğer');
+    const itemCategoryId = await resolveCategory(item);
     const { quantity: rawQty, unitPrice, totalPrice } = normalizeReceiptItemAmounts(item);
     const measurement = normalizeMeasurementInput(rawQty, item.measurement_unit);
     const canonicalUnitPrice = measurement.quantity > 0 && totalPrice > 0
@@ -191,6 +164,9 @@ export async function processReceipt(receipt: ParsedReceipt): Promise<number> {
           r.item.list_line_total_before_discount != null
             ? roundMoney(Number(r.item.list_line_total_before_discount))
             : null,
+        // Yapılandırılmış Gemini çıktısı yalnız yeni ürünün gösterim/metadatasına
+        // yardımcı olur; alias/merge kararı ExpenseDao içindeki yerel kurallardadır.
+        product_identity_hint: r.item.product_identity,
       } as any);
     }
     // NOT: Burada syncExpenseTotal ÇAĞRILMAZ. Fişin basılı toplamı (totalAmount =

@@ -31,6 +31,7 @@ interface ItemAnalyticsModalProps {
   visible: boolean;
   itemName: string;
   measurementUnit?: MeasurementUnit;
+  canonicalProductId?: number | null;
   onClose: () => void;
   onDismiss?: () => void;
 }
@@ -44,6 +45,9 @@ interface ItemStats {
 }
 
 interface ItemHistoryEntry {
+  name: string;
+  turkish_name: string | null;
+  user_label: string | null;
   date: string;
   unit_price: number;
   total_price: number;
@@ -56,6 +60,7 @@ export default function ItemAnalyticsModal({
   visible,
   itemName,
   measurementUnit,
+  canonicalProductId,
   onClose,
   onDismiss,
 }: ItemAnalyticsModalProps) {
@@ -93,14 +98,16 @@ export default function ItemAnalyticsModal({
     return () => {
       requestSequenceRef.current += 1;
     };
-  }, [visible, itemName, measurementUnit]);
+  }, [visible, itemName, measurementUnit, canonicalProductId]);
 
   async function loadData(targetItemName: string, sequence: number) {
     setLoading(true);
     try {
-      const result = measurementUnit
-        ? await ExpenseDao.getItemAnalytics(targetItemName, measurementUnit)
-        : await ExpenseDao.getItemAnalytics(targetItemName);
+      const result = canonicalProductId != null
+        ? await ExpenseDao.getItemAnalytics(targetItemName, measurementUnit, canonicalProductId)
+        : measurementUnit
+          ? await ExpenseDao.getItemAnalytics(targetItemName, measurementUnit)
+          : await ExpenseDao.getItemAnalytics(targetItemName);
       if (!mountedRef.current || sequence !== requestSequenceRef.current) return;
       setStats(result.stats);
       setHistory(result.history);
@@ -329,10 +336,15 @@ export default function ItemAnalyticsModal({
                                   </Text>
                                 </View>
                                 <View style={styles.historyMid}>
-                                  <Text style={styles.historyVendor} numberOfLines={1}>{h.vendor_name}</Text>
-                                  <Text style={styles.historyQty}>
-                                    {formatMeasurementQuantity(h.quantity, h.measurement_unit)}
-                                  </Text>
+                                  {!!h.name && (
+                                    <Text style={styles.historyItemName} numberOfLines={1}>{h.name}</Text>
+                                  )}
+                                  <View style={styles.historyMetaRow}>
+                                    <Text style={styles.historyVendor} numberOfLines={1}>{h.vendor_name}</Text>
+                                    <Text style={styles.historyQty}>
+                                      {formatMeasurementQuantity(h.quantity, h.measurement_unit)}
+                                    </Text>
+                                  </View>
                                 </View>
                                 <Text style={styles.historyPrice}>
                                   {formatCurrency(h.total_price, currency)}
@@ -550,6 +562,12 @@ const getStyles = () => StyleSheet.create({
   },
   historyMid: {
     flex: 1,
+  },
+  historyItemName: {
+    ...Typography.labelSmall,
+    color: Colors.textSecondary,
+  },
+  historyMetaRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.xs,

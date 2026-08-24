@@ -12,7 +12,11 @@ import { measurementUnitSuffix } from '../../utils/measurementUnit';
 
 interface PriceWatchCardProps extends BaseCardProps {
   priceChanges: PriceChange[];
-  onSelectItem: (name: string, measurementUnit?: PriceChange['measurementUnit']) => void;
+  onSelectItem: (
+    name: string,
+    measurementUnit?: PriceChange['measurementUnit'],
+    canonicalProductId?: number | null,
+  ) => void;
 }
 
 function PriceWatchCard({ styles, t, currency, priceChanges, onSelectItem }: PriceWatchCardProps) {
@@ -80,15 +84,22 @@ function PriceWatchCard({ styles, t, currency, priceChanges, onSelectItem }: Pri
             <View testID={`price-page-${pageNumber}`} key={`price-page-${pageNumber}`} style={[styles.priceGrid, pageWidth > 0 && { width: pageWidth }]}>
               {page.map((pc, i) => {
           const isUp = pc.changePct > 0;
-          const displayName = pc.turkishName || pc.name;
+          const displayName = pc.canonicalName || pc.turkishName || pc.name;
           return (
             <Animated.View
-              key={`${pc.name}-${pageNumber}-${i}`}
+              key={pc.productIdentityKey ?? `${pc.name}-${pageNumber}-${i}`}
               entering={FadeInDown.delay(i * 40).duration(260)}
               style={styles.priceTile}
             >
               <Pressable
-                onPress={() => onSelectItem(pc.name, pc.measurementUnit)}
+                onPress={() => {
+                  const name = pc.canonicalName || pc.name;
+                  if (pc.canonicalProductId != null) {
+                    onSelectItem(name, pc.measurementUnit, pc.canonicalProductId);
+                  } else {
+                    onSelectItem(name, pc.measurementUnit);
+                  }
+                }}
                 style={({ pressed }) => [styles.priceTileInner, pressed && { opacity: 0.88 }]}
               >
                 <View

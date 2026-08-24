@@ -158,7 +158,7 @@ export default function BudgetHistoryCard() {
         horizontal 
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
-        snapToInterval={150 + Spacing.sm} // card width + gap
+        snapToInterval={150}
         decelerationRate="fast"
       >
         {entries.map((entry) => {
@@ -244,25 +244,21 @@ const getStyles = () => StyleSheet.create({
     ...Typography.bodySmall,
     color: Colors.textMuted,
   },
-  container: { 
-    marginHorizontal: -Spacing.md, // Break out of parent padding
-  },
+  container: {},
   scrollContent: {
-    paddingHorizontal: Spacing.md,
-    gap: Spacing.sm,
     paddingBottom: Spacing.xs,
   },
   card: {
     width: 150,
-    backgroundColor: Colors.surface,
-    borderRadius: BorderRadius.xl,
-    padding: Spacing.sm,
-    borderWidth: 1,
-    borderColor: Colors.glassBorder,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    borderTopWidth: 2,
+    borderTopColor: 'transparent',
+    borderRightWidth: StyleSheet.hairlineWidth,
+    borderRightColor: Colors.divider,
   },
   cardCurrent: {
-    borderColor: Colors.primary + '40',
-    backgroundColor: Colors.primaryGlow,
+    borderTopColor: Colors.primary,
   },
   cardHeader: {
     flexDirection: 'row',

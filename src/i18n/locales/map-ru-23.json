@@ -1,0 +1,10 @@
+{
+  "donut_budget_used": "использовано",
+  "donut_open_categories": "Развернуть категории расходов",
+  "donut_close_categories": "Вернуться к бюджету",
+  "donut_select_first_category": "Выбрать первую категорию",
+  "donut_previous_category": "Предыдущая категория",
+  "donut_next_category": "Следующая категория",
+  "donut_spending_share": "{spending}% расходов",
+  "donut_spending_budget_share": "{spending}% расходов · {budget}% бюджета"
+}

@@ -107,6 +107,47 @@ const makeV3Payload = (): BackupPayload => ({
   },
 });
 
+const productUid = '323e4567-e89b-42d3-a456-426614174000';
+
+const makeV4Payload = (): BackupPayload => {
+  const payload = makeV3Payload();
+  payload.version = 4;
+  payload.data.expenses[0].items = [{
+    source_id: 50,
+    name: 'TAVUK BAGET KG',
+    turkish_name: 'Tavuk Baget',
+    user_label: 'Kasap tavuk baget',
+    quantity: 0.5,
+    measurement_unit: 'kg',
+    canonical_product_uid: productUid,
+    unit_price: 20,
+    total_price: 10,
+    category_name: null,
+    line_discount: 0,
+    list_line_total_before_discount: null,
+  }];
+  payload.data.canonical_products = [{
+    uid: productUid,
+    canonical_name: 'Tavuk Baget',
+    canonical_key: 'tavuk baget',
+    measurement_unit: 'kg',
+    brand: null,
+    variant: 'baget',
+    package_descriptor: null,
+    created_at: '2026-08-05T09:00:00.000Z',
+    updated_at: '2026-08-05T09:00:00.000Z',
+  }];
+  payload.data.product_aliases = [{
+    canonical_product_uid: productUid,
+    normalized_alias: 'tavuk baget kg',
+    measurement_unit: 'kg',
+    source: 'deterministic',
+    confidence: null,
+    created_at: '2026-08-05T09:00:00.000Z',
+  }];
+  return payload;
+};
+
 describe('backup payload version compatibility and validation', () => {
   beforeEach(() => jest.clearAllMocks());
 
@@ -130,6 +171,8 @@ describe('backup payload version compatibility and validation', () => {
     expect(normalized.data.debt_payments).toEqual([]);
     expect(normalized.data.extra_incomes).toEqual([]);
     expect(normalized.data.recurring_payment_reminders).toEqual([]);
+    expect(normalized.data.canonical_products).toEqual([]);
+    expect(normalized.data.product_aliases).toEqual([]);
     expect(normalized.data.dismissed_subscriptions).toEqual(
       version === 2 ? [{ vendor_name: 'Old vendor' }] : [],
     );
@@ -147,6 +190,44 @@ describe('backup payload version compatibility and validation', () => {
     delete invalid.data.debts;
 
     expect(() => validateAndNormalizeBackupPayload(invalid)).toThrow('INVALID_FORMAT');
+  });
+
+  it('requires both product identity collections in v4', () => {
+    const invalid = makeV4Payload();
+    delete invalid.data.product_aliases;
+
+    expect(() => validateAndNormalizeBackupPayload(invalid)).toThrow('INVALID_FORMAT');
+  });
+
+  it.each([
+    ['orphan alias', (p: BackupPayload) => {
+      p.data.product_aliases![0].canonical_product_uid =
+        '423e4567-e89b-42d3-a456-426614174000';
+    }],
+    ['duplicate alias key', (p: BackupPayload) => {
+      p.data.product_aliases!.push({ ...p.data.product_aliases![0] });
+    }],
+    ['cross-unit item link', (p: BackupPayload) => {
+      p.data.expenses[0].items[0].measurement_unit = 'piece';
+    }],
+    ['cross-unit alias link', (p: BackupPayload) => {
+      p.data.product_aliases![0].measurement_unit = 'piece';
+    }],
+    ['invalid confidence', (p: BackupPayload) => {
+      p.data.product_aliases![0].confidence = 1.01;
+    }],
+    ['missing item source id', (p: BackupPayload) => {
+      delete p.data.expenses[0].items[0].source_id;
+    }],
+    ['oversized user label', (p: BackupPayload) => {
+      p.data.expenses[0].items[0].user_label = 'x'.repeat(501);
+    }],
+  ])('rejects invalid v4 product identity: %s', async (_label, mutate) => {
+    const invalid = makeV4Payload();
+    mutate(invalid);
+
+    await expect(importBackupPayload(invalid)).rejects.toThrow('INVALID_FORMAT');
+    expect(getDatabaseMock).not.toHaveBeenCalled();
   });
 
   it.each([
@@ -230,7 +311,7 @@ describe('backup payload version compatibility and validation', () => {
   });
 });
 
-describe('buildBackupPayload v3 relational closure', () => {
+describe('buildBackupPayload v4 relational closure', () => {
   beforeEach(() => jest.clearAllMocks());
 
   it('exports full debt payment history and the complete vendor union', async () => {
@@ -240,7 +321,50 @@ describe('buildBackupPayload v3 relational closure', () => {
         currency: 'PLN', note: null, receipt_uri: null, date: '2026-08-05',
         created_at: exportedAt, vendor_name: 'Shop', category_name: null,
       }];
-      if (sql.includes('FROM expense_items i')) return [];
+      if (sql.includes('FROM expense_items i')) return [{
+        id: 50,
+        expense_id: 1,
+        name: 'TAVUK BAGET KG',
+        turkish_name: 'Tavuk Baget',
+        user_label: 'Kasap tavuk baget',
+        quantity: 0.5,
+        measurement_unit: 'kg',
+        canonical_product_id: 60,
+        canonical_product_uid: productUid,
+        unit_price: 20,
+        total_price: 10,
+        category_id: null,
+        category_name: null,
+        line_discount: 0,
+        list_line_total_before_discount: null,
+      }];
+      if (sql.includes('FROM canonical_products')) return [
+        {
+          id: 60, uid: productUid, canonical_name: 'Tavuk Baget',
+          canonical_key: 'tavuk baget', measurement_unit: 'kg', brand: null,
+          variant: 'baget', package_descriptor: null,
+          created_at: exportedAt, updated_at: exportedAt,
+        },
+        {
+          id: 61, uid: '423e4567-e89b-42d3-a456-426614174000', canonical_name: 'Unrelated',
+          canonical_key: 'unrelated', measurement_unit: 'piece', brand: null,
+          variant: null, package_descriptor: null,
+          created_at: exportedAt, updated_at: exportedAt,
+        },
+      ];
+      if (sql.includes('FROM product_aliases a')) return [
+        {
+          id: 70, canonical_product_id: 60, canonical_product_uid: productUid,
+          normalized_alias: 'tavuk baget kg', measurement_unit: 'kg',
+          source: 'deterministic', confidence: null, created_at: exportedAt,
+        },
+        {
+          id: 71, canonical_product_id: 61,
+          canonical_product_uid: '423e4567-e89b-42d3-a456-426614174000',
+          normalized_alias: 'unrelated', measurement_unit: 'piece',
+          source: 'user', confidence: null, created_at: exportedAt,
+        },
+      ];
       if (sql.includes("WHERE s.status = 'dismissed'")) return [{ vendor_name: 'Dismissed vendor' }];
       if (sql.includes('SELECT d.id, d.direction')) return [{
         id: 7, direction: 'borrowed', counterparty: 'Bank', amount: 100,
@@ -277,11 +401,21 @@ describe('buildBackupPayload v3 relational closure', () => {
 
     const payload = await buildBackupPayload({ start: '2026-08-01', end: '2026-08-31' });
 
-    expect(payload.version).toBe(3);
+    expect(payload.version).toBe(4);
     expect(payload.data.debts).toHaveLength(1);
     expect(payload.data.debt_payments?.map(payment => payment.source_id)).toEqual([70, 71]);
     expect(payload.data.extra_incomes).toHaveLength(1);
     expect(payload.data.recurring_payment_reminders).toHaveLength(1);
+    expect(payload.data.canonical_products?.map(product => product.uid)).toEqual([productUid]);
+    expect(payload.data.product_aliases?.map(alias => alias.normalized_alias))
+      .toEqual(['tavuk baget kg']);
+    expect(payload.data.expenses[0].items[0]).toMatchObject({
+      source_id: 50,
+      canonical_product_uid: productUid,
+      user_label: 'Kasap tavuk baget',
+      name: 'TAVUK BAGET KG',
+      turkish_name: 'Tavuk Baget',
+    });
     expect(payload.data.vendors.map(vendor => vendor.name)).toEqual([
       'Shop', 'Dismissed vendor', 'ISP',
     ]);
@@ -301,14 +435,30 @@ function createFakeDatabase() {
     payments: [] as any[],
     incomes: [] as any[],
     reminders: [] as any[],
+    products: [] as any[],
+    aliases: [] as any[],
+    items: [] as any[],
   };
   let nextId = 100;
   const normalizedSql = (sql: string) => sql.replace(/\s+/g, ' ').trim();
 
-  const getAllAsync = jest.fn(async (sql: string) => {
+  const getAllAsync = jest.fn(async (sql: string, params: any[] = []) => {
     const query = normalizedSql(sql);
     if (query === 'SELECT * FROM categories') return [];
     if (query.includes('FROM vendors')) return state.vendors;
+    if (query.includes('FROM canonical_products')) {
+      if (query.includes('WHERE canonical_key = ?')) {
+        return state.products
+          .filter(product => product.canonical_key === params[0]
+            && product.measurement_unit === params[1])
+          .slice(0, 2);
+      }
+      return [...state.products];
+    }
+    if (query.includes('FROM product_aliases')) return [...state.aliases];
+    if (query.includes('FROM expense_items') && query.includes('WHERE expense_id')) {
+      return state.items.filter(item => item.expense_id === Number(params[0]));
+    }
     if (query.includes('FROM expenses ORDER BY id ASC')) return state.expenses;
     if (query.includes('FROM debts ORDER BY id ASC')) return state.debts;
     if (query.includes('FROM debt_payments ORDER BY id ASC')) return state.payments;
@@ -318,6 +468,21 @@ function createFakeDatabase() {
 
   const getFirstAsync = jest.fn(async (sql: string, params: any[] = []) => {
     const query = normalizedSql(sql);
+    if (query.includes('FROM product_aliases a') && query.includes('JOIN canonical_products p')) {
+      const alias = state.aliases.find(row => row.normalized_alias === params[0]
+        && row.measurement_unit === params[1]);
+      return alias
+        ? state.products.find(product => product.id === alias.canonical_product_id) ?? null
+        : null;
+    }
+    if (query.includes('FROM canonical_products') && query.includes('WHERE id = ?')) {
+      return state.products.find(product => product.id === params[0]) ?? null;
+    }
+    if (query.startsWith('SELECT canonical_product_id FROM product_aliases')) {
+      const alias = state.aliases.find(row => row.normalized_alias === params[0]
+        && row.measurement_unit === params[1]);
+      return alias ? { canonical_product_id: alias.canonical_product_id } : null;
+    }
     if (query.includes('SELECT id FROM expenses')) {
       const [date, amount, vendorId, note] = params;
       return state.expenses.find(expense => expense.date === date
@@ -377,6 +542,50 @@ function createFakeDatabase() {
       state.expenses.push(row);
       return { lastInsertRowId: row.id, changes: 1 };
     }
+    if (query.startsWith('INSERT INTO canonical_products')) {
+      const row = {
+        id: nextId++, uid: params[0], canonical_name: params[1], canonical_key: params[2],
+        measurement_unit: params[3], brand: params[4], variant: params[5],
+        package_descriptor: params[6], created_at: params[7], updated_at: params[8],
+      };
+      state.products.push(row);
+      return { lastInsertRowId: row.id, changes: 1 };
+    }
+    if (query.startsWith('INSERT INTO product_aliases')
+      || query.startsWith('INSERT OR IGNORE INTO product_aliases')) {
+      const existing = state.aliases.find(row => row.normalized_alias === params[1]
+        && row.measurement_unit === params[2]);
+      if (existing) return { lastInsertRowId: existing.id, changes: 0 };
+      const row = {
+        id: nextId++, canonical_product_id: params[0], normalized_alias: params[1],
+        measurement_unit: params[2], source: params[3], confidence: params[4],
+        created_at: params[5],
+      };
+      state.aliases.push(row);
+      return { lastInsertRowId: row.id, changes: 1 };
+    }
+    if (query.startsWith('INSERT INTO expense_items')) {
+      const row = {
+        id: nextId++, expense_id: params[0], name: params[1], turkish_name: params[2],
+        user_label: params[3], quantity: params[4], measurement_unit: params[5],
+        canonical_product_id: params[6], unit_price: params[7], total_price: params[8],
+        category_id: params[9], line_discount: params[10],
+        list_line_total_before_discount: params[11],
+      };
+      state.items.push(row);
+      return { lastInsertRowId: row.id, changes: 1 };
+    }
+    if (query.startsWith('UPDATE expense_items SET')) {
+      const item = state.items.find(row => row.id === params.at(-1));
+      if (!item) throw new Error('Missing item');
+      const assignments = query.slice('UPDATE expense_items SET '.length, query.indexOf(' WHERE id'))
+        .split(', ');
+      assignments.forEach((assignment, index) => {
+        const field = assignment.split(' = ')[0];
+        item[field] = params[index];
+      });
+      return { lastInsertRowId: 0, changes: 1 };
+    }
     if (query.startsWith('INSERT INTO debts')) {
       const row = {
         id: nextId++, direction: params[0], counterparty: params[1], amount: params[2],
@@ -420,13 +629,25 @@ function createFakeDatabase() {
     throw new Error(`Unexpected runAsync: ${query}`);
   });
 
+  const withTransactionAsync = jest.fn(async (callback: () => Promise<void>) => {
+    const snapshot = JSON.parse(JSON.stringify(state));
+    try {
+      await callback();
+    } catch (error) {
+      for (const key of Object.keys(state) as Array<keyof typeof state>) {
+        state[key].splice(0, state[key].length, ...snapshot[key]);
+      }
+      throw error;
+    }
+  });
+
   return {
     state,
     db: {
       getAllAsync,
       getFirstAsync,
       runAsync,
-      withTransactionAsync: jest.fn(async (callback: () => Promise<void>) => callback()),
+      withTransactionAsync,
     },
   };
 }
@@ -654,5 +875,166 @@ describe('importBackupPayload v3 mapping and idempotency', () => {
 
     await expect(importBackupPayload(conflicting)).rejects.toThrow('INVALID_FORMAT');
     expect(fake.state.reminders).toHaveLength(1);
+  });
+});
+
+describe('importBackupPayload v4 product identity', () => {
+  beforeEach(() => jest.clearAllMocks());
+
+  it('restores products, aliases, item links, and user labels exactly once', async () => {
+    const fake = createFakeDatabase();
+    getDatabaseMock.mockResolvedValue(fake.db as any);
+    const payload = makeV4Payload();
+
+    const first = await importBackupPayload(payload);
+    const second = await importBackupPayload(payload);
+
+    expect(first).toMatchObject({
+      expensesAdded: 1,
+      itemsAdded: 1,
+      canonicalProductsAdded: 1,
+      productAliasesAdded: 1,
+      itemCanonicalLinksAdded: 1,
+    });
+    expect(second).toMatchObject({
+      expensesAdded: 0,
+      expensesSkipped: 1,
+      canonicalProductsAdded: 0,
+      canonicalProductsSkipped: 1,
+      productAliasesAdded: 0,
+      productAliasesSkipped: 1,
+      itemCanonicalLinksAdded: 0,
+    });
+    expect(fake.state.products).toHaveLength(1);
+    expect(fake.state.aliases).toHaveLength(1);
+    expect(fake.state.items).toHaveLength(1);
+    expect(fake.state.items[0]).toMatchObject({
+      name: 'TAVUK BAGET KG',
+      turkish_name: 'Tavuk Baget',
+      user_label: 'Kasap tavuk baget',
+      canonical_product_id: fake.state.products[0].id,
+      measurement_unit: 'kg',
+    });
+  });
+
+  it('preserves an explicit split when two product UIDs share the same canonical key', async () => {
+    const fake = createFakeDatabase();
+    getDatabaseMock.mockResolvedValue(fake.db as any);
+    const payload = makeV4Payload();
+    const splitUid = '723e4567-e89b-42d3-a456-426614174000';
+    payload.data.canonical_products!.push({
+      ...payload.data.canonical_products![0],
+      uid: splitUid,
+    });
+    payload.data.expenses[0].items.push({
+      ...payload.data.expenses[0].items[0],
+      source_id: 51,
+      name: 'Tavuk Baget',
+      user_label: 'Ayrı baget kaydı',
+      canonical_product_uid: splitUid,
+    });
+
+    await importBackupPayload(payload);
+
+    expect(fake.state.products).toHaveLength(2);
+    expect(new Set(fake.state.items.map(item => item.canonical_product_id)).size).toBe(2);
+  });
+
+  it('upgrades an existing v3-restored item instead of skipping its v4 identity link', async () => {
+    const fake = createFakeDatabase();
+    getDatabaseMock.mockResolvedValue(fake.db as any);
+    const legacy = makeV4Payload();
+    legacy.version = 3;
+    delete legacy.data.canonical_products;
+    delete legacy.data.product_aliases;
+    legacy.data.expenses[0].items[0].user_label = 'v3 must ignore this future field';
+
+    await importBackupPayload(legacy);
+    expect(fake.state.items[0]).toMatchObject({
+      name: 'TAVUK BAGET KG',
+      turkish_name: 'Tavuk Baget',
+      user_label: null,
+      canonical_product_id: null,
+    });
+
+    const result = await importBackupPayload(makeV4Payload());
+
+    expect(result).toMatchObject({
+      expensesAdded: 0,
+      expensesSkipped: 1,
+      canonicalProductsAdded: 1,
+      productAliasesAdded: 1,
+      itemCanonicalLinksAdded: 1,
+    });
+    expect(fake.state.expenses).toHaveLength(1);
+    expect(fake.state.items).toHaveLength(1);
+    expect(fake.state.items[0]).toMatchObject({
+      name: 'TAVUK BAGET KG',
+      turkish_name: 'Tavuk Baget',
+      user_label: 'Kasap tavuk baget',
+      canonical_product_id: fake.state.products[0].id,
+    });
+  });
+
+  it('rejects a target alias conflict and rolls the whole transaction back', async () => {
+    const fake = createFakeDatabase();
+    fake.state.products.push({
+      id: 90,
+      uid: '523e4567-e89b-42d3-a456-426614174000',
+      canonical_name: 'Başka ürün',
+      canonical_key: 'baska urun',
+      measurement_unit: 'kg',
+      brand: null,
+      variant: null,
+      package_descriptor: null,
+      created_at: exportedAt,
+      updated_at: exportedAt,
+    });
+    fake.state.aliases.push({
+      id: 91,
+      canonical_product_id: 90,
+      normalized_alias: 'tavuk baget kg',
+      measurement_unit: 'kg',
+      source: 'user',
+      confidence: null,
+      created_at: exportedAt,
+    });
+    getDatabaseMock.mockResolvedValue(fake.db as any);
+
+    await expect(importBackupPayload(makeV4Payload())).rejects.toThrow('INVALID_FORMAT');
+
+    expect(fake.state.products).toHaveLength(1);
+    expect(fake.state.aliases).toHaveLength(1);
+    expect(fake.state.expenses).toHaveLength(0);
+    expect(fake.state.vendors).toHaveLength(0);
+  });
+
+  it('rejects a conflicting canonical link on an otherwise duplicate item', async () => {
+    const fake = createFakeDatabase();
+    getDatabaseMock.mockResolvedValue(fake.db as any);
+    const first = makeV4Payload();
+    await importBackupPayload(first);
+    const existingProductCount = fake.state.products.length;
+    const conflicting = makeV4Payload();
+    const otherUid = '623e4567-e89b-42d3-a456-426614174000';
+    conflicting.data.canonical_products![0] = {
+      ...conflicting.data.canonical_products![0],
+      uid: otherUid,
+      canonical_name: 'Tavuk Baget Özel',
+      canonical_key: 'tavuk baget ozel',
+      variant: 'özel',
+    };
+    conflicting.data.product_aliases![0] = {
+      ...conflicting.data.product_aliases![0],
+      canonical_product_uid: otherUid,
+      normalized_alias: 'tavuk baget ozel',
+    };
+    conflicting.data.expenses[0].items[0].canonical_product_uid = otherUid;
+
+    await expect(importBackupPayload(conflicting)).rejects.toThrow('INVALID_FORMAT');
+
+    expect(fake.state.products).toHaveLength(existingProductCount);
+    expect(fake.state.expenses).toHaveLength(1);
+    expect(fake.state.items[0].canonical_product_id).toBe(fake.state.products[0].id);
   });
 });

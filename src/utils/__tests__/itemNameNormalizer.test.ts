@@ -20,6 +20,11 @@ describe('normalizeItemKey', () => {
     expect(normalizeItemKey('  Süt   1L   ')).toBe('sut 1l');
   });
 
+  it('ürün anlamı veya satış birimi hakkında karar vermez', () => {
+    expect(normalizeItemKey('Tavuk Baget kg')).toBe('tavuk baget kg');
+    expect(normalizeItemKey('Tavuk Baget')).toBe('tavuk baget');
+  });
+
   it('null/undefined/boş için boş string', () => {
     expect(normalizeItemKey(null)).toBe('');
     expect(normalizeItemKey(undefined)).toBe('');

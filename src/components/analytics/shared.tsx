@@ -27,6 +27,10 @@ export type TimeOfDayInfo =
 export interface SilentSpendItem {
   name: string;
   turkish_name: string | null;
+  user_label?: string | null;
+  canonical_product_id?: number | null;
+  canonical_name?: string | null;
+  measurement_unit?: import('../../utils/measurementUnit').MeasurementUnit;
   purchase_count: number;
   total_spent: number;
   avg_price: number;
@@ -143,6 +147,9 @@ export interface PriceChange {
   changePct: number;
   purchaseCount: number;
   measurementUnit: import('../../utils/measurementUnit').MeasurementUnit;
+  canonicalProductId?: number | null;
+  canonicalName?: string | null;
+  productIdentityKey?: string;
 }
 
 /** Sayıyı 0'dan hedefe animasyonlu çıkaran küçük metin bileşeni (JS thread timing). */

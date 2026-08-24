@@ -16,6 +16,7 @@ import { saveApiKey, hasApiKey, deleteApiKey } from '../src/services/geminiServi
 import GlassCheckButton from '../src/components/GlassCheckButton';
 import GlassDeleteModal from '../src/components/GlassDeleteModal';
 import { SparkToast } from '../src/components/SparkToast';
+import { SettingsSection } from '../src/components/SettingsList';
 
 export default function SettingsAiScreen() {
   const colorScheme = useAppTheme();
@@ -75,7 +76,7 @@ export default function SettingsAiScreen() {
 
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <Animated.View entering={FadeInDown.delay(80).duration(400)}>
-          <View style={styles.section}>
+          <SettingsSection testID="settings-ai-key-section" last>
             <View style={styles.sectionHeader}>
               <View style={[styles.sectionIcon, { backgroundColor: Colors.secondary + '22' }]}>
                 <MaterialCommunityIcons name="key-outline" size={22} color={Colors.secondary} />
@@ -107,7 +108,7 @@ export default function SettingsAiScreen() {
                 />
               )}
             </View>
-          </View>
+          </SettingsSection>
         </Animated.View>
       </ScrollView>
 
@@ -149,14 +150,6 @@ const getStyles = () => StyleSheet.create({
   content: {
     paddingHorizontal: ScreenPadding.horizontal,
     paddingBottom: 40,
-  },
-  section: {
-    backgroundColor: Colors.cardSurface,
-    borderRadius: BorderRadius.xl,
-    padding: Spacing.lg,
-    marginBottom: Spacing.lg,
-    borderWidth: 1,
-    borderColor: Colors.cardBorder,
   },
   sectionHeader: {
     flexDirection: 'row',

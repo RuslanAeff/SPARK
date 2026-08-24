@@ -3,9 +3,10 @@
 // SQLite transaction içinde atomik yürütülür; kısmi import riski yoktur.
 //
 // JSON format: { version, app, exportedAt, range:{start,end}, data:{...} }
-// v3 içerik: giderler/kalemler, ilişkili satıcı-kategoriler, aralıktaki bütçe,
+// v4 içerik: giderler/kalemler, ilişkili satıcı-kategoriler, aralıktaki bütçe,
 // borç/ödeme closure'ı, ek gelir ve tarih aralığından bağımsız kullanıcı ödeme
-// hatırlatıcıları. Görsel/fiş dosyaları ve native bildirim kimlikleri taşınmaz.
+// hatırlatıcıları; ayrıca seçili kalemlerin kanonik ürün/alias closure'ı.
+// Görsel/fiş dosyaları ve native bildirim kimlikleri taşınmaz.
 import { File, Paths } from 'expo-file-system';
 // `expo-file-system/legacy` içinden sadece SAF helper'larını kullanıyoruz.
 // Paket `StorageAccessFramework`'ı bir TS namespace olarak `export declare` etse de,
@@ -18,7 +19,14 @@ import * as Sharing from 'expo-sharing';
 import * as DocumentPicker from 'expo-document-picker';
 import { Platform } from 'react-native';
 import { getDatabase } from '../db/database';
-import { Category, Expense, ExpenseItem, Vendor } from '../db/schema';
+import {
+  CanonicalProduct,
+  Category,
+  Expense,
+  ExpenseItem,
+  ProductAlias,
+  Vendor,
+} from '../db/schema';
 import {
   sanitizeAmount,
   sanitizeDate,
@@ -36,10 +44,11 @@ import { sanitizeMeasurementUnit } from '../utils/measurementUnit';
  *  v1 → ilk sürüm
  *  v2 → vendors.default_category_name + dismissed subscriptions
  *  v3 → borçlar/ödemeler, ek gelirler ve kullanıcı tanımlı ödeme hatırlatıcıları
+ *  v4 → UUID tabanlı kanonik ürünler, alias kararları ve kalem bağlantıları
  *
- * Yeni alanlar v1/v2 importunda boş dizilere normalize edilir. Eski uygulamalar
- * v3 dosyasını `UNSUPPORTED_VERSION` ile bilinçli biçimde reddeder. */
-export const BACKUP_FORMAT_VERSION = 3;
+ * Yeni alanlar v1-v3 importunda boş dizilere normalize edilir. Eski uygulamalar
+ * v4 dosyasını `UNSUPPORTED_VERSION` ile bilinçli biçimde reddeder. */
+export const BACKUP_FORMAT_VERSION = 4;
 
 const MIN_BACKUP_FORMAT_VERSION = 1;
 const MAX_BACKUP_ROWS_PER_COLLECTION = 100_000;
@@ -55,8 +64,33 @@ export interface BackupDateRange {
 }
 
 interface ExportedExpenseItem
-  extends Omit<ExpenseItem, 'id' | 'expense_id' | 'category_id'> {
+  extends Omit<ExpenseItem, 'id' | 'expense_id' | 'category_id' | 'canonical_product_id'> {
+  /** v4+: yalnız payload içi item eşlemesi için; hedef DB PK'si değildir. */
+  source_id?: number;
+  /** v4+: yerel canonical_product_id yerine taşınabilir ürün kimliği. */
+  canonical_product_uid?: string | null;
   category_name?: string | null;
+}
+
+interface ExportedCanonicalProduct {
+  uid: string;
+  canonical_name: string;
+  canonical_key: string;
+  measurement_unit: 'piece' | 'kg' | 'l';
+  brand: string | null;
+  variant: string | null;
+  package_descriptor: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+interface ExportedProductAlias {
+  canonical_product_uid: string;
+  normalized_alias: string;
+  measurement_unit: 'piece' | 'kg' | 'l';
+  source: 'deterministic' | 'ai' | 'user';
+  confidence: number | null;
+  created_at: string;
 }
 
 interface ExportedExpense {
@@ -180,6 +214,9 @@ export interface BackupPayload {
     debt_payments?: ExportedDebtPayment[];
     extra_incomes?: ExportedExtraIncome[];
     recurring_payment_reminders?: ExportedRecurringPaymentReminder[];
+    /** v4+: v1-v3 uyumluluğu için tipte opsiyonel, v4 doğrulamasında zorunlu. */
+    canonical_products?: ExportedCanonicalProduct[];
+    product_aliases?: ExportedProductAlias[];
   };
 }
 
@@ -204,6 +241,8 @@ export interface ExportResult {
   debtPaymentCount: number;
   incomeCount: number;
   reminderCount: number;
+  canonicalProductCount: number;
+  productAliasCount: number;
   /** Fiş kalemleri dışındaki taşınabilir finansal/yapılandırma kayıtlarının toplamı. */
   recordCount: number;
   sizeBytes: number;
@@ -225,6 +264,11 @@ export interface ImportSummary {
   extraIncomesSkipped: number;
   remindersAdded: number;
   remindersSkipped: number;
+  canonicalProductsAdded: number;
+  canonicalProductsSkipped: number;
+  productAliasesAdded: number;
+  productAliasesSkipped: number;
+  itemCanonicalLinksAdded: number;
 }
 
 /** `YYYY-MM-DD` doğrulaması + başlangıç <= son kuralı. */
@@ -260,6 +304,8 @@ type NormalizedBackupPayload = BackupPayload & {
     extra_incomes: ExportedExtraIncome[];
     recurring_payment_reminders: ExportedRecurringPaymentReminder[];
     dismissed_subscriptions: ExportedDismissedSubscription[];
+    canonical_products: ExportedCanonicalProduct[];
+    product_aliases: ExportedProductAlias[];
   };
 };
 
@@ -372,6 +418,7 @@ function validateBaseCollections(data: Record<string, unknown>): void {
       const totalPrice = numeric(item.total_price);
       if (!isBoundedString(item.name, 500, false)
         || !isNullableBoundedString(item.turkish_name, 500)
+        || !isNullableBoundedString(item.user_label, 500)
         || quantity == null || quantity <= 0 || quantity > 999_999
         || unitPrice == null || Math.abs(unitPrice) > 999_999_999
         || totalPrice == null || Math.abs(totalPrice) > 999_999_999
@@ -551,6 +598,65 @@ function validateV3Collections(data: Record<string, unknown>): void {
   }
 }
 
+function validateV4ProductIdentityCollections(data: Record<string, unknown>): void {
+  const products = asBoundedArray(data.canonical_products);
+  const aliases = asBoundedArray(data.product_aliases);
+  const productByUid = new Map<string, { measurementUnit: string }>();
+
+  for (const raw of products) {
+    const product = asRecord(raw);
+    const uid = normalizeCanonicalUuid(product.uid);
+    if (!uid || productByUid.has(uid)
+      || !isBoundedString(product.canonical_name, 500, false)
+      || !isBoundedString(product.canonical_key, 500, false)
+      || !['piece', 'kg', 'l'].includes(String(product.measurement_unit))
+      || !isNullableBoundedString(product.brand, 200)
+      || !isNullableBoundedString(product.variant, 200)
+      || !isNullableBoundedString(product.package_descriptor, 200)
+      || !isIsoTimestamp(product.created_at)
+      || !isIsoTimestamp(product.updated_at)) invalidFormat();
+    product.uid = uid;
+    productByUid.set(uid, { measurementUnit: String(product.measurement_unit) });
+  }
+
+  const aliasKeys = new Set<string>();
+  for (const raw of aliases) {
+    const alias = asRecord(raw);
+    const uid = normalizeCanonicalUuid(alias.canonical_product_uid);
+    const product = uid ? productByUid.get(uid) : null;
+    const measurementUnit = String(alias.measurement_unit);
+    const confidence = alias.confidence == null ? null : numeric(alias.confidence);
+    if (!uid || !product
+      || !isBoundedString(alias.normalized_alias, 500, false)
+      || !['piece', 'kg', 'l'].includes(measurementUnit)
+      || product.measurementUnit !== measurementUnit
+      || !['deterministic', 'ai', 'user'].includes(String(alias.source))
+      || (confidence != null && (confidence < 0 || confidence > 1))
+      || (alias.confidence != null && confidence == null)
+      || !isIsoTimestamp(alias.created_at)) invalidFormat();
+    alias.canonical_product_uid = uid;
+    const aliasKey = `${measurementUnit}::${String(alias.normalized_alias)}`;
+    if (aliasKeys.has(aliasKey)) invalidFormat();
+    aliasKeys.add(aliasKey);
+  }
+
+  const itemSourceIds = new Set<number>();
+  const expenses = data.expenses as Record<string, unknown>[];
+  for (const expense of expenses) {
+    for (const raw of expense.items as unknown[]) {
+      const item = asRecord(raw);
+      if (!isPositiveInteger(item.source_id) || itemSourceIds.has(item.source_id)) invalidFormat();
+      itemSourceIds.add(item.source_id);
+      if (item.canonical_product_uid == null) continue;
+      const uid = normalizeCanonicalUuid(item.canonical_product_uid);
+      const product = uid ? productByUid.get(uid) : null;
+      const measurementUnit = String(item.measurement_unit ?? 'piece');
+      if (!uid || !product || product.measurementUnit !== measurementUnit) invalidFormat();
+      item.canonical_product_uid = uid;
+    }
+  }
+}
+
 /** Dosya ve doğrudan import yollarının kullandığı tek runtime sözleşmesi. */
 export function validateAndNormalizeBackupPayload(input: unknown): NormalizedBackupPayload {
   const root = asRecord(input);
@@ -573,6 +679,11 @@ export function validateAndNormalizeBackupPayload(input: unknown): NormalizedBac
       || !Array.isArray(data.recurring_payment_reminders)) invalidFormat();
     validateV3Collections(data);
   }
+  if (root.version >= 4) {
+    if (!Array.isArray(data.canonical_products)
+      || !Array.isArray(data.product_aliases)) invalidFormat();
+    validateV4ProductIdentityCollections(data);
+  }
 
   return {
     ...(root as unknown as BackupPayload),
@@ -585,6 +696,12 @@ export function validateAndNormalizeBackupPayload(input: unknown): NormalizedBac
       extra_incomes: root.version >= 3 ? data.extra_incomes as ExportedExtraIncome[] : [],
       recurring_payment_reminders: root.version >= 3
         ? data.recurring_payment_reminders as ExportedRecurringPaymentReminder[]
+        : [],
+      canonical_products: root.version >= 4
+        ? data.canonical_products as ExportedCanonicalProduct[]
+        : [],
+      product_aliases: root.version >= 4
+        ? data.product_aliases as ExportedProductAlias[]
         : [],
     },
   };
@@ -609,16 +726,21 @@ export async function buildBackupPayload(range: BackupDateRange): Promise<Backup
 
   const vendorNames = new Set<string>();
   const categoryIds = new Set<number>();
+  const canonicalProductUids = new Set<string>();
 
   const expensesOut: ExportedExpense[] = [];
   for (const exp of expenses) {
     if (exp.vendor_name) vendorNames.add(exp.vendor_name);
     if (exp.category_id != null) categoryIds.add(exp.category_id);
 
-    const rawItems = await db.getAllAsync<ExpenseItem & { category_name?: string | null }>(
-      `SELECT i.*, c.name AS category_name
+    const rawItems = await db.getAllAsync<ExpenseItem & {
+      category_name?: string | null;
+      canonical_product_uid?: string | null;
+    }>(
+      `SELECT i.*, c.name AS category_name, p.uid AS canonical_product_uid
          FROM expense_items i
          LEFT JOIN categories c ON i.category_id = c.id
+         LEFT JOIN canonical_products p ON i.canonical_product_id = p.id
         WHERE i.expense_id = ?
         ORDER BY i.id ASC`,
       [exp.id]
@@ -626,11 +748,15 @@ export async function buildBackupPayload(range: BackupDateRange): Promise<Backup
 
     const items: ExportedExpenseItem[] = rawItems.map(it => {
       if (it.category_id != null) categoryIds.add(it.category_id);
+      if (it.canonical_product_uid) canonicalProductUids.add(it.canonical_product_uid);
       return {
+        source_id: it.id,
         name: it.name,
         turkish_name: it.turkish_name ?? null,
+        user_label: it.user_label ?? null,
         quantity: it.quantity,
         measurement_unit: sanitizeMeasurementUnit(it.measurement_unit),
+        canonical_product_uid: it.canonical_product_uid ?? null,
         unit_price: it.unit_price,
         total_price: it.total_price,
         line_discount: it.line_discount ?? null,
@@ -652,6 +778,49 @@ export async function buildBackupPayload(range: BackupDateRange): Promise<Backup
       items,
     });
   }
+
+  // Tarih aralığının mahremiyetini korumak için yalnız seçili kalemlerin
+  // referans verdiği ürünler ve bu ürünlere ait tüm öğrenilmiş alias'lar taşınır.
+  const allCanonicalProducts = await db.getAllAsync<CanonicalProduct>(
+    `SELECT id, uid, canonical_name, canonical_key, measurement_unit, brand,
+            variant, package_descriptor, created_at, updated_at
+       FROM canonical_products
+      ORDER BY id ASC`,
+  );
+  const exportedCanonicalProductIds = new Set<number>();
+  const canonicalProductsOut: ExportedCanonicalProduct[] = [];
+  for (const product of allCanonicalProducts) {
+    if (!canonicalProductUids.has(product.uid)) continue;
+    exportedCanonicalProductIds.add(product.id);
+    canonicalProductsOut.push({
+      uid: product.uid,
+      canonical_name: product.canonical_name,
+      canonical_key: product.canonical_key,
+      measurement_unit: sanitizeMeasurementUnit(product.measurement_unit),
+      brand: product.brand ?? null,
+      variant: product.variant ?? null,
+      package_descriptor: product.package_descriptor ?? null,
+      created_at: product.created_at,
+      updated_at: product.updated_at,
+    });
+  }
+  const allProductAliases = await db.getAllAsync<ProductAlias & { canonical_product_uid: string }>(
+    `SELECT a.id, a.canonical_product_id, a.normalized_alias, a.measurement_unit,
+            a.source, a.confidence, a.created_at, p.uid AS canonical_product_uid
+       FROM product_aliases a
+       JOIN canonical_products p ON p.id = a.canonical_product_id
+      ORDER BY a.id ASC`,
+  );
+  const productAliasesOut: ExportedProductAlias[] = allProductAliases
+    .filter(alias => exportedCanonicalProductIds.has(alias.canonical_product_id))
+    .map(alias => ({
+      canonical_product_uid: alias.canonical_product_uid,
+      normalized_alias: alias.normalized_alias,
+      measurement_unit: sanitizeMeasurementUnit(alias.measurement_unit),
+      source: alias.source,
+      confidence: alias.confidence ?? null,
+      created_at: alias.created_at,
+    }));
 
   // Dismissed state ve reminder ilişkileri tarih aralığından bağımsız kullanıcı
   // yapılandırmasıdır. Vendor union'ı kurulmadan önce okunurlar.
@@ -904,6 +1073,8 @@ export async function buildBackupPayload(range: BackupDateRange): Promise<Backup
       debt_payments: debtPaymentsOut,
       extra_incomes: extraIncomesOut,
       recurring_payment_reminders: remindersOut,
+      canonical_products: canonicalProductsOut,
+      product_aliases: productAliasesOut,
     },
   };
 }
@@ -946,6 +1117,8 @@ export async function exportBackupToFile(range: BackupDateRange): Promise<Export
   const debtPaymentCount = payload.data.debt_payments?.length ?? 0;
   const incomeCount = payload.data.extra_incomes?.length ?? 0;
   const reminderCount = payload.data.recurring_payment_reminders?.length ?? 0;
+  const canonicalProductCount = payload.data.canonical_products?.length ?? 0;
+  const productAliasCount = payload.data.product_aliases?.length ?? 0;
 
   const result: ExportResult = {
     fileUri: file.uri,
@@ -956,8 +1129,10 @@ export async function exportBackupToFile(range: BackupDateRange): Promise<Export
     debtPaymentCount,
     incomeCount,
     reminderCount,
+    canonicalProductCount,
+    productAliasCount,
     recordCount: payload.data.expenses.length + debtCount + debtPaymentCount
-      + incomeCount + reminderCount,
+      + incomeCount + reminderCount + canonicalProductCount + productAliasCount,
     sizeBytes: file.size ?? json.length,
     destination: 'cancelled',
   };
@@ -1058,6 +1233,11 @@ export async function importBackupPayload(inputPayload: BackupPayload): Promise<
     extraIncomesSkipped: 0,
     remindersAdded: 0,
     remindersSkipped: 0,
+    canonicalProductsAdded: 0,
+    canonicalProductsSkipped: 0,
+    productAliasesAdded: 0,
+    productAliasesSkipped: 0,
+    itemCanonicalLinksAdded: 0,
   };
 
   await db.withTransactionAsync(async () => {
@@ -1166,10 +1346,142 @@ export async function importBackupPayload(inputPayload: BackupPayload): Promise<
       summary.vendorsAdded += 1;
     }
 
+    // v4 kanonik ürünleri yerel PK'lerden bağımsız, taşınabilir UID üzerinden
+    // eşleştirir. Aynı canonical_key kasıtlı split sonrasında birden fazla fiziksel
+    // ürünü temsil edebileceği için farklı UID'ler isim benzerliğiyle birleştirilmez.
+    const existingCanonicalProducts = await db.getAllAsync<CanonicalProduct>(
+      `SELECT id, uid, canonical_name, canonical_key, measurement_unit, brand,
+              variant, package_descriptor, created_at, updated_at
+         FROM canonical_products
+        ORDER BY id ASC`,
+    );
+    const canonicalProductIdByStoredUid = new Map<string, number>();
+    for (const existing of existingCanonicalProducts) {
+      canonicalProductIdByStoredUid.set(existing.uid, existing.id);
+    }
+
+    const canonicalProductIdByPayloadUid = new Map<string, number>();
+    const exactProductMetadata = (
+      existing: CanonicalProduct,
+      incoming: ExportedCanonicalProduct,
+    ): boolean => existing.canonical_name === incoming.canonical_name
+      && existing.canonical_key === incoming.canonical_key
+      && existing.measurement_unit === incoming.measurement_unit
+      && (existing.brand ?? null) === (incoming.brand ?? null)
+      && (existing.variant ?? null) === (incoming.variant ?? null)
+      && (existing.package_descriptor ?? null) === (incoming.package_descriptor ?? null)
+      && existing.created_at === incoming.created_at
+      && existing.updated_at === incoming.updated_at;
+
+    for (const product of payload.data.canonical_products) {
+      const uid = normalizeCanonicalUuid(product.uid);
+      if (!uid) invalidFormat();
+      const canonicalName = sanitizeText(product.canonical_name, 500);
+      const canonicalKey = sanitizeText(product.canonical_key, 500);
+      const brand = product.brand == null ? null : sanitizeText(product.brand, 200);
+      const variant = product.variant == null ? null : sanitizeText(product.variant, 200);
+      const packageDescriptor = product.package_descriptor == null
+        ? null
+        : sanitizeText(product.package_descriptor, 200);
+      const normalizedProduct: ExportedCanonicalProduct = {
+        ...product,
+        uid,
+        canonical_name: canonicalName,
+        canonical_key: canonicalKey,
+        brand,
+        variant,
+        package_descriptor: packageDescriptor,
+      };
+
+      const byUidId = canonicalProductIdByStoredUid.get(uid);
+      if (byUidId != null) {
+        const existing = existingCanonicalProducts.find(row => row.id === byUidId);
+        if (!existing || !exactProductMetadata(existing, normalizedProduct)) invalidFormat();
+        canonicalProductIdByPayloadUid.set(uid, existing.id);
+        summary.canonicalProductsSkipped += 1;
+        continue;
+      }
+
+      const inserted = await db.runAsync(
+        `INSERT INTO canonical_products
+           (uid, canonical_name, canonical_key, measurement_unit, brand, variant,
+            package_descriptor, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          uid,
+          canonicalName,
+          canonicalKey,
+          product.measurement_unit,
+          brand,
+          variant,
+          packageDescriptor,
+          product.created_at,
+          product.updated_at,
+        ],
+      );
+      const id = Number(inserted.lastInsertRowId);
+      const insertedProduct: CanonicalProduct = {
+        id,
+        ...normalizedProduct,
+      };
+      existingCanonicalProducts.push(insertedProduct);
+      canonicalProductIdByStoredUid.set(uid, id);
+      canonicalProductIdByPayloadUid.set(uid, id);
+      summary.canonicalProductsAdded += 1;
+    }
+
+    const existingProductAliases = await db.getAllAsync<ProductAlias>(
+      `SELECT id, canonical_product_id, normalized_alias, measurement_unit,
+              source, confidence, created_at
+         FROM product_aliases
+        ORDER BY id ASC`,
+    );
+    const aliasByKey = new Map<string, ProductAlias>();
+    for (const alias of existingProductAliases) {
+      aliasByKey.set(`${alias.measurement_unit}::${alias.normalized_alias}`, alias);
+    }
+    for (const alias of payload.data.product_aliases) {
+      const uid = normalizeCanonicalUuid(alias.canonical_product_uid);
+      const canonicalProductId = uid ? canonicalProductIdByPayloadUid.get(uid) : null;
+      if (!uid || canonicalProductId == null) invalidFormat();
+      const normalizedAlias = sanitizeText(alias.normalized_alias, 500);
+      const key = `${alias.measurement_unit}::${normalizedAlias}`;
+      const existing = aliasByKey.get(key);
+      if (existing) {
+        if (existing.canonical_product_id !== canonicalProductId) invalidFormat();
+        summary.productAliasesSkipped += 1;
+        continue;
+      }
+      const inserted = await db.runAsync(
+        `INSERT INTO product_aliases
+           (canonical_product_id, normalized_alias, measurement_unit, source,
+            confidence, created_at)
+         VALUES (?, ?, ?, ?, ?, ?)`,
+        [
+          canonicalProductId,
+          normalizedAlias,
+          alias.measurement_unit,
+          alias.source,
+          alias.confidence ?? null,
+          alias.created_at,
+        ],
+      );
+      aliasByKey.set(key, {
+        id: Number(inserted.lastInsertRowId),
+        canonical_product_id: canonicalProductId,
+        normalized_alias: normalizedAlias,
+        measurement_unit: alias.measurement_unit,
+        source: alias.source,
+        confidence: alias.confidence ?? null,
+        created_at: alias.created_at,
+      });
+      summary.productAliasesAdded += 1;
+    }
+
     // Expenses + items. Aday havuzu transaction başlamadan önce var olan
     // satırlardan kurulur ve her aday en fazla bir kaynak kaydı için tüketilir.
     // Böylece aynı gün/satıcı/tutar/not değerlerine sahip iki meşru işlem ilk
-    // importta birbirini yutmaz; aynı v3 dosyası tekrar geldiğinde de kararlı
+    // importta birbirini yutmaz; aynı v3/v4 dosyası tekrar geldiğinde de kararlı
     // created_at + domain anahtarıyla ayrı hedef satırlara eşlenir.
     const existingExpenses = await db.getAllAsync<{
       id: number;
@@ -1227,6 +1539,142 @@ export async function importBackupPayload(inputPayload: BackupPayload): Promise<
       existingExpensePools.set(key, pool);
     }
 
+    type ExistingImportItem = {
+      id: number;
+      name: string;
+      turkish_name: string | null;
+      user_label: string | null;
+      quantity: number;
+      measurement_unit: 'piece' | 'kg' | 'l';
+      canonical_product_id: number | null;
+      unit_price: number;
+      total_price: number;
+      category_id: number | null;
+      line_discount: number | null;
+      list_line_total_before_discount: number | null;
+    };
+    const itemFingerprint = (value: {
+      name: string;
+      turkishName: string | null;
+      quantity: number;
+      measurementUnit: 'piece' | 'kg' | 'l';
+      unitPrice: number;
+      totalPrice: number;
+      categoryId: number | null;
+      lineDiscount: number | null;
+      listBefore: number | null;
+    }): string => JSON.stringify([
+      value.name,
+      value.turkishName,
+      value.quantity,
+      value.measurementUnit,
+      value.unitPrice,
+      value.totalPrice,
+      value.categoryId,
+      value.lineDiscount == null ? null : toMinorUnits(value.lineDiscount),
+      value.listBefore == null ? null : toMinorUnits(value.listBefore),
+    ]);
+    const reconcileDuplicateExpenseItems = async (
+      targetExpenseId: number,
+      importedItems: ExportedExpenseItem[],
+    ): Promise<void> => {
+      const existingItems = await db.getAllAsync<ExistingImportItem>(
+        `SELECT id, name, turkish_name, user_label, quantity, measurement_unit,
+                canonical_product_id, unit_price, total_price, category_id,
+                line_discount, list_line_total_before_discount
+           FROM expense_items
+          WHERE expense_id = ?
+          ORDER BY id ASC`,
+        [targetExpenseId],
+      );
+      const pools = new Map<string, ExistingImportItem[]>();
+      for (const existing of existingItems) {
+        const key = itemFingerprint({
+          name: existing.name,
+          turkishName: existing.turkish_name ?? null,
+          quantity: sanitizeQuantity(existing.quantity),
+          measurementUnit: sanitizeMeasurementUnit(existing.measurement_unit),
+          unitPrice: sanitizeUnitPrice(existing.unit_price),
+          totalPrice: roundMoney(sanitizeUnitPrice(existing.total_price)),
+          categoryId: existing.category_id ?? null,
+          lineDiscount: existing.line_discount == null
+            ? 0
+            : sanitizeAmount(existing.line_discount),
+          listBefore: existing.list_line_total_before_discount == null
+            ? null
+            : sanitizeAmount(existing.list_line_total_before_discount),
+        });
+        const candidates = pools.get(key) ?? [];
+        candidates.push(existing);
+        pools.set(key, candidates);
+      }
+
+      for (const item of importedItems) {
+        const itemName = sanitizeText(item.name, 500) || 'Ürün';
+        const itemTurkish = item.turkish_name ? sanitizeText(item.turkish_name, 500) : null;
+        const itemCategoryId = item.category_name
+          ? nameToId.get(item.category_name.trim().toLowerCase()) ?? null
+          : null;
+        const quantity = sanitizeQuantity(item.quantity);
+        const measurementUnit = sanitizeMeasurementUnit(item.measurement_unit);
+        const unitPrice = sanitizeUnitPrice(item.unit_price);
+        const totalPrice = roundMoney(sanitizeUnitPrice(item.total_price));
+        const lineDiscount = item.line_discount != null ? sanitizeAmount(item.line_discount) : 0;
+        const listBefore = item.list_line_total_before_discount != null
+          ? sanitizeAmount(item.list_line_total_before_discount)
+          : null;
+        const key = itemFingerprint({
+          name: itemName,
+          turkishName: itemTurkish,
+          quantity,
+          measurementUnit,
+          unitPrice,
+          totalPrice,
+          categoryId: itemCategoryId,
+          lineDiscount,
+          listBefore,
+        });
+        const existing = pools.get(key)?.shift();
+        if (!existing) invalidFormat();
+
+        const canonicalUid = item.canonical_product_uid == null
+          ? null
+          : normalizeCanonicalUuid(item.canonical_product_uid);
+        const canonicalProductId = canonicalUid == null
+          ? null
+          : canonicalProductIdByPayloadUid.get(canonicalUid) ?? null;
+        if (canonicalUid != null && canonicalProductId == null) invalidFormat();
+        if (canonicalProductId != null
+          && existing.canonical_product_id != null
+          && existing.canonical_product_id !== canonicalProductId) invalidFormat();
+
+        const rawUserLabel = item.user_label == null ? null : sanitizeText(item.user_label, 500);
+        const userLabel = rawUserLabel || null;
+        if (userLabel != null && existing.user_label != null && existing.user_label !== userLabel) {
+          invalidFormat();
+        }
+
+        const fields: string[] = [];
+        const values: Array<string | number | null> = [];
+        if (canonicalProductId != null && existing.canonical_product_id == null) {
+          fields.push('canonical_product_id = ?');
+          values.push(canonicalProductId);
+          summary.itemCanonicalLinksAdded += 1;
+        }
+        if (userLabel != null && existing.user_label == null) {
+          fields.push('user_label = ?');
+          values.push(userLabel);
+        }
+        if (fields.length > 0) {
+          values.push(existing.id);
+          await db.runAsync(
+            `UPDATE expense_items SET ${fields.join(', ')} WHERE id = ?`,
+            values,
+          );
+        }
+      }
+    };
+
     const expenseIdBySource = new Map<number, number>();
     for (const exp of payload.data.expenses || []) {
       const date = sanitizeDate(exp.date);
@@ -1257,6 +1705,9 @@ export async function importBackupPayload(inputPayload: BackupPayload): Promise<
       const duplicateId = duplicatePool?.shift();
       if (duplicateId != null) {
         if (exp.source_id != null) expenseIdBySource.set(exp.source_id, duplicateId);
+        if (payload.version >= 4) {
+          await reconcileDuplicateExpenseItems(duplicateId, exp.items || []);
+        }
         summary.expensesSkipped += 1;
         continue;
       }
@@ -1281,6 +1732,10 @@ export async function importBackupPayload(inputPayload: BackupPayload): Promise<
       for (const it of exp.items || []) {
         const itemName = sanitizeText(it.name, 500) || 'Ürün';
         const itemTurkish = it.turkish_name ? sanitizeText(it.turkish_name, 500) : null;
+        const rawUserLabel = payload.version >= 4 && it.user_label != null
+          ? sanitizeText(it.user_label, 500)
+          : null;
+        const userLabel = rawUserLabel || null;
         const qty = sanitizeQuantity(it.quantity);
         const unit = sanitizeUnitPrice(it.unit_price);
         const tp = roundMoney(sanitizeUnitPrice(it.total_price));
@@ -1290,13 +1745,36 @@ export async function importBackupPayload(inputPayload: BackupPayload): Promise<
         const itemCatId = it.category_name
           ? nameToId.get(it.category_name.trim().toLowerCase()) ?? null
           : null;
+        const canonicalUid = payload.version < 4 || it.canonical_product_uid == null
+          ? null
+          : normalizeCanonicalUuid(it.canonical_product_uid);
+        const canonicalProductId = canonicalUid == null
+          ? null
+          : canonicalProductIdByPayloadUid.get(canonicalUid) ?? null;
+        if (canonicalUid != null && canonicalProductId == null) invalidFormat();
         await db.runAsync(
           `INSERT INTO expense_items
-             (expense_id, name, turkish_name, quantity, measurement_unit, unit_price, total_price, category_id, line_discount, list_line_total_before_discount)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-          [expenseId, itemName, itemTurkish, qty, sanitizeMeasurementUnit(it.measurement_unit), unit, tp, itemCatId, ld, lb]
+             (expense_id, name, turkish_name, user_label, quantity,
+              measurement_unit, canonical_product_id, unit_price, total_price,
+              category_id, line_discount, list_line_total_before_discount)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [
+            expenseId,
+            itemName,
+            itemTurkish,
+            userLabel,
+            qty,
+            sanitizeMeasurementUnit(it.measurement_unit),
+            canonicalProductId,
+            unit,
+            tp,
+            itemCatId,
+            ld,
+            lb,
+          ]
         );
         summary.itemsAdded += 1;
+        if (canonicalProductId != null) summary.itemCanonicalLinksAdded += 1;
       }
     }
 

@@ -73,7 +73,7 @@ export default function SavingsGoalContributionSheet({ visible, onClose }: Props
   return (
     <BottomSheetModal visible={visible} onClose={requestClose} sheetStyle={styles.sheet}>
       <View style={styles.handle} />
-      <Text style={styles.title}>{t('goal_add_contribution')}</Text>
+      <Text style={styles.title}>{t('goal_update_savings')}</Text>
       <Text style={styles.hint}>{t('goal_contribution_hint')}</Text>
 
       <View style={styles.toggleRow}>
@@ -119,7 +119,7 @@ export default function SavingsGoalContributionSheet({ visible, onClose }: Props
         keyboardType="decimal-pad"
         placeholder="0"
         placeholderTextColor={Colors.textMuted}
-        accessibilityLabel={t('goal_add_contribution')}
+        accessibilityLabel={t('amount')}
         editable={!saving}
         autoFocus
       />

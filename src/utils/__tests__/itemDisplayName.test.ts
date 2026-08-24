@@ -1,6 +1,17 @@
 import { itemDisplayName } from '../itemDisplayName';
 
 describe('itemDisplayName', () => {
+  it('kullanıcı etiketini öne çıkarırken özgün fiş adını korur', () => {
+    expect(itemDisplayName({
+      name: 'SKRZYDELKA KURCZAKA',
+      turkish_name: 'Tavuk Kanadı',
+      user_label: 'Tavuk Kanat',
+    })).toEqual({
+      primary: 'Tavuk Kanat',
+      secondary: 'SKRZYDELKA KURCZAKA',
+    });
+  });
+
   it('çeviri orijinalden farklıysa iki satır döner', () => {
     expect(
       itemDisplayName({ name: 'Coca-Cola Zero 1.75L', turkish_name: 'Coca-Cola Zero İçecek 1.75L' }),

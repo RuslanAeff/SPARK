@@ -31,6 +31,10 @@ const SCREEN_HEIGHT = Dimensions.get('window').height;
 interface VendorItem {
   name: string;
   turkish_name?: string | null;
+  user_label?: string | null;
+  canonical_product_id?: number | null;
+  canonical_name?: string | null;
+  measurement_unit?: import('../../utils/measurementUnit').MeasurementUnit;
   normalized_key?: string | null;
   purchase_count: number;
   total_spent: number;
@@ -43,7 +47,11 @@ interface VendorAnalyticsSheetProps extends Pick<BaseCardProps, 't' | 'currency'
   loading: boolean;
   onClose: () => void;
   onSuspendForItem: () => void;
-  onSelectItem: (name: string) => void;
+  onSelectItem: (
+    name: string,
+    measurementUnit?: import('../../utils/measurementUnit').MeasurementUnit,
+    canonicalProductId?: number | null,
+  ) => void;
 }
 
 export default function VendorAnalyticsSheet({
@@ -68,7 +76,7 @@ export default function VendorAnalyticsSheet({
   const [sort, setSort] = useState<VendorItemSort>('frequency');
   const [pageWidth, setPageWidth] = useState(0);
   const [pageIndex, setPageIndex] = useState(0);
-  const pendingItemName = useRef<string | null>(null);
+  const pendingItem = useRef<VendorItem | null>(null);
 
   useEffect(() => {
     if (vendor) setDisplayVendor(vendor);
@@ -126,21 +134,28 @@ export default function VendorAnalyticsSheet({
     : donutItems[selectedDonutIndex] ?? null;
 
   const closeNormally = () => {
-    pendingItemName.current = null;
+    pendingItem.current = null;
     setNestedHorizontalGestureActive(false);
     onClose();
   };
 
-  const openProductAfterDismiss = (name: string) => {
-    pendingItemName.current = name;
+  const openProductAfterDismiss = (item: VendorItem) => {
+    pendingItem.current = item;
     setNestedHorizontalGestureActive(false);
     onSuspendForItem();
   };
 
   const handleDismiss = () => {
-    const itemName = pendingItemName.current;
-    pendingItemName.current = null;
-    if (itemName) onSelectItem(itemName);
+    const item = pendingItem.current;
+    pendingItem.current = null;
+    if (item) {
+      const displayName = item.canonical_name || item.user_label || item.turkish_name || item.name;
+      if (item.measurement_unit !== undefined || item.canonical_product_id !== undefined) {
+        onSelectItem(displayName, item.measurement_unit, item.canonical_product_id);
+      } else {
+        onSelectItem(displayName);
+      }
+    }
   };
 
   return (
@@ -211,7 +226,7 @@ export default function VendorAnalyticsSheet({
               <View style={analyticsStyles.vendorDonutSection}>
                 <DonutChart
                   segments={donutItems.map((item, index) => ({
-                    label: item.turkish_name || item.name,
+                    label: item.canonical_name || item.user_label || item.turkish_name || item.name,
                     value: item.total_spent,
                     color: ChartColorArray[index % ChartColorArray.length],
                   }))}
@@ -243,7 +258,7 @@ export default function VendorAnalyticsSheet({
                               : 0}%
                           </Text>
                           <Text style={analyticsStyles.vendorDonutLabel} numberOfLines={2}>
-                            {selectedDonutItem.turkish_name || selectedDonutItem.name}
+                            {selectedDonutItem.canonical_name || selectedDonutItem.user_label || selectedDonutItem.turkish_name || selectedDonutItem.name}
                           </Text>
                           <Text style={analyticsStyles.vendorDonutSub}>
                             {formatCurrency(selectedDonutItem.total_spent, currency, false)}
@@ -277,7 +292,7 @@ export default function VendorAnalyticsSheet({
                       >
                         <View style={[analyticsStyles.legendDot, { backgroundColor: color }]} />
                         <Text style={analyticsStyles.legendText} numberOfLines={1}>
-                          {item.turkish_name || item.name}
+                          {item.canonical_name || item.user_label || item.turkish_name || item.name}
                         </Text>
                         <Text style={[analyticsStyles.legendPct, selected && { color }]}>
                           {percentage}%
@@ -291,7 +306,7 @@ export default function VendorAnalyticsSheet({
 
             <Text style={[analyticsStyles.microTitle, styles.productsTitle]}>
               {selectedDonutItem
-                ? `🔍 ${selectedDonutItem.turkish_name || selectedDonutItem.name}`
+                ? `🔍 ${selectedDonutItem.canonical_name || selectedDonutItem.user_label || selectedDonutItem.turkish_name || selectedDonutItem.name}`
                 : t(sort === 'frequency' ? 'top_bought_products' : 'top_spent_products')}
             </Text>
 
@@ -368,12 +383,17 @@ export default function VendorAnalyticsSheet({
                     ]}
                   >
                     {page.map((item, itemIndex) => {
-                      const displayName = itemDisplayName(item);
+                      const displayName = item.canonical_name
+                        ? {
+                            primary: item.canonical_name,
+                            secondary: item.name === item.canonical_name ? null : item.name,
+                          }
+                        : itemDisplayName(item);
                       return (
                         <Pressable
                           key={item.normalized_key ?? `${item.name}-${itemIndex}`}
                           style={analyticsStyles.microItem}
-                          onPress={() => openProductAfterDismiss(item.name)}
+                          onPress={() => openProductAfterDismiss(item)}
                         >
                           <View style={analyticsStyles.microItemContent}>
                             <View style={analyticsStyles.microItemMain}>

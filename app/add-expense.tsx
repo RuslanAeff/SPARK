@@ -43,13 +43,14 @@ export default function AddExpenseScreen() {
   const styles = getStyles();
   const router = useRouter();
   const { t, tc } = useLanguage();
-  const { currency } = useCurrency();
+  const { currency: displayCurrency } = useCurrency();
   const { triggerRefresh } = useRefreshActions();
   const { id, fromScan } = useLocalSearchParams<{ id?: string; fromScan?: string }>();
   const isEditing = !!id;
   const scanPrefillAppliedRef = useRef(false);
 
   const [amount, setAmount] = useState('');
+  const [recordCurrency, setRecordCurrency] = useState<string>(displayCurrency);
   const [note, setNote] = useState('');
   const [date, setDate] = useState(getToday());
   const [vendorName, setVendorName] = useState('');
@@ -77,6 +78,10 @@ export default function AddExpenseScreen() {
       if (vendorAutofillTimer.current) clearTimeout(vendorAutofillTimer.current);
     };
   }, []);
+
+  useEffect(() => {
+    if (!isEditing && fromScan !== '1') setRecordCurrency(displayCurrency);
+  }, [displayCurrency, fromScan, isEditing]);
 
   /**
    * Satıcı adı yazılırken (250ms debounce) bu satıcı için kayıtlı bir
@@ -138,6 +143,7 @@ export default function AddExpenseScreen() {
       const expense = await ExpenseDao.getById(parseInt(id));
       if (expense) {
         setAmount(formatMoneyInput(expense.total_amount));
+        setRecordCurrency(expense.currency || displayCurrency);
         setNote(expense.note || '');
         setDate(expense.date);
         setExistingItems(expense.items || []);
@@ -163,6 +169,7 @@ export default function AddExpenseScreen() {
         try {
           const pre = await getPrefillFromParsedReceipt(receipt);
           setAmount(pre.amount);
+          setRecordCurrency(pre.currency || displayCurrency);
           setVendorName(pre.vendorName);
           setDate(pre.date);
           setNote(pre.note);
@@ -228,7 +235,7 @@ export default function AddExpenseScreen() {
         const expenseId = parseInt(id, 10);
         await ExpenseDao.update(expenseId, {
           total_amount: parsedAmount,
-          currency,
+          currency: recordCurrency,
           note: note || null,
           date,
           vendor_id: vendorId,
@@ -245,7 +252,7 @@ export default function AddExpenseScreen() {
       } else {
         await ExpenseDao.create({
           total_amount: parsedAmount,
-          currency,
+          currency: recordCurrency,
           note: note || null,
           date,
           vendor_id: vendorId,
@@ -256,7 +263,7 @@ export default function AddExpenseScreen() {
 
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       triggerRefresh();
-      SparkToast.show(id ? t('expense_updated') : t('expense_added'), 'success', formatCurrency(parsedAmount, currency, false));
+      SparkToast.show(id ? t('expense_updated') : t('expense_added'), 'success', formatCurrency(parsedAmount, recordCurrency, false));
       setTimeout(() => router.back(), 150);
     } catch (e) {
       SparkToast.show(t('error_saving_data'), 'error');
@@ -272,7 +279,11 @@ export default function AddExpenseScreen() {
     }
 
     // Auto-save logic so we have an ID for the items to attach to
-    const parsedAmount = parseMoneyInput(amount) ?? 0;
+    const parsedAmount = parseMoneyInput(amount);
+    if (parsedAmount == null || parsedAmount <= 0) {
+      SparkToast.show(t('invalid_amount'), 'error');
+      return;
+    }
     
     setSaving(true);
     try {
@@ -285,7 +296,7 @@ export default function AddExpenseScreen() {
       
       const newId = await ExpenseDao.create({
         total_amount: parsedAmount,
-        currency,
+        currency: recordCurrency,
         note: note || null,
         date,
         vendor_id: vendorId,
@@ -359,7 +370,9 @@ export default function AddExpenseScreen() {
           <View style={styles.amountHero}>
             <Text style={styles.amountLabel}>{t('amount')}</Text>
             <View style={styles.amountSection}>
-              <Text style={styles.currencySymbol}>{CURRENCY_META[currency].symbol}</Text>
+              <Text style={styles.currencySymbol}>
+                {CURRENCY_META[recordCurrency]?.symbol ?? recordCurrency}
+              </Text>
               <TextInput
                 style={styles.amountInput}
                 value={amount}
@@ -380,7 +393,7 @@ export default function AddExpenseScreen() {
               value={vendorName}
               onChangeText={setVendorName}
               placeholder={t('vendor_placeholder', {
-                examples: getVendorPlaceholderExamples(currency),
+                examples: getVendorPlaceholderExamples(displayCurrency),
               })}
               placeholderTextColor={Colors.textMuted}
             />
@@ -531,7 +544,7 @@ export default function AddExpenseScreen() {
                     )}
                   </View>
                   <Text style={styles.itemPreviewPrice}>
-                    {formatCurrency(it.total_price, currency)}
+                    {formatCurrency(it.total_price, recordCurrency)}
                   </Text>
                 </View>
                 );

@@ -141,18 +141,23 @@ export default function SavingsGoalCard({ goal }: Props) {
             )}
           </View>
 
-          {/* Hızlı katkı butonu */}
+          {/* Birikim tutarı güncelleme yüzeyini açar; artı/eksi kararı sheet'tedir. */}
           <Pressable
+            testID="goal-update-savings"
             onPress={() => {
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
               setContribOpen(true);
             }}
             style={({ pressed }) => [styles.contribBtn, pressed && { opacity: 0.9 }]}
             accessibilityRole="button"
-            accessibilityLabel={t('goal_add_contribution')}
+            accessibilityLabel={t('goal_update_savings')}
+            accessibilityHint={t('goal_update_savings_hint')}
           >
-            <MaterialCommunityIcons name="plus-circle" size={18} color={Colors.primary} />
-            <Text style={styles.contribBtnText}>{t('goal_add_contribution')}</Text>
+            <MaterialCommunityIcons name="plus-minus-variant" size={20} color={Colors.primary} />
+            <View style={styles.contribCopy}>
+              <Text style={styles.contribBtnText}>{t('goal_update_savings')}</Text>
+              <Text style={styles.contribBtnHint}>{t('goal_update_savings_hint')}</Text>
+            </View>
           </Pressable>
         </View>
       </AnimatedCard>
@@ -348,10 +353,20 @@ const getStyles = () => StyleSheet.create({
     borderColor: Colors.primary + '33',
     marginTop: 2,
   },
+  contribCopy: {
+    alignItems: 'center',
+    gap: Spacing.xxs,
+  },
   contribBtnText: {
     ...Typography.labelMedium,
     color: Colors.primary,
     fontFamily: FontFamily.bold,
+  },
+  contribBtnHint: {
+    ...Typography.labelSmall,
+    color: Colors.textSecondary,
+    fontFamily: FontFamily.medium,
+    textAlign: 'center',
   },
 
 });

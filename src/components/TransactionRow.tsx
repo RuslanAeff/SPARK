@@ -81,7 +81,7 @@ function TransactionRow({
 
       <View style={styles.amountContainer}>
         <Text style={styles.amount}>
-          {formatCurrency(expense.total_amount, currency)}
+          {formatCurrency(expense.total_amount, expense.currency || currency)}
         </Text>
       </View>
     </Pressable>

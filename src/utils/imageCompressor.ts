@@ -5,38 +5,108 @@ import * as ImageManipulator from 'expo-image-manipulator';
 import * as FileSystem from 'expo-file-system/legacy';
 
 /** Gemini API için görüntü boyut sınırları */
-const MAX_DIMENSION = 1536; // Gemini Flash/Pro için yeterli çözünürlük
-const JPEG_QUALITY = 0.7;   // Fiş/fatura için yeterli kalite
+const MAX_DIMENSION = 2048;
+const JPEG_QUALITY = 0.82;
+const IMAGE_PROCESSING_TIMEOUT_MS = 25_000;
+
+export interface CompressImageOptions {
+  width?: number;
+  height?: number;
+  signal?: AbortSignal;
+  timeoutMs?: number;
+}
+
+function abortError(): Error {
+  const error = new Error('Operation aborted');
+  error.name = 'AbortError';
+  return error;
+}
+
+function runControlled<T>(
+  promise: Promise<T>,
+  signal: AbortSignal | undefined,
+  timeoutMs: number,
+): Promise<T> {
+  if (signal?.aborted) return Promise.reject(abortError());
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => {
+      cleanup();
+      reject(new Error('IMAGE_PROCESSING_TIMEOUT'));
+    }, timeoutMs);
+    const onAbort = () => {
+      cleanup();
+      reject(abortError());
+    };
+    const cleanup = () => {
+      clearTimeout(timer);
+      signal?.removeEventListener('abort', onAbort);
+    };
+    signal?.addEventListener('abort', onAbort, { once: true });
+    promise.then(
+      (value) => {
+        cleanup();
+        resolve(value);
+      },
+      (error) => {
+        cleanup();
+        reject(error);
+      },
+    );
+  });
+}
+
+/** En uzun kenarı küçültür; küçük görüntüyü hiçbir zaman büyütmez. */
+export function buildReceiptResizeAction(
+  width?: number,
+  height?: number,
+): Array<{ resize: { width?: number; height?: number } }> {
+  if (!width || !height || width <= 0 || height <= 0) return [];
+  const longest = Math.max(width, height);
+  if (longest <= MAX_DIMENSION) return [];
+  return width >= height
+    ? [{ resize: { width: MAX_DIMENSION } }]
+    : [{ resize: { height: MAX_DIMENSION } }];
+}
 
 /**
  * Bir görüntü URI'sini küçültüp sıkıştırarak base64 string'e çevirir.
- * - Max kenar 1536px'e küçültülür (en-boy oranı korunur)
- * - JPEG %70 kaliteyle sıkıştırılır
+ * - En uzun kenar gerekirse 2048px'e küçültülür; küçük görsel büyütülmez
+ * - Tek JPEG dönüşümü %82 kaliteyle yapılır
  * - Orijinal görüntüyü değiştirmez
  */
-export async function compressImageToBase64(uri: string): Promise<string> {
-  // Orijinal boyutu kontrol etmek için önce manipulator'a ver
-  const manipulated = await ImageManipulator.manipulateAsync(
-    uri,
-    [{ resize: { width: MAX_DIMENSION } }],
-    {
-      compress: JPEG_QUALITY,
-      format: ImageManipulator.SaveFormat.JPEG,
-    }
-  );
-
-  const base64 = await FileSystem.readAsStringAsync(manipulated.uri, {
-    encoding: 'base64',
-  });
-
-  // Geçici sıkıştırılmış dosyayı temizle
+export async function compressImageToBase64(
+  uri: string,
+  options: CompressImageOptions = {},
+): Promise<string> {
+  const timeoutMs = options.timeoutMs ?? IMAGE_PROCESSING_TIMEOUT_MS;
+  let temporaryUri: string | null = null;
   try {
-    if (manipulated.uri !== uri) {
-      await FileSystem.deleteAsync(manipulated.uri, { idempotent: true });
-    }
-  } catch {
-    // Temizleme başarısız olsa sorun değil
-  }
+    const manipulated = await runControlled(
+      ImageManipulator.manipulateAsync(
+        uri,
+        buildReceiptResizeAction(options.width, options.height),
+        {
+          compress: JPEG_QUALITY,
+          format: ImageManipulator.SaveFormat.JPEG,
+        },
+      ),
+      options.signal,
+      timeoutMs,
+    );
+    temporaryUri = manipulated.uri !== uri ? manipulated.uri : null;
 
-  return base64;
+    return await runControlled(
+      FileSystem.readAsStringAsync(manipulated.uri, { encoding: 'base64' }),
+      options.signal,
+      timeoutMs,
+    );
+  } finally {
+    if (temporaryUri) {
+      try {
+        await FileSystem.deleteAsync(temporaryUri, { idempotent: true });
+      } catch {
+        // Geçici dosya temizliği ana tarama sonucunu bozmamalı.
+      }
+    }
+  }
 }

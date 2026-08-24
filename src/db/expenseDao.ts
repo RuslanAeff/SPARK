@@ -15,6 +15,23 @@ import {
   sanitizeMeasurementUnit,
   type MeasurementUnit,
 } from '../utils/measurementUnit';
+import {
+  resolveCanonicalProductForItem,
+  type ProductIdentityHint,
+} from './productIdentityDao';
+import { productIdentityGroupKey } from '../utils/productIdentity';
+
+type ExpenseItemWrite = Omit<ExpenseItem, 'id'> & {
+  turkish_name?: string | null;
+  user_label?: string | null;
+  product_identity_hint?: ProductIdentityHint | null;
+};
+
+type ExpenseItemUpdate = Partial<ExpenseItem> & {
+  turkish_name?: string | null;
+  user_label?: string | null;
+  product_identity_hint?: ProductIdentityHint | null;
+};
 
 /**
  * `overall` gerçek işlemleri tutara göre doğrudan sıralar.
@@ -163,7 +180,7 @@ export const ExpenseDao = {
     }
   },
 
-  async addItem(item: Omit<ExpenseItem, 'id'> & { turkish_name?: string }): Promise<number> {
+  async addItem(item: ExpenseItemWrite): Promise<number> {
     const db = await getDatabase();
     const ld = (item as any).line_discount;
     const lb = (item as any).list_line_total_before_discount;
@@ -171,20 +188,34 @@ export const ExpenseDao = {
     const safeTurkishName = (item as any).turkish_name
       ? sanitizeText((item as any).turkish_name, 500)
       : null;
+    const safeUserLabel = item.user_label == null
+      ? null
+      : sanitizeText(item.user_label, 500) || null;
     const safeQuantity = sanitizeQuantity(item.quantity);
     const safeUnitPrice = sanitizeUnitPrice(item.unit_price);
     const safeTotalPrice = roundMoney(sanitizeUnitPrice(item.total_price));
     const safeLineDiscount = ld != null && ld !== undefined ? sanitizeAmount(ld) : 0;
     const safeListBefore = lb != null && lb !== undefined ? sanitizeAmount(lb) : null;
+    const safeMeasurementUnit = sanitizeMeasurementUnit(item.measurement_unit);
+    const identity = await resolveCanonicalProductForItem({
+      name: safeName,
+      measurementUnit: safeMeasurementUnit,
+      hint: item.product_identity_hint,
+    }, db);
     const result = await db.runAsync(
-      `INSERT INTO expense_items (expense_id, name, turkish_name, quantity, measurement_unit, unit_price, total_price, category_id, line_discount, list_line_total_before_discount)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO expense_items
+         (expense_id, name, turkish_name, user_label, quantity, measurement_unit,
+          canonical_product_id, unit_price, total_price, category_id, line_discount,
+          list_line_total_before_discount)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         item.expense_id,
         safeName,
         safeTurkishName,
+        safeUserLabel,
         safeQuantity,
-        sanitizeMeasurementUnit(item.measurement_unit),
+        safeMeasurementUnit,
+        identity?.canonicalProductId ?? null,
         safeUnitPrice,
         safeTotalPrice,
         item.category_id,
@@ -203,7 +234,7 @@ export const ExpenseDao = {
     );
   },
 
-  async updateItem(id: number, item: Partial<ExpenseItem> & { turkish_name?: string }): Promise<void> {
+  async updateItem(id: number, item: ExpenseItemUpdate): Promise<void> {
     const db = await getDatabase();
     const fields: string[] = [];
     const values: any[] = [];
@@ -216,6 +247,10 @@ export const ExpenseDao = {
       fields.push('turkish_name = ?');
       values.push(item.turkish_name == null ? null : sanitizeText(item.turkish_name, 500));
     }
+    if (item.user_label !== undefined) {
+      fields.push('user_label = ?');
+      values.push(item.user_label == null ? null : sanitizeText(item.user_label, 500) || null);
+    }
     if (item.quantity !== undefined) {
       fields.push('quantity = ?');
       values.push(sanitizeQuantity(item.quantity));
@@ -223,6 +258,33 @@ export const ExpenseDao = {
     if (item.measurement_unit !== undefined) {
       fields.push('measurement_unit = ?');
       values.push(sanitizeMeasurementUnit(item.measurement_unit));
+    }
+    if (item.name !== undefined || item.measurement_unit !== undefined) {
+      const current = await db.getFirstAsync<{
+        name: string;
+        measurement_unit: MeasurementUnit;
+      }>(
+        'SELECT name, measurement_unit FROM expense_items WHERE id = ?',
+        [id],
+      );
+      if (!current) throw new Error('RECEIPT_ITEM_NOT_FOUND');
+      const nextName = item.name === undefined
+        ? current.name
+        : sanitizeText(item.name, 500) || 'Ürün';
+      const nextUnit = sanitizeMeasurementUnit(
+        item.measurement_unit === undefined ? current.measurement_unit : item.measurement_unit,
+      );
+      const identity = await resolveCanonicalProductForItem({
+        name: nextName,
+        measurementUnit: nextUnit,
+        hint: item.product_identity_hint,
+      }, db);
+      fields.push('canonical_product_id = ?');
+      values.push(identity?.canonicalProductId ?? null);
+    } else if (item.canonical_product_id !== undefined) {
+      fields.push('canonical_product_id = ?');
+      const productId = Number(item.canonical_product_id);
+      values.push(Number.isSafeInteger(productId) && productId > 0 ? productId : null);
     }
     if (item.unit_price !== undefined) {
       fields.push('unit_price = ?');
@@ -275,7 +337,7 @@ export const ExpenseDao = {
   },
 
   async addItemAndSyncTotal(
-    item: Omit<ExpenseItem, 'id'> & { turkish_name?: string },
+    item: ExpenseItemWrite,
   ): Promise<number> {
     const db = await getDatabase();
     let itemId = 0;
@@ -289,7 +351,7 @@ export const ExpenseDao = {
   async updateItemAndSyncTotal(
     expenseId: number,
     itemId: number,
-    item: Partial<ExpenseItem> & { turkish_name?: string },
+    item: ExpenseItemUpdate,
   ): Promise<void> {
     const db = await getDatabase();
     await db.withTransactionAsync(async () => {
@@ -465,21 +527,24 @@ export const ExpenseDao = {
 
   async getVendorItems(vendorId: number, startDate: string, endDate: string) {
     const db = await getDatabase();
-    // NOT: SQLite LOWER() yalnızca ASCII'yi küçültür; Ó/Ś/Ę/Ą/Ł/Ç gibi
-    // harfler büyük kalıp gruplamayı bozar → aynı ürün birden çok satır
-    // gibi görünür ve sayımlar yanlış çıkar. Bu yüzden ham kayıtları
-    // çekip JS'te `normalizeItemKey` ile gruplarız.
     const rows = await db.getAllAsync<{
       name: string;
       turkish_name: string | null;
+      user_label: string | null;
+      canonical_product_id: number | null;
+      canonical_name: string | null;
+      measurement_unit: MeasurementUnit;
       unit_price: number;
       total_price: number;
       quantity: number;
       expense_date: string;
     }>(
-      `SELECT i.name, i.turkish_name, i.unit_price, i.total_price, i.quantity, e.date as expense_date
+      `SELECT i.name, i.turkish_name, i.user_label, i.canonical_product_id,
+              p.canonical_name, i.measurement_unit,
+              i.unit_price, i.total_price, i.quantity, e.date as expense_date
        FROM expense_items i
        JOIN expenses e ON i.expense_id = e.id
+       LEFT JOIN canonical_products p ON p.id = i.canonical_product_id
        WHERE e.vendor_id = ? AND e.date BETWEEN ? AND ?
          AND i.unit_price > 0`,
       [vendorId, startDate, endDate]
@@ -487,12 +552,16 @@ export const ExpenseDao = {
 
     interface Group {
       key: string;
-      // Kanonik isim için oylar (en sık geçen yazım kazansın)
       nameCounts: Map<string, number>;
       turkishNameCounts: Map<string, number>;
+      userLabelCounts: Map<string, number>;
+      canonical_product_id: number | null;
+      canonical_name: string | null;
+      measurement_unit: MeasurementUnit;
       latestDate: string;
       latestName: string;
       latestTurkishName: string | null;
+      latestUserLabel: string | null;
       purchase_count: number;
       total_spent: number;
       total_quantity: number;
@@ -500,7 +569,12 @@ export const ExpenseDao = {
 
     const groups = new Map<string, Group>();
     for (const r of rows) {
-      const key = normalizeItemKey(r.name);
+      const unit = sanitizeMeasurementUnit(r.measurement_unit);
+      const key = productIdentityGroupKey({
+        canonicalProductId: r.canonical_product_id,
+        name: r.name,
+        measurementUnit: unit,
+      });
       if (!key) continue;
       let g = groups.get(key);
       if (!g) {
@@ -508,9 +582,14 @@ export const ExpenseDao = {
           key,
           nameCounts: new Map(),
           turkishNameCounts: new Map(),
+          userLabelCounts: new Map(),
+          canonical_product_id: r.canonical_product_id,
+          canonical_name: r.canonical_name,
+          measurement_unit: unit,
           latestDate: r.expense_date,
           latestName: r.name,
           latestTurkishName: r.turkish_name,
+          latestUserLabel: r.user_label,
           purchase_count: 0,
           total_spent: 0,
           total_quantity: 0,
@@ -524,10 +603,14 @@ export const ExpenseDao = {
           (g.turkishNameCounts.get(r.turkish_name) || 0) + 1
         );
       }
+      if (r.user_label) {
+        g.userLabelCounts.set(r.user_label, (g.userLabelCounts.get(r.user_label) || 0) + 1);
+      }
       if (r.expense_date > g.latestDate) {
         g.latestDate = r.expense_date;
         g.latestName = r.name;
         g.latestTurkishName = r.turkish_name;
+        g.latestUserLabel = r.user_label;
       }
       g.purchase_count += 1;
       g.total_spent += Number(r.total_price) || 0;
@@ -549,6 +632,10 @@ export const ExpenseDao = {
     const aggregated = Array.from(groups.values()).map((g) => ({
       name: pickMostCommon(g.nameCounts, g.latestName) ?? g.latestName,
       turkish_name: pickMostCommon(g.turkishNameCounts, g.latestTurkishName),
+      user_label: pickMostCommon(g.userLabelCounts, g.latestUserLabel),
+      canonical_product_id: g.canonical_product_id,
+      canonical_name: g.canonical_name,
+      measurement_unit: g.measurement_unit,
       purchase_count: g.purchase_count,
       total_spent: g.total_spent,
       total_quantity: g.total_quantity,
@@ -577,15 +664,17 @@ export const ExpenseDao = {
     );
   },
 
-  async getItemAnalytics(itemName: string, requestedUnit?: MeasurementUnit) {
+  async getItemAnalytics(
+    itemName: string,
+    requestedUnit?: MeasurementUnit,
+    canonicalProductId?: number | null,
+  ) {
     const db = await getDatabase();
-    // NOT: SQLite LOWER() ASCII dışında çalışmaz; ayrıca Ł/ł ve Türkçe
-    // noktasız ı NFD ile ayrışmaz. Bu yüzden SQL'de toplama yapmak yerine
-    // ilgili tüm satırları çekip JS'te `normalizeItemKey` ile birebir eşleriz.
-    // Böylece aynı ürünün farklı imlâlarındaki (örn. "Parówki" ↔ "PARÓWKI"
-    // ↔ "parowki") tüm alım geçmişi tek toplamda gösterilir.
-    const targetKey = normalizeItemKey(itemName);
-    if (!targetKey) {
+    const safeCanonicalProductId = Number.isSafeInteger(canonicalProductId)
+      && Number(canonicalProductId) > 0
+      ? Number(canonicalProductId)
+      : null;
+    if (!safeCanonicalProductId && !normalizeItemKey(itemName)) {
       return {
         stats: { total_spent: 0, avg_price: 0, purchase_count: 0, total_quantity: 0 },
         history: [],
@@ -594,6 +683,10 @@ export const ExpenseDao = {
 
     const rows = await db.getAllAsync<{
       name: string;
+      turkish_name: string | null;
+      user_label: string | null;
+      canonical_product_id: number | null;
+      canonical_name: string | null;
       date: string;
       unit_price: number;
       total_price: number;
@@ -601,15 +694,23 @@ export const ExpenseDao = {
       vendor_name: string | null;
       measurement_unit: MeasurementUnit;
     }>(
-      `SELECT i.name, e.date, i.unit_price, i.total_price, i.quantity, i.measurement_unit,
-              v.name as vendor_name
+      `SELECT i.name, i.turkish_name, i.user_label, i.canonical_product_id,
+              p.canonical_name, e.date, i.unit_price, i.total_price, i.quantity,
+              i.measurement_unit, v.name as vendor_name
        FROM expense_items i
        JOIN expenses e ON i.expense_id = e.id
        LEFT JOIN vendors v ON e.vendor_id = v.id
+       LEFT JOIN canonical_products p ON p.id = i.canonical_product_id
        ORDER BY e.date ASC, i.id ASC`
     );
 
-    const nameMatched = rows.filter((r) => normalizeItemKey(r.name) === targetKey);
+    const nameMatched = rows.filter((row) => {
+      const unit = sanitizeMeasurementUnit(row.measurement_unit);
+      if (safeCanonicalProductId) return row.canonical_product_id === safeCanonicalProductId;
+      const rowKey = productIdentityGroupKey({ name: row.name, measurementUnit: unit });
+      const targetKey = productIdentityGroupKey({ name: itemName, measurementUnit: unit });
+      return rowKey !== '' && rowKey === targetKey;
+    });
     const unitCounts = new Map<MeasurementUnit, number>();
     nameMatched.forEach(row => {
       const unit = sanitizeMeasurementUnit(row.measurement_unit);
@@ -636,11 +737,22 @@ export const ExpenseDao = {
       total_price: Number(r.total_price) || 0,
       quantity: Number(r.quantity) || 0,
       vendor_name: r.vendor_name || '',
+      name: r.name,
+      turkish_name: r.turkish_name,
+      user_label: r.user_label,
       measurement_unit: dominantUnit,
     }));
 
     return {
-      stats: { total_spent, avg_price, purchase_count, total_quantity, measurement_unit: dominantUnit },
+      stats: {
+        total_spent,
+        avg_price,
+        purchase_count,
+        total_quantity,
+        measurement_unit: dominantUnit,
+        canonical_product_id: safeCanonicalProductId,
+        canonical_name: matched[0]?.canonical_name ?? null,
+      },
       history,
     };
   },
@@ -648,10 +760,24 @@ export const ExpenseDao = {
   async getPriceHistory(lookbackMonths: number = 6) {
     const db = await getDatabase();
     const safeMonths = Math.max(1, Math.floor(Math.abs(lookbackMonths)));
-    return db.getAllAsync<{ name: string; turkish_name: string | null; unit_price: number; total_price: number; quantity: number; date: string; measurement_unit: MeasurementUnit }>(
-      `SELECT TRIM(i.name) as name, i.turkish_name, i.unit_price, i.total_price, i.quantity, e.date, i.measurement_unit
+    return db.getAllAsync<{
+      name: string;
+      turkish_name: string | null;
+      user_label: string | null;
+      canonical_product_id: number | null;
+      canonical_name: string | null;
+      unit_price: number;
+      total_price: number;
+      quantity: number;
+      date: string;
+      measurement_unit: MeasurementUnit;
+    }>(
+      `SELECT TRIM(i.name) as name, i.turkish_name, i.user_label,
+              i.canonical_product_id, p.canonical_name,
+              i.unit_price, i.total_price, i.quantity, e.date, i.measurement_unit
        FROM expense_items i
        JOIN expenses e ON i.expense_id = e.id
+       LEFT JOIN canonical_products p ON p.id = i.canonical_product_id
        WHERE e.date >= date('now', '-' || ? || ' months')
          AND i.unit_price > 0
        ORDER BY TRIM(i.name), e.date ASC`,
@@ -767,8 +893,9 @@ export const ExpenseDao = {
   /**
    * Sessiz harcamalar — küçük birim fiyatlı ama sık tekrarlayan kalemler.
    *
-   * Yaklaşım: Verilen aralıkta tüm `expense_items`'ı çek, JS'te
-   * `normalizeItemKey` ile grupla. Şu kriterleri sağlayan kalemleri dön:
+   * Yaklaşım: Verilen aralıkta tüm `expense_items`'ı çek; kalıcı ürün kimliği
+   * varsa onunla, eski/null kayıtta birim-duyarlı güvenli anahtarla grupla.
+   * Şu kriterleri sağlayan kalemleri dön:
    *   - `purchase_count >= minOccurrences`
    *   - `avg_price <= maxAvgPrice`
    *
@@ -787,6 +914,10 @@ export const ExpenseDao = {
     const rows = await db.getAllAsync<{
       name: string;
       turkish_name: string | null;
+      user_label: string | null;
+      canonical_product_id: number | null;
+      canonical_name: string | null;
+      measurement_unit: MeasurementUnit;
       unit_price: number;
       total_price: number;
       quantity: number;
@@ -795,12 +926,15 @@ export const ExpenseDao = {
       category_icon: string | null;
       category_color: string | null;
     }>(
-      `SELECT i.name, i.turkish_name, i.unit_price, i.total_price, i.quantity,
+      `SELECT i.name, i.turkish_name, i.user_label, i.canonical_product_id,
+              p.canonical_name, i.measurement_unit,
+              i.unit_price, i.total_price, i.quantity,
               c.id as category_id, c.name as category_name,
               c.icon as category_icon, c.color as category_color
        FROM expense_items i
        JOIN expenses e ON i.expense_id = e.id
        LEFT JOIN categories c ON i.category_id = c.id
+       LEFT JOIN canonical_products p ON p.id = i.canonical_product_id
        WHERE e.date BETWEEN ? AND ?
          AND i.unit_price > 0`,
       [startDate, endDate]
@@ -809,12 +943,16 @@ export const ExpenseDao = {
     interface Group {
       key: string;
       nameCounts: Map<string, number>;
+      userLabelCounts: Map<string, number>;
       latestName: string;
       turkish_name: string | null;
+      user_label: string | null;
+      canonical_product_id: number | null;
+      canonical_name: string | null;
+      measurement_unit: MeasurementUnit;
       purchase_count: number;
       total_spent: number;
       total_quantity: number;
-      unit_price_sum: number;
       category_name: string | null;
       category_icon: string | null;
       category_color: string | null;
@@ -822,19 +960,28 @@ export const ExpenseDao = {
 
     const groups = new Map<string, Group>();
     for (const r of rows) {
-      const key = normalizeItemKey(r.name);
+      const unit = sanitizeMeasurementUnit(r.measurement_unit);
+      const key = productIdentityGroupKey({
+        canonicalProductId: r.canonical_product_id,
+        name: r.name,
+        measurementUnit: unit,
+      });
       if (!key) continue;
       let g = groups.get(key);
       if (!g) {
         g = {
           key,
           nameCounts: new Map(),
+          userLabelCounts: new Map(),
           latestName: r.name,
           turkish_name: r.turkish_name,
+          user_label: r.user_label,
+          canonical_product_id: r.canonical_product_id,
+          canonical_name: r.canonical_name,
+          measurement_unit: unit,
           purchase_count: 0,
           total_spent: 0,
           total_quantity: 0,
-          unit_price_sum: 0,
           category_name: r.category_name,
           category_icon: r.category_icon,
           category_color: r.category_color,
@@ -842,10 +989,12 @@ export const ExpenseDao = {
         groups.set(key, g);
       }
       g.nameCounts.set(r.name, (g.nameCounts.get(r.name) || 0) + 1);
+      if (r.user_label) {
+        g.userLabelCounts.set(r.user_label, (g.userLabelCounts.get(r.user_label) || 0) + 1);
+      }
       g.purchase_count += 1;
       g.total_spent += Number(r.total_price) || 0;
       g.total_quantity += Number(r.quantity) || 0;
-      g.unit_price_sum += Number(r.unit_price) || 0;
       // En son görülen kategori bilgisini koru — gruptaki tüm satırlarda
       // tutarlı olduğu varsayılır (aynı normalize anahtara sahip kalemler
       // tipik olarak aynı kategoride yer alır).
@@ -872,9 +1021,13 @@ export const ExpenseDao = {
       .map((g) => ({
         name: pickMostCommon(g.nameCounts, g.latestName),
         turkish_name: g.turkish_name,
+        user_label: pickMostCommon(g.userLabelCounts, g.user_label ?? '') || null,
+        canonical_product_id: g.canonical_product_id,
+        canonical_name: g.canonical_name,
+        measurement_unit: g.measurement_unit,
         purchase_count: g.purchase_count,
         total_spent: g.total_spent,
-        avg_price: g.purchase_count > 0 ? g.unit_price_sum / g.purchase_count : 0,
+        avg_price: g.total_quantity > 0 ? g.total_spent / g.total_quantity : 0,
         category_name: g.category_name,
         category_icon: g.category_icon,
         category_color: g.category_color,

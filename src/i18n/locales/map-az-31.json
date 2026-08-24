@@ -1,0 +1,10 @@
+{
+  "scan_timeout_error": "Çekin oxunması vaxt həddini keçdi. Yenidən cəhd edin və ya qalereyadan daha aydın şəkil seçin.",
+  "scan_invalid_result": "Çek etibarlı şəkildə oxunmadı. Natamam və ya sıfır məbləğli xərc yaradılmadı.",
+  "scan_image_processing_timeout": "Çek şəkli hazırlana bilmədi. Daha kiçik və ya daha aydın şəkillə yenidən cəhd edin.",
+  "scan_failed_generic": "Çekin oxunması tamamlanmadı. Bağlantını və şəklin aydınlığını yoxlayıb yenidən cəhd edin.",
+  "camera_result_timeout": "Kameradan nəticə alınmadı. Kameranı yenidən açın və ya qalereyadan seçin.",
+  "camera_open_failed": "Kamera açıla bilmədi. Kamera icazəsini yoxlayıb yenidən cəhd edin.",
+  "gallery_open_failed": "Qalereya açıla bilmədi. Şəkil icazəsini yoxlayıb yenidən cəhd edin.",
+  "camera_result_recovery_failed": "Kamera nəticəsi bərpa edilə bilmədi. Çekin şəklini yenidən çəkin."
+}

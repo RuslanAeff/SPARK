@@ -82,6 +82,32 @@ export function formatDayMonth(dateStr: string, t?: TranslateFunc): string {
   return `${d.getDate()} ${getMonthShort(d.getMonth(), t)}`;
 }
 
+/**
+ * Bütçe/analiz dönemini ay adıyla takma adlandırmadan, tek ve kesin bir aralık
+ * olarak gösterir. Aynı ay/yıl tekrarını sıkıştırır; yıl değişiminde iki yılı da
+ * yazar (örn. "22 Ara 2026 – 21 Oca 2027").
+ */
+export function formatPeriodRange(
+  startDateStr: string,
+  endDateStr: string,
+  t?: TranslateFunc,
+): string {
+  const start = parseDateForDisplay(startDateStr);
+  const end = parseDateForDisplay(endDateStr);
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return '';
+
+  const sameYear = start.getFullYear() === end.getFullYear();
+  const sameMonth = sameYear && start.getMonth() === end.getMonth();
+
+  if (sameMonth) {
+    return `${start.getDate()}–${end.getDate()} ${getMonthShort(end.getMonth(), t)} ${end.getFullYear()}`;
+  }
+  if (sameYear) {
+    return `${formatDayMonth(startDateStr, t)} – ${formatDayMonth(endDateStr, t)} ${end.getFullYear()}`;
+  }
+  return `${formatDate(startDateStr, t)} – ${formatDate(endDateStr, t)}`;
+}
+
 export function getToday(): string {
   return toLocalYmd(new Date());
 }

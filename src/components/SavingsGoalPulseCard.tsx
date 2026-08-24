@@ -112,9 +112,10 @@ export default function SavingsGoalPulseCard({ goal, onOpen, onContribute, now }
           hitSlop={6}
           style={({ pressed }) => [styles.contributeButton, pressed && styles.contributePressed]}
           accessibilityRole="button"
-          accessibilityLabel={t('goal_add_contribution')}
+          accessibilityLabel={t('goal_update_savings')}
+          accessibilityHint={t('goal_update_savings_hint')}
         >
-          <MaterialCommunityIcons name="plus" size={22} color={Colors.primary} />
+          <MaterialCommunityIcons name="plus-minus-variant" size={22} color={Colors.primary} />
         </Pressable>
       </View>
     </AnimatedCard>

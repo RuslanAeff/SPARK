@@ -1,11 +1,17 @@
 // S.P.A.R.K. — Database Initialization
 import * as SQLite from 'expo-sqlite';
+import * as Crypto from 'expo-crypto';
 import {
   CREATE_TABLES_SQL,
   DEFAULT_CATEGORIES,
   PAYMENT_REMINDERS_SCHEMA_SQL,
+  PRODUCT_IDENTITY_LINKS_SCHEMA_SQL,
+  PRODUCT_IDENTITY_TABLES_SCHEMA_SQL,
 } from './schema';
 import { getCycleForKey, normalizeCycleStartDay } from '../utils/budgetCycle';
+import { canonicalizeProductLabel } from '../utils/productIdentity';
+import { sanitizeMeasurementUnit, type MeasurementUnit } from '../utils/measurementUnit';
+import { sanitizeText } from '../utils/inputValidation';
 
 let db: SQLite.SQLiteDatabase | null = null;
 let initPromise: Promise<SQLite.SQLiteDatabase> | null = null;
@@ -15,9 +21,152 @@ export const BUDGET_PERIOD_SNAPSHOT_MIGRATION = 'migration_budget_period_snapsho
 export const PAYMENT_REMINDERS_MIGRATION = 'migration_payment_reminders_v1';
 export const PAYMENT_REMINDER_VENDOR_DETACH_MIGRATION =
   'migration_payment_reminder_vendor_detach_v2';
+export const PRODUCT_IDENTITY_MIGRATION = 'migration_product_identity_v1';
 
 interface SqliteTableInfoRow {
   name: string;
+}
+
+interface ProductIdentityMigrationItemRow {
+  id: number;
+  name: string;
+  measurement_unit: MeasurementUnit | null;
+  canonical_product_id: number | null;
+}
+
+interface ProductIdentityMigrationProductRow {
+  id: number;
+  canonical_key: string;
+  measurement_unit: MeasurementUnit;
+}
+
+interface ProductIdentityMigrationAliasRow {
+  canonical_product_id: number;
+  normalized_alias: string;
+  measurement_unit: MeasurementUnit;
+}
+
+/**
+ * Eski fiş kalemlerine güvenli, yalnız deterministik ürün kimliği bağlar.
+ * Ham `name`/`turkish_name` alanlarına dokunulmaz. Bir alias zaten kayıtlıysa
+ * o karar kullanılır; aynı kanonik anahtarda birden fazla aday varsa otomatik
+ * seçim yapılmaz ve kalem kullanıcı kararına kadar NULL bırakılır.
+ */
+export async function migrateProductIdentityOnce(
+  database: SQLite.SQLiteDatabase,
+): Promise<void> {
+  const applied = await database.getFirstAsync<{ value: string }>(
+    'SELECT value FROM settings WHERE key = ?',
+    [PRODUCT_IDENTITY_MIGRATION],
+  );
+  if (applied?.value === '1') return;
+
+  const columns = await database.getAllAsync<SqliteTableInfoRow>(
+    'PRAGMA table_info(expense_items);',
+  );
+  const hasCanonicalProductId = columns.some(column => column.name === 'canonical_product_id');
+  const hasUserLabel = columns.some(column => column.name === 'user_label');
+
+  await database.withTransactionAsync(async () => {
+    await database.execAsync(PRODUCT_IDENTITY_TABLES_SCHEMA_SQL);
+    if (!hasCanonicalProductId) {
+      await database.execAsync(
+        `ALTER TABLE expense_items
+           ADD COLUMN canonical_product_id INTEGER
+           REFERENCES canonical_products(id) ON DELETE SET NULL;`,
+      );
+    }
+    if (!hasUserLabel) {
+      await database.execAsync(
+        `ALTER TABLE expense_items
+           ADD COLUMN user_label TEXT
+           CHECK(user_label IS NULL OR length(user_label) <= 500);`,
+      );
+    }
+    await database.execAsync(PRODUCT_IDENTITY_LINKS_SCHEMA_SQL);
+
+    const products = await database.getAllAsync<ProductIdentityMigrationProductRow>(
+      `SELECT id, canonical_key, measurement_unit
+         FROM canonical_products
+        ORDER BY id ASC`,
+    );
+    const aliases = await database.getAllAsync<ProductIdentityMigrationAliasRow>(
+      `SELECT canonical_product_id, normalized_alias, measurement_unit
+         FROM product_aliases
+        ORDER BY id ASC`,
+    );
+    const items = await database.getAllAsync<ProductIdentityMigrationItemRow>(
+      `SELECT id, name, measurement_unit, canonical_product_id
+         FROM expense_items
+        WHERE canonical_product_id IS NULL
+        ORDER BY id ASC`,
+    );
+
+    const productIdsByKey = new Map<string, number[]>();
+    const aliasToProductId = new Map<string, number>();
+    const identityKey = (key: string, unit: MeasurementUnit) => `${unit}::${key}`;
+    for (const product of products) {
+      const unit = sanitizeMeasurementUnit(product.measurement_unit);
+      const key = identityKey(product.canonical_key, unit);
+      const ids = productIdsByKey.get(key) ?? [];
+      ids.push(product.id);
+      productIdsByKey.set(key, ids);
+    }
+    for (const alias of aliases) {
+      const unit = sanitizeMeasurementUnit(alias.measurement_unit);
+      aliasToProductId.set(identityKey(alias.normalized_alias, unit), alias.canonical_product_id);
+    }
+
+    for (const item of items) {
+      const unit = sanitizeMeasurementUnit(item.measurement_unit);
+      const identity = canonicalizeProductLabel(item.name, unit);
+      const canonicalKey = sanitizeText(identity.canonicalKey, 500);
+      const normalizedAlias = sanitizeText(identity.normalizedAlias, 500);
+      const canonicalName = sanitizeText(identity.canonicalName, 500);
+      if (!canonicalKey || !normalizedAlias || !canonicalName) continue;
+
+      const aliasKey = identityKey(normalizedAlias, unit);
+      let productId = aliasToProductId.get(aliasKey) ?? null;
+      if (productId == null) {
+        const productKey = identityKey(canonicalKey, unit);
+        const candidates = productIdsByKey.get(productKey) ?? [];
+        if (candidates.length > 1) continue;
+        if (candidates.length === 1) {
+          productId = candidates[0];
+        } else {
+          const now = new Date().toISOString();
+          const inserted = await database.runAsync(
+            `INSERT INTO canonical_products
+               (uid, canonical_name, canonical_key, measurement_unit, brand,
+                variant, package_descriptor, created_at, updated_at)
+             VALUES (?, ?, ?, ?, NULL, NULL, NULL, ?, ?)`,
+            [Crypto.randomUUID(), canonicalName, canonicalKey, unit, now, now],
+          );
+          productId = Number(inserted.lastInsertRowId);
+          productIdsByKey.set(productKey, [productId]);
+        }
+        const aliasCreatedAt = new Date().toISOString();
+        await database.runAsync(
+          `INSERT INTO product_aliases
+             (canonical_product_id, normalized_alias, measurement_unit,
+              source, confidence, created_at)
+           VALUES (?, ?, ?, 'deterministic', NULL, ?)`,
+          [productId, normalizedAlias, unit, aliasCreatedAt],
+        );
+        aliasToProductId.set(aliasKey, productId);
+      }
+
+      await database.runAsync(
+        'UPDATE expense_items SET canonical_product_id = ? WHERE id = ? AND canonical_product_id IS NULL',
+        [productId, item.id],
+      );
+    }
+
+    await database.runAsync(
+      'INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)',
+      [PRODUCT_IDENTITY_MIGRATION, '1'],
+    );
+  });
 }
 
 /**
@@ -249,6 +398,7 @@ export async function getDatabase(): Promise<SQLite.SQLiteDatabase> {
       await instance.execAsync('ALTER TABLE expense_items ADD COLUMN list_line_total_before_discount REAL;');
     } catch (_) {}
     await migrateItemMeasurementUnitsOnce(instance);
+    await migrateProductIdentityOnce(instance);
     await normalizeReceiptMoneyPrecisionOnce(instance);
     try {
       await instance.execAsync(`

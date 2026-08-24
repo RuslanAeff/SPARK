@@ -1,7 +1,7 @@
 // S.P.A.R.K. — Receipt Scanner Screen
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import {
-  View, Text, StyleSheet, Pressable, ActivityIndicator, ScrollView, Image, Platform,
+  View, Text, StyleSheet, Pressable, ActivityIndicator, ScrollView, Image, Platform, AppState,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -32,6 +32,7 @@ import {
 import { itemDisplayName } from '../../src/utils/itemDisplayName';
 import { compressImageToBase64 } from '../../src/utils/imageCompressor';
 import { formatMeasurementQuantity } from '../../src/utils/measurementUnit';
+import { canonicalReceiptCategoryName } from '../../src/utils/receiptCategory';
 import {
   createSusevarStyles,
   susevarButtonPressed,
@@ -39,6 +40,25 @@ import {
 } from '../../src/theme/susevar';
 
 type ScanState = 'idle' | 'processing' | 'result' | 'error' | 'no_key';
+
+const CAMERA_RESULT_TIMEOUT_MS = 120_000;
+const SCAN_TOTAL_TIMEOUT_MS = 90_000;
+
+function waitForPickerResult<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error('CAMERA_RESULT_TIMEOUT')), timeoutMs);
+    promise.then(
+      (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      (error) => {
+        clearTimeout(timer);
+        reject(error);
+      },
+    );
+  });
+}
 
 /** Referanstaki açık tarama işaretinin tema uyumlu, platformdan bağımsız çizimi. */
 function ScannerDocumentMark({ color }: { color: string }) {
@@ -104,7 +124,7 @@ export default function ScannerScreen() {
   const theme = useThemePalette();
   const styles = React.useMemo(() => getStyles(theme, scheme === 'dark'), [scheme, theme]);
   const router = useRouter();
-  const { t, language } = useLanguage();
+  const { t, tc, language } = useLanguage();
   const { triggerRefresh } = useRefreshActions();
   const { currency } = useCurrency();
   const [state, setState] = useState<ScanState>('idle');
@@ -116,59 +136,28 @@ export default function ScannerScreen() {
   const timersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
   const sourceBusyRef = useRef(false);
   const resultBusyRef = useRef(false);
+  const mountedRef = useRef(true);
+  const scanIdRef = useRef(0);
+  const recoveringPendingRef = useRef(false);
   // Devam eden Gemini taramasını iptal etmek için (processing → "Durdur").
   const abortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
     return () => {
+      mountedRef.current = false;
+      scanIdRef.current += 1;
       timersRef.current.forEach(clearTimeout);
       abortRef.current?.abort();
     };
   }, []);
 
-  async function pickImage(useCamera: boolean) {
-    if (sourceBusyRef.current) return;
-    sourceBusyRef.current = true;
-    setSourceBusy(true);
-    try {
-      let result;
-      if (useCamera) {
-        const perm = await ImagePicker.requestCameraPermissionsAsync();
-        if (!perm.granted) {
-          SparkToast.show(t('camera_permission_required'), 'error');
-          return;
-        }
-        result = await ImagePicker.launchCameraAsync({
-          quality: 0.8,
-          base64: false,
-        });
-      } else {
-        const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
-        if (!perm.granted) {
-          SparkToast.show(t('gallery_permission_required'), 'error');
-          return;
-        }
-        result = await ImagePicker.launchImageLibraryAsync({
-          quality: 0.8,
-          base64: false,
-        });
-      }
-
-      if (result.canceled || !result.assets?.[0]) return;
-
-      timersRef.current.forEach(clearTimeout);
-      timersRef.current = [];
-      const asset = result.assets[0];
-      setImageUri(asset.uri);
-      await processImage(asset.uri);
-    } finally {
-      sourceBusyRef.current = false;
-      setSourceBusy(false);
-    }
-  }
-
-  async function processImage(uri: string) {
+  const processImage = useCallback(async (
+    asset: ImagePicker.ImagePickerAsset,
+    scanId: number,
+  ) => {
+    const isCurrent = () => mountedRef.current && scanIdRef.current === scanId;
     const hasKey = await hasApiKey();
+    if (!isCurrent()) return;
     if (!hasKey) {
       setScanSessionError(null);
       setErrorMsg(t('no_api_key_msg'));
@@ -177,36 +166,171 @@ export default function ScannerScreen() {
     }
 
     const controller = new AbortController();
+    let timedOut = false;
+    const totalTimeout = setTimeout(() => {
+      timedOut = true;
+      controller.abort();
+    }, SCAN_TOTAL_TIMEOUT_MS);
     abortRef.current = controller;
+    setResult(null);
     setState('processing');
     setErrorMsg('');
     setScanSessionError(null);
 
     try {
-      // P3: Görüntüyü sıkıştır + base64'e çevir (max 1536px, JPEG %70)
-      const base64 = await compressImageToBase64(uri);
-
+      const base64 = await compressImageToBase64(asset.uri, {
+        width: asset.width,
+        height: asset.height,
+        signal: controller.signal,
+      });
       const parsed = await parseReceipt(base64, language, controller.signal);
-      if (controller.signal.aborted) return; // kullanıcı "Durdur" dedi
+      if (!isCurrent() || controller.signal.aborted) return;
       setResult(parsed);
       setState('result');
-    } catch (e) {
-      // İptal (Durdur) → sessizce idle'a dönüldü; hata gösterme.
-      if (controller.signal.aborted) return;
-      const msg = e instanceof Error ? e.message : t('unknown_error');
-      setScanSessionError(msg);
-      setErrorMsg(msg);
+    } catch (error) {
+      if (!isCurrent()) return;
+      if (controller.signal.aborted && !timedOut) return;
+      const code = error instanceof Error ? error.message : '';
+      const message = timedOut
+        ? t('scan_timeout_error')
+        : code === 'RECEIPT_INVALID_RESULT'
+          ? t('scan_invalid_result')
+          : code === 'IMAGE_PROCESSING_TIMEOUT'
+            ? t('scan_image_processing_timeout')
+            : t('scan_failed_generic');
+      setScanSessionError(message);
+      setErrorMsg(message);
       setState('error');
     } finally {
+      clearTimeout(totalTimeout);
       if (abortRef.current === controller) abortRef.current = null;
+    }
+  }, [language, t]);
+
+  async function pickImage(useCamera: boolean) {
+    if (sourceBusyRef.current) return;
+    const scanId = scanIdRef.current + 1;
+    scanIdRef.current = scanId;
+    sourceBusyRef.current = true;
+    setSourceBusy(true);
+    let asset: ImagePicker.ImagePickerAsset | null = null;
+    try {
+      let pickerResult: ImagePicker.ImagePickerResult;
+      if (useCamera) {
+        const perm = await ImagePicker.requestCameraPermissionsAsync();
+        if (scanIdRef.current !== scanId) return;
+        if (!perm.granted) {
+          SparkToast.show(t('camera_permission_required'), 'error');
+          return;
+        }
+        pickerResult = await waitForPickerResult(
+          ImagePicker.launchCameraAsync({ quality: 1, base64: false }),
+          CAMERA_RESULT_TIMEOUT_MS,
+        );
+      } else {
+        const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+        if (scanIdRef.current !== scanId) return;
+        if (!perm.granted) {
+          SparkToast.show(t('gallery_permission_required'), 'error');
+          return;
+        }
+        pickerResult = await ImagePicker.launchImageLibraryAsync({
+          quality: 1,
+          base64: false,
+        });
+      }
+
+      if (
+        scanIdRef.current !== scanId
+        || pickerResult.canceled
+        || !pickerResult.assets?.[0]?.uri
+      ) return;
+      asset = pickerResult.assets[0];
+    } catch (error) {
+      if (scanIdRef.current !== scanId) return;
+      const code = error instanceof Error ? error.message : '';
+      const message = code === 'CAMERA_RESULT_TIMEOUT'
+        ? t('camera_result_timeout')
+        : useCamera
+          ? t('camera_open_failed')
+          : t('gallery_open_failed');
+      setScanSessionError(message);
+      setErrorMsg(message);
+      setState('error');
+    } finally {
+      if (scanIdRef.current === scanId) {
+        sourceBusyRef.current = false;
+        setSourceBusy(false);
+      }
+    }
+    if (asset && scanIdRef.current === scanId) {
+      timersRef.current.forEach(clearTimeout);
+      timersRef.current = [];
+      setImageUri(asset.uri);
+      await processImage(asset, scanId);
     }
   }
 
+  // Android sistem kamera Activity'si yeniden oluşturulursa kaybolan sonucu geri al.
+  useEffect(() => {
+    if (Platform.OS !== 'android') return undefined;
+    let active = true;
+    const recover = async () => {
+      if (
+        !active
+        || recoveringPendingRef.current
+        || sourceBusyRef.current
+        || abortRef.current
+      ) return;
+      recoveringPendingRef.current = true;
+      try {
+        const pending = await ImagePicker.getPendingResultAsync();
+        if (!active || !mountedRef.current || !pending) return;
+        if ('code' in pending) {
+          const message = t('camera_result_recovery_failed');
+          setScanSessionError(message);
+          setErrorMsg(message);
+          setState('error');
+          return;
+        }
+        if (pending.canceled || !pending.assets?.[0]?.uri) return;
+        const scanId = scanIdRef.current + 1;
+        scanIdRef.current = scanId;
+        const recoveredAsset = pending.assets[0];
+        setImageUri(recoveredAsset.uri);
+        await processImage(recoveredAsset, scanId);
+      } catch {
+        if (active && mountedRef.current) {
+          const message = t('camera_result_recovery_failed');
+          setScanSessionError(message);
+          setErrorMsg(message);
+          setState('error');
+        }
+      } finally {
+        recoveringPendingRef.current = false;
+      }
+    };
+
+    void recover();
+    const subscription = AppState.addEventListener('change', (nextState) => {
+      if (nextState === 'active') void recover();
+    });
+    return () => {
+      active = false;
+      subscription.remove();
+    };
+  }, [processImage, t]);
+
   function handleStopScan() {
+    scanIdRef.current += 1;
     abortRef.current?.abort();
     abortRef.current = null;
+    sourceBusyRef.current = false;
+    setSourceBusy(false);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setState('idle');
+    setResult(null);
+    setErrorMsg('');
     setImageUri(null);
   }
 
@@ -332,12 +456,13 @@ export default function ScannerScreen() {
         {state === 'processing' && (
           <View style={styles.processingContent} accessibilityLiveRegion="polite">
             {imageUri && (
-              <Image source={{ uri: imageUri }} style={styles.previewImage} />
+              <Image source={{ uri: imageUri }} style={styles.previewImage} resizeMode="contain" />
             )}
             <ActivityIndicator size="large" color={theme.primary} />
             <Text style={styles.processingText}>{t('scanning_ai_toast')}</Text>
             <Text style={styles.processingSubtext}>{t('processing')}</Text>
             <Pressable
+              testID="scanner-stop-action"
               onPress={handleStopScan}
               style={({ pressed }) => [styles.stopButton, pressed && styles.stopButtonPressed]}
               accessibilityRole="button"
@@ -430,7 +555,9 @@ export default function ScannerScreen() {
                     {display.secondary && (
                       <Text style={styles.itemNameOriginal} numberOfLines={1}>{display.secondary}</Text>
                     )}
-                    <Text style={styles.itemCategory}>{item.suggested_category}</Text>
+                    <Text style={styles.itemCategory}>
+                      {tc(canonicalReceiptCategoryName(item.category_key, item.suggested_category))}
+                    </Text>
                     {hasDisc && discAmt > 0.001 && (
                       <Text style={styles.itemDiscountHint}>
                         {t('receipt_line_discount', {
