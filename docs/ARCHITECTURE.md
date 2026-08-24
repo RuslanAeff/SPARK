@@ -39,7 +39,7 @@ Expo Router ekranları (app/)
     +--> SQLite (birincil yerel veri)
     +--> SecureStore (Gemini API anahtarı)
     +--> cihaz kamerası, galeri, dosya ve bildirim API'leri
-    +--> Gemini API (isteğe bağlı fiş ayrıştırma)
+    +--> Gemini API (isteğe bağlı fiş ayrıştırma ve açık kullanıcı eyleminde ürün eşleşme önerisi)
 ```
 
 ## Depo katmanları
@@ -60,7 +60,7 @@ Dosya tabanlı navigasyonun sahibi Expo Router'dır. [`app/_layout.tsx`](../app/
 
 ### Sunum — `src/components/`
 
-Paylaşılan UI, grafikler, modal'lar, sheet'ler, geri bildirim yüzeyleri ve analiz kartları burada bulunur. Analiz bilinçli olarak bölünmüştür: [`app/(tabs)/analytics.tsx`](<../app/(tabs)/analytics.tsx>) veri ile kart sırasını orkestre eder; ayrı memoize kartlar ve ortak stiller [`src/components/analytics/`](../src/components/analytics) altında yer alır.
+Paylaşılan UI, grafikler, modal'lar, sheet'ler, geri bildirim yüzeyleri ve analiz kartları burada bulunur. Analiz bilinçli olarak bölünmüştür: [`app/(tabs)/analytics.tsx`](<../app/(tabs)/analytics.tsx>) veri ile kart sırasını orkestre eder; ayrı memoize kartlar ve ortak stiller [`src/components/analytics/`](../src/components/analytics) altında yer alır. Ayarlar alt sayfalarının kart-dışı bölüm ve gezinme satırı sözleşmesi [`src/components/SettingsList.tsx`](../src/components/SettingsList.tsx) içinde ortaktır; ekranlar kendi kalıcı kart kabuklarını üretmez, yalnız gerçek seçim/giriş kontrollerini sınırlı yüzey olarak korur.
 
 ### Uygulama durumu — `src/context/` ve `src/hooks/`
 
@@ -68,7 +68,7 @@ Context'ler dil, para birimi, yenileme invalidation'ı ve bildirimler gibi ekran
 
 ### Kalıcılık — `src/db/`
 
-Veritabanı modülü paylaşılan SQLite bağlantısının, başlatmanın, bütünlük kontrolünün, şema oluşturmanın, uyumluluk migration'larının ve ilk kategori seed işleminin sahibidir. DAO modülleri tabloya özgü okuma ve mutasyonları yönetir.
+Veritabanı modülü paylaşılan SQLite bağlantısının, başlatmanın, bütünlük kontrolünün, şema oluşturmanın, uyumluluk migration'larının ve ilk kategori seed işleminin sahibidir. DAO modülleri tabloya özgü okuma ve mutasyonları yönetir. Ürün kimliği çözümü ve kullanıcı kontrollü alias/merge/split mutasyonları [`src/db/productIdentityDao.ts`](../src/db/productIdentityDao.ts) içinde kalır; ekranlar bu ilişkileri doğrudan SQL ile değiştirmez.
 
 SQLite WAL modu ve foreign-key enforcement ile yapılandırılır. Başlatma, veritabanı promise'ının arkasında serileştirilir; böylece istemciler ilk kurulum seed işlemi sürerken sorgu çalıştıramaz.
 
@@ -82,7 +82,7 @@ Bildirim tipleri, kural değerlendirmesi, feed kalıcılığı ve serileştirilm
 
 ### Saf politika ve biçimlendirme — `src/utils/`
 
-Tarih aralıkları, bütçe döngüsü matematiği, borca göre düzeltilmiş bütçe, tamamlanmış-gün harcama istatistikleri, minor-unit para matematiği, para biçimlendirme, doğrulama, fiş onarımı, ürün normalizasyonu ve tema zamanlama yardımcıları burada bulunur. Saf iş kuralları React ve SQLite import'larından bağımsız kalmalı, böylece doğrudan test edilebilmelidir.
+Tarih aralıkları, bütçe döngüsü matematiği, borca göre düzeltilmiş bütçe, tamamlanmış-gün harcama istatistikleri, minor-unit para matematiği, para biçimlendirme, doğrulama, fiş onarımı, birim-duyarlı ürün canonicalization'ı ve tema zamanlama yardımcıları burada bulunur. Saf iş kuralları React ve SQLite import'larından bağımsız kalmalı, böylece doğrudan test edilebilmelidir.
 
 ### Çapraz kesen yapılandırma — `src/theme/` ve `src/i18n/`
 
@@ -141,7 +141,9 @@ oluşturmasına dayanmaz.
 | `categories` | İkon, renk ve sistem sahipliği metaverisi bulunan iki seviyeli kategori ağacı. |
 | `vendors` | Kanonik satıcı kaydı; manuel ve taranmış harcamalarda kullanılan varsayılan kategori tutabilir. |
 | `expenses` | Finansal işlem başlığı. Kaydedilmiş fiş toplamı tüketim toplamıdır. |
-| `expense_items` | Harcamaya bağlı isteğe bağlı fiş satır ayrıntısı; `measurement_unit` adet/kg/L fiyat tabanını ayırır, harcama silinince kalemler cascade ile silinir. |
+| `expense_items` | Harcamaya bağlı isteğe bağlı fiş satır ayrıntısı; ham `name`/`turkish_name`, ayrı kullanıcı görünüm etiketi, `measurement_unit` ve nullable kanonik ürün bağlantısını taşır; harcama silinince kalemler cascade ile silinir. |
+| `canonical_products` | Ölçü birimine bağlı, taşınabilir UID'li ürün kimliği ve kullanıcıya dönük kanonik ad/metaveri. Yerel eşleşme anahtarı kullanıcı etiketi değildir. |
+| `product_aliases` | Normalize edilmiş fiş etiketini aynı ölçüdeki kanonik ürüne bağlayan deterministik, AI veya kullanıcı kaynaklı öğrenilmiş eşleşme. Alias+ölçü çifti tektir. |
 | `budgets` | Takvim ayı olmak zorunda olmayan bütçe döngüsü anahtarıyla ilişkili planlanan tutar. |
 | `savings_goal` | Tek aktif birikim hedefi ve mevcut katkı tutarı. |
 | `category_limits` | Döngü başına kategori harcama limitleri. |
@@ -175,7 +177,10 @@ sheet bileşenini kullanır.
 ### Fiş ve harcama bütünlüğü
 
 - Bir fiş, tek harcama ve sıfır veya daha fazla satır kalemi olarak saklanır.
-- Fiş miktarı kanonik `piece`, `kg` veya `l` ile saklanır; g/ml manuel veya AI girdisi hesap öncesinde kg/L tabanına çevrilir. Ürün fiyat geçmişi aynı normalize adın farklı ölçü boyutlarını birleştirmez.
+- Fiş miktarı kanonik `piece`, `kg` veya `l` ile saklanır; g/ml manuel veya AI girdisi hesap öncesinde kg/L tabanına çevrilir. Ürün fiyat geçmişi aynı kimliğin farklı ölçü boyutlarını birleştirmez.
+- Ürün gruplama, bağlantı varsa `canonical_product_id + measurement_unit`; eski veya belirsiz nullable kayıtta yalnız deterministik canonical anahtar + ölçü birimiyle yapılır. Fuzzy benzerlik tek başına otomatik merge değildir.
+- Ham `name` ve `turkish_name` korunur. Kullanıcının görünen ad düzeltmesi `user_label` alanındadır; kanonik ürün adı da ham fiş kanıtının üzerine yazılmaz.
+- Bir merge veya alias split yalnız ürün bağlantısını değiştirir; tutar, miktar, fiyat, tarih ve ham/görünen satır adlarını silmez. Ayrıntılı yetki sınırı [`ADR-010`](decisions/ADR-010-canonical-product-identity.md) içindedir.
 - Başlık ve kalem oluşturma atomiktir.
 - Model bir satırı kaçırsa bile ilk fiş importundan sonra basılı/taranmış harcama toplamı yetkili kalır.
 - Açık kullanıcı eylemiyle ürün düzenleme, kullanıcı yönlendirmeli bir düzeltme olduğu için toplamı yeniden hesaplayabilir.
@@ -187,6 +192,18 @@ sheet bileşenini kullanır.
 ### Bütçe döngüleri
 
 Bütçe dönemi kullanıcının belirlediği döngü başlangıç gününden türetilir. Başlangıç günü bir olduğunda takvim ayıyla eşleşir; diğer değerler aylar arası aralık üretir. Oluşturulan her bütçe kendi kesin başlangıç/bitiş sınırını ve başlangıç günü snapshot'ını saklar; global kural değişikliği geçmişi yeniden hesaplayamaz. Dashboard, analiz, bildirimler ve DAO sorguları aynı çözümlenmiş dönem sınırlarını kullanmalıdır.
+
+Dashboard bütçe donutunda dış payda `effectiveBudget`, renkli segment değerleri
+aynı dönemin kategori harcamalarıdır. Segment toplamı bütçeden küçükken fark nötr
+ray olarak kalır; aşımda segmentler kesilmez ve harcama toplamı çizim ölçeği olur.
+Kategori odak görünümü yalnız `DonutChart.totalValue` paydasını kaldırarak aynı
+segmentleri 360 dereceye genişletir; DB sorgusu veya finansal hesap değiştirmez.
+Yay geometrisi küçük segment boşluğunu değerin bir bölümüyle sınırlayan saf
+[`src/utils/donutGeometry.ts`](../src/utils/donutGeometry.ts) sözleşmesinden gelir.
+Dashboard, ortak donutun opt-in `showTrackGlassEdge` sunumunu kullanır; bu yalnız
+SVG iç/dış sınır çizgileri ile nötr ray görünürlüğünü değiştirir ve diğer donut
+tüketicilerini etkilemez. Merkezdeki genişlet rozeti dekoratiftir; erişilebilir
+eylem tek merkez `Pressable` üzerinde kalır.
 
 ### Harcama istatistikleri
 
@@ -241,17 +258,72 @@ tanımlanır.
 
 ```text
 kamera/galeri
-  -> görsel sıkıştırma
-  -> Gemini model keşfi ve ayrıştırma
-  -> savunmacı JSON onarımı ve coercion
+  -> Android bekleyen kamera sonucu kurtarma
+  -> en-boy oranını koruyan, büyütmeyen görsel sıkıştırma
+  -> seçili TR/EN/AZ/RU dili + dil bağımsız kategori anahtarıyla Gemini ayrıştırma
+  -> sınırlı model keşfi/fallback ve opsiyonel yapılandırılmış ürün metadatası
+  -> savunmacı JSON onarımı, alan sınırları ve coercion
+  -> satıcı + tarih + gerçek kalem + tutar kalite kapısı
   -> tehlikeli anahtar temizliği ve girdi doğrulama
   -> fiş satırı birleştirme/sonlandırma
   -> kullanıcı önizlemesi
-  -> atomik harcama + kalem kalıcılığı
+  -> yerel alias / deterministik kanonik kimlik çözümü
+  -> atomik harcama + kalem + nullable ürün bağlantısı kalıcılığı
   -> yenileme ve bildirim senkronizasyonu
 ```
 
-İptal, etkin ağ isteğine taşınmalıdır. Model fallback, retry ve yanıt boyutu sınırları ekranın değil servisin sorumluluğudur.
+İptal, görüntü hazırlama ve etkin ağ isteğine taşınmalıdır. Kaynak seçimi, görüntü
+hazırlama, model keşfi ve tüm tarama için sonlu zaman sınırları bulunur; Durdur
+ekran kilidini ağın kapanmasını beklemeden bırakır ve geç gelen sonuç `scanId` ile
+yok sayılır. Model fallback, retry, yanıt boyutu ve kalite sınırları ekranın değil
+servisin sorumluluğudur. Teknik olarak başarılı fakat geçersiz fiş şeması döndüren
+model kayda ilerlemez; sınırlı sıradaki modele geçilir. Boş kalem, eksik satıcı,
+geçersiz tarih, anlamsız satır veya indirime dayanmayan sıfır sonuç finansal kayıt
+olamaz. Gerçek sıfır fiş brüt satır ve tam indirim kanıtı gerektirir.
+
+Modelin `localized_name` alanı tarama anındaki seçili dile aittir ve mevcut
+`turkish_name` kalıcı alanına geriye uyumlu biçimde yazılır; ham `name` korunur.
+Kategori kararı yerelleştirilmiş etiketten yapılmaz: `category_key` yerel kanonik
+kategori adına çözülür ve kullanıcıya `tc(...)` üzerinden çevrilir. Gemini'nin
+`product_identity` çıktısı yalnız açıklayıcı metadata olabilir; yerel eşleşme
+anahtarını veya merge kararını belirlemez ve basılı adı değiştirmez.
+
+### Kanonik ürün düzeltmesi
+
+```text
+kayıtlı alias tam eşleşmesi
+  -> tek deterministik ve birim-uyumlu aday
+  -> aksi durumda ayrı/yeni ürün veya belirsiz nullable bağlantı
+  -> Benzer ürünleri düzenle
+       -> isteğe bağlı, açık ve metin-only Gemini önerisi
+       -> kullanıcı merge / alias split / kanonik adı düzeltme kararı
+       -> atomik bağlantı güncellemesi; finansal gözlem korunur
+```
+
+[`app/product-matching.tsx`](<../app/product-matching.tsx>) içindeki AI eşleşme
+yardımı yalnız kullanıcı bu eylemi açıkça başlattığında çalışır.
+Ölçü uyuşmazlığı SecureStore veya ağ erişiminden önce reddedilir; aday metinler ve
+yanıt alanları sınırlanır. Analiz render'ı, DB migration'ı ve arka plan işi ağ
+çağrısı yapmaz. AI sonucu alias ekleyemez, ürünleri birleştiremez veya geçmiş
+finansal kayıtları değiştiremez.
+
+Eşleştirme ekranının ilk görünümü, [`productMatchDiscovery.ts`](../src/utils/productMatchDiscovery.ts)
+içinde cihazda üretilen ve yalnız aynı ölçü birimini paylaşan güçlü olası çiftleri
+inceleme kuyruğu olarak sunar. Bu fuzzy/yerel skor kalıcı kimlik kararı değildir;
+çifte dokunmak yalnız mevcut açık kullanıcı merge akışını hazırlar. Ekran açılışı
+Gemini çağrısı yapmaz. **Tüm ürünler** görünümü `SectionList` sanallaştırmasıyla
+0–30, 31–90, 91–365, 365 günden eski ve geçerli satın alma geçmişi olmayan
+bölümleri render eder; arama, ölçü, birikimli tarih ve son görülme/sıklık/ad
+sıralaması aynı saf keşif katmanından geçer. İlk bireysel seçimden sonra aday
+havuzu seçilen ürünün kanonik ölçü birimiyle sınırlandırılır.
+
+[`ProductIdentityDao.getProductSummaries`](../src/db/productIdentityDao.ts), alias
+ve fiş gözlemlerini iki ayrı CTE içinde önce ürün başına toplar, sonra
+`canonical_products` ile birleştirir. Böylece çok sayıda alias ile çok sayıda fiş
+satırının doğrudan join edilmesiyle oluşacak çarpımsal satır sayısı ve yanlış
+`observation_count` engellenir. Ham, çevrilmiş ve kullanıcı etiketli ad özetleri
+arama/yerel aday keşfine taşınır; finansal satırların kendisi ekran listesine
+yüklenmez.
 
 ### Yedekleme ve geri yükleme
 
@@ -266,8 +338,13 @@ Seçilen aralığın dışında kalan bağlı harcama payload'a gizlice eklenmez
 v3 bunun yerine ilişkinin export kapsamı nedeniyle eksik olduğunu açık bir
 marker ile taşır. Böylece gerçekten bağlantısız borç ile eksik ilişki birbirine
 karışmaz; aynı DB'ye geri yükleme mevcut bağı silmez veya ikinci borç üretmez.
-Borç kalan/status değeri ödeme geçmişinden yeniden türetilir. Desteklenen eski
-formatlar yeni koleksiyonları boş kabul ederek okunur. Kalıcı bir varlık veya
+Borç kalan/status değeri ödeme geçmişinden yeniden türetilir. Backup v4,
+`canonical_products`, `product_aliases`, `user_label` ve item bağlantısını yerel
+SQLite ID'si yerine taşınabilir kanonik ürün UID'siyle taşır. v1-v3 import
+desteği korunur ve bu sürümler ürün kimliği koleksiyonlarını boş kabul eder.
+v4 doğrulaması alias tekilliği, ölçü uyumu ve referans bütünlüğünü transaction
+başlamadan denetler; tekrar import mevcut UID/aliası yeniden kullanır ve çakışan
+payload'ı kısmi yazı bırakmadan reddeder. Kalıcı bir varlık veya
 alan eklemek; şema başlatma, DAO, export oluşturma, import uyumluluğu ve yedek
 format sürümünün birlikte incelenmesini gerektirir.
 
@@ -345,6 +422,7 @@ scheduled envanter sayısını gösterir.
 - Component'ler veritabanı şeması veya migration kararlarının sahibi olmamalıdır.
 - DAO'lar mutasyon girdilerini doğrular ve SQL'in sahibidir; çağıranlar SQL parçalarını tekrar etmemelidir.
 - Gemini API anahtarının sahibi SecureStore'dur. SQLite settings yalnız gizli olmayan tercihleri içerebilir.
+- Gemini ürün kimliği metadatası ve açık eşleşme yanıtı yalnız öneridir; render, migration veya arka plan çalışması sırasında ağ çağrısı ya da kullanıcı onaysız semantik merge yapılamaz.
 - Özellikle Expo Go bildirim sınırlamalarında platform davranışı guard ile korunmalıdır.
 - Bir şema değişikliği yedekleme/geri yükleme ve geriye dönük uyumluluk incelenmeden tamamlanmış sayılmaz.
 - Harcanabilir nakdi etkileyen yeni kaynak, ortak bütçe hesabı, budget hook, analiz, bildirimler ve testler aynı döngü semantiğinde uzlaşmadan tamamlanmış sayılmaz.

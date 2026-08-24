@@ -13,7 +13,7 @@ Kesirli ağırlıkla satılan meyve, sebze ve et kalemleri yalnız `quantity` al
 1. Kalıcı kanonik ölçüler `piece`, `kg` ve `l` olur.
 2. Manuel giriş `g` ve `ml` kabul eder; finansal hesap öncesinde sırasıyla `kg` ve `l` tabanına çevrilir. Birim fiyat kanonik birim başınadır.
 3. Gemini her kalem için ölçü türü önerir. Paket adında `500g` veya `1.75L` geçmesi tek başına ağırlık/hacim satışı değildir; açık fiş miktarı gerekir.
-4. Fiyat geçmişi normalize ürün adı **ve ölçü türü** ile gruplanır. Aynı gündeki tekrarlar toplam tutar/toplam miktar ile ağırlıklı tek gözleme dönüşür; değişim için en az iki ayrı gün gerekir.
+4. Fiyat geçmişi, varsa kalıcı kanonik ürün kimliği **ve ölçü türü** ile gruplanır; eski veya henüz bağlanmamış kayıtlar yalnız güvenli deterministik ürün anahtarı ve ölçü türüne geri düşer. Ürün kimliği ve belirsiz eşleştirme sınırı [ADR-010](ADR-010-canonical-product-identity.md) içindedir. Aynı gündeki tekrarlar toplam tutar/toplam miktar ile ağırlıklı tek gözleme dönüşür; değişim için en az iki ayrı gün gerekir.
 5. Ürün ve satıcı ortalama birim fiyatı `toplam harcama / toplam miktar` ile hesaplanır.
 6. Eski açık `(kg)` etiketleri ve kesirli miktarlar tek seferlik migration ile kilogram olarak sınıflanır; diğer kayıtlar adet kalır.
 7. Ölçü alanı yedekte taşınır; eski yedeklerde alan yoksa güvenli varsayılan `piece` olur.
@@ -24,6 +24,7 @@ Kesirli ağırlıkla satılan meyve, sebze ve et kalemleri yalnız `quantity` al
 - `500 g × kg başı fiyat`, kayıtta `0.5 kg × kg başı fiyat` olarak aynı net sonucu verir.
 - Adet, kütle ve hacim fiyatları birbirine karşılaştırılmaz.
 - Paket hacmi/ağırlığı, satış ölçü birimiyle karıştırılmaz.
+- Ürün kimliği hangi yoldan çözülürse çözülsün ölçü türü grup anahtarından çıkarılamaz.
 
 ## Sonuçlar
 
@@ -45,3 +46,7 @@ Fiyat grafikleri anlamlı birim fiyatlarını izler; kullanıcı miktarı `g/kg/
 - `app/edit-items.tsx`, `app/(tabs)/analytics.tsx`
 - `src/components/{ItemAnalyticsModal,analytics/PriceWatchCard}.tsx`
 - İlgili migration, saf hesap ve bileşen testleri
+
+## İlişkili karar
+
+- [ADR-010 — Kanonik ürün kimliği ve kullanıcı kontrollü eşleştirme](ADR-010-canonical-product-identity.md)

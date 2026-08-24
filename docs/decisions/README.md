@@ -25,6 +25,7 @@ Bir kararı değiştirirken eski ADR sessizce yeniden yazılmaz. Yeni ADR oluşt
 | [ADR-007](ADR-007-accent-palette-personalization.md) | Accepted · prospective | Açık/koyu görünümden bağımsız vurgu paleti, runtime reaktivite ve kontrast | Kişiselleştirmenin semantik/veri renklerini bozmasını ve tema flicker/remount regresyonunu engeller. |
 | [ADR-008](ADR-008-immutable-budget-periods.md) | Accepted · prospective | Tarihsel bütçe dönemleri ve başlangıç günü değişiklikleri | Yeni gelir gününün yalnız yeni dönemi etkilemesini, geçmiş aralıkların değişmemesini sağlar. |
 | [ADR-009](ADR-009-receipt-item-measurement-units.md) | Accepted · prospective | Fiş kalemi ölçüsü, kanonik birim fiyat ve fiyat geçmişi | Gramajlı ürünü adet gibi göstermeyi ve uyumsuz ölçülerin aynı fiyat serisinde birleşmesini engeller. |
+| [ADR-010](ADR-010-canonical-product-identity.md) | Accepted · prospective | Kanonik ürün, alias öğrenimi, AI önerisi ve kullanıcı merge/split sınırı | Yazım farklarının fiyat geçmişini bölmesini azaltırken farklı ölçü, paket ve varyantların sessizce birleşmesini engeller. |
 
 ## ADR ekleme kontrol listesi
 

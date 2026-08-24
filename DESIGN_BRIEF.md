@@ -31,7 +31,7 @@ Finansal kayıtların ana kaynağı cihaz içindeki SQLite veritabanıdır. Uygu
 
 ### AI yardımcıdır, karar sahibi değildir
 
-Gemini yalnız fiş ayrıştırmayı kolaylaştıran isteğe bağlı bir araçtır. AI çıktısı kaydedilmeden önce kullanıcı tarafından görülebilir ve düzeltilebilir. API anahtarı olmayan kullanıcı manuel finans yönetimine devam edebilir.
+Gemini fiş ayrıştırmayı ve açıkça istenen iki ürün adayının karşılaştırılmasını kolaylaştıran isteğe bağlı bir araçtır. AI çıktısı kaydedilmeden önce kullanıcı tarafından görülebilir ve düzeltilebilir; ürünleri kendiliğinden birleştiremez. Analiz ekranı açılırken veya eski veri migration'ında ağ çağrısı yapılmaz. API anahtarı olmayan kullanıcı manuel finans yönetimine, yerel ürün eşleştirmesine ve Fiyat Takibi'ne devam edebilir.
 
 ### Finansal sonuçlar açıklanabilir olmalıdır
 
@@ -67,6 +67,7 @@ Temel ihtiyaçlar:
 | İşlemler | Harcamaları listeler, arar, filtreler, düzenler ve çoklu seçime izin verir |
 | Fiş tarama | Kamera veya galeriden alınan fişi sıkıştırır, isteğe bağlı Gemini ayrıştırmasına ve kullanıcı önizlemesine sunar |
 | Analiz | Kategori, satıcı, zaman ve davranış odaklı kartlarla finansal örüntüleri gösterir |
+| Ürün kimliği | Aynı ürünün güvenli yazım/OCR farklarını ölçü birimine duyarlı kalıcı kimlikte toplar; belirsiz eşleşmeyi kullanıcıya bırakır |
 | Bütçe | Gelir gününe göre dönem oluşturur; kategori limitleri ve projeksiyonlarla birlikte çalışır |
 | Birikim hedefi | Hedef tutarı ve kullanıcının ilerlemesini izler |
 | Borç | Alınan borcu, kalan bakiyeyi ve kısmi/tam ödeme geçmişini harcamadan ayrı tutar |
@@ -87,12 +88,22 @@ Kullanıcı tutar, tarih, satıcı, kategori ve isteğe bağlı not girer. Kayı
 
 1. Kullanıcı kamera veya galeriden görsel seçer.
 2. Görsel ağ aktarımı öncesinde küçültülür ve sıkıştırılır.
-3. Gemini yapılandırılmış fiş verisi önerir.
+3. Gemini yapılandırılmış fiş verisi ve opsiyonel, yalnız açıklayıcı ürün kimliği metadatası önerir.
 4. Yanıt doğrulanır, temizlenir ve satırlar birleştirilir.
 5. Kullanıcı önizlemeyi kabul eder veya düzenlemeye geçer.
-6. Fiş başlığı ve kalemleri tek atomik işlemle kaydedilir.
+6. Yerel deterministik kurallar ürün aliaslarını çözer; fiş başlığı, kalemler ve nullable ürün bağlantıları tek atomik işlemle kaydedilir.
 
 AI sonucu doğrudan finansal gerçek kabul edilmez. Kullanıcı kontrol noktası akışın zorunlu ürün ilkesidir.
+
+Tarama dili uygulamanın o anda seçili TR/EN/AZ/RU dilidir. Model basılı adı
+değiştirmeden ayrıca bu dilde okunabilir ürün adı üretir; kategori ise çevrilmiş
+serbest metin yerine dil bağımsız anahtarla taşınır ve yerel kategori kaydına
+uygulama tarafından çözülür. Satıcı, geçerli fiş tarihi, anlamlı ürün satırı ve
+tutar bulunmayan bir model yanıtı önizleme veya sıfır tutarlı harcama taslağına
+dönüşmez. Gerçek tamamen indirimli sıfır fiş ancak brüt satır ve tam indirim
+kanıtıyla kabul edilir. İlk model geçersiz yapı döndürürse yalnız sınırlı model
+adayları içinde yeniden denenir; başarısızlık kullanıcıya güvenli, yerelleştirilmiş
+mesajla açıklanır.
 
 Tarayıcı giriş yüzeyi, büyük dekoratif ikon ve ağır kart yığınları yerine tek bir
 sayfa başlığı, dairesel tonal yüzeyde köşe hedefleri ve ortadaki tarama
@@ -105,6 +116,11 @@ gölge açık/koyu temada aynı bilgi hiyerarşisini korur. Bu kaynak seçiciler
 sonuç CTA'sı olmadığı için `susevar` sözleşmesini kullanmaz; fiş sonucu
 ekranındaki Kaydet eylemi tek birincil CTA olarak kalır. İzin veya picker işlemi
 beklerken hızlı tekrar dokunma ikinci bir sistem akışı başlatmamalıdır.
+Kamera Activity'si Android tarafından yeniden oluşturulduğunda bekleyen sistem
+sonucu geri kazanılmalıdır. Kaynak seçimi, görüntü hazırlama ve ağ ayrıştırması
+sınırlı bekleme sürelerine sahiptir; Durdur eylemi etkin isteği iptal edip kaynak
+kilidini hemen açar. Görsel en-boy oranı korunarak yalnız gerekirse küçültülür;
+küçük görsel büyütülmez.
 
 ### 5.3 Bütçe döngüsü
 
@@ -122,6 +138,65 @@ Analiz karşılaştırması bütçeyi değil, iki tarih aralığındaki kayıtl�
 Analiz, Dashboard'da zaten bulunan **Bütçe Durumu** kartını ve kayıt oluşturma saatini gerçek satın alma saati gibi yorumlama riski taşıyan **Ne Zaman Harcıyorsun** kartını tekrarlamaz. **En Yüksek İşlemler** seçili aralığın somut tepe işlemlerini gösterdiği için korunur. Limit Sağlığı, Fiyat Takibi, Aktif Abonelikler ve Birikim Hedefi yalnız ilgili kalıcı veya türetilmiş veri varsa render edilir; veri yokken boş kart yığını oluşturmaz. Kart düzenleme yüzeyinde kullanıcı tüm aktif kartları tek ve geri alınabilir bir eylemle Kullanılabilir Kartlar bölümüne taşıyabilir. Kart ekleme, kaldırma ve sıralama işlemleri onaya kadar yalnız taslaktır; düzenleme sırasında ana sekmeler arasında yatay kaydırma kilitlenir, sekme düğmesiyle ayrılınca taslak atılıp son onaylanmış yapı geri yüklenir. Boş taslakta en az bir kart yeniden eklenmeden onay kabul edilmez veya boş ayar kalıcılaştırılmaz; eski bir boş ayar bulunursa Günlük Grafik kartıyla güvenli biçimde onarılır.
 
 Dashboard sırası tamamen serbest sürükle-bırak kişiselleştirmesine açılmaz. Kullanıcı, aktif ve tamamlanmamış birikim hedefini isteğe bağlı olarak üst bölgede kompakt bir özetle öne çıkarabilir. Açık borç uyarısı daha yüksek öncelikte kalır; öne çıkarılan hedef aynı ekranda ikinci kez tam kart olarak tekrarlanmaz. Tamamlanmış hedef standart ayrıntı konumunda kalır ve kategori limitleri hedef kaydının varlığına bağlanmaz.
+
+Birikim hedefi kartındaki hızlı finansal eylem iki zıt fiili CTA başlığına
+yığmaz ve yalnız ekleme yapılacakmış gibi `+` simgesi kullanmaz. Nötr ana eylem
+“Birikimi güncelle”, görünen yardımcı satır “Tutar ekle veya azalt” olur; `±`
+simgesi iki yönü önceden anlatır. Aynı ad açılan panelin başlığıdır, ekleme veya
+azaltma seçimi panel içinde yapılır. Ekran okuyucu ana eylemi etiket, iki olası
+sonucu ipucu olarak ayrı okur; kompakt hedef kartındaki ikon-only eylem de aynı
+sözleşmeyi kullanır.
+
+Dashboard ana özeti, gelir gününe bağlı bütçe döngüsünü takvim ayı adıyla
+etiketlemez. Gezinme alanında küçük “Bütçe dönemi” bağlamının altında gerçek
+tarih aralığı ana kimlik olarak gösterilir; aynı ay/yılda tekrarlar sıkıştırılır,
+yıl değişiminde iki yıl da açıkça yazılır. Dönem kimliğinin altında harcanan
+tutar ikinci kez yazılmaz; halka kullanım oranını, hemen aşağıdaki bütçe kartı
+kesin harcanan ve kalan tutarı zaten gösterir. Böylece hem `22 Ağu–21 Eyl` gibi
+bir döngü “Ağustos” veya “bu ay” sanılmaz hem de kategori odağı açıldığında üst
+bölüm gereksiz yere uzamaz.
+
+Dashboard bütçe özetini donut bölümünün hemen altındaki tek ayrıntılı bütçe kartında
+sunar. Aylık bütçe, kullanılan oran ve kalan gün değerlerini sayfanın sonunda
+ikinci bir üçlü kartla tekrarlamaz; alt akış kategori ve satıcı sonuçlarından sonra
+doğrudan sayfa sonuna ulaşır.
+
+Dashboard donutunun nötr rayı etkin bütçenin tamamını, renkli yayları ise gerçek
+harcamayı temsil eder; kalan tutar ikinci bir renkli kategori gibi çizilmez.
+Renkli bölüm kendi içinde gerçek kategori tutarlarına ayrılır ve merkezde bütçe
+kullanım yüzdesi görünür. Kategori ayrıntısında “harcamalardaki pay” ile
+“bütçedeki pay” ayrı adlandırılır. Düşük bütçe kullanımında küçük kategorilerin
+yayları fiziksel dokunma hedefinden daha dar olabileceği için merkeze veya renkli
+yaya dokunmak kategorileri eski tam-halka dağılımında büyütür; önceki/sonraki
+44 dp kontrolleri her kategoriye kesin erişim sağlar. Bu odak yalnız sunumu
+değiştirir, finansal toplamı veya bütçe paydasını değiştirmez. Halkanın iç ve
+dış sınırındaki çok ince tema-duyarlı parlamalar, ağır bir çerçeve oluşturmadan
+cam tüpün sınırını tanımlar. Normal görünümde merkezdeki kullanım değerine bağlı
+küçük dışa-genişlet rozeti alanın dokunulabilir olduğunu anlatır; kategori odağına
+geçilince bunun karşılığı olan içe-topla ikonu görünür. Rozet ayrı bir erişilebilir
+kontrol değildir; merkez düğmesinin açıklayıcı eylem etiketi kanoniktir.
+
+Dashboard'daki **Üst kategoriler** yalnız ikon ezberine dayanmaz. Her kategori
+ikonunun altında seçili uygulama dilindeki kategori adı, onun altında renkli oran
+görünür. Kompakt yatay akışı korumak için uzun ad en fazla iki satırda kısalabilir;
+tek satırlık adlar kullanılmayan ikinci satır yüksekliğini ayırmaz ve oran gerçek
+metnin hemen altında kalır. Tam kategori adı ve oran ekran okuyucu etiketinde
+birlikte korunur.
+
+Dashboard'daki **Sık gidilen yerler** iki sütunlu kompakt yapısını korur. Satıcı
+yüzdesi adla aynı yatay alan için yarışmak yerine adın altında gösterilir; sütun
+boşluğu azaltılarak orta uzunluktaki adlara daha geniş, tek satırlık alan verilir.
+Satıcı adı bu gerçek alana sığıyorsa tamamen statik kalır. Yalnız gerçekten
+taşan ad, başlangıcı okunabilsin diye kısa bir beklemeden sonra sakin biçimde
+sağdan sola döngüsel kayar; tam ad ekran okuyucu etiketi olarak korunur.
+
+Aylık bütçe altındaki **Borç** ve **Ek gelir** girişleri boş değeri anlamsız bir
+çizgiyle göstermez. Borç yoksa “Açık borç yok”, seçili bütçe döneminde ek gelir
+yoksa “Bu dönem ek gelir yok” denir. Veri varsa borç tutarı “Açık bakiye” olarak,
+ek gelir ise yeşil `+tutar` ve “Bütçeye eklendi” bağlamıyla sunulur. Böylece açık
+borcun dönemden bağımsız bakiye, ek gelirin ise yalnız seçili dönemin harcanabilir
+bütçesini artıran nakit olduğu ayrımı korunur. Erişilebilir eylem adı görünen
+durum ve tutarı da birlikte açıklar.
 
 ### 5.4 Borç ve ek gelir
 
@@ -209,6 +284,39 @@ teslim edilebilir; iptal edilemezse ikinci alarm kurulmaz. Yaz saati başlangı�
 boşluğuna denk gelen yerel saat aynı günün ilk geçerli ileri saatine taşınır ve
 occurrence tamamen kaybolmaz.
 
+### 5.8 Kanonik ürün ve benzer ürün yönetimi
+
+Aynı fiziksel ürünün yalnız yazım, aksan, OCR kısaltması, güvenli çekim eki
+veya kg/L satış biriminin ada eklenmesi yüzünden ayrı fiyat serisine düşmesi
+engellenir. Kimlik çözümü cihazda ve ölçü birimine duyarlı çalışır. Adet, kg ve
+litre kayıtları hiçbir koşulda ortak seriye alınmaz; adet satılan `500 g` paket
+ile tartıyla satılan `0.5 kg` ürün de otomatik olarak eş sayılmaz. Marka, aroma,
+yağ oranı, kesim türü, varyant ve paket büyüklüğü ürünün ayırt edici parçasıdır.
+
+Fişte basılı ürün adı ve ilk çeviri korunur. Kullanıcının yalnız görünümü
+düzeltmek için yazdığı etiket ayrı tutulur; böylece hem okunabilir ad hem kaynak
+fiş kanıtı birlikte görülebilir. Analizler mümkün olduğunda kalıcı ürün kimliğini,
+eski veya belirsiz kayıtta ise güvenli yerel geri düşüşü kullanır.
+
+**Benzer ürünleri düzenle** yüzeyi, kullanıcıya aynı ölçüdeki adayları
+birleştirme, öğrenilmiş bir adı yeniden ayırma ve kanonik görünen adı düzeltme
+olanağı verir. İsteğe bağlı AI düğmesi yalnız iki sınırlı metin adayını
+karşılaştırıp açıklanabilir bir öneri sunar; sonucu uygulama kararı kullanıcıya
+aittir. Merge/split işlemi satır tutarı, miktarı, birim fiyatı, tarihi veya ham
+adları silmez. Böylece yanlış bir seçim ilgili alias ayrılarak geçmiş fiyat
+gözlemleri kaybedilmeden düzeltilebilir.
+
+Bu yüzey büyüyen ürün arşivini tek ve sonsuz bir kart akışı gibi sunmaz.
+Varsayılan görünüm, cihazda hesaplanan güçlü **olası eşleşmeleri** küçük bir
+inceleme kuyruğunda öne çıkarır. Kuyruktaki benzerlik yalnız sıralama önerisidir;
+ürünleri otomatik birleştirmez ve ekran açılırken AI çağrısı yapmaz. Kullanıcı
+isterse **Tüm ürünler** görünümüne geçer; ürünler sanallaştırılmış listede son
+aktiviteye göre 0–30, 31–90, 91–365, 365 günden eski ve satın alma geçmişi
+olmayan gruplara ayrılır. Arama; kanonik ad, öğrenilmiş ad, ham/çevrilmiş fiş adı
+ve kullanıcı etiketini kapsar. Ölçü, tarih ve son görülme/sıklık/alfabetik
+sıralama kontrolleri birlikte kullanılabilir. İlk ürün seçildiğinde ikinci seçim
+yalnız aynı kanonik ölçü birimindeki ürünlerle sınırlandırılır.
+
 ## 6. Finansal ve veri değişmezleri
 
 Bu kurallar ürün davranışıdır; uygulama ayrıntısı gibi sessizce değiştirilemez:
@@ -228,6 +336,8 @@ Bu kurallar ürün davranışıdır; uygulama ayrıntısı gibi sessizce değiş
 13. **Hatırlatma taahhüdü tahminden ayrıdır.** Türetilmiş abonelik önerisi kullanıcı onayı olmadan kalıcı ödeme hatırlatıcısına dönüşmez; borç vadesi borcun işlem tarihini veya bütçe etkisini değiştirmez.
 14. **Kategori sınırı hedeften bağımsız ve erişilebilir olmalıdır.** Kullanıcı birikim hedefi oluşturmadan aylık kategori harcama sınırı kaydedebilir; giriş yolu Bütçe ve Analiz yüzeylerinde görünürdür. Fiyat değişimi özeti, kart yüksekliğini büyütmeden altılı yatay sayfalarda tüm değişimlere eriştirir; kart içindeki yatay jest üst sekme gezinmesine devredilmez. Satıcı özeti de ilk beşten başlayarak sabit yükseklikte yatay sayfalanır; satıcıya dokunmak ana kartı büyütmez, donut ve ürün analizi ayrı bir yüksek alt panelde açılır. Satıcı ürünleri panel içinde beşerli yatay sayfalarda sunulur ve kullanıcı sıralamayı alım sayısı veya toplam harcama olarak açıkça seçebilir. Fiyat karşılaştırması ürün adıyla birlikte kanonik ölçü türünü kullanır; adet, kg ve litre serileri karıştırılmaz, g/ml girişi anlaşılır gösterilip kanonik tabana çevrilir. Analiz kartı başlıklarında ikon ve metin aynı optik ekseni paylaşır. Projeksiyon şeridi veri göstergesidir, kullanıcı ayarı değildir; bütçe eşiği dolgu üzerinde ve uç konumlarda da kontrastlı görünür.
 15. **Analiz güveni görünür ve karşılaştırma eş olmalıdır.** Harcama kaydı olmayan gün başarı etiketi değildir; kısa takip geçmişi başarı/seri üretmez ve kapsam sayısı kullanıcıya gösterilir. Devam eden harcama dönemi, önceki dönemin aynı sayıda tamamlanmış günüyle karşılaştırılır; bugün ve gelecek günler toplamlara katılmaz. Veri yükleme hatası ile geçerli `0 harcama` sonucu ayrıdır. İlgili veri bulunmayan opsiyonel analiz kartları boş yüzey olarak yer kaplamaz.
+16. **Ürün kimliği ölçüye bağlı ve geri düzeltilebilir olmalıdır.** Güvenli yazım farkları kalıcı canonical ürün ve aliaslarla toplanabilir; fuzzy benzerlik, ortak ürün ailesi veya AI önerisi kullanıcı onayı olmadan semantik merge yapamaz. Ham `name`/`turkish_name` korunur, kullanıcı etiketi ayrıdır ve merge/split hiçbir finansal gözlemi silmez.
+17. **Geçersiz AI çıktısı finansal kayıt değildir.** Seçili dil yalnız görünüm metnini değil fiş çeviri sözleşmesini belirler; kategori anahtarı dilden bağımsızdır. Eksik satıcı/tarih/kalem/tutar veya kanıtsız sıfır toplam kaydedilemez ve Detaylı Düzenle boş/sıfır bir harcamayı otomatik oluşturamaz. İşlem listesi her kaydın kendi para birimini gösterir.
 
 Ayrıntılı teknik sözleşmeler için [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) ve karar kayıtları kullanılır.
 
@@ -247,12 +357,19 @@ Ayrıntılı teknik sözleşmeler için [`docs/ARCHITECTURE.md`](docs/ARCHITECTU
 
 Kod tarafındaki kesin renk, tipografi ve spacing değerlerinin kaynağı `src/theme/` dizinidir.
 
+**Spark Dörtlü Periyot Anahtarı**, ileride uygun bir kartta yeniden kullanılmak
+üzere adlandırılmış görsel şemadır: yuvarlatılmış tek bir ray, dört eşit bölüm,
+yüzeyden hafifçe yükselen açık aktif kapsül ve `W / M / 3M / ALL` gibi kısa
+etiketlerden oluşur. Bu ad yalnız tasarım tarifidir; veri aralıklarının anlamı
+uygulanacağı karta göre ayrıca belirlenmelidir. Kullanıcı talebi üzerine Harcama
+Takvimi denemesi geri alınmıştır ve bu kart şu anda bu şemayı kullanmaz.
+
 Vurgu tercihi cihazda yerel bir kişiselleştirmedir. Finansal veri değildir,
 cihazlar arası görünüm sözü vermez ve taşınabilir yedek biçimine eklenmez.
 Eksik veya artık tanınmayan bir tercih güvenli biçimde SPARK yeşiline döner.
 
-Genel Ayarlar'da görünüm ve vurgu ayrı, kompakt kartlarla yönetilir. Görünüm
-kartı yerleşik tam genişlikte otomatik zamanlama kontrolünü korur; otomatik mod
+Genel Ayarlar'da görünüm ve vurgu ayrı, doğrudan sayfa bölümlerinde yönetilir. Görünüm
+bölümü yerleşik tam genişlikte otomatik zamanlama kontrolünü korur; otomatik mod
 kapalıyken yalnız Açık ve Koyu seçeneklerini gösterir. Vurgu kartı beş ayrı
 dikey ayar satırı üretmez: renkler yatay kaydırılan ve her adımda merkeze oturan
 bir seçicide sunulur. Seçici, gerçek görünür genişliğe göre aralık ve kenar
@@ -274,8 +391,8 @@ etiket içerik ölçümü tamamlandıktan sonra yeniden aynı kademede uzlaştı
 Açık görünümdeki gösterim tonları, nötr yüzey üzerinde kirli veya mat görünmemesi
 için canlı tutulur; dolu CTA'lar ise okunabilirliği koruyan ayrı koyu
 `primaryAction` tonlarını kullanır.
-ve ses ya da haptic kullanılamadığında renk seçimini engellemez. Kısa kart yüzeyi
-yalnız seçim görevine ayrılır, uzun
+ve ses ya da haptic kullanılamadığında renk seçimini engellemez. Kısa bölüm
+yalnız seçim görevine ayrılır; uzun
 açıklamalar başlıktaki bilgi eyleminden açılan ayrı modalda tutulur.
 
 Ayar bilgi mimarisi işin anlamına göre ayrılır. **Bütçe ve planlama**; bütçe,
@@ -286,6 +403,17 @@ düzenli ödemeler yalnız abonelik olmadığı için yönetim girişi **Düzenl
 ödemeler** olarak adlandırılır. Bir ayarın açıklaması aynı karttaki bilgi
 eyleminde zaten bulunuyorsa kontrol satırında ikinci kez gösterilmez; kısa başlık
 ve doğrudan kontrol korunur.
+
+Ayarlar ana ekranındaki **Genel**, **Bütçe ve planlama**, **Veri ve yedek** ve
+**Yapay zekâ** girişleri, dört alanı birbirinden ayıran üst düzey kartlar olarak
+kalabilir. Bu grupların iç sayfaları ise kalıcı kart yığını kullanmaz: içerik
+doğrudan sayfa zemini üzerinde boşluk, tipografi ve ince ayırıcılarla gruplanır;
+başka bir ekrana giden öğeler tam genişlikte düz ayar satırlarıdır. Metin girişi,
+tarih seçimi, çip, anahtar ve birincil eylem gibi gerçek kontroller kendi
+etkileşim sınırlarını korur. Yedek sonucu gibi özel bir durum, genel kart yerine
+sınırlı tonal veya kenar vurgulu durum şeridi kullanabilir. Bu ayrım Dashboard ve
+Analiz'deki veri kartlarıyla Ayarlar'daki görev odaklı düzenin psikolojik ve
+görsel olarak birbirine karışmasını engeller.
 
 ### Etkileşim ilkeleri
 
@@ -344,6 +472,7 @@ Mevcut ürün kapsamında:
 - Cihazlar arası gerçek zamanlı bulut senkronizasyonu bulunmaz.
 - Banka hesabına doğrudan bağlantı veya otomatik banka hareketi aktarımı bulunmaz.
 - Gemini yanıtı doğruluk garantisi taşımaz ve ağ bağlantısına bağlıdır.
+- AI ürün eşleştirme önerisi yalnız kullanıcı tarafından başlatılır; çevrimdışı yerel eşleştirme ve kullanıcı düzeltmesi temel davranış olarak kalır.
 - Expo Go, native bildirim ve release-build davranışlarının tamamını temsil etmez.
 - iOS ve Android hedeflenir; web komutu geliştirme kolaylığı sağlasa da web birincil ürün hedefi değildir.
 
