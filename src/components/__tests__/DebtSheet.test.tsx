@@ -10,6 +10,7 @@ import { getToday } from '../../utils/dateUtils';
 import * as Haptics from 'expo-haptics';
 
 const mockTriggerRefresh = jest.fn();
+const mockSyncNotifications = jest.fn(async () => undefined);
 
 function getPressHandler(instance: any): () => Promise<void> {
   let node = instance;
@@ -51,6 +52,10 @@ jest.mock('../../theme/themeStore', () => ({
 
 jest.mock('../../context/RefreshContext', () => ({
   useRefreshActions: () => ({ triggerRefresh: mockTriggerRefresh }),
+}));
+
+jest.mock('../../context/NotificationsContext', () => ({
+  useNotifications: () => ({ sync: mockSyncNotifications }),
 }));
 
 jest.mock('../../i18n/LanguageContext', () => ({
@@ -237,6 +242,25 @@ describe('DebtSheet debt reminder flow', () => {
       reminderDaysBefore: 1,
       reminderTime: '09:00',
     }));
+    expect(mockSyncNotifications).toHaveBeenCalledTimes(1);
+  });
+
+  it('borç commit edildikten sonra bildirim senkronu reddetse de hata sonucu üretmez', async () => {
+    mockSyncNotifications.mockRejectedValueOnce(new Error('native inventory unavailable'));
+    const { screen } = await renderSheet();
+    await openAddForm(screen);
+    await fillRequiredAddFields(screen, '200', 'Bob');
+
+    await fireEvent.press(screen.getByText('save'));
+
+    await waitFor(() => expect(mockSyncNotifications).toHaveBeenCalledTimes(1));
+    expect(create).toHaveBeenCalledTimes(1);
+    expect(SparkToast.show).toHaveBeenCalledWith(
+      'debt_created_toast',
+      'success',
+      expect.any(String),
+    );
+    expect(SparkToast.show).not.toHaveBeenCalledWith('error_saving_data', 'error');
   });
 
   it('mevcut açık borcun ayarlarını doldurur, vade ve zaman değişikliklerini exact update ile yazar', async () => {

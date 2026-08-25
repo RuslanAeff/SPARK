@@ -1,6 +1,13 @@
 {
   "notif_system_schedule_ready": "В Android запланировано уведомлений по датам: {count}",
   "notif_system_schedule_none": "Сейчас нет уведомлений по датам для планирования",
+  "notif_system_schedule_next": "Следующее уведомление: {date}, {time}",
+  "notif_system_schedule_error": "Не удалось подтвердить расписание уведомлений в Android. Восстановите расписание и повторите попытку.",
+  "notif_system_schedule_incomplete": "Не удалось подтвердить уведомления в Android: {count}. Расписание можно восстановить.",
+  "notif_system_schedule_repair": "Восстановить расписание",
+  "notif_system_alert_channel_blocked": "Канал «Оповещения S.P.A.R.K» отключён в системных настройках.",
+  "notif_system_alert_channel_degraded": "Канал «Оповещения S.P.A.R.K» работает без звука или с низким приоритетом.",
+  "notif_system_alert_channel_unknown": "Не удалось подтвердить системное состояние канала «Оповещения S.P.A.R.K».",
   "notif_system_schedule_expo_go": "Доставку при закрытом приложении нельзя проверить в Expo Go; протестируйте APK",
   "notif_goal_deadline_t": "Не забудьте о цели накопления",
   "notif_goal_deadline_b": "До срока цели накопления осталось {days} дн. Проверьте свой прогресс.",

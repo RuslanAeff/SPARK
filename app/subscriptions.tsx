@@ -38,7 +38,9 @@ import GlassDeleteModal from '../src/components/GlassDeleteModal';
 import { RecurringPaymentReminderDao } from '../src/db/recurringPaymentReminderDao';
 import type { RecurringPaymentReminder } from '../src/db/schema';
 import { formatDateFull } from '../src/utils/dateUtils';
+import { useNotifications } from '../src/context/NotificationsContext';
 import { useRefreshActions } from '../src/context/RefreshContext';
+import { syncNotificationsBestEffort } from '../src/notifications/syncNotificationsBestEffort';
 
 function daysUntil(dateIso: string): number {
   const target = new Date(dateIso + 'T12:00:00').getTime();
@@ -55,6 +57,7 @@ export default function SubscriptionsScreen() {
   const { t, language } = useLanguage();
   const { currency } = useCurrency();
   const { triggerRefresh } = useRefreshActions();
+  const { sync: syncNotifications } = useNotifications();
   const [items, setItems] = useState<SubscriptionWithDetails[]>([]);
   const [plans, setPlans] = useState<RecurringPaymentReminder[]>([]);
   const [loading, setLoading] = useState(true);
@@ -155,6 +158,7 @@ export default function SubscriptionsScreen() {
       );
       await refresh();
       triggerRefresh();
+      await syncNotificationsBestEffort(syncNotifications, 'recurring-plan-status');
     } catch (error) {
       if (__DEV__) console.warn('[recurring-plan] toggle', error);
       SparkToast.show(t('recurring_plan_save_error'), 'error');
@@ -173,6 +177,7 @@ export default function SubscriptionsScreen() {
       SparkToast.show(t('recurring_plan_deleted'), 'success');
       await refresh();
       triggerRefresh();
+      await syncNotificationsBestEffort(syncNotifications, 'recurring-plan-delete');
     } catch (error) {
       if (__DEV__) console.warn('[recurring-plan] remove', error);
       SparkToast.show(t('recurring_plan_save_error'), 'error');

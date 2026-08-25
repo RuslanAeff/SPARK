@@ -78,16 +78,27 @@ export interface AndroidReminderScheduleItem {
 
 export interface AndroidReminderScheduleResult {
   status: AndroidNotificationSetupStatus;
+  /** Geçerli ve gelecekteki kanonik desired-state öğesi sayısı. */
+  desiredCount: number;
+  /** Uzlaştırma sonunda native scheduled-request envanterinde doğrulanan öğe sayısı. */
+  verifiedCount: number;
   scheduledIds: string[];
   canceledIds: string[];
   failedScheduleIds: string[];
   failedCancelIds: string[];
 }
 
+export type AndroidAlertChannelStatus =
+  | 'ready'
+  | 'degraded'
+  | 'blocked'
+  | 'unknown';
+
 export interface AndroidFutureScheduleSummary {
   status: AndroidNotificationSetupStatus;
   count: number;
   nextTriggerAt: number | null;
+  alertChannelStatus: AndroidAlertChannelStatus;
 }
 
 const DEFAULT_CHANNEL_COPY: AndroidNotificationChannelCopy = {
@@ -154,6 +165,8 @@ function emptyReminderScheduleResult(
 ): AndroidReminderScheduleResult {
   return {
     status,
+    desiredCount: 0,
+    verifiedCount: 0,
     scheduledIds: [],
     canceledIds: [],
     failedScheduleIds: [],
@@ -453,13 +466,67 @@ function nativeFutureRequestMatches(
     && Number(data?.sparkReminderTriggerAt) === desired.triggerAt;
 }
 
-/** Ayarlar ekranı için salt-okunur native alarm özeti. Ledger tahmini yerine
- * Android'in gerçek scheduled envanterini kullanır. */
+async function scheduleAndroidFutureReminder(
+  Notifications: ExpoNotificationsModule,
+  nativeId: string,
+  desired: AndroidReminderScheduleItem,
+): Promise<void> {
+  const alert = attentionRequired(desired.severity);
+  await Notifications.scheduleNotificationAsync({
+    identifier: nativeId,
+    content: {
+      title: clampText(desired.title, 120),
+      body: clampText(desired.body, 280),
+      color: NOTIFICATION_ACCENT,
+      sound: alert ? 'default' : false,
+      priority: alert
+        ? Notifications.AndroidNotificationPriority.HIGH
+        : Notifications.AndroidNotificationPriority.DEFAULT,
+      data: {
+        sparkNotificationId: desired.notificationId,
+        sparkSeverity: desired.severity,
+        sparkReminderOwner: FUTURE_REMINDER_OWNER,
+        sparkReminderRevision: desired.revision,
+        sparkFeedRevision: desired.feedRevision,
+        sparkReminderTriggerAt: desired.triggerAt,
+        url: '/notifications',
+      },
+    },
+    trigger: {
+      type: Notifications.SchedulableTriggerInputTypes.DATE,
+      date: new Date(desired.triggerAt),
+      channelId: ANDROID_ALERTS_CHANNEL_ID,
+    },
+  });
+}
+
+function alertChannelStatus(
+  Notifications: ExpoNotificationsModule,
+  channel: import('expo-notifications').NotificationChannel | null,
+): AndroidAlertChannelStatus {
+  if (!channel) return 'unknown';
+  if (channel.importance === Notifications.AndroidImportance.NONE) return 'blocked';
+  if (channel.importance < Notifications.AndroidImportance.DEFAULT) return 'degraded';
+  return 'ready';
+}
+
+/** Ayarlar ekranı için salt-okunur native alarm özeti. SQLite ledger tahmini
+ * yerine Expo'nun Android'de tuttuğu kalıcı scheduled-request envanterini
+ * kullanır. Bu okuma AlarmManager kuyruğunun ayrıcalıklı bir dump'ı değildir. */
 export async function getAndroidFutureScheduleSummary(): Promise<AndroidFutureScheduleSummary> {
   const unsupported = canUseAndroidNotifications();
-  if (unsupported) return { status: unsupported, count: 0, nextTriggerAt: null };
+  if (unsupported) {
+    return {
+      status: unsupported,
+      count: 0,
+      nextTriggerAt: null,
+      alertChannelStatus: 'unknown',
+    };
+  }
   const status = await ensureAndroidNotificationSetup(false);
-  if (status !== 'ready') return { status, count: 0, nextTriggerAt: null };
+  if (status !== 'ready') {
+    return { status, count: 0, nextTriggerAt: null, alertChannelStatus: 'unknown' };
+  }
   try {
     const Notifications = await loadNotificationsModule();
     const owned = (await Notifications.getAllScheduledNotificationsAsync())
@@ -468,13 +535,29 @@ export async function getAndroidFutureScheduleSummary(): Promise<AndroidFutureSc
       .map((request) => Number(request.content.data?.sparkReminderTriggerAt))
       .filter((value) => Number.isFinite(value) && value > Date.now())
       .sort((left, right) => left - right);
+    let channelStatus: AndroidAlertChannelStatus = 'unknown';
+    try {
+      const channel = await Notifications.getNotificationChannelAsync(
+        ANDROID_ALERTS_CHANNEL_ID,
+      );
+      channelStatus = alertChannelStatus(Notifications, channel);
+    } catch {
+      // Envanter okunabildiği için plan sayısını koru; kanal tanısı ayrıca
+      // bilinmiyor olarak gösterilir ve bir sonraki açılışta yeniden denenir.
+    }
     return {
       status: 'ready',
       count: triggerTimes.length,
       nextTriggerAt: triggerTimes[0] ?? null,
+      alertChannelStatus: channelStatus,
     };
   } catch {
-    return { status: 'error', count: 0, nextTriggerAt: null };
+    return {
+      status: 'error',
+      count: 0,
+      nextTriggerAt: null,
+      alertChannelStatus: 'unknown',
+    };
   }
 }
 
@@ -506,7 +589,8 @@ export async function reconcileAndroidReminderSchedules(
     try {
       allScheduled = await Notifications.getAllScheduledNotificationsAsync();
     } catch {
-      // Native gerçek okunamazsa yalnız yerel ledger'a güvenip alarm silmek veya
+      // Native scheduled-request envanteri okunamazsa yalnız yerel ledger'a
+      // güvenip alarm silmek veya
       // çoğaltmak güvenli değildir.
       return emptyReminderScheduleResult('error');
     }
@@ -523,14 +607,15 @@ export async function reconcileAndroidReminderSchedules(
       // Feed kanonik bağlamı okunamazsa fired tray'i yanlışlıkla stale sayma.
       return emptyReminderScheduleResult('error');
     }
-    const desiredByNativeId = new Map<string, AndroidReminderScheduleItem>();
-    if (setupStatus === 'ready') {
-      for (const item of desiredItems) {
-        if (!validReminderScheduleItem(item, now)) continue;
-        const nativeId = futureReminderIdentifier(item.scheduleId);
-        if (!desiredByNativeId.has(nativeId)) desiredByNativeId.set(nativeId, item);
-      }
+    const validDesiredByNativeId = new Map<string, AndroidReminderScheduleItem>();
+    for (const item of desiredItems) {
+      if (!validReminderScheduleItem(item, now)) continue;
+      const nativeId = futureReminderIdentifier(item.scheduleId);
+      if (!validDesiredByNativeId.has(nativeId)) validDesiredByNativeId.set(nativeId, item);
     }
+    const desiredByNativeId = setupStatus === 'ready'
+      ? validDesiredByNativeId
+      : new Map<string, AndroidReminderScheduleItem>();
 
     const ownedActual = new Map<string, import('expo-notifications').NotificationRequest>();
     for (const request of allScheduled) {
@@ -538,6 +623,7 @@ export async function reconcileAndroidReminderSchedules(
     }
 
     const result = emptyReminderScheduleResult(setupStatus);
+    result.desiredCount = validDesiredByNativeId.size;
     const blockedNativeIds = new Set<string>();
     const dismissedNativeIds = new Set<string>();
     const finalRecords: Record<string, AndroidReminderScheduleRecord> = {};
@@ -564,53 +650,119 @@ export async function reconcileAndroidReminderSchedules(
       }
     }
 
-    const newlyScheduledNativeIds: string[] = [];
+    const attemptedScheduleNativeIds = new Set<string>();
+    const newlyScheduledNativeIds = new Set<string>();
+    const recordFailedCancel = (nativeId: string): void => {
+      const scheduleId = nativeId.slice(FUTURE_REMINDER_PREFIX.length);
+      if (!result.failedCancelIds.includes(scheduleId)) {
+        result.failedCancelIds.push(scheduleId);
+      }
+    };
+    const rollbackAttemptedSchedules = async (): Promise<void> => {
+      for (const nativeId of attemptedScheduleNativeIds) {
+        try {
+          await Notifications.cancelScheduledNotificationAsync(nativeId);
+        } catch {
+          // Envanter doğrulaması veya ledger commit'i başarısızken native
+          // yan etkinin kaldığı kesin değildir. Deterministik kimliği hata
+          // listesinde koru; sonraki actual-vs-desired sync yeniden uzlaştırır.
+          recordFailedCancel(nativeId);
+        }
+      }
+    };
+    const failUnverifiedReconciliation = async (): Promise<AndroidReminderScheduleResult> => {
+      await rollbackAttemptedSchedules();
+      result.status = 'error';
+      result.verifiedCount = 0;
+      result.scheduledIds = [];
+      result.failedScheduleIds = [...new Set(
+        [...validDesiredByNativeId.values()].map((item) => item.scheduleId),
+      )];
+      return result;
+    };
     let ownedFutureCount = ownedActual.size;
     for (const [nativeId, desired] of desiredByNativeId) {
       if (blockedNativeIds.has(nativeId)) continue;
       const actual = ownedActual.get(nativeId);
       if (!actual) {
-        if (ownedFutureCount >= MAX_OWNED_FUTURE_REMINDERS) {
-          result.failedScheduleIds.push(desired.scheduleId);
-          continue;
-        }
-        const alert = attentionRequired(desired.severity);
+        if (ownedFutureCount >= MAX_OWNED_FUTURE_REMINDERS) continue;
+        attemptedScheduleNativeIds.add(nativeId);
         try {
-          await Notifications.scheduleNotificationAsync({
-            identifier: nativeId,
-            content: {
-              title: clampText(desired.title, 120),
-              body: clampText(desired.body, 280),
-              color: NOTIFICATION_ACCENT,
-              sound: alert ? 'default' : false,
-              priority: alert
-                ? Notifications.AndroidNotificationPriority.HIGH
-                : Notifications.AndroidNotificationPriority.DEFAULT,
-              data: {
-                sparkNotificationId: desired.notificationId,
-                sparkSeverity: desired.severity,
-                sparkReminderOwner: FUTURE_REMINDER_OWNER,
-                sparkReminderRevision: desired.revision,
-                sparkFeedRevision: desired.feedRevision,
-                sparkReminderTriggerAt: desired.triggerAt,
-                url: '/notifications',
-              },
-            },
-            trigger: {
-              type: Notifications.SchedulableTriggerInputTypes.DATE,
-              date: new Date(desired.triggerAt),
-              channelId: ANDROID_ALERTS_CHANNEL_ID,
-            },
-          });
-          newlyScheduledNativeIds.push(nativeId);
+          await scheduleAndroidFutureReminder(Notifications, nativeId, desired);
+          newlyScheduledNativeIds.add(nativeId);
           ownedFutureCount += 1;
-          result.scheduledIds.push(desired.scheduleId);
         } catch {
-          result.failedScheduleIds.push(desired.scheduleId);
-          continue;
+          // Tek seferlik doğrulama turu eksik isteği aynı deterministik kimlikle
+          // yeniden deneyecek. İlk native exception kalıcı kabul edilmez.
         }
       }
+    }
 
+    // `scheduleNotificationAsync` resolve olması, bazı OEM/native store hata
+    // koşullarında alarmın gerçekten envantere girdiğini kanıtlamaz. Yazımdan
+    // sonra Expo'nun kalıcı native listesini oku; eksikleri aynı kimlikle bir kez
+    // daha kur ve tekrar doğrula. Deterministik identifier retry'ı çoğaltmaz.
+    const readOwnedInventory = async (): Promise<
+      Map<string, import('expo-notifications').NotificationRequest> | null
+    > => {
+      try {
+        const requests = await Notifications.getAllScheduledNotificationsAsync();
+        return new Map(
+          requests
+            .filter(ownedFutureReminderRequest)
+            .map((request) => [request.identifier, request]),
+        );
+      } catch {
+        return null;
+      }
+    };
+
+    let verifiedActual = await readOwnedInventory();
+    if (!verifiedActual) {
+      return failUnverifiedReconciliation();
+    }
+
+    const missingAfterFirstPass = [...desiredByNativeId.entries()].filter(
+      ([nativeId, desired]) => {
+        const request = verifiedActual?.get(nativeId);
+        return !request || !nativeFutureRequestMatches(request, desired);
+      },
+    );
+    if (missingAfterFirstPass.length > 0) {
+      let verifiedOwnedCount = verifiedActual.size;
+      for (const [nativeId, desired] of missingAfterFirstPass) {
+        if (blockedNativeIds.has(nativeId)
+          || verifiedOwnedCount >= MAX_OWNED_FUTURE_REMINDERS) continue;
+        attemptedScheduleNativeIds.add(nativeId);
+        try {
+          await scheduleAndroidFutureReminder(Notifications, nativeId, desired);
+          newlyScheduledNativeIds.add(nativeId);
+          verifiedOwnedCount += 1;
+        } catch {
+          // İkinci deneme de başarısızsa final doğrulama failedScheduleIds'e yazar.
+        }
+      }
+      const afterRetry = await readOwnedInventory();
+      if (!afterRetry) {
+        return failUnverifiedReconciliation();
+      }
+      verifiedActual = afterRetry;
+    }
+
+    // Cleanup kararları da ilk snapshot yerine son doğrulanmış native listeyi
+    // kullanır. Böylece schedule çağrısından sonra kaybolan kayıt ledger'da
+    // başarılı/baseline edilmiş görünmez.
+    ownedActual.clear();
+    for (const [nativeId, request] of verifiedActual) ownedActual.set(nativeId, request);
+
+    for (const [nativeId, desired] of desiredByNativeId) {
+      const actual = verifiedActual.get(nativeId);
+      if (!actual || !nativeFutureRequestMatches(actual, desired)) {
+        result.failedScheduleIds.push(desired.scheduleId);
+        continue;
+      }
+      result.verifiedCount += 1;
+      if (newlyScheduledNativeIds.has(nativeId)) result.scheduledIds.push(desired.scheduleId);
       const previous = previousState?.records[desired.scheduleId];
       finalRecords[desired.scheduleId] = {
         nativeIdentifier: nativeId,
@@ -672,17 +824,14 @@ export async function reconcileAndroidReminderSchedules(
       // Native schedule başarılı ama iki ledger'ın ortak commit'i başarısızsa
       // yeni OS yan etkisini geri al. Stale iptal edilen kayıtlar sonraki sync'te
       // desired kaynaktan yeniden kurulabilir.
-      for (const nativeId of newlyScheduledNativeIds) {
-        try {
-          await Notifications.cancelScheduledNotificationAsync(nativeId);
-        } catch {
-          // Deterministik ID + actual-vs-desired sorgusu sonraki retry korumasıdır.
-        }
-      }
-      result.failedScheduleIds.push(
-        ...result.scheduledIds.filter((id) => !result.failedScheduleIds.includes(id)),
-      );
+      await rollbackAttemptedSchedules();
+      // Hermes ES2025 iterator helper'larını garanti etmez; önce diziye aç.
+      result.failedScheduleIds = [...new Set([
+        ...result.failedScheduleIds,
+        ...[...validDesiredByNativeId.values()].map((item) => item.scheduleId),
+      ])];
       result.scheduledIds = [];
+      result.verifiedCount = 0;
       result.status = 'error';
     }
 
@@ -726,6 +875,41 @@ export async function dismissAndroidSystemNotifications(
         delete state.records[id];
         stateChanged = true;
       }
+    }
+    if (stateChanged) await saveAndroidDeliveryState(state);
+  });
+}
+
+/**
+ * Eski sürümlerin uygulama açılışında yanlışlıkla ürettiği anlık
+ * schedule kopyalarını temizler. Aynı feed kimliğine bağlı gerçek future
+ * alarm/tray handle'ına dokunmaz; kullanıcının meşru zamanlı uyarısı
+ * uygulama açıldı diye panelden kaybolmamalıdır.
+ */
+export async function dismissAndroidImmediateSystemNotifications(
+  ids: readonly string[],
+): Promise<void> {
+  const unsupported = canUseAndroidNotifications();
+  if (unsupported || ids.length === 0) return;
+
+  const Notifications = await loadNotificationsModule();
+  await enqueueNotificationMutation(async () => {
+    const state = await loadAndroidDeliveryStateStrict();
+    if (!state) return;
+    let stateChanged = false;
+    for (const id of new Set(ids)) {
+      const nativeIdentifier = state.records[id]?.nativeIdentifier;
+      if (!nativeIdentifier || nativeIdentifier.startsWith(FUTURE_REMINDER_PREFIX)) continue;
+      try {
+        await Notifications.dismissNotificationAsync(nativeIdentifier);
+      } catch {
+        // Panel kopyasının kaldığı belirsizse handle'ı koru; bir sonraki
+        // startup/resume geçiş temizliğini aynı kimlikle yeniden dener.
+        continue;
+      }
+      delete state.records[id];
+      sessionScheduledIds.delete(id);
+      stateChanged = true;
     }
     if (stateChanged) await saveAndroidDeliveryState(state);
   });

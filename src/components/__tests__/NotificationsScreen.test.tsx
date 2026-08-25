@@ -4,6 +4,10 @@ import { Linking, Platform } from 'react-native';
 
 import NotificationsScreen from '../../../app/notifications';
 import type { InAppNotification } from '../../notifications/types';
+import type {
+  AndroidFutureScheduleSummary,
+  AndroidNotificationSetupStatus,
+} from '../../services/androidNotificationsSetup';
 
 const mockMarkRead = jest.fn(async () => undefined);
 const mockMarkAllRead = jest.fn(async () => undefined);
@@ -17,7 +21,19 @@ const mockDismiss = jest.fn(async (id: string) => dismissResult([id]));
 const mockDismissMany = jest.fn(async (ids: readonly string[]) => dismissResult(ids));
 const mockSetMute = jest.fn(async () => undefined);
 const mockSync = jest.fn(async () => undefined);
-const mockEnsureAndroidNotificationSetup = jest.fn(async () => 'denied');
+const mockEnsureAndroidNotificationSetup: jest.Mock<
+  Promise<AndroidNotificationSetupStatus>,
+  []
+> = jest.fn(async () => 'denied');
+const mockGetAndroidFutureScheduleSummary: jest.Mock<
+  Promise<AndroidFutureScheduleSummary>,
+  []
+> = jest.fn(async (): Promise<AndroidFutureScheduleSummary> => ({
+  status: await mockEnsureAndroidNotificationSetup(),
+  count: 0,
+  nextTriggerAt: null,
+  alertChannelStatus: 'unknown',
+}));
 
 const receiptNotification: InAppNotification = {
   id: 'receipt-visual-test',
@@ -76,6 +92,13 @@ let mockNotifications = {
   mutes: {},
   sync: mockSync,
   syncing: false,
+  nativeScheduleHealth: null as null | {
+    status: 'ready' | 'error';
+    desiredCount: number;
+    verifiedCount: number;
+    failedScheduleCount: number;
+    failedCancelCount: number;
+  },
 };
 
 jest.mock('expo-router', () => ({
@@ -120,6 +143,15 @@ jest.mock('../../i18n/LanguageContext', () => ({
         notif_filter_system: 'Sistem',
         notif_mute_debt: 'Borç hatırlatmaları',
         notif_mute_payment_plan: 'Ödeme planı hatırlatmaları',
+        notif_system_permission_ready: 'Telefon bildirimleri açık',
+        notif_system_schedule_ready: '{count} tarihli uyarı Android’e planlandı',
+        notif_system_schedule_next: 'Sıradaki uyarı: {date}, {time}',
+        notif_system_schedule_error: 'Tarih planları Android’de doğrulanamadı. Planları yeniden onar.',
+        notif_system_schedule_incomplete: '{count} uyarı doğrulanamadı',
+        notif_system_schedule_repair: 'Planları onar',
+        notif_system_alert_channel_blocked: 'Uyarılar kanalı sistemde kapalı',
+        notif_system_alert_channel_unknown: 'Uyarı kanalının sistem durumu doğrulanamadı',
+        notif_open_system_settings: 'Ayarları aç',
         notif_receipt_saved_t: '{vendor}',
         notif_receipt_saved_b: 'Fiş başarıyla işlendi ve işlem kaydedildi.',
         test_budget_title: 'Bütçe uyarısı',
@@ -146,11 +178,7 @@ jest.mock('../../context/NotificationsContext', () => ({
 
 jest.mock('../../services/androidNotificationsSetup', () => ({
   ensureAndroidNotificationSetup: () => mockEnsureAndroidNotificationSetup(),
-  getAndroidFutureScheduleSummary: async () => ({
-    status: await mockEnsureAndroidNotificationSetup(),
-    count: 0,
-    nextTriggerAt: null,
-  }),
+  getAndroidFutureScheduleSummary: () => mockGetAndroidFutureScheduleSummary(),
 }));
 
 jest.mock('../BottomSheetModal', () => ({
@@ -212,10 +240,18 @@ jest.mock('../GlassDeleteModal', () => {
 describe('NotificationsScreen', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    mockEnsureAndroidNotificationSetup.mockResolvedValue('denied');
+    mockGetAndroidFutureScheduleSummary.mockImplementation(async () => ({
+      status: await mockEnsureAndroidNotificationSetup(),
+      count: 0,
+      nextTriggerAt: null,
+      alertChannelStatus: 'unknown',
+    }));
     mockNotifications = {
       ...mockNotifications,
       feed: [receiptNotification, budgetNotification],
       unreadCount: 1,
+      nativeScheduleHealth: null,
     };
   });
 
@@ -237,6 +273,148 @@ describe('NotificationsScreen', () => {
       expect(openSettings).toHaveBeenCalledTimes(1);
     } finally {
       openSettings.mockRestore();
+      if (originalOs) Object.defineProperty(Platform, 'OS', originalOs);
+    }
+  });
+
+  it('shows channel health and a repair action when native coverage is incomplete', async () => {
+    const originalOs = Object.getOwnPropertyDescriptor(Platform, 'OS');
+    Object.defineProperty(Platform, 'OS', { configurable: true, value: 'android' });
+    mockEnsureAndroidNotificationSetup.mockResolvedValue('ready');
+    mockGetAndroidFutureScheduleSummary.mockResolvedValue({
+      status: 'ready',
+      count: 1,
+      nextTriggerAt: new Date(2026, 7, 27, 9, 0).getTime(),
+      alertChannelStatus: 'blocked',
+    });
+    mockNotifications = {
+      ...mockNotifications,
+      nativeScheduleHealth: {
+        status: 'ready',
+        desiredCount: 2,
+        verifiedCount: 1,
+        failedScheduleCount: 1,
+        failedCancelCount: 0,
+      },
+    };
+
+    try {
+      const screen = await render(<NotificationsScreen />);
+      await fireEvent.press(screen.getByTestId('notifications-preferences'));
+
+      await waitFor(() => {
+        expect(screen.getByText(/Uyarılar kanalı sistemde kapalı/)).toBeTruthy();
+        expect(screen.getByTestId('notifications-open-system-settings')).toBeTruthy();
+        expect(screen.getByTestId('notifications-repair-schedules')).toBeTruthy();
+      });
+
+      await fireEvent.press(screen.getByTestId('notifications-repair-schedules'));
+      await waitFor(() => expect(mockSync).toHaveBeenCalledTimes(2));
+    } finally {
+      if (originalOs) Object.defineProperty(Platform, 'OS', originalOs);
+    }
+  });
+
+  it('shows a scheduler reconciliation error instead of a healthy status', async () => {
+    const originalOs = Object.getOwnPropertyDescriptor(Platform, 'OS');
+    Object.defineProperty(Platform, 'OS', { configurable: true, value: 'android' });
+    mockEnsureAndroidNotificationSetup.mockResolvedValue('ready');
+    mockGetAndroidFutureScheduleSummary.mockResolvedValue({
+      status: 'ready',
+      count: 1,
+      nextTriggerAt: new Date(2026, 7, 27, 9, 0).getTime(),
+      alertChannelStatus: 'ready',
+    });
+    mockNotifications = {
+      ...mockNotifications,
+      nativeScheduleHealth: {
+        status: 'error',
+        desiredCount: 2,
+        verifiedCount: 0,
+        failedScheduleCount: 0,
+        failedCancelCount: 0,
+      },
+    };
+
+    try {
+      const screen = await render(<NotificationsScreen />);
+      await fireEvent.press(screen.getByTestId('notifications-preferences'));
+
+      await waitFor(() => {
+        expect(screen.getByText(
+          /Tarih planları Android’de doğrulanamadı\. Planları yeniden onar\./,
+        )).toBeTruthy();
+        expect(screen.getByTestId('notifications-repair-schedules')).toBeTruthy();
+      });
+    } finally {
+      if (originalOs) Object.defineProperty(Platform, 'OS', originalOs);
+    }
+  });
+
+  it('offers retry and system settings when the native inventory summary fails', async () => {
+    const originalOs = Object.getOwnPropertyDescriptor(Platform, 'OS');
+    Object.defineProperty(Platform, 'OS', { configurable: true, value: 'android' });
+    mockGetAndroidFutureScheduleSummary.mockResolvedValue({
+      status: 'error',
+      count: 0,
+      nextTriggerAt: null,
+      alertChannelStatus: 'unknown',
+    });
+
+    try {
+      const screen = await render(<NotificationsScreen />);
+      await fireEvent.press(screen.getByTestId('notifications-preferences'));
+
+      await waitFor(() => {
+        expect(screen.getByText(
+          /Tarih planları Android’de doğrulanamadı\. Planları yeniden onar\./,
+        )).toBeTruthy();
+        expect(screen.getByTestId('notifications-open-system-settings')).toBeTruthy();
+        expect(screen.getByTestId('notifications-repair-schedules')).toBeTruthy();
+      });
+    } finally {
+      if (originalOs) Object.defineProperty(Platform, 'OS', originalOs);
+    }
+  });
+
+  it('does not let a stale native status request overwrite a newer modal session', async () => {
+    const originalOs = Object.getOwnPropertyDescriptor(Platform, 'OS');
+    Object.defineProperty(Platform, 'OS', { configurable: true, value: 'android' });
+    mockEnsureAndroidNotificationSetup.mockResolvedValue('ready');
+    let resolveFirst!: (value: AndroidFutureScheduleSummary) => void;
+    mockGetAndroidFutureScheduleSummary
+      .mockImplementationOnce(() => new Promise((resolve) => {
+        resolveFirst = resolve;
+      }))
+      .mockResolvedValueOnce({
+        status: 'ready',
+        count: 0,
+        nextTriggerAt: null,
+        alertChannelStatus: 'blocked',
+      });
+
+    try {
+      const screen = await render(<NotificationsScreen />);
+      await fireEvent.press(screen.getByTestId('notifications-preferences'));
+      await waitFor(() => expect(mockGetAndroidFutureScheduleSummary).toHaveBeenCalledTimes(1));
+      await fireEvent.press(screen.getByTestId('notifications-preferences-backdrop'));
+      await fireEvent.press(screen.getByTestId('notifications-preferences'));
+
+      await waitFor(() => {
+        expect(mockGetAndroidFutureScheduleSummary).toHaveBeenCalledTimes(2);
+        expect(screen.getByText(/Uyarılar kanalı sistemde kapalı/)).toBeTruthy();
+      });
+
+      resolveFirst({
+        status: 'ready',
+        count: 1,
+        nextTriggerAt: Date.now() + 60_000,
+        alertChannelStatus: 'ready',
+      });
+      await Promise.resolve();
+
+      expect(screen.getByText(/Uyarılar kanalı sistemde kapalı/)).toBeTruthy();
+    } finally {
       if (originalOs) Object.defineProperty(Platform, 'OS', originalOs);
     }
   });

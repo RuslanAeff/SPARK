@@ -179,12 +179,16 @@ export default function NotificationsScreen() {
     mutes,
     sync,
     syncing,
+    nativeScheduleHealth,
   } = useNotifications();
   const [filter, setFilter] = useState<FilterKey>('all');
   const [muteModal, setMuteModal] = useState(false);
   const [systemNotificationStatus, setSystemNotificationStatus] =
     useState<AndroidNotificationSetupStatus | null>(null);
   const [futureScheduleCount, setFutureScheduleCount] = useState(0);
+  const [futureNextTriggerAt, setFutureNextTriggerAt] = useState<number | null>(null);
+  const [alertChannelStatus, setAlertChannelStatus] =
+    useState<'ready' | 'degraded' | 'blocked' | 'unknown'>('unknown');
   const [detailNotifId, setDetailNotifId] = useState<string | null>(null);
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -192,24 +196,122 @@ export default function NotificationsScreen() {
   const [deleting, setDeleting] = useState(false);
   const openSwipeRef = useRef<SwipeableMethods | null>(null);
   const deletingRef = useRef(false);
+  const systemStatusRequestRef = useRef(0);
+
+  const refreshSystemNotificationStatus = useCallback(async () => {
+    const requestId = systemStatusRequestRef.current + 1;
+    systemStatusRequestRef.current = requestId;
+    // Önce desired-state'i yenile; ardından sayı SQLite ledger tahmini değil
+    // Expo'nun Android'de kalıcı tuttuğu scheduled-request envanteri olsun.
+    try {
+      await sync();
+      const summary = await getAndroidFutureScheduleSummary();
+      if (requestId !== systemStatusRequestRef.current) return;
+      setSystemNotificationStatus(summary.status);
+      setFutureScheduleCount(summary.count);
+      setFutureNextTriggerAt(summary.nextTriggerAt);
+      setAlertChannelStatus(summary.alertChannelStatus);
+    } catch (error) {
+      if (requestId !== systemStatusRequestRef.current) return;
+      setSystemNotificationStatus('error');
+      throw error;
+    }
+  }, [sync]);
+
+  const closeMuteModal = useCallback(() => {
+    // Kapanan modalın gecikmiş native sorgusu sonraki açılışın tanısını ezmesin.
+    systemStatusRequestRef.current += 1;
+    setMuteModal(false);
+  }, []);
 
   useEffect(() => {
     if (!muteModal || Platform.OS !== 'android') return;
-    let cancelled = false;
-    void (async () => {
-      // Ayarlar açıldığında önce desired-state'i yenile; ardından kullanıcının
-      // gördüğü sayı ledger tahmini değil Android'in gerçek alarm envanteri olsun.
-      await sync();
-      const summary = await getAndroidFutureScheduleSummary();
-      if (!cancelled) {
-        setSystemNotificationStatus(summary.status);
-        setFutureScheduleCount(summary.count);
-      }
-    })();
+    void refreshSystemNotificationStatus().catch(() => undefined);
     return () => {
-      cancelled = true;
+      systemStatusRequestRef.current += 1;
     };
-  }, [muteModal, sync]);
+  }, [muteModal, refreshSystemNotificationStatus]);
+
+  const nextScheduleLabel = useMemo(() => {
+    if (futureNextTriggerAt == null) return '';
+    const date = new Date(futureNextTriggerAt);
+    if (Number.isNaN(date.getTime())) return '';
+    const ymd = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+    const time = `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
+    return t('notif_system_schedule_next', { date: formatDate(ymd, t), time });
+  }, [futureNextTriggerAt, t]);
+
+  const scheduleFailureCount = (nativeScheduleHealth?.failedScheduleCount ?? 0)
+    + (nativeScheduleHealth?.failedCancelCount ?? 0);
+  const nativeScheduleError = nativeScheduleHealth?.status === 'error';
+  const scheduleCoverageMissing = nativeScheduleHealth?.status === 'ready'
+    && nativeScheduleHealth.desiredCount > nativeScheduleHealth.verifiedCount;
+  const channelNeedsAttention = alertChannelStatus !== 'ready';
+  const canRepairSchedules = (systemNotificationStatus === 'ready'
+      || systemNotificationStatus === 'error')
+    && (systemNotificationStatus === 'error'
+      || nativeScheduleError
+      || scheduleFailureCount > 0
+      || scheduleCoverageMissing);
+  const systemNotificationHealthy = systemNotificationStatus === 'ready'
+    && !nativeScheduleError
+    && !channelNeedsAttention
+    && !canRepairSchedules;
+  const systemNotificationDescription = useMemo(() => {
+    if (systemNotificationStatus === 'expo_go') {
+      return t('notif_system_schedule_expo_go');
+    }
+    if (systemNotificationStatus === 'error') {
+      return t('notif_system_schedule_error');
+    }
+
+    const permissionLine = t(
+      systemNotificationStatus === 'ready'
+        ? 'notif_system_permission_ready'
+        : 'notif_system_permission_disabled',
+    );
+    if (systemNotificationStatus !== 'ready') return permissionLine;
+
+    return [
+      permissionLine,
+      nativeScheduleError
+        ? t('notif_system_schedule_error')
+        : t(
+            futureScheduleCount > 0
+              ? 'notif_system_schedule_ready'
+              : 'notif_system_schedule_none',
+            { count: String(futureScheduleCount) },
+          ),
+      nextScheduleLabel,
+      alertChannelStatus === 'blocked'
+        ? t('notif_system_alert_channel_blocked')
+        : alertChannelStatus === 'degraded'
+          ? t('notif_system_alert_channel_degraded')
+          : alertChannelStatus === 'unknown'
+            ? t('notif_system_alert_channel_unknown')
+            : '',
+      (scheduleFailureCount > 0 || scheduleCoverageMissing)
+        ? t('notif_system_schedule_incomplete', {
+            count: String(Math.max(
+              scheduleFailureCount,
+              (nativeScheduleHealth?.desiredCount ?? 0)
+                - (nativeScheduleHealth?.verifiedCount ?? 0),
+            )),
+          })
+        : '',
+    ].filter(Boolean).join('\n');
+  }, [
+    alertChannelStatus,
+    futureScheduleCount,
+    nativeScheduleError,
+    nativeScheduleHealth?.desiredCount,
+    nativeScheduleHealth?.verifiedCount,
+    nextScheduleLabel,
+    scheduleCoverageMissing,
+    scheduleFailureCount,
+    systemNotificationStatus,
+    t,
+  ]);
 
   const closeOpenSwipe = useCallback(() => {
     openSwipeRef.current?.close();
@@ -712,9 +814,13 @@ export default function NotificationsScreen() {
         presentationStyle="overFullScreen"
         statusBarTranslucent
         navigationBarTranslucent
-        onRequestClose={() => setMuteModal(false)}
+        onRequestClose={closeMuteModal}
       >
-        <Pressable style={styles.modalOverlay} onPress={() => setMuteModal(false)}>
+        <Pressable
+          style={styles.modalOverlay}
+          onPress={closeMuteModal}
+          testID="notifications-preferences-backdrop"
+        >
           <Pressable style={styles.modalSheet} onPress={(e) => e.stopPropagation()}>
             <Text style={styles.modalTitle} accessibilityRole="header">
               {t('notif_prefs_title')}
@@ -732,36 +838,30 @@ export default function NotificationsScreen() {
                   <View
                     style={[
                       styles.systemNotificationIcon,
-                      systemNotificationStatus === 'ready'
+                      systemNotificationHealthy
                         ? styles.systemNotificationIconReady
                         : styles.systemNotificationIconDisabled,
                     ]}
                   >
                     <MaterialCommunityIcons
-                      name={systemNotificationStatus === 'ready' ? 'bell-check-outline' : 'bell-off-outline'}
+                      name={systemNotificationHealthy
+                        ? 'bell-check-outline'
+                        : 'bell-alert-outline'}
                       size={18}
-                      color={systemNotificationStatus === 'ready' ? Colors.primary : Colors.warning}
+                      color={systemNotificationHealthy
+                        ? Colors.primary
+                        : Colors.warning}
                     />
                   </View>
-                  <Text style={styles.systemNotificationText}>
-                    {systemNotificationStatus === 'expo_go'
-                      ? t('notif_system_schedule_expo_go')
-                      : `${t(
-                          systemNotificationStatus === 'ready'
-                            ? 'notif_system_permission_ready'
-                            : 'notif_system_permission_disabled',
-                        )}\n${systemNotificationStatus === 'ready'
-                          ? t(
-                              futureScheduleCount > 0
-                                ? 'notif_system_schedule_ready'
-                                : 'notif_system_schedule_none',
-                              { count: String(futureScheduleCount) },
-                            )
-                          : ''}`.trim()}
-                  </Text>
-                  {systemNotificationStatus !== 'ready'
-                    && systemNotificationStatus !== 'expo_go' && (
-                    <Pressable
+                  <View style={styles.systemNotificationContent}>
+                    <Text style={styles.systemNotificationText}>
+                      {systemNotificationDescription}
+                    </Text>
+                    <View style={styles.systemNotificationActions}>
+                    {(systemNotificationStatus !== 'ready'
+                      || channelNeedsAttention)
+                      && systemNotificationStatus !== 'expo_go' && (
+                      <Pressable
                       onPress={() => {
                         void Linking.openSettings().catch(() => {
                           SparkToast.show(t('operation_failed'), 'error');
@@ -778,8 +878,31 @@ export default function NotificationsScreen() {
                       <Text style={styles.systemNotificationSettingsText}>
                         {t('notif_open_system_settings')}
                       </Text>
-                    </Pressable>
-                  )}
+                      </Pressable>
+                    )}
+                    {canRepairSchedules && (
+                      <Pressable
+                        disabled={syncing}
+                        onPress={() => {
+                          void refreshSystemNotificationStatus().catch(() => {
+                            SparkToast.show(t('operation_failed'), 'error');
+                          });
+                        }}
+                        style={({ pressed }) => [
+                          styles.systemNotificationSettingsBtn,
+                          pressed && styles.systemNotificationSettingsBtnPressed,
+                        ]}
+                        accessibilityRole="button"
+                        accessibilityLabel={t('notif_system_schedule_repair')}
+                        testID="notifications-repair-schedules"
+                      >
+                        <Text style={styles.systemNotificationSettingsText}>
+                          {t('notif_system_schedule_repair')}
+                        </Text>
+                      </Pressable>
+                    )}
+                    </View>
+                  </View>
                 </View>
               )}
             {MUTE_CHANNELS.map(({ key, labelKey }) => (
@@ -804,7 +927,7 @@ export default function NotificationsScreen() {
             ))}
             <Pressable
               style={({ pressed }) => [styles.modalPrimaryBtn, pressed && styles.modalPrimaryBtnPressed]}
-              onPress={() => setMuteModal(false)}
+              onPress={closeMuteModal}
               accessibilityRole="button"
               accessibilityLabel={t('ok')}
             >
@@ -1283,13 +1406,21 @@ const getStyles = (isDark: boolean) => {
     systemNotificationIconDisabled: {
       backgroundColor: Colors.warning + '18',
     },
-    systemNotificationText: {
+    systemNotificationContent: {
       flex: 1,
       minWidth: 0,
+      gap: Spacing.xs,
+    },
+    systemNotificationText: {
       color: Colors.textSecondary,
       fontFamily: FontFamily.medium,
       fontSize: 12,
       lineHeight: 17,
+    },
+    systemNotificationActions: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: Spacing.xs,
     },
     systemNotificationSettingsBtn: {
       minHeight: 34,

@@ -24,8 +24,10 @@ import { useRefresh } from './RefreshContext';
 import { useLanguage } from '../i18n/LanguageContext';
 import {
   deliverAndroidSystemNotifications,
+  dismissAndroidImmediateSystemNotifications,
   dismissAndroidSystemNotifications,
   isAndroidNotificationDeliveryActivated,
+  type AndroidNotificationSetupStatus,
 } from '../services/androidNotificationsSetup';
 import {
   localizeNotificationParams,
@@ -35,7 +37,18 @@ import { isNotificationMuted } from '../notifications/channels';
 import { RecurringPaymentReminderDao } from '../db/recurringPaymentReminderDao';
 import { getToday } from '../utils/dateUtils';
 import { syncAndroidReminderSchedules } from '../services/reminderScheduler';
-import { reminderNotificationFamilyKeyFromId } from '../notifications/reminderNotificationFeed';
+import {
+  isScheduledReminderCatchUpNotificationId,
+  reminderNotificationFamilyKeyFromId,
+} from '../notifications/reminderNotificationFeed';
+
+export interface NativeReminderScheduleHealth {
+  status: AndroidNotificationSetupStatus;
+  desiredCount: number;
+  verifiedCount: number;
+  failedScheduleCount: number;
+  failedCancelCount: number;
+}
 
 interface NotificationsContextValue {
   feed: InAppNotification[];
@@ -49,6 +62,7 @@ interface NotificationsContextValue {
   dismissMany: (ids: readonly string[]) => Promise<DismissNotificationsResult>;
   setMute: (channel: NotificationMuteChannel, muted: boolean) => Promise<void>;
   mutes: Partial<Record<NotificationMuteChannel, boolean>>;
+  nativeScheduleHealth: NativeReminderScheduleHealth | null;
 }
 
 const NotificationsContext = createContext<NotificationsContextValue | null>(null);
@@ -60,6 +74,8 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
   const [unreadCount, setUnreadCount] = useState(0);
   const [syncing, setSyncing] = useState(false);
   const [mutes, setMutes] = useState<Partial<Record<NotificationMuteChannel, boolean>>>({});
+  const [nativeScheduleHealth, setNativeScheduleHealth] =
+    useState<NativeReminderScheduleHealth | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingSyncCountRef = useRef(0);
   const syncTailRef = useRef<Promise<void>>(Promise.resolve());
@@ -116,32 +132,70 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
         const nativeFeed = delivery.feed.filter(
           (item) => !isNotificationMuted(item.id, deliveryMutes),
         );
-        const nativeCreatedIds = delivery.createdIds.filter(
-          (id) => !isNotificationMuted(id, deliveryMutes),
-        );
-        const suppressedIds = delivery.feed
-          .filter((item) => isNotificationMuted(item.id, deliveryMutes))
+        // İlk pre-reveal sync zamanlı aileden bir catch-up kaydı oluşturmuş olabilir; reveal sonrası
+        // `createdIds` artık boş olsa da iki dakikalık tazelik köprüsü onu yeniden
+        // tray'e taşımamalıdır. Bu yüzden yalnız yeni ID'leri değil kanonik feed'de
+        // yaşayan tüm overdue catch-up kayıtlarını baseline et.
+        const catchUpIds = delivery.feed
+          .filter((item) => isScheduledReminderCatchUpNotificationId(item.id))
           .map((item) => item.id);
+        const nativeCreatedIds = delivery.createdIds.filter(
+          (id) => !isNotificationMuted(id, deliveryMutes)
+            && !isScheduledReminderCatchUpNotificationId(id),
+        );
+        const suppressedIds = [...new Set(
+          delivery.feed
+            .filter((item) => isNotificationMuted(item.id, deliveryMutes))
+            .map((item) => item.id)
+            .concat(catchUpIds),
+        )];
         let schedulerReadyForCursorAdvance = false;
         try {
           const schedulerResult = await syncAndroidReminderSchedules(t, deliveryMutes);
+          setNativeScheduleHealth({
+            status: schedulerResult.status,
+            desiredCount: schedulerResult.desiredCount,
+            verifiedCount: schedulerResult.verifiedCount,
+            failedScheduleCount: schedulerResult.failedScheduleIds.length,
+            failedCancelCount: schedulerResult.failedCancelIds.length,
+          });
           // Provider ilk kez açılış perdesinin arkasında sync olabilir. Native
           // teslim henüz etkin değilse cursor'ı ilerletmek cold-tap bağlamını
           // normal bootstrap sync'inden önce yok eder. Reveal sonrası bootstrap
           // aynı yolu yeniden çağırıp ancak o zaman cursor'ı ilerletir.
+          const fullyVerifiedNativeSchedule = schedulerResult.status === 'ready'
+            && schedulerResult.desiredCount === schedulerResult.verifiedCount
+            && schedulerResult.failedScheduleIds.length === 0
+            && schedulerResult.failedCancelIds.length === 0;
+          const feedOnlyDelivery = schedulerResult.status === 'denied'
+            || schedulerResult.status === 'unsupported'
+            || schedulerResult.status === 'expo_go';
           schedulerReadyForCursorAdvance = deliveryWasActivatedAtInvocation
-            && schedulerResult.status !== 'not_ready'
-            && schedulerResult.status !== 'error';
+            && (fullyVerifiedNativeSchedule || feedOnlyDelivery);
         } catch (error) {
+          setNativeScheduleHealth({
+            status: 'error',
+            desiredCount: 0,
+            verifiedCount: 0,
+            failedScheduleCount: 0,
+            failedCancelCount: 0,
+          });
           // Native scheduler ikincil yan etkidir; feed ve finansal kayıtlar kanonik
           // kalır, bir sonraki refresh/resume actual-vs-desired retry yapar.
           if (__DEV__) console.warn('[notifications] reminder schedule sync failed', error);
         }
 
         // Future actual-vs-desired uzlaştırması anlık köprüden önce çalışır.
-        // Böylece Doze/inexact nedeniyle zamanı geçmiş ama hâlâ pending olan
-        // native istek önce iptal edilip baseline'ı temizlenebilir; aynı feed
-        // öğesi ardından anlık fallback olarak güvenle teslim edilir.
+        // Native planlı ailelerin uygulama açılışında hesaplanan karşılıkları
+        // yalnız feed catch-up'ıdır. Eski sürümde anlık tray'e sızan kopyayı
+        // geçiş sırasında temizle; aşağıdaki baseline tekrar dirilmesini önler.
+        if (catchUpIds.length > 0) {
+          try {
+            await dismissAndroidImmediateSystemNotifications(catchUpIds);
+          } catch (error) {
+            if (__DEV__) console.warn('[notifications] catch-up tray cleanup failed', error);
+          }
+        }
         if (!options.suppressImmediateDelivery) {
           try {
             await deliverAndroidSystemNotifications(
@@ -311,6 +365,7 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
       dismissMany,
       setMute,
       mutes,
+      nativeScheduleHealth,
     }),
     [
       feed,
@@ -324,6 +379,7 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
       dismissMany,
       setMute,
       mutes,
+      nativeScheduleHealth,
     ]
   );
 

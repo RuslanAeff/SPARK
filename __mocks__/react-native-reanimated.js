@@ -31,6 +31,8 @@ module.exports = {
   LinearTransition: anim(),
   useSharedValue: (value) => ({ value }),
   useAnimatedStyle: (factory) => factory(),
+  useAnimatedProps: (factory) => factory(),
+  useReducedMotion: () => false,
   withRepeat: (value) => value,
   withTiming: (value) => value,
   withDelay: (_delay, value) => value,

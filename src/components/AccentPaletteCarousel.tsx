@@ -523,17 +523,13 @@ export default function AccentPaletteCarousel({
           style={styles.centerGuide}
         >
           <View
+            testID="theme-accent-center-ring-outline"
             style={[
               styles.centerRing,
-              {
-                borderColor: centeredPreview.primary,
-                shadowColor: centeredPreview.shadowColor,
-              },
+              { borderColor: centeredPreview.primary },
             ]}
           >
             <View style={[styles.centerRingInner, { borderColor: centeredPreview.primarySoft }]} />
-            <View style={[styles.detentNotch, styles.detentNotchTop, { backgroundColor: centeredPreview.primary }]} />
-            <View style={[styles.detentNotch, styles.detentNotchBottom, { backgroundColor: centeredPreview.primary }]} />
           </View>
         </View>
       </View>
@@ -615,10 +611,6 @@ const getStyles = (colors: ThemePalette) =>
       backgroundColor: 'transparent',
       alignItems: 'center',
       justifyContent: 'center',
-      shadowOffset: { width: 0, height: 1 },
-      shadowOpacity: 0.24,
-      shadowRadius: 4,
-      elevation: 2,
     },
     centerRingInner: {
       position: 'absolute',
@@ -628,18 +620,6 @@ const getStyles = (colors: ThemePalette) =>
       left: 4,
       borderRadius: (CENTER_RING_SIZE - 8) / 2,
       borderWidth: 1,
-    },
-    detentNotch: {
-      position: 'absolute',
-      width: 14,
-      height: 3,
-      borderRadius: 2,
-    },
-    detentNotchTop: {
-      top: -6,
-    },
-    detentNotchBottom: {
-      bottom: -6,
     },
     selectedLabel: {
       ...Typography.bodyLarge,

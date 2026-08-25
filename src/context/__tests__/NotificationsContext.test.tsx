@@ -9,6 +9,7 @@ import type {
   InAppNotification,
   NotificationMuteChannel,
 } from '../../notifications/types';
+import type { AndroidReminderScheduleResult } from '../../services/androidNotificationsSetup';
 
 let mockStoredMutes: Partial<Record<NotificationMuteChannel, boolean>> = {};
 let mockStoredFeed: InAppNotification[] = [];
@@ -38,13 +39,15 @@ const mockAdvancePastDue = jest.fn(async (_today: string) => {
   mockSyncOrder.push('advance');
   return 0;
 });
-const mockSyncAndroidReminderSchedules = jest.fn(async (
-  _t: unknown,
-  _mutes: Partial<Record<NotificationMuteChannel, boolean>>,
-) => {
+const mockSyncAndroidReminderSchedules: jest.Mock<
+  Promise<AndroidReminderScheduleResult>,
+  [unknown, Partial<Record<NotificationMuteChannel, boolean>>]
+> = jest.fn(async (_t, _mutes): Promise<AndroidReminderScheduleResult> => {
   mockSyncOrder.push('scheduler');
   return {
     status: 'unsupported',
+    desiredCount: 0,
+    verifiedCount: 0,
     scheduledIds: [],
     canceledIds: [],
     failedScheduleIds: [],
@@ -60,6 +63,9 @@ const mockDeliverAndroidSystemNotifications = jest.fn(async (
   failedIds: [],
 }));
 const mockDismissAndroidSystemNotifications = jest.fn(async (
+  _ids: readonly string[],
+) => undefined);
+const mockDismissAndroidImmediateSystemNotifications = jest.fn(async (
   _ids: readonly string[],
 ) => undefined);
 const mockDismissFeedItems = jest.fn(async (_ids: readonly string[]) => ({
@@ -92,6 +98,8 @@ jest.mock('../../services/androidNotificationsSetup', () => ({
     mockDeliverAndroidSystemNotifications(items, options),
   dismissAndroidSystemNotifications: (ids: readonly string[]) =>
     mockDismissAndroidSystemNotifications(ids),
+  dismissAndroidImmediateSystemNotifications: (ids: readonly string[]) =>
+    mockDismissAndroidImmediateSystemNotifications(ids),
 }));
 
 jest.mock('../../services/reminderScheduler', () => ({
@@ -276,6 +284,88 @@ describe('NotificationsProvider', () => {
     await view.unmount();
   });
 
+  it('keeps app-open overdue catch-up in the feed without presenting a new tray alert', async () => {
+    const overdueId =
+      'payplan-due-v1-123e4567-e89b-42d3-a456-426614174000-2026-08-10-3-0900-overdue';
+    mockRunNotificationSync.mockResolvedValueOnce({
+      feed: [{
+        id: overdueId,
+        severity: 'warning',
+        titleKey: 'notif_payment_plan_date_passed_t',
+        bodyKey: 'notif_payment_plan_date_passed_b',
+        createdAt: 1_800_000_000_000,
+        read: false,
+      }],
+      unreadCount: 1,
+      // Pre-reveal sync kaydı daha önce oluşturdu; bootstrap sync'te artık yeni
+      // sayılmaz ama tazelik penceresi yüzünden yine de tray'e sızmamalıdır.
+      createdIds: [],
+    });
+
+    const view = await render(
+      <NotificationsProvider>
+        <ContextProbe />
+      </NotificationsProvider>,
+    );
+    await waitFor(() => expect(latestContext).not.toBeNull());
+    await act(async () => {
+      await latestContext!.sync();
+    });
+
+    expect(latestContext!.feed).toEqual([
+      expect.objectContaining({ id: overdueId }),
+    ]);
+    expect(mockDismissAndroidImmediateSystemNotifications).toHaveBeenCalledWith([overdueId]);
+    expect(mockDeliverAndroidSystemNotifications).toHaveBeenCalledWith(
+      [expect.objectContaining({ id: overdueId })],
+      { newlyCreatedIds: [], suppressedIds: [overdueId] },
+    );
+    await view.unmount();
+  });
+
+  it('keeps today and attention milestone catch-up out of the tray bridge', async () => {
+    const todayId = 'debt-due-v1-7-2026-08-11-0-0900-today';
+    const goalId = 'goal-deadline-v1-2026-09-10-14';
+    const budgetId = 'budget-review-v1-2026-08-01-75';
+    const feed: InAppNotification[] = [todayId, goalId, budgetId].map((id) => ({
+      id,
+      severity: 'warning',
+      titleKey: `title.${id}`,
+      bodyKey: `body.${id}`,
+      createdAt: 1_800_000_000_000,
+      read: false,
+    }));
+    mockRunNotificationSync.mockResolvedValueOnce({
+      feed,
+      unreadCount: feed.length,
+      createdIds: feed.map((item) => item.id),
+    });
+
+    const view = await render(
+      <NotificationsProvider>
+        <ContextProbe />
+      </NotificationsProvider>,
+    );
+    await waitFor(() => expect(latestContext).not.toBeNull());
+    await act(async () => {
+      await latestContext!.sync();
+    });
+
+    expect(mockDismissAndroidImmediateSystemNotifications).toHaveBeenCalledWith([
+      todayId,
+      goalId,
+      budgetId,
+    ]);
+    expect(mockDeliverAndroidSystemNotifications).toHaveBeenCalledWith(
+      expect.arrayContaining(feed.map((item) => expect.objectContaining({ id: item.id }))),
+      {
+        newlyCreatedIds: [],
+        suppressedIds: [todayId, goalId, budgetId],
+      },
+    );
+    await view.unmount();
+  });
+
   it('cleans retired reminder copies from the Android tray before delivery', async () => {
     mockRunNotificationSync.mockResolvedValueOnce({
       feed: [],
@@ -430,6 +520,8 @@ describe('NotificationsProvider', () => {
       mockSyncOrder.push('scheduler');
       return {
         status: 'not_ready',
+        desiredCount: 0,
+        verifiedCount: 0,
         scheduledIds: [],
         canceledIds: [],
         failedScheduleIds: [],
@@ -450,6 +542,75 @@ describe('NotificationsProvider', () => {
 
     expect(mockSyncOrder).toEqual(['feed', 'scheduler']);
     expect(mockAdvancePastDue).not.toHaveBeenCalled();
+
+    await view.unmount();
+  });
+
+  it('does not advance the recurring cursor when a ready native schedule is not fully verified', async () => {
+    mockSyncAndroidReminderSchedules.mockImplementationOnce(async () => {
+      mockSyncOrder.push('scheduler');
+      return {
+        status: 'ready',
+        desiredCount: 2,
+        verifiedCount: 1,
+        scheduledIds: ['one'],
+        canceledIds: [],
+        failedScheduleIds: [],
+        failedCancelIds: [],
+      };
+    });
+
+    const view = await render(
+      <NotificationsProvider>
+        <ContextProbe />
+      </NotificationsProvider>,
+    );
+    await waitFor(() => expect(latestContext).not.toBeNull());
+
+    await act(async () => {
+      await latestContext!.sync();
+    });
+
+    expect(mockSyncOrder).toEqual(['feed', 'scheduler']);
+    expect(mockAdvancePastDue).not.toHaveBeenCalled();
+    expect(latestContext!.nativeScheduleHealth).toEqual({
+      status: 'ready',
+      desiredCount: 2,
+      verifiedCount: 1,
+      failedScheduleCount: 0,
+      failedCancelCount: 0,
+    });
+
+    await view.unmount();
+  });
+
+  it('advances the recurring cursor after activation when permission denial requires feed-only delivery', async () => {
+    mockSyncAndroidReminderSchedules.mockImplementationOnce(async () => {
+      mockSyncOrder.push('scheduler');
+      return {
+        status: 'denied',
+        desiredCount: 2,
+        verifiedCount: 0,
+        scheduledIds: [],
+        canceledIds: [],
+        failedScheduleIds: [],
+        failedCancelIds: [],
+      };
+    });
+
+    const view = await render(
+      <NotificationsProvider>
+        <ContextProbe />
+      </NotificationsProvider>,
+    );
+    await waitFor(() => expect(latestContext).not.toBeNull());
+
+    await act(async () => {
+      await latestContext!.sync();
+    });
+
+    expect(mockSyncOrder.slice(0, 3)).toEqual(['feed', 'scheduler', 'advance']);
+    expect(mockAdvancePastDue).toHaveBeenCalledWith('2026-08-11');
 
     await view.unmount();
   });
@@ -578,8 +739,49 @@ describe('NotificationsProvider', () => {
     expect(mockDeliverAndroidSystemNotifications).toHaveBeenCalledTimes(1);
     expect(mockSyncAndroidReminderSchedules).toHaveBeenCalledTimes(1);
     expect(mockAdvancePastDue).not.toHaveBeenCalled();
+    expect(latestContext!.nativeScheduleHealth).toEqual({
+      status: 'error',
+      desiredCount: 0,
+      verifiedCount: 0,
+      failedScheduleCount: 0,
+      failedCancelCount: 0,
+    });
 
     warn.mockRestore();
+    await view.unmount();
+  });
+
+  it('exposes verified coverage and partial native reconciliation failures', async () => {
+    mockSyncAndroidReminderSchedules.mockResolvedValueOnce({
+      status: 'ready',
+      desiredCount: 4,
+      verifiedCount: 2,
+      scheduledIds: ['one'],
+      canceledIds: [],
+      failedScheduleIds: ['three'],
+      failedCancelIds: ['stale'],
+    });
+
+    const view = await render(
+      <NotificationsProvider>
+        <ContextProbe />
+      </NotificationsProvider>,
+    );
+    await waitFor(() => expect(latestContext).not.toBeNull());
+
+    await act(async () => {
+      await latestContext!.sync();
+    });
+
+    expect(latestContext!.nativeScheduleHealth).toEqual({
+      status: 'ready',
+      desiredCount: 4,
+      verifiedCount: 2,
+      failedScheduleCount: 1,
+      failedCancelCount: 1,
+    });
+    expect(mockAdvancePastDue).not.toHaveBeenCalled();
+
     await view.unmount();
   });
 
@@ -592,6 +794,8 @@ describe('NotificationsProvider', () => {
       });
       return {
         status: 'unsupported',
+        desiredCount: 0,
+        verifiedCount: 0,
         scheduledIds: [],
         canceledIds: [],
         failedScheduleIds: [],

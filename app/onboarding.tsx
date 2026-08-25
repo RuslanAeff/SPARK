@@ -25,6 +25,7 @@ import { useAppTheme, useThemeRevision } from '../src/theme/themeStore';
 import { createSusevarStyles, susevarButtonPressed } from '../src/theme/susevar';
 import { sanitizeAmount, sanitizeText } from '../src/utils/inputValidation';
 import { BudgetDao } from '../src/db/budgetDao';
+import { useNotifications } from '../src/context/NotificationsContext';
 import { getStartOfMonth } from '../src/utils/dateUtils';
 import { useOnboardingStatus } from '../src/hooks/useOnboardingStatus';
 
@@ -48,6 +49,7 @@ export default function OnboardingScreen() {
   const { width } = useWindowDimensions();
   const { t, language, setLanguage } = useLanguage();
   const { setCurrency } = useCurrency();
+  const { sync: syncNotifications } = useNotifications();
   const { setOnboardingCompleted } = useOnboardingStatus();
 
   const [page, setPage] = useState(0);
@@ -83,6 +85,13 @@ export default function OnboardingScreen() {
       // gece yarısı civarında bir önceki ayı döndürebilirdi (P15 timezone fix).
       const monthKey = getStartOfMonth().substring(0, 7);
       await BudgetDao.setMonthlyBudget(safeBudget, monthKey, selectedCurrency);
+      try {
+        await syncNotifications();
+      } catch (error) {
+        // Bütçe ve onboarding kaydı kanoniktir. Native checkpoint kurulumu
+        // uygulama resume'unda yeniden denenebilir; kullanıcı burada kilitlenmez.
+        if (__DEV__) console.warn('[onboarding] notification sync failed', error);
+      }
     }
 
     await setOnboardingCompleted(true);

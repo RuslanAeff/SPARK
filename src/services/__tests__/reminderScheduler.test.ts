@@ -1,5 +1,9 @@
 import type { Budget, Debt, RecurringPaymentReminder } from '../../db/schema';
 import type { SavingsGoalRow } from '../../db/goalDao';
+import type {
+  AndroidReminderScheduleItem,
+  AndroidReminderScheduleResult,
+} from '../androidNotificationsSetup';
 
 const mockDebtListAll = jest.fn();
 const mockRecurringListAll = jest.fn();
@@ -11,9 +15,14 @@ const mockBudgetGetLatestActive: jest.Mock<Promise<Budget | null>, []> = jest.fn
 const mockGetCycleStartDay: jest.Mock<Promise<number>, []> = jest.fn(async () => 1);
 const mockLoadRulesState = jest.fn(async () => ({}));
 const mockIsReminderDismissed = jest.fn((_id?: string, _rules?: unknown) => false);
-const mockReconcile = jest.fn(async (items: unknown[], _options?: unknown) => ({
+const mockReconcile = jest.fn(async (
+  items: readonly AndroidReminderScheduleItem[],
+  _options: unknown,
+): Promise<AndroidReminderScheduleResult> => ({
   status: 'ready',
-  scheduledIds: items.map((_: unknown, index: number) => String(index)),
+  desiredCount: items.length,
+  verifiedCount: items.length,
+  scheduledIds: items.map((_, index) => String(index)),
   canceledIds: [],
   failedScheduleIds: [],
   failedCancelIds: [],
@@ -51,7 +60,10 @@ jest.mock('../../notifications/storage', () => ({
 }));
 
 jest.mock('../androidNotificationsSetup', () => ({
-  reconcileAndroidReminderSchedules: (items: unknown[], options: unknown) =>
+  reconcileAndroidReminderSchedules: (
+    items: readonly AndroidReminderScheduleItem[],
+    options: unknown,
+  ) =>
     mockReconcile(items, options),
 }));
 
@@ -123,15 +135,17 @@ describe('future reminder scheduler orchestration', () => {
     expect(mockRecurringListAll).not.toHaveBeenCalled();
 
     releaseDebts?.([debt]);
-    await pending;
+    const result = await pending;
 
     expect(mockRecurringListAll).toHaveBeenCalledTimes(1);
-    const desired = mockReconcile.mock.calls[0][0] as Array<Record<string, unknown>>;
+    const desired = mockReconcile.mock.calls[0][0];
     expect(desired.length).toBeGreaterThanOrEqual(4);
     expect(desired.every((item) => item.severity === 'warning')).toBe(true);
     expect(desired.every((item) => typeof item.revision === 'string')).toBe(true);
     expect(desired.every((item) => Number(item.triggerAt) > now)).toBe(true);
     expect(mockReconcile).toHaveBeenCalledWith(desired, { now, mutes: {} });
+    expect(result.desiredCount).toBe(desired.length);
+    expect(result.verifiedCount).toBe(desired.length);
   });
 
   it('uses channel mutes to cancel the muted domain from desired state', async () => {
@@ -139,13 +153,13 @@ describe('future reminder scheduler orchestration', () => {
     const t = (key: string) => key;
 
     await syncAndroidReminderSchedules(t, { debt: true }, now);
-    const withoutDebt = mockReconcile.mock.calls[0][0] as Array<{ scheduleId: string }>;
+    const withoutDebt = mockReconcile.mock.calls[0][0];
     expect(withoutDebt).not.toEqual([]);
     expect(withoutDebt.every((item) => item.scheduleId.startsWith('plan:'))).toBe(true);
 
     mockReconcile.mockClear();
     await syncAndroidReminderSchedules(t, { payment_plan: true }, now);
-    const withoutPlans = mockReconcile.mock.calls[0][0] as Array<{ scheduleId: string }>;
+    const withoutPlans = mockReconcile.mock.calls[0][0];
     expect(withoutPlans).not.toEqual([]);
     expect(withoutPlans.every((item) => item.scheduleId.startsWith('debt:'))).toBe(true);
   });
@@ -158,10 +172,7 @@ describe('future reminder scheduler orchestration', () => {
 
     await syncAndroidReminderSchedules((key: string) => key, {}, now);
 
-    const desired = mockReconcile.mock.calls[0][0] as Array<{
-      notificationId: string;
-      scheduleId: string;
-    }>;
+    const desired = mockReconcile.mock.calls[0][0];
     expect(desired).not.toEqual([]);
     expect(desired.every((item) => item.scheduleId.startsWith('plan:'))).toBe(true);
     expect(desired.every((item) => !item.notificationId.includes('debt-due-v1-7-')))
@@ -174,16 +185,11 @@ describe('future reminder scheduler orchestration', () => {
     const secondLanguage = (key: string) => `second:${key}`;
 
     await syncAndroidReminderSchedules(firstLanguage, {}, now);
-    const first = mockReconcile.mock.calls[0][0] as Array<{
-      scheduleId: string;
-      title: string;
-      body: string;
-      revision: string;
-    }>;
+    const first = mockReconcile.mock.calls[0][0];
     mockReconcile.mockClear();
 
     await syncAndroidReminderSchedules(secondLanguage, {}, now);
-    const second = mockReconcile.mock.calls[0][0] as typeof first;
+    const second = mockReconcile.mock.calls[0][0];
 
     expect(second.map((item) => item.scheduleId)).toEqual(
       first.map((item) => item.scheduleId),
@@ -215,7 +221,7 @@ describe('future reminder scheduler orchestration', () => {
     });
 
     await syncAndroidReminderSchedules((key: string) => key, {}, now);
-    const desired = mockReconcile.mock.calls[0][0] as Array<{ scheduleId: string }>;
+    const desired = mockReconcile.mock.calls[0][0];
     expect(desired.some((item) => item.scheduleId.startsWith('goal:'))).toBe(true);
     expect(desired.some((item) => item.scheduleId.startsWith('budget:'))).toBe(true);
 
@@ -225,7 +231,7 @@ describe('future reminder scheduler orchestration', () => {
       { goal: true, budget: true },
       now,
     );
-    const muted = mockReconcile.mock.calls[0][0] as Array<{ scheduleId: string }>;
+    const muted = mockReconcile.mock.calls[0][0];
     expect(muted.some((item) => item.scheduleId.startsWith('goal:'))).toBe(false);
     expect(muted.some((item) => item.scheduleId.startsWith('budget:'))).toBe(false);
     expect(muted.some((item) => item.scheduleId.startsWith('debt:'))).toBe(true);

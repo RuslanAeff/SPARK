@@ -1,6 +1,13 @@
 {
   "notif_system_schedule_ready": "Android-də {count} tarixli xəbərdarlıq planlaşdırılıb",
   "notif_system_schedule_none": "Hazırda planlaşdırılacaq tarixli xəbərdarlıq yoxdur",
+  "notif_system_schedule_next": "Növbəti xəbərdarlıq: {date}, {time}",
+  "notif_system_schedule_error": "Tarixli planlar Android-də təsdiqlənmədi. Planları bərpa edib yenidən cəhd et.",
+  "notif_system_schedule_incomplete": "{count} xəbərdarlıq Android-də təsdiqlənmədi. Planları bərpa edə bilərsən.",
+  "notif_system_schedule_repair": "Planları bərpa et",
+  "notif_system_alert_channel_blocked": "S.P.A.R.K Xəbərdarlıqları kanalı sistem ayarlarında söndürülüb.",
+  "notif_system_alert_channel_degraded": "S.P.A.R.K Xəbərdarlıqları kanalı səssiz və ya aşağı prioritetlidir.",
+  "notif_system_alert_channel_unknown": "S.P.A.R.K Xəbərdarlıqları kanalının sistem vəziyyəti təsdiqlənmədi.",
   "notif_system_schedule_expo_go": "Tətbiq bağlı olarkən çatdırılma Expo Go-da yoxlanmır; APK ilə sınaqdan keçirin",
   "notif_goal_deadline_t": "Yığım hədəfini unutma",
   "notif_goal_deadline_b": "Yığım hədəfinin son tarixinə {days} gün qalıb. İrəliləyişini nəzərdən keçir.",

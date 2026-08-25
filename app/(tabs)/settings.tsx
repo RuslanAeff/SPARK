@@ -3,6 +3,7 @@ import React, { useMemo } from 'react';
 import { View, Text, ScrollView, StyleSheet, Pressable, Linking } from 'react-native';
 import { useAppTheme, useThemeRevision } from '../../src/theme/themeStore';
 import { useRouter } from 'expo-router';
+import { useIsFocused } from '@react-navigation/native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Animated, { FadeInDown } from 'react-native-reanimated';
@@ -10,8 +11,10 @@ import * as Haptics from 'expo-haptics';
 
 import { Colors } from '../../src/theme/colors';
 import { Typography, FontFamily } from '../../src/theme/typography';
-import { Spacing, ScreenPadding, BorderRadius } from '../../src/theme/spacing';
+import { Spacing, ScreenPadding } from '../../src/theme/spacing';
 import { useLanguage } from '../../src/i18n/LanguageContext';
+import LivingSparkWordmark from '../../src/components/LivingSparkWordmark';
+import { SettingsNavigationRow } from '../../src/components/SettingsList';
 
 interface SettingsGroup {
   key: 'general' | 'budget' | 'data' | 'ai';
@@ -28,6 +31,7 @@ export default function SettingsScreen() {
   const themeRevision = useThemeRevision();
   const styles = useMemo(() => getStyles(), [colorScheme, themeRevision]);
   const router = useRouter();
+  const isFocused = useIsFocused();
   const { t } = useLanguage();
 
   const groups: SettingsGroup[] = useMemo(
@@ -69,7 +73,7 @@ export default function SettingsScreen() {
         route: '/settings-ai',
       },
     ],
-    [],
+    [colorScheme, themeRevision],
   );
 
   return (
@@ -84,37 +88,31 @@ export default function SettingsScreen() {
             key={g.key}
             entering={FadeInDown.delay(80 + i * 70).duration(420)}
           >
-            <Pressable
+            <SettingsNavigationRow
+              testID={`settings-group-${g.key}`}
+              title={t(g.titleKey)}
+              description={t(g.descKey)}
+              icon={g.icon}
+              iconColor={g.iconColor}
+              iconBackgroundColor={g.iconBg}
+              last={i === groups.length - 1}
               onPress={() => {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                 router.push(g.route as never);
               }}
-              style={({ pressed }) => [styles.groupCard, pressed && styles.groupCardPressed]}
-              accessibilityRole="button"
               accessibilityLabel={t(g.titleKey)}
-            >
-              <View style={[styles.groupIcon, { backgroundColor: g.iconBg }]}>
-                <MaterialCommunityIcons name={g.icon} size={24} color={g.iconColor} />
-              </View>
-              <View style={styles.groupText}>
-                <Text style={styles.groupTitle}>{t(g.titleKey)}</Text>
-                <Text style={styles.groupDesc} numberOfLines={1}>
-                  {t(g.descKey)}
-                </Text>
-              </View>
-              <MaterialCommunityIcons
-                name="chevron-right"
-                size={22}
-                color={Colors.textMuted}
-              />
-            </Pressable>
+            />
           </Animated.View>
         ))}
 
         {/* About */}
         <Animated.View entering={FadeInDown.delay(80 + groups.length * 70 + 60).duration(420)}>
           <View style={styles.about}>
-            <Text style={styles.aboutName}>S.P.A.R.K</Text>
+            <LivingSparkWordmark
+              size="compact"
+              active={isFocused}
+              accessibilityHint={t('living_wordmark_hint')}
+            />
             <Text style={styles.aboutFull}>Strategic Parsing & Resource Keeper</Text>
             <View style={styles.aboutSignature}>
               <Text
@@ -162,52 +160,11 @@ const getStyles = () => StyleSheet.create({
     paddingHorizontal: ScreenPadding.horizontal,
     paddingBottom: 20,
   },
-  groupCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.md,
-    backgroundColor: Colors.cardSurface,
-    borderRadius: BorderRadius.xl,
-    padding: Spacing.lg,
-    marginBottom: Spacing.md,
-    borderWidth: 1,
-    borderColor: Colors.cardBorder,
-  },
-  groupCardPressed: {
-    opacity: 0.88,
-    transform: [{ scale: 0.99 }],
-  },
-  groupIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: BorderRadius.lg,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  groupText: {
-    flex: 1,
-    gap: 4,
-  },
-  groupTitle: {
-    ...Typography.bodyLarge,
-    fontFamily: FontFamily.bold,
-    color: Colors.textPrimary,
-  },
-  groupDesc: {
-    ...Typography.bodySmall,
-    color: Colors.textSecondary,
-  },
   about: {
     alignItems: 'center',
+    marginTop: Spacing.xxxl,
     paddingVertical: Spacing.xxl,
     gap: Spacing.xxs,
-  },
-  aboutName: {
-    ...Typography.headlineMedium,
-    color: Colors.primary,
-    fontFamily: FontFamily.extraBold,
-    fontWeight: '900',
-    letterSpacing: 3,
   },
   aboutFull: {
     ...Typography.bodySmall,

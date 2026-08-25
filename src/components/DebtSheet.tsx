@@ -31,7 +31,9 @@ import { DebtDao } from '../db/debtDao';
 import { ExpenseDao } from '../db/expenseDao';
 import { Debt, DebtPayment, ExpenseWithDetails } from '../db/schema';
 import { useLanguage } from '../i18n/LanguageContext';
+import { useNotifications } from '../context/NotificationsContext';
 import { useRefreshActions } from '../context/RefreshContext';
+import { syncNotificationsBestEffort } from '../notifications/syncNotificationsBestEffort';
 
 const SCREEN_H = Dimensions.get('window').height;
 
@@ -61,6 +63,7 @@ export default function DebtSheet({ visible, onClose, currency, onChanged }: Deb
   const styles = useMemo(() => getStyles(), [scheme, themeRevision]);
   const { t } = useLanguage();
   const { triggerRefresh } = useRefreshActions();
+  const { sync: syncNotifications } = useNotifications();
   const today = getToday();
 
   const [view, setView] = useState<DebtView>('list');
@@ -256,6 +259,7 @@ export default function DebtSheet({ visible, onClose, currency, onChanged }: Deb
       // bağlantısında iki bağımsız okuma zinciri üst üste binmesin.
       await onChanged?.();
       triggerRefresh();
+      await syncNotificationsBestEffort(syncNotifications, 'debt-create');
       setView('list');
     } catch {
       SparkToast.show(t('error_saving_data'), 'error');
@@ -281,6 +285,7 @@ export default function DebtSheet({ visible, onClose, currency, onChanged }: Deb
       await reload();
       await onChanged?.();
       triggerRefresh();
+      await syncNotificationsBestEffort(syncNotifications, 'debt-repay');
       setActiveDebt(null);
       setView('list');
     } catch {
@@ -315,6 +320,7 @@ export default function DebtSheet({ visible, onClose, currency, onChanged }: Deb
       });
       await reload();
       triggerRefresh();
+      await syncNotificationsBestEffort(syncNotifications, 'debt-reminder-update');
       setView('repay');
     } catch {
       SparkToast.show(t('error_saving_data'), 'error');
@@ -332,6 +338,7 @@ export default function DebtSheet({ visible, onClose, currency, onChanged }: Deb
       await reload();
       await onChanged?.();
       triggerRefresh();
+      await syncNotificationsBestEffort(syncNotifications, 'debt-delete');
       setActiveDebt(null);
       setView('list');
     } catch {

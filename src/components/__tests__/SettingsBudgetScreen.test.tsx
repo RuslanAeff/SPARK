@@ -7,8 +7,10 @@ import {
   getGoalFeaturePreferences,
   setGoalDashboardFocusEnabled,
 } from '../../services/goalFeatureSettings';
+import { SparkToast } from '../SparkToast';
 
 const mockTriggerRefresh = jest.fn();
+const mockSyncNotifications = jest.fn(async () => undefined);
 const mockRouterPush = jest.fn();
 
 jest.mock('expo-router', () => ({
@@ -72,6 +74,9 @@ jest.mock('../../context/CurrencyContext', () => ({
 
 jest.mock('../../context/RefreshContext', () => ({
   useRefresh: () => ({ refreshKey: 0, triggerRefresh: mockTriggerRefresh }),
+}));
+jest.mock('../../context/NotificationsContext', () => ({
+  useNotifications: () => ({ sync: mockSyncNotifications }),
 }));
 
 jest.mock('../../db/budgetDao', () => ({
@@ -196,5 +201,22 @@ describe('SettingsBudgetScreen goal focus preference', () => {
         nextStartDay: 2,
       }),
     ));
+    expect(mockSyncNotifications).toHaveBeenCalledTimes(1);
+  });
+
+  it('bütçe commit edildikten sonra bildirim senkronu reddetse de başarıyı korur', async () => {
+    getPreferences.mockResolvedValue({ enabled: true, dashboardFocusEnabled: false });
+    (BudgetDao.getForMonth as jest.Mock).mockResolvedValue(null);
+    (BudgetDao.setMonthlyBudget as jest.Mock).mockResolvedValue(22);
+    mockSyncNotifications.mockRejectedValueOnce(new Error('native inventory unavailable'));
+
+    const screen = await render(<SettingsBudgetScreen />);
+    await waitFor(() => expect(screen.getByText('budget_cycle_day_default')).toBeTruthy());
+    await fireEvent.changeText(screen.getByPlaceholderText('5000'), '3600');
+    await fireEvent.press(screen.getByTestId('budget-save'));
+
+    await waitFor(() => expect(mockSyncNotifications).toHaveBeenCalledTimes(1));
+    expect(BudgetDao.setMonthlyBudget).toHaveBeenCalled();
+    expect(SparkToast.show).not.toHaveBeenCalledWith('error_saving_data', 'error');
   });
 });

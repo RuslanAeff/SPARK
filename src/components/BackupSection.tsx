@@ -17,6 +17,7 @@ import { useAppTheme, useThemeRevision } from '../theme/themeStore';
 import { Typography, FontFamily } from '../theme/typography';
 import { Spacing, BorderRadius } from '../theme/spacing';
 import { useLanguage } from '../i18n/LanguageContext';
+import { useNotifications } from '../context/NotificationsContext';
 import { useRefreshActions } from '../context/RefreshContext';
 import { SparkToast } from './SparkToast';
 import ConfirmModal from './ConfirmModal';
@@ -70,6 +71,7 @@ export default function BackupSection() {
   const themeRevision = useThemeRevision();
   const styles = useMemo(() => getStyles(), [scheme, themeRevision]);
   const { triggerRefresh } = useRefreshActions();
+  const { sync: syncNotifications } = useNotifications();
 
   const [startDate, setStartDate] = useState<string>(startOfMonth(0));
   const [endDate, setEndDate] = useState<string>(ymd(new Date()));
@@ -87,10 +89,22 @@ export default function BackupSection() {
     void (async () => setMeta(await loadBackupMeta()))();
   }, []);
 
+  async function refreshNotificationState(source: string) {
+    triggerRefresh();
+    try {
+      await syncNotifications();
+    } catch (error) {
+      // Yedek tercihi/export/import kanonik olarak tamamlandı. Native/feed
+      // senkronu ikincil yan etkidir; başarıyı geri çevirmeden resume'da denenir.
+      if (__DEV__) console.warn(`[backup] ${source} notification sync failed`, error);
+    }
+  }
+
   async function handleReminderChange(next: BackupReminderInterval) {
     Haptics.selectionAsync();
     await setBackupReminderInterval(next);
     setMeta((prev) => (prev ? { ...prev, reminderInterval: next } : prev));
+    await refreshNotificationState('reminder preference');
     SparkToast.show(
       t('backup_reminder_updated'),
       'success',
@@ -169,6 +183,9 @@ export default function BackupSection() {
           rangeEnd: endDate,
         });
         setMeta(await loadBackupMeta());
+        // Başarılı yedek, uygulama-içi gecikmiş-yedek uyarısını aynı işlemde
+        // emekliye ayırsın; bir sonraki ekran açılışını beklemesin.
+        await refreshNotificationState('export');
       }
       if (res.recordCount === 0) {
         SparkToast.show(t('backup_export_empty_title'), 'warning', t('backup_export_empty_desc'));
@@ -221,7 +238,10 @@ export default function BackupSection() {
       const skipped = s.expensesSkipped + s.debtsSkipped + s.debtPaymentsSkipped
         + s.extraIncomesSkipped + s.remindersSkipped;
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      triggerRefresh();
+      // Restore aktif borç ve ödeme planları ekleyebilir. Kullanıcı uygulamayı
+      // hemen kapatsa bile yeni tarihli alarmlar 300 ms refresh debounce'una
+      // bağlı kalmadan Android'e kurulmuş olsun.
+      await refreshNotificationState('restore');
       SparkToast.show(
         t('backup_import_success_title'),
         'success',

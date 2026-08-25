@@ -331,7 +331,16 @@ export async function runNotificationSync(
   if (!muted(mutes, 'backup')) {
     try {
       const meta = await loadBackupMeta();
-      if (isBackupOverdue(meta)) {
+      const overdue = isBackupOverdue(meta);
+      if (!overdue) {
+        // Başarılı yeni export veya tercihin kapatılması, artık geçerli olmayan
+        // aktif yedek uyarısını feed ve Android tepsisinden emekliye ayırır.
+        feed = feed.filter((item) => {
+          if (!item.id.startsWith('backup-due-')) return true;
+          retiredIds.add(item.id);
+          return false;
+        });
+      } else {
         const intervalMs =
           meta.reminderInterval === 'weekly' ? 7 * 86400000 : 30 * 86400000;
         const lastReminded = rules.backupRemindedAt ?? 0;

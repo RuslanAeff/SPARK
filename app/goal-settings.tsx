@@ -17,7 +17,9 @@ import { CategoryDao } from '../src/db/categoryDao';
 import { Category } from '../src/db/schema';
 import { useLanguage } from '../src/i18n/LanguageContext';
 import { useCurrency } from '../src/context/CurrencyContext';
+import { useNotifications } from '../src/context/NotificationsContext';
 import { useRefreshActions } from '../src/context/RefreshContext';
+import { syncNotificationsBestEffort } from '../src/notifications/syncNotificationsBestEffort';
 import { SparkToast } from '../src/components/SparkToast';
 import GlassDeleteModal from '../src/components/GlassDeleteModal';
 import CustomDatePicker from '../src/components/CustomDatePicker';
@@ -36,6 +38,7 @@ export default function GoalSettingsScreen() {
   const { t, tc } = useLanguage();
   const { currency } = useCurrency();
   const { triggerRefresh } = useRefreshActions();
+  const { sync: syncNotifications } = useNotifications();
   const styles = getStyles();
 
   const [title, setTitle] = useState('');
@@ -151,6 +154,7 @@ export default function GoalSettingsScreen() {
       }
 
       triggerRefresh();
+      await syncNotificationsBestEffort(syncNotifications, 'goal-settings-save');
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       SparkToast.show(t('goal_settings_saved'), 'success');
       router.back();
@@ -190,6 +194,7 @@ export default function GoalSettingsScreen() {
       setCurrentAmountStr('');
       setTargetDate(getToday());
       triggerRefresh();
+      await syncNotificationsBestEffort(syncNotifications, 'goal-settings-clear');
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       SparkToast.show(t('goal_removed'), 'success');
       router.back();

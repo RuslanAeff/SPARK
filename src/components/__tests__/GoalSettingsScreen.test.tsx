@@ -9,6 +9,7 @@ import { SparkToast } from '../SparkToast';
 
 const mockBack = jest.fn();
 const mockTriggerRefresh = jest.fn();
+const mockSyncNotifications = jest.fn(async () => undefined);
 
 jest.mock('expo-router', () => ({
   useRouter: () => ({ back: mockBack }),
@@ -68,6 +69,9 @@ jest.mock('../../context/CurrencyContext', () => ({
 
 jest.mock('../../context/RefreshContext', () => ({
   useRefreshActions: () => ({ triggerRefresh: mockTriggerRefresh }),
+}));
+jest.mock('../../context/NotificationsContext', () => ({
+  useNotifications: () => ({ sync: mockSyncNotifications }),
 }));
 
 jest.mock('../SparkToast', () => ({
@@ -148,7 +152,22 @@ describe('GoalSettingsScreen goal deletion', () => {
     expect(deleteAllLimits).not.toHaveBeenCalled();
     expect(toastShow).toHaveBeenCalledWith('goal_removed', 'success');
     expect(mockTriggerRefresh).toHaveBeenCalledTimes(1);
+    expect(mockSyncNotifications).toHaveBeenCalledTimes(1);
     expect(mockBack).toHaveBeenCalledTimes(1);
+  });
+
+  it('hedef silmeyi bildirim senkronu reddetse de başarılı tamamlar', async () => {
+    goalGet.mockResolvedValue(goal);
+    goalClear.mockResolvedValue(true);
+    mockSyncNotifications.mockRejectedValueOnce(new Error('native inventory unavailable'));
+    const screen = await render(<GoalSettingsScreen />);
+
+    await fireEvent.press(await screen.findByTestId('goal-clear-button'));
+    await fireEvent.press(await screen.findByTestId('confirm-goal-delete'));
+
+    await waitFor(() => expect(mockBack).toHaveBeenCalledTimes(1));
+    expect(toastShow).toHaveBeenCalledWith('goal_removed', 'success');
+    expect(toastShow).not.toHaveBeenCalledWith('error_saving_data', 'error');
   });
 
   it('shows a logical warning instead of fake success for a stale goal', async () => {

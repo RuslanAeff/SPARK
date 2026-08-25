@@ -13,7 +13,9 @@ import { Typography, FontFamily } from '../src/theme/typography';
 import { Spacing, ScreenPadding, BorderRadius } from '../src/theme/spacing';
 import { useLanguage } from '../src/i18n/LanguageContext';
 import { useCurrency } from '../src/context/CurrencyContext';
+import { useNotifications } from '../src/context/NotificationsContext';
 import { useRefresh } from '../src/context/RefreshContext';
+import { syncNotificationsBestEffort } from '../src/notifications/syncNotificationsBestEffort';
 import { BudgetDao } from '../src/db/budgetDao';
 import { formatMonthYear, formatDayMonth } from '../src/utils/dateUtils';
 import { getCycleStartDay } from '../src/services/budgetCycleSettings';
@@ -49,6 +51,7 @@ export default function SettingsBudgetScreen() {
   const { t } = useLanguage();
   const { currency } = useCurrency();
   const { refreshKey, triggerRefresh } = useRefresh();
+  const { sync: syncNotifications } = useNotifications();
 
   const [selectedMonth, setSelectedMonth] = useState(() => {
     const now = new Date();
@@ -126,6 +129,7 @@ export default function SettingsBudgetScreen() {
       await BudgetDao.setMonthlyBudget(amount, selectedMonth, currency, cycleDay);
     }
     triggerRefresh();
+    await syncNotificationsBestEffort(syncNotifications, 'budget-save');
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     const curLabel = currency === 'TRY' ? 'TL' : currency;
     SparkToast.show(

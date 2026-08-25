@@ -1,4 +1,5 @@
 import React from 'react';
+import { StyleSheet } from 'react-native';
 import { act, fireEvent, render, waitFor } from '@testing-library/react-native';
 import * as Haptics from 'expo-haptics';
 import { setAudioModeAsync } from 'expo-audio';
@@ -180,6 +181,22 @@ describe('AccentPaletteCarousel', () => {
       .toBe(true);
 
     await waitFor(() => expect(onSelect).not.toHaveBeenCalled());
+  });
+
+  it('şeffaf merkez halkasında Android iç gölge artefaktı üreten yükseltiyi kullanmaz', async () => {
+    const { screen } = await renderCarousel({ selectedAccent: 'blue' });
+    const ringStyle = StyleSheet.flatten(
+      screen.getByTestId('theme-accent-center-ring-outline').props.style,
+    );
+
+    expect(ringStyle).toMatchObject({
+      backgroundColor: 'transparent',
+      borderColor: '#5AC8FA',
+    });
+    expect(ringStyle.elevation).toBeUndefined();
+    expect(ringStyle.shadowColor).toBeUndefined();
+    expect(ringStyle.shadowOpacity).toBeUndefined();
+    expect(ringStyle.shadowRadius).toBeUndefined();
   });
 
   it('yeniden açılışta rayı kanonik seçimin fiziksel offsetinden başlatır', async () => {

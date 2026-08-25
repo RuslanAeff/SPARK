@@ -45,6 +45,8 @@ const DEBT_ID = /^debt-due-v1-(\d+)-/;
 const PLAN_ID = /^payplan-due-v1-([0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})-/i;
 const DEBT_FAMILY = /^debt-due-v1-(\d+)-(\d{4}-\d{2}-\d{2})-(\d{1,3})-(\d{2})(\d{2})-(?:upcoming|today|overdue)$/;
 const PLAN_FAMILY = /^payplan-due-v1-([0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})-(\d{4}-\d{2}-\d{2})-(\d{1,3})-(\d{2})(\d{2})-(?:upcoming|today|overdue)$/i;
+const GOAL_ATTENTION = /^goal-deadline-v1-\d{4}-\d{2}-\d{2}-(?:90|30|14|7|3|1|0)$/;
+const BUDGET_ATTENTION = /^budget-review-v1-\d{4}-\d{2}-\d{2}-(?:50|75|90)$/;
 
 /** Eski native aşama kimliğini de aynı kanonik borç/plan ailesine bağlar. */
 export function reminderEntityKeyFromNotificationId(id: string): string | null {
@@ -66,6 +68,19 @@ export function reminderNotificationFamilyKeyFromId(id: string): string | null {
     return `recurring:${plan[1].toLowerCase()}:${plan[2]}:${Number(plan[3])}:${plan[4]}${plan[5]}`;
   }
   return null;
+}
+
+/**
+ * Native alarm ailesinin uygulama açılışında kanonik feed'e bağlanan
+ * karşılığıdır. Yaklaşan/bugün/gecikmiş borç-plan aşamaları ile
+ * hedef/bütçe kilometre taşları, gerçek native alarmın yerine uygulama
+ * açılışında ikinci bir tray bildirimi gibi sunulmamalıdır.
+ */
+export function isScheduledReminderCatchUpNotificationId(id: string): boolean {
+  return DEBT_FAMILY.test(id)
+    || PLAN_FAMILY.test(id)
+    || GOAL_ATTENTION.test(id)
+    || BUDGET_ATTENTION.test(id);
 }
 
 function stateRecord(

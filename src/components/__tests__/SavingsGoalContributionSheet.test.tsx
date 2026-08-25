@@ -7,6 +7,7 @@ import { SparkToast } from '../SparkToast';
 import * as Haptics from 'expo-haptics';
 
 const mockTriggerRefresh = jest.fn();
+const mockSyncNotifications = jest.fn(async () => undefined);
 
 function getPressHandler(instance: any): () => Promise<void> {
   let node = instance;
@@ -36,6 +37,10 @@ jest.mock('../../theme/themeStore', () => ({
 
 jest.mock('../../context/RefreshContext', () => ({
   useRefreshActions: () => ({ triggerRefresh: mockTriggerRefresh }),
+}));
+
+jest.mock('../../context/NotificationsContext', () => ({
+  useNotifications: () => ({ sync: mockSyncNotifications }),
 }));
 
 jest.mock('../../i18n/LanguageContext', () => ({
@@ -95,6 +100,10 @@ describe('SavingsGoalContributionSheet durability', () => {
     expect(toastShow).toHaveBeenCalledWith('goal_contribution_added', 'success');
     expect(toastShow).not.toHaveBeenCalledWith('error_saving_data', 'error');
     expect(mockTriggerRefresh).toHaveBeenCalledTimes(1);
+    expect(mockSyncNotifications).toHaveBeenCalledTimes(1);
+    expect(addContribution.mock.invocationCallOrder[0]).toBeLessThan(
+      mockSyncNotifications.mock.invocationCallOrder[0],
+    );
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
@@ -126,6 +135,28 @@ describe('SavingsGoalContributionSheet durability', () => {
     expect(addContribution).toHaveBeenCalledTimes(1);
     expect(toastShow).toHaveBeenCalledTimes(1);
     expect(mockTriggerRefresh).toHaveBeenCalledTimes(1);
+    expect(mockSyncNotifications).toHaveBeenCalledTimes(1);
     expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps the committed contribution successful when notification sync rejects', async () => {
+    addContribution.mockResolvedValue(15);
+    haptic.mockResolvedValue(undefined);
+    mockSyncNotifications.mockRejectedValueOnce(new Error('native scheduler unavailable'));
+    const warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const onClose = jest.fn();
+    const screen = await render(
+      <SavingsGoalContributionSheet visible onClose={onClose} />,
+    );
+
+    await fireEvent.changeText(screen.getByTestId('goal-contribution-input'), '15');
+    await fireEvent.press(screen.getByTestId('goal-contribution-save'));
+
+    await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1));
+    expect(addContribution).toHaveBeenCalledTimes(1);
+    expect(mockSyncNotifications).toHaveBeenCalledTimes(1);
+    expect(toastShow).toHaveBeenCalledWith('goal_contribution_added', 'success');
+    expect(toastShow).not.toHaveBeenCalledWith('error_saving_data', 'error');
+    warn.mockRestore();
   });
 });

@@ -6,6 +6,11 @@ let mockStoredRules: RulesState = {};
 let mockDebtRows: Debt[] = [];
 let mockPlanRows: RecurringPaymentReminder[] = [];
 let mockInferredRows: Array<Record<string, unknown>> = [];
+let mockBackupMeta = {
+  lastAt: null as number | null,
+  reminderInterval: 'off' as 'off' | 'weekly' | 'monthly',
+};
+let mockBackupOverdue = false;
 const mockReconcileReceiptSavedNotifications = jest.fn(async (feed: InAppNotification[]) => feed);
 
 jest.mock('../../db/debtDao', () => ({
@@ -48,8 +53,8 @@ jest.mock('../../services/budgetCycleSettings', () => ({
   getCycleStartDay: jest.fn(async () => 1),
 }));
 jest.mock('../../services/backupMeta', () => ({
-  loadBackupMeta: jest.fn(async () => ({ reminderEnabled: false })),
-  isBackupOverdue: jest.fn(() => false),
+  loadBackupMeta: jest.fn(async () => mockBackupMeta),
+  isBackupOverdue: jest.fn(() => mockBackupOverdue),
 }));
 jest.mock('../receiptNotifications', () => ({
   reconcileReceiptSavedNotificationsFromDatabase: (feed: InAppNotification[]) =>
@@ -138,6 +143,8 @@ describe('runNotificationSync reminder integration', () => {
       vendor_name: 'İnternet',
       next_expected_date: '2026-08-14',
     }];
+    mockBackupMeta = { lastAt: null, reminderInterval: 'off' };
+    mockBackupOverdue = false;
   });
 
   afterEach(() => jest.useRealTimers());
@@ -210,5 +217,30 @@ describe('runNotificationSync reminder integration', () => {
     expect(result.feed).toEqual([]);
     expect(result.createdIds).toEqual([]);
     expect(result.retiredIds).toContain(receiptId);
+  });
+
+  it('retires an active backup warning after a successful fresh backup', async () => {
+    const backupId = 'backup-due-2955';
+    mockStoredFeed = [{
+      id: backupId,
+      severity: 'info',
+      titleKey: 'notif_backup_due_t',
+      bodyKey: 'notif_backup_due_b',
+      createdAt: 1,
+      read: false,
+    }];
+    mockBackupMeta = {
+      lastAt: new Date(2026, 7, 11, 8, 30).getTime(),
+      reminderInterval: 'weekly',
+    };
+    mockBackupOverdue = false;
+
+    const result = await runNotificationSync({
+      ...NON_REMINDER_MUTES,
+      backup: false,
+    });
+
+    expect(result.feed.some((item) => item.id === backupId)).toBe(false);
+    expect(result.retiredIds).toContain(backupId);
   });
 });

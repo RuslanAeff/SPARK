@@ -4,6 +4,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 
 import { GoalDao } from '../db/goalDao';
+import { useNotifications } from '../context/NotificationsContext';
 import { useRefreshActions } from '../context/RefreshContext';
 import { useLanguage } from '../i18n/LanguageContext';
 import { Colors } from '../theme/colors';
@@ -24,6 +25,7 @@ export default function SavingsGoalContributionSheet({ visible, onClose }: Props
   const styles = useMemo(() => getStyles(), [scheme, themeRevision]);
   const { t } = useLanguage();
   const { triggerRefresh } = useRefreshActions();
+  const { sync: syncNotifications } = useNotifications();
   const [amount, setAmount] = useState('');
   const [sign, setSign] = useState<1 | -1>(1);
   const [saving, setSaving] = useState(false);
@@ -60,6 +62,17 @@ export default function SavingsGoalContributionSheet({ visible, onClose }: Props
         'success',
       );
       triggerRefresh();
+      // Katkı hedefi tamamlayabilir veya yeniden aktif hale getirebilir. Eski
+      // kilometre taşını iptal etmek/yeni planı kurmak için sheet kapanmadan
+      // native desired-state'i uzlaştır.
+      try {
+        await syncNotifications();
+      } catch (error) {
+        // Katkı SQLite'a kalıcı olarak yazıldı. İkincil native senkronizasyon
+        // hatası işlemi başarısızmış gibi gösterip ikinci katkıya yol açmamalı;
+        // provider refresh/resume geçişinde yeniden dener.
+        if (__DEV__) console.warn('[goal] notification sync failed', error);
+      }
       onClose();
     } catch (error) {
       console.warn('goal contribution', error);

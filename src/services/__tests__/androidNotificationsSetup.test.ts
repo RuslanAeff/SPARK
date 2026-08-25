@@ -32,6 +32,10 @@ const mockRequestPermissions = jest.fn(async () => ({
 }));
 const mockSchedule = jest.fn(async (request: { identifier?: string }) => request.identifier ?? 'native');
 const mockGetAllScheduled = jest.fn(async () => [...mockScheduledRequests]);
+const mockGetNotificationChannel = jest.fn(async () => ({
+  id: 'spark-alerts-v1',
+  importance: 6,
+}));
 const mockCancelScheduled = jest.fn(async (identifier: string) => {
   mockScheduledRequests = mockScheduledRequests.filter(
     (request) => request.identifier !== identifier,
@@ -93,7 +97,7 @@ jest.mock('expo', () => ({
 }));
 
 jest.mock('expo-notifications', () => ({
-  AndroidImportance: { DEFAULT: 5, HIGH: 6 },
+  AndroidImportance: { NONE: 2, LOW: 4, DEFAULT: 5, HIGH: 6 },
   AndroidNotificationVisibility: { PRIVATE: 2 },
   AndroidNotificationPriority: { DEFAULT: 'default', HIGH: 'high' },
   SchedulableTriggerInputTypes: { DATE: 'date' },
@@ -103,6 +107,7 @@ jest.mock('expo-notifications', () => ({
   requestPermissionsAsync: () => mockRequestPermissions(),
   scheduleNotificationAsync: (request: unknown) => mockSchedule(request as never),
   getAllScheduledNotificationsAsync: () => mockGetAllScheduled(),
+  getNotificationChannelAsync: () => mockGetNotificationChannel(),
   cancelScheduledNotificationAsync: (identifier: string) => mockCancelScheduled(identifier),
   dismissNotificationAsync: (identifier: string) => mockDismiss(identifier),
   addNotificationResponseReceivedListener: (listener: (response: any) => void) => {
@@ -137,6 +142,7 @@ import {
   ANDROID_UPDATES_CHANNEL_ID,
   activateAndroidNotificationDelivery,
   deliverAndroidSystemNotifications,
+  dismissAndroidImmediateSystemNotifications,
   dismissAndroidSystemNotifications,
   ensureAndroidNotificationSetup,
   getAndroidFutureScheduleSummary,
@@ -243,6 +249,10 @@ describe('Android system notification bridge', () => {
       },
     );
     mockGetAllScheduled.mockImplementation(async () => [...mockScheduledRequests]);
+    mockGetNotificationChannel.mockResolvedValue({
+      id: 'spark-alerts-v1',
+      importance: 6,
+    });
     mockCancelScheduled.mockImplementation(async (identifier: string) => {
       mockScheduledRequests = mockScheduledRequests.filter(
         (request) => request.identifier !== identifier,
@@ -274,6 +284,31 @@ describe('Android system notification bridge', () => {
       status: 'ready',
       count: 2,
       nextTriggerAt: sooner.triggerAt,
+      alertChannelStatus: 'ready',
+    });
+  });
+
+  it('reports an Android alert channel that the user disabled', async () => {
+    mockGetNotificationChannel.mockResolvedValueOnce({
+      id: 'spark-alerts-v1',
+      importance: 2,
+    });
+
+    await expect(getAndroidFutureScheduleSummary()).resolves.toMatchObject({
+      status: 'ready',
+      alertChannelStatus: 'blocked',
+    });
+  });
+
+  it('reports an Android alert channel downgraded below default importance', async () => {
+    mockGetNotificationChannel.mockResolvedValueOnce({
+      id: 'spark-alerts-v1',
+      importance: 4,
+    });
+
+    await expect(getAndroidFutureScheduleSummary()).resolves.toMatchObject({
+      status: 'ready',
+      alertChannelStatus: 'degraded',
     });
   });
 
@@ -517,6 +552,32 @@ describe('Android system notification bridge', () => {
     expect(delivery.deliveredIds).toEqual(['one']);
   });
 
+  it('cleans only legacy immediate catch-up copies and preserves future alarm handles', async () => {
+    mockDeliveryState = {
+      version: 1,
+      initializedAt: 1,
+      records: {
+        immediate: { handledAt: 2, nativeIdentifier: 'spark:immediate' },
+        future: {
+          handledAt: 2,
+          nativeIdentifier: 'spark:future:v1:debt:7:2027-01-01:0:0900:today',
+        },
+        baseline: { handledAt: 2 },
+      },
+    };
+
+    await dismissAndroidImmediateSystemNotifications(['immediate', 'future', 'baseline']);
+
+    expect(mockDismiss).toHaveBeenCalledTimes(1);
+    expect(mockDismiss).toHaveBeenCalledWith('spark:immediate');
+    expect(mockDeliveryState?.records).toEqual({
+      future: expect.objectContaining({
+        nativeIdentifier: 'spark:future:v1:debt:7:2027-01-01:0:0900:today',
+      }),
+      baseline: { handledAt: 2 },
+    });
+  });
+
   it('baselines muted records so unmute does not deliver an old backlog', async () => {
     const muted = item('muted-debt', 100);
     mockDeliveryState = {
@@ -584,6 +645,46 @@ describe('Android system notification bridge', () => {
       }),
     }));
     expect(JSON.stringify(mockSchedule.mock.calls)).not.toContain('LandLord');
+  });
+
+  it('does not baseline a native schedule that resolves but is absent from Android inventory', async () => {
+    const now = 1_800_000_000_000;
+    const desired = reminder('plan:missing-native:2027-01-01:0:0900:today', now + 60_000);
+    mockSchedule.mockResolvedValue(`spark:future:v1:${desired.scheduleId}`);
+
+    const result = await reconcileAndroidReminderSchedules([desired], { now });
+
+    expect(mockSchedule).toHaveBeenCalledTimes(2);
+    expect(result).toMatchObject({
+      desiredCount: 1,
+      verifiedCount: 0,
+      scheduledIds: [],
+      failedScheduleIds: [desired.scheduleId],
+    });
+    expect(mockReminderScheduleState?.records).toEqual({});
+    expect(mockDeliveryState?.records[desired.notificationId]).toBeUndefined();
+  });
+
+  it('repairs a schedule once when Android inventory misses the first native write', async () => {
+    const now = 1_800_000_000_000;
+    const desired = reminder('plan:retry-native:2027-01-01:0:0900:today', now + 60_000);
+    let attempt = 0;
+    mockSchedule.mockImplementation(async (request: { identifier?: string }) => {
+      attempt += 1;
+      if (attempt === 2) mockScheduledRequests.push(request);
+      return request.identifier ?? 'native';
+    });
+
+    const result = await reconcileAndroidReminderSchedules([desired], { now });
+
+    expect(mockSchedule).toHaveBeenCalledTimes(2);
+    expect(result).toMatchObject({
+      desiredCount: 1,
+      verifiedCount: 1,
+      scheduledIds: [desired.scheduleId],
+      failedScheduleIds: [],
+    });
+    expect(mockReminderScheduleState?.records[desired.scheduleId]).toBeDefined();
   });
 
   it('adopts an exactly matching OS request without scheduling it again', async () => {
@@ -866,6 +967,56 @@ describe('Android system notification bridge', () => {
     expect(mockSaveReminderScheduleSnapshot).not.toHaveBeenCalled();
   });
 
+  it('rolls back a just-written alarm when post-write inventory verification fails', async () => {
+    const now = 1_800_000_000_000;
+    const desired = reminder(
+      'debt:post-write-read-fails:2027-01-01:0:0900:today',
+      now + 60_000,
+    );
+    mockGetAllScheduled
+      .mockResolvedValueOnce([])
+      .mockRejectedValueOnce(new Error('native verification failed'));
+
+    const result = await reconcileAndroidReminderSchedules([desired], { now });
+
+    expect(result).toMatchObject({
+      status: 'error',
+      desiredCount: 1,
+      verifiedCount: 0,
+      scheduledIds: [],
+      failedScheduleIds: [desired.scheduleId],
+    });
+    expect(mockSchedule).toHaveBeenCalledTimes(1);
+    expect(mockCancelScheduled).toHaveBeenCalledWith(
+      `spark:future:v1:${desired.scheduleId}`,
+    );
+    expect(mockSaveReminderScheduleSnapshot).not.toHaveBeenCalled();
+  });
+
+  it('rolls back the deterministic retry when final inventory verification fails', async () => {
+    const now = 1_800_000_000_000;
+    const desired = reminder(
+      'debt:retry-read-fails:2027-01-01:0:0900:today',
+      now + 60_000,
+    );
+    mockGetAllScheduled
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([])
+      .mockRejectedValueOnce(new Error('final native verification failed'));
+
+    const result = await reconcileAndroidReminderSchedules([desired], { now });
+
+    expect(result.status).toBe('error');
+    expect(result.verifiedCount).toBe(0);
+    expect(result.failedScheduleIds).toEqual([desired.scheduleId]);
+    expect(mockSchedule).toHaveBeenCalledTimes(2);
+    expect(mockCancelScheduled).toHaveBeenCalledTimes(1);
+    expect(mockCancelScheduled).toHaveBeenCalledWith(
+      `spark:future:v1:${desired.scheduleId}`,
+    );
+    expect(mockSaveReminderScheduleSnapshot).not.toHaveBeenCalled();
+  });
+
   it('cancels stale owned requests but schedules nothing while permission is denied', async () => {
     const now = 1_800_000_000_000;
     const stale = reminder('plan:denied-stale:2027-01-01:0:0900:today', now + 60_000);
@@ -944,11 +1095,33 @@ describe('Android system notification bridge', () => {
     const result = await reconcileAndroidReminderSchedules([desired], { now });
 
     expect(result.status).toBe('error');
+    expect(result.verifiedCount).toBe(0);
     expect(result.scheduledIds).toEqual([]);
     expect(result.failedScheduleIds).toEqual([desired.scheduleId]);
     expect(mockCancelScheduled).toHaveBeenCalledWith(
       `spark:future:v1:${desired.scheduleId}`,
     );
+  });
+
+  it('reports a failed rollback when ledger save and native cancellation both fail', async () => {
+    const now = 1_800_000_000_000;
+    const desired = reminder(
+      'debt:ledger-and-rollback-fail:2027-01-02:0:0900:today',
+      now + 60_000,
+    );
+    mockSaveReminderScheduleSnapshot.mockRejectedValueOnce(new Error('sqlite failed'));
+    mockCancelScheduled.mockRejectedValueOnce(new Error('native cancel failed'));
+
+    const result = await reconcileAndroidReminderSchedules([desired], { now });
+
+    expect(result).toMatchObject({
+      status: 'error',
+      desiredCount: 1,
+      verifiedCount: 0,
+      scheduledIds: [],
+      failedScheduleIds: [desired.scheduleId],
+      failedCancelIds: [desired.scheduleId],
+    });
   });
 
   it('baselines a future reminder so the immediate feed bridge does not duplicate it', async () => {
@@ -971,7 +1144,7 @@ describe('Android system notification bridge', () => {
     });
   });
 
-  it('falls back to immediate delivery after an overdue pending alarm is canceled', async () => {
+  it('clears the ledger handle of a canceled overdue alarm without a new tray alert', async () => {
     const now = 1_800_000_000_000;
     const notificationId = 'debt-due-v1-19-2027-01-01-0-0900-today';
     const expired = reminder('debt:19:2027-01-01:0:0900:today', now - 60_000, {
@@ -1004,13 +1177,16 @@ describe('Android system notification bridge', () => {
     await reconcileAndroidReminderSchedules([], { now });
     expect(mockDeliveryState?.records[notificationId]).toBeUndefined();
 
+    // Uygulama açılışındaki karşılığı yalnız feed catch-up'ıdır; çağıran onu
+    // anlık köprüde bastırır. Zamanı geçmiş alarm ikinci kez uyarıya dönüşmez.
     const immediate = await deliverAndroidSystemNotifications([
       item(notificationId, now),
-    ], { now, newlyCreatedIds: [notificationId] });
+    ], { now, newlyCreatedIds: [], suppressedIds: [notificationId] });
 
     expect(mockCancelScheduled).toHaveBeenCalledWith(nativeIdentifier);
-    expect(immediate.deliveredIds).toEqual([notificationId]);
-    expect(mockSchedule).toHaveBeenCalledTimes(1);
+    expect(immediate.deliveredIds).toEqual([]);
+    expect(mockSchedule).not.toHaveBeenCalled();
+    expect(mockDeliveryState?.records[notificationId]).toEqual({ handledAt: now });
   });
 
   it('handles the cold-start response once and subscribes to warm taps', async () => {

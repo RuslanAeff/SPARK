@@ -3,6 +3,14 @@ import { getDatabase } from './database';
 import { Vendor } from './schema';
 import { sanitizeText } from '../utils/inputValidation';
 
+function normalizeVendorIds(ids: readonly number[]): number[] {
+  return Array.from(new Set(ids.filter(id => Number.isSafeInteger(id) && id > 0)));
+}
+
+function placeholdersFor(ids: readonly number[]): string {
+  return ids.map(() => '?').join(', ');
+}
+
 export const VendorDao = {
   async getAll(): Promise<Vendor[]> {
     const db = await getDatabase();
@@ -75,15 +83,48 @@ export const VendorDao = {
     return row?.c ?? 0;
   },
 
+  async countExpensesForVendors(vendorIds: readonly number[]): Promise<number> {
+    const ids = normalizeVendorIds(vendorIds);
+    if (ids.length === 0) return 0;
+
+    const db = await getDatabase();
+    const row = await db.getFirstAsync<{ c: number }>(
+      `SELECT COUNT(*) as c FROM expenses WHERE vendor_id IN (${placeholdersFor(ids)})`,
+      ids,
+    );
+    return row?.c ?? 0;
+  },
+
   /**
    * Satıcıyı ve bu satıcıya bağlı tüm harcamaları atomik olarak siler.
    * P6: Transaction içinde — yarıda kalma riski yok.
    */
   async delete(id: number): Promise<void> {
+    await VendorDao.deleteMany([id]);
+  },
+
+  /**
+   * Birden fazla satıcıyı ve bağlı harcamalarını tek transaction içinde siler.
+   * Geçersiz/tekrarlı kimlikler SQL sınırına ulaşmadan elenir.
+   */
+  async deleteMany(vendorIds: readonly number[]): Promise<number> {
+    const ids = normalizeVendorIds(vendorIds);
+    if (ids.length === 0) return 0;
+
     const db = await getDatabase();
+    const placeholders = placeholdersFor(ids);
+    let deletedVendorCount = 0;
     await db.withTransactionAsync(async () => {
-      await db.runAsync('DELETE FROM expenses WHERE vendor_id = ?', [id]);
-      await db.runAsync('DELETE FROM vendors WHERE id = ?', [id]);
+      await db.runAsync(
+        `DELETE FROM expenses WHERE vendor_id IN (${placeholders})`,
+        ids,
+      );
+      const result = await db.runAsync(
+        `DELETE FROM vendors WHERE id IN (${placeholders})`,
+        ids,
+      );
+      deletedVendorCount = result.changes;
     });
+    return deletedVendorCount;
   },
 };

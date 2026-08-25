@@ -9,6 +9,7 @@ let mockParams: Record<string, string> = {};
 const mockBack = jest.fn();
 const mockRouter = { back: mockBack };
 const mockTriggerRefresh = jest.fn();
+const mockSyncNotifications = jest.fn(async () => undefined);
 const mockT = (key: string) => key;
 let mockFormProps: any = null;
 
@@ -39,6 +40,9 @@ jest.mock('../../context/CurrencyContext', () => ({ useCurrency: () => ({ curren
 jest.mock('../../context/RefreshContext', () => ({
   useRefreshActions: () => ({ triggerRefresh: mockTriggerRefresh }),
 }));
+jest.mock('../../context/NotificationsContext', () => ({
+  useNotifications: () => ({ sync: mockSyncNotifications }),
+}));
 jest.mock('../../i18n/LanguageContext', () => ({
   useLanguage: () => ({ t: mockT }),
 }));
@@ -68,8 +72,22 @@ describe('RecurringPaymentScreen', () => {
     expect(mockFormProps.initialValue).toBeNull();
     expect(mockFormProps.defaultCurrency).toBe('PLN');
 
+    await act(async () => { await mockFormProps.onSaved(); });
+    expect(mockTriggerRefresh).toHaveBeenCalledTimes(1);
+    expect(mockSyncNotifications).toHaveBeenCalledTimes(1);
+
     await act(async () => { mockFormProps.onClose(); });
     expect(mockBack).toHaveBeenCalledTimes(1);
+  });
+
+  it('kaydedilmiş planı native bildirim senkronu reddetse de başarısız göstermez', async () => {
+    mockSyncNotifications.mockRejectedValueOnce(new Error('native inventory unavailable'));
+    await render(<RecurringPaymentScreen />);
+    await waitFor(() => expect(mockFormProps).not.toBeNull());
+
+    await expect(act(async () => { await mockFormProps.onSaved(); })).resolves.toBeUndefined();
+    expect(mockTriggerRefresh).toHaveBeenCalledTimes(1);
+    expect(mockSyncNotifications).toHaveBeenCalledTimes(1);
   });
 
   it('düzenleme route kimliğiyle planı DAO üzerinden yükler', async () => {

@@ -9,7 +9,9 @@ import RecurringPaymentReminderForm, {
 } from '../src/components/RecurringPaymentReminderSheet';
 import { SparkToast } from '../src/components/SparkToast';
 import { useCurrency } from '../src/context/CurrencyContext';
+import { useNotifications } from '../src/context/NotificationsContext';
 import { useRefreshActions } from '../src/context/RefreshContext';
+import { syncNotificationsBestEffort } from '../src/notifications/syncNotificationsBestEffort';
 import { RecurringPaymentReminderDao } from '../src/db/recurringPaymentReminderDao';
 import { SubscriptionDao } from '../src/db/subscriptionDao';
 import type { RecurringPaymentReminder } from '../src/db/schema';
@@ -60,6 +62,7 @@ export default function RecurringPaymentScreen() {
   const params = useLocalSearchParams<{ id?: string; detectedVendorId?: string }>();
   const { currency } = useCurrency();
   const { triggerRefresh } = useRefreshActions();
+  const { sync: syncNotifications } = useNotifications();
   const { t } = useLanguage();
   const isEditing = firstParam(params.id) != null;
   const [initialValue, setInitialValue] = useState<
@@ -154,7 +157,13 @@ export default function RecurringPaymentScreen() {
             initialValue={initialValue}
             defaultCurrency={currency}
             onClose={() => router.back()}
-            onSaved={() => triggerRefresh()}
+            onSaved={async () => {
+              triggerRefresh();
+              // Kullanıcı ekranı kapatmadan önce yeni/değişmiş tarihli alarmı
+              // doğrudan Android'e kur ve gerçek envanterden doğrula. Kök 300 ms
+              // debounce'u yalnız genel UI yenilemesi için kalır.
+              await syncNotificationsBestEffort(syncNotifications, 'recurring-plan-save');
+            }}
           />
         )}
       </View>

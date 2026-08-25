@@ -33,6 +33,7 @@ import CategoryPill from '../../src/components/CategoryPill';
 import VendorAvatar from '../../src/components/VendorAvatar';
 import MarqueeText from '../../src/components/MarqueeText';
 import DashboardCashEntryTiles from '../../src/components/DashboardCashEntryTiles';
+import LivingSparkWordmark from '../../src/components/LivingSparkWordmark';
 import { useLanguage } from '../../src/i18n/LanguageContext';
 import { useExpenseDataRefresh } from '../../src/context/RefreshContext';
 import { useCurrency } from '../../src/context/CurrencyContext';
@@ -157,7 +158,11 @@ export default function DashboardScreen() {
         {/* Header */}
         <Animated.View entering={FadeInDown.duration(400)} style={styles.header}>
           <View>
-            <Text style={styles.appName}>S.P.A.R.K</Text>
+            <LivingSparkWordmark
+              size="hero"
+              active={isFocused}
+              accessibilityHint={t('living_wordmark_hint')}
+            />
             <Text style={styles.subtitle}>{t('app_subtitle')}</Text>
           </View>
           <Pressable
@@ -482,13 +487,6 @@ const getStyles = () => StyleSheet.create({
     color: '#fff',
     fontSize: 10,
     fontFamily: FontFamily.bold,
-  },
-  appName: {
-    ...Typography.headlineLarge,
-    color: Colors.primary,
-    fontFamily: FontFamily.extraBold,
-    fontWeight: '900',
-    letterSpacing: 2,
   },
   subtitle: {
     ...Typography.bodySmall,
