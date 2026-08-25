@@ -98,7 +98,7 @@ Kurallar:
 - React Navigation renk context'i [`src/theme/navigationTheme.ts`](../src/theme/navigationTheme.ts) üzerinden aktif SPARK şemasıyla eşleşmelidir. Nested navigator eklerken varsayılan `DefaultTheme` arka planına güvenmeyin.
 - Lazy sekmelerde `sceneStyle` ve `lazyPlaceholder` aktif tema renginde opak kalmalıdır. Flicker'ı gizlemek için lazy loading veya geçiş animasyonunu kapatmak yerine ara yüzeyin temasını düzeltin.
 - Yeni birincil CTA'lar `src/theme/susevar.ts` içindeki runtime palet fabrikasını kullanmalıdır. Dolu eylem yüzeyi `primaryAction`, üzerindeki metin/ikon `onPrimary` olmalıdır; yalnız dekoratif `primary` tonuna beyaz metin varsaymayın.
-- `success`, `danger`, `warning` ve `info` kullanıcı vurgusu değildir. Kategori, grafik serisi, logo ve splash renklerini vurgu seçimine bağlamayın.
+- `success`, `danger`, `warning` ve `info` kullanıcı vurgusu değildir. Kategori ve grafik serisi ile native uygulama ikonu/splash renklerini vurgu seçimine bağlamayın. Uygulama içi `LivingSparkWordmark` bu native varlıklardan ayrı, belgelenmiş istisnadır; yalnız tema token'larını kullanır.
 - Yeni vurgu değeri eklemek yalnız bir hex eklemek değildir: açık/koyu display ve action tonları, `onPrimary` kontrastı, ayar çevirileri, geçersiz tercih fallback'i ve cihaz matrisi birlikte ele alınır.
 - Glass yüzey dilini ayrı hardcoded renkler yerine tema token'larıyla koruyun.
 - Safe-area inset'lerine uyun; cihaza özgü alt boşluğu sabit padding ile taklit etmeyin.
@@ -106,6 +106,8 @@ Kurallar:
 ## Animasyon ve gesture'lar
 
 - Yeni UI-thread animasyonlarında React Native Reanimated kullanın.
+- Sürekli dekoratif hareket ekran odağı kaybolduğunda ve uygulama arka plana geçtiğinde durmalı; sistem hareket azaltma tercihi statik ve anlam kaybetmeyen bir sunuma düşmelidir.
+- Yaşayan wordmark dokunması yalnız kısa görsel tepki verir; navigasyon, finansal yazma veya gizli uzun-çalışan döngü başlatmaz. Hareket azaltma açıkken dokunma tepkisi de statik kalır.
 - Animasyon listener'larının tetiklediği JS-frame `setState` döngülerinden kaçının.
 - Gesture ile çalışan component'lerde Gesture Handler kullanın ve kök gesture host'unu koruyun.
 - Yıkıcı bir gesture belirsiz sürüklemede doğrudan silmek yerine açık bir eylem veya onay göstermelidir.
@@ -196,6 +198,8 @@ Tüm görünür ürün metinleri Türkçe, İngilizce, Azerbaycanca ve Rusça ç
 - Android'de Expo Go içinde kullanılamayan bildirim davranışlarını guard ile koruyun.
 - Kamera, galeri, filesystem, share sheet ve bildirim değişiklikleri native cihaz doğrulaması ile izin incelemesi gerektirir.
 - Backup import değişiklikleri desteklenen eski payload sürümleriyle uyumluluğu korumalıdır.
+- Gelecek alarmını etkileyen domain yazısından sonra yalnız genel refresh debounce'una güvenmeyin; yazma tamamlandıktan sonra native desired-state'i doğrudan uzlaştırın. Bu ikincil senkronizasyonun hatası, kalıcı finansal/domain yazısını başarısızmış gibi göstermemeli veya kullanıcıyı aynı işlemi yeniden yapmaya yöneltmemelidir.
+- Native planlı ailelerin uygulama açılışında oluşan catch-up feed kayıtlarını ikinci bir anlık tray bildirimi olarak teslim etmeyin. Scheduled future handle ile eski anlık-delivery handle'ını kimlik prefix'iyle ayırın.
 
 ## Özelliğe göre koordinasyon kontrol listesi
 
@@ -205,7 +209,7 @@ Tüm görünür ürün metinleri Türkçe, İngilizce, Azerbaycanca ve Rusça ç
 | Tema token'ı, vurgu paleti veya scheduler | Theme store tam snapshot/revision, memoize stiller, startup perdesi, navigation context'i, semantik renk ayrımı, açık/koyu × vurgu cihaz kontrolleri |
 | Yeni veritabanı tablosu/kolonu | Şema init, uyumluluk migration'ı, DAO, backup/restore, index'ler, testler |
 | Yeni analiz kartı | Kart registry/sıra migration'ı, memoize prop'lar, ortak stiller, i18n, boş durumlar |
-| Yeni bildirim kuralı | Tip, feed builder, mute channel, dismissal kalıcılığı, Expo Go guard, testler |
+| Yeni bildirim kuralı | Tip, feed builder, native-planlı mı event-driven mı olduğu, app-open catch-up sınırı, mute channel, dismissal kalıcılığı, Expo Go guard, yazma sonrası sync ve testler |
 | Yeni çevrilen metin | TR/EN kaynakları, AZ/RU map'leri, locale build, parity testi, dört dilde yerleşim |
 | Yeni fiş alanı | Gemini coercion, onarım/doğrulama, önizleme, kalıcılık, backup, düzenleme davranışı |
 | Yeni yıkıcı eylem | Onay/geri alma stratejisi, atomik mutasyon, tekrar dokunma guard'ı, erişilebilirlik |

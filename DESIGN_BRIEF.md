@@ -221,9 +221,26 @@ kaydedildiği senkronizasyonda teslim edilir. İlk kurulumda uygulamanın bir ke
 açılması ve Android izninin verilmesi gerekir. Sistem tarafından **Zorla
 durdurulan** uygulamanın alarm teslimi garanti edilmez.
 
+Planlı bir alarm ailesinin uygulama açılışında hesaplanan `yaklaşıyor`, `bugün`,
+`tarihi geçti`, hedef kilometre taşı veya bütçe kontrol karşılığı uygulama-içi
+geçmişi tamamlayan bir **feed catch-up** kaydıdır; yeni bir sistem tepsisi
+bildirimi değildir. Gerçek gelecek alarmı Android'e daha önce kurulmuşsa aynı
+olay uygulama açıldığında ikinci kez sunulmaz. Geçmiş tarihli bir kayıt için de
+uygulama açıldığı anda sahte biçimde “zamanında uyarılmış” izlenimi yaratılmaz.
+Bildirim tercihleri planlanan gerçek Android istek sayısını, sıradaki zamanı ve
+uyarı kanalının kapalı/düşük öncelikli durumunu gösterir; eksik planlar kullanıcı
+tarafından yeniden uzlaştırılabilir.
+
 ### 5.6 Yedekleme ve geri yükleme
 
 Kullanıcı taşınabilir bir yedek oluşturabilir. Geri yüklemede bütün veri önce doğrulanır; hata halinde kısmi kayıt bırakılmaz. Eski desteklenen formatlar okunabilir, desteklenmeyen yeni formatlar açık hata ile reddedilir.
+
+Yedek hatırlatması mevcut tasarımda uygulama açılışında/yenilenmesinde hesaplanan
+feed kuralıdır; kapalı uygulamayı uyandıran native alarm olarak vaat edilmez.
+Hatırlatma tercihi, başarılı export ve restore sonrası bildirim durumu hemen
+yenilenir. Restore ile gelen borç veya onaylı ödeme planlarının gelecekteki
+native alarmları aynı uzlaştırmada kurulurken, bildirim hatası atomik olarak
+tamamlanmış restore'u kullanıcıya başarısız göstermez.
 
 ### 5.7 Borç vadesi ve ödeme hatırlatıcıları
 
@@ -278,9 +295,10 @@ sınırlı ve varlıklar arasında adil seçilir. Geçmiş plan cursor'ı ödeme
 sayılmadan yalnız sıradaki gerçek oluşuma ilerletilir. Faz 5 exact-alarm özel
 izni istemez: Android Doze/OEM politikası dakikayı geciktirebilir; force-stop ve
 uygulama kapalıyken saat dilimi değişimi Faz 6 fiziksel APK kabulünde açık
-platform sınırı olarak doğrulanır. Gecikmiş ama hâlâ bekleyen native alarm
-başarıyla iptal edilirse uygulama açıkken aynı kanonik kayıt anlık fallback ile
-teslim edilebilir; iptal edilemezse ikinci alarm kurulmaz. Yaz saati başlangıç
+platform sınırı olarak doğrulanır. Gecikmiş ama hâlâ bekleyen native alarm önce
+iptal edilir; aynı kanonik kayıt uygulama açıldığında yeni bir sistem bildirimi
+olarak değil, yalnız uygulama-içi geçmişte catch-up olarak görünür. Alarm iptal
+edilemezse ikinci alarm kurulmaz. Yaz saati başlangıç
 boşluğuna denk gelen yerel saat aynı günün ilk geçerli ileri saatine taşınır ve
 occurrence tamamen kaybolmaz.
 
@@ -349,13 +367,55 @@ Ayrıntılı teknik sözleşmeler için [`docs/ARCHITECTURE.md`](docs/ARCHITECTU
 - Görünüm ile vurgu iki ayrı tercihtir: açık/koyu/otomatik görünüm yüzey ve metin kontrastını; vurgu paleti birincil eylem, aktif sekme ve seçili kontrol kimliğini belirler
 - Desteklenen vurgu ailesi beş küratörlü seçenektir: SPARK yeşili, okyanus mavisi, kehribar turuncusu, menekşe moru ve yakut kırmızısı
 - Başarı, tehlike, uyarı ve bilgi renkleri kullanıcı vurgusundan bağımsız semantik anlamlarını korur; kategori ve grafik serisi renkleri de veri kimliğini kaybetmemek için yeniden renklendirilmez
-- Uygulama logosu ve splash kimliği SPARK markasına bağlı kalır; kullanıcı paleti bunları yeniden boyamaz
+- Uygulama ikonu ve splash kimliği SPARK markasına bağlı kalır; kullanıcı paleti bunları yeniden boyamaz. Uygulama içindeki tipografik imza ise aşağıdaki kontrollü sözleşmeyle aktif vurguyu kullanabilir
 - Açık ve koyu temada aynı bilgi hiyerarşisi
 - Birincil CTA: `susevar` sözleşmesine ve kontrastı doğrulanmış `primaryAction`/`onPrimary` çiftine bağlı, belirgin fakat ekranı domine etmeyen eylem
 - Kartlarda düzenli hizalama, tutarlı radius, sınır ve iç boşluk
 - İkonlarda işlevsel boyut ve optik denge; dekoratif büyüklükten kaçınma
 
 Kod tarafındaki kesin renk, tipografi ve spacing değerlerinin kaynağı `src/theme/` dizinidir.
+
+**SPARK Yaşayan Çekirdek İmzası**, uygulama ikonu veya splash değil, uygulama
+içinde Dashboard başlığında ve Ayarlar kimlik alanında kullanılan ortak tipografik
+wordmark'tır. Harfler tok, sıkı optik ritimli ve sabit kalır; yerleşim, ölçek
+veya okunabilirlik animasyonla değiştirilmez. Platform kerning'ine bırakılmış
+tek metin yerine beş harf eşit merkez aralığına, dört nokta da ayrı vektör
+öğeleri olarak yerleşir. Noktalar gerçek glyph yan boşluklarına göre optik
+dengelenir; özellikle `S` ve `P` sonrasındaki ilk iki nokta matematiksel orta
+noktadan ölçülü biçimde sola alınır, son iki nokta geometrik ortayı korur.
+Görünür ilk harf Dashboard içerik hizasından başlar. Seçili vurgu ailesinin
+koyu/ana/açık tonları harf yüzeyini ve bütün hareket katmanlarını kurar; saf
+beyaz veya sert, dikdörtgen renk bandı kullanılmaz. “A” çevresinde karşı
+yönlerde dolaşan iki düşük yoğunluklu sis çekirdeği, yarım faz arayla merkezden
+organik biçimde büyüyüp görünmez olan iki eliptik enerji dalgası ve soldan-sağa
+ile sağdan-sola sürekli akan iki yumuşak renk çekirdeği farklı sürelerde birlikte
+çalışır. Üç UI-thread saati sırasıyla yaklaşık `6,2`, `3,8` ve `5,4` saniyede bu
+altı görünür primitive'i sürer; dokunma olmasa da wordmark tamamen durağan bir
+ana düşmez. Canlı AI hissi harflerin içinde kalır;
+dışarı taşan
+neon, blur/filter, parçacık kalabalığı, hızlı parlama veya sürekli dikkat talebi
+üretmez. İmzanın tamamı tek dokunma hedefidir; dokunma navigasyon veya veri
+eylemi yapmadan “A” merkezinde kısa bir uyanma parlamasını ve iki ayrı organik
+çekirdek olarak sola/sağa yayılan tek seferlik tepkiyi anında yeniden başlatır.
+Ekran odağını kaybettiğinde
+ya da uygulama arka plana geçtiğinde hareket durur; sistemde hareket azaltma
+açıksa hem ortam hem dokunma hareketi statik kalır. Ekran okuyucu katmanları
+ayrı ayrı değil, yerelleştirilmiş dokunma ipucuyla tek “S.P.A.R.K” kontrolü
+olarak okur. Uygulama ikonu ve splash bu wordmark'tan türetilmez ve vurgu
+seçimine göre değişmez. Ortak bileşendeki klasik varyant, insan görsel kabulü
+olumsuzsa ekran yapılarını geri sökmeden güvenli sunum geri dönüşü sağlar.
+
+İç hareketin okunabilir yüzeyini büyütmek için hero imzada harf boyutu `32`,
+kontur `1,2` ve harf merkez adımı `30` birimdir; kompakt imzada karşılıkları
+`29`, `1,2` ve `27` birimdir. Bu sıkı ve tok geometri animasyon sırasında ölçek
+değiştirmez; noktalar aynı optik düzeltme sözleşmesine göre yeniden hizalanır.
+
+Aydınlık temada beyaz yüzeyin kontrastı koyu uç tonlarını olduğundan daha durağan
+gösterdiği için `S` ve `K` temel yüzeyi ana vurgu tonunda tutulur; iki sis
+çekirdeğinin yatay hareket alanı da uç harf merkezlerini kapsayacak şekilde
+genişler ve opaklığı ölçülü artırılır. Bu, uçları merkezden koparmadan yaşayan
+hareketi bütün imzaya dağıtır. Karanlık temada insan tarafından onaylanan koyu
+uç gradyanı, hareket mesafesi ve yoğunluk korunur.
 
 **Spark Dörtlü Periyot Anahtarı**, ileride uygun bir kartta yeniden kullanılmak
 üzere adlandırılmış görsel şemadır: yuvarlatılmış tek bir ray, dört eşit bölüm,
@@ -405,15 +465,25 @@ eyleminde zaten bulunuyorsa kontrol satırında ikinci kez gösterilmez; kısa b
 ve doğrudan kontrol korunur.
 
 Ayarlar ana ekranındaki **Genel**, **Bütçe ve planlama**, **Veri ve yedek** ve
-**Yapay zekâ** girişleri, dört alanı birbirinden ayıran üst düzey kartlar olarak
-kalabilir. Bu grupların iç sayfaları ise kalıcı kart yığını kullanmaz: içerik
-doğrudan sayfa zemini üzerinde boşluk, tipografi ve ince ayırıcılarla gruplanır;
-başka bir ekrana giden öğeler tam genişlikte düz ayar satırlarıdır. Metin girişi,
-tarih seçimi, çip, anahtar ve birincil eylem gibi gerçek kontroller kendi
-etkileşim sınırlarını korur. Yedek sonucu gibi özel bir durum, genel kart yerine
-sınırlı tonal veya kenar vurgulu durum şeridi kullanabilir. Bu ayrım Dashboard ve
-Analiz'deki veri kartlarıyla Ayarlar'daki görev odaklı düzenin psikolojik ve
-görsel olarak birbirine karışmasını engeller.
+**Yapay zekâ** girişleri de kalıcı kart kabuğu kullanmaz. Renkli kimlik ikonu,
+başlık, sarmalanabilen kısa açıklama ve yön oku korunarak doğrudan sayfa zemininde
+tam genişlikte satırlar ve ince ayırıcılarla sunulur; yalnız basılı durumda geçici
+tonal geri bildirim oluşur. SPARK kimlik alanı menüden yeni bir kartla değil,
+belirgin bir nefes boşluğuyla ayrılır. Bu grupların iç sayfaları da aynı kart-dışı
+hiyerarşiyi sürdürür: içerik doğrudan sayfa zemini üzerinde boşluk, tipografi ve
+ince ayırıcılarla gruplanır; başka bir ekrana giden öğeler tam genişlikte düz ayar
+satırlarıdır. Metin girişi, tarih seçimi, çip, anahtar ve birincil eylem gibi
+gerçek kontroller kendi etkileşim sınırlarını korur. Yedek sonucu gibi özel bir
+durum, genel kart yerine sınırlı tonal veya kenar vurgulu durum şeridi
+kullanabilir. Bu ayrım Dashboard ve Analiz'deki veri kartlarıyla Ayarlar'daki
+görev odaklı düzenin psikolojik ve görsel olarak birbirine karışmasını engeller.
+
+**Satıcı Yönetimi** tekli düzenleme ve uzun basarak silme davranışlarını korurken
+açık bir çoklu seçim moduna da sahiptir. Bu mod seçili satıcı sayısını gösterir;
+tümünü seçme, seçimi temizleme ve iptal eylemlerini tek yerde sunar. Toplu silme
+isteği doğrudan veri değiştirmez: önce seçili satıcı sayısı ile bunlara bağlı
+işlem sayısını açıklayan geri alınamazlık onayı gösterilir. Kullanıcı onayladıktan
+sonra satıcılar ve bağlı işlemler tek atomik veritabanı işlemiyle kaldırılır.
 
 ### Etkileşim ilkeleri
 

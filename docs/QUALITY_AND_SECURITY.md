@@ -63,8 +63,25 @@ başarı/tehlike/uyarı/bilgi ile kategori/grafik renklerinin değişmeden kalma
 kontrol edilir. Çalışma zamanında art arda palet değiştirme aktif rotayı,
 scroll/sheet durumunu veya navigator ağacını sıfırlamamalı; ara beyaz/siyah kare
 üretmemelidir. Uygulama yeniden başlatıldığında kayıtlı şema ve vurgu ilk görünür
-kareden önce birlikte uygulanmalıdır. Logo ve splash marka rengi seçilen vurguya
-göre yeniden boyanmamalıdır.
+kareden önce birlikte uygulanmalıdır. Native uygulama ikonu ve splash marka rengi
+seçilen vurguya göre yeniden boyanmamalıdır. Uygulama içi Yaşayan Çekirdek
+İmzası ayrı bir UI öğesi olarak beş vurgu × açık/koyu matrisinde; sabit harf
+geometrisi, okunabilirlik, ekran odağında başlama/durma ve hareket azaltma
+fallback'i açısından ayrıca kontrol edilmelidir. Harf, nokta veya aralarındaki
+boşluğa dokunmanın aynı kısa merkez tepkisini anında başlattığı; art arda
+dokunmada tepkinin takılmadan yeniden başladığı ve TalkBack'in yerelleştirilmiş
+dokunma amacını tek kontrol olarak duyurduğu da cihazda doğrulanmalıdır. Hareket
+sırasında saf beyaz blok, sert dikdörtgen bant veya kareli yüzey oluşmadığı;
+seçili vurgu renginin koyu/ana/açık tonlarının yumuşak geçişlerle korunduğu
+görsel kabul matrisine dahildir. Aydınlık temada `S` ve `K` harflerinin merkez
+harflerden kalıcı biçimde daha koyu görünmediği ve hareketli çekirdeklerin iki uç
+harfe de ulaştığı; karanlık temanın daha önce onaylanan görünümünün değişmediği
+ayrıca karşılaştırılmalıdır. Toklaştırılmış hero/kompakt geometride glyph veya
+noktaların SVG sınırından kırpılmadığı, harflerin birbirine değmediği ve iç
+animasyonun daha geniş yüzeyde seçilebilir kaldığı cihaz matrisine eklenmelidir.
+Dokunmadan en az 20 saniye gözlemde iki yönlü yatay akışın, kademeli merkez
+dalgalarının ve sis çekirdeklerinin fark edilebildiği; buna rağmen okunabilirliği
+bozan sürekli parlama veya pil/ısı artışı oluşturmadığı ayrıca doğrulanmalıdır.
 
 Vurgu carousel'i mikro geri bildirim kullanıyorsa gerçek ScrollView viewport'u
 üzerinde ilk, orta ve son adayın sabit merkez eksenine oturduğu; yavaş sürükleme,
@@ -83,7 +100,7 @@ seçimi engellememeli, uygulama mikrofon/recording veya arka plan oynatma
 yeteneği kazanmamalıdır. Native izin ve plugin gerçeği yalnız `app.json` ile
 üretilen manifest üzerinden doğrulanır.
 
-Android sistem bildirimi değişikliklerinin APK smoke testi en az şu senaryoları kaydetmelidir: cold start sırasında reveal tamamlanmadan izin yüzeyi açılmaması; Android 13+ izin akışı; sessiz güncelleme ve dikkat gerektiren uyarı kanallarının önem/ses/titreşim farkı; kilit ekranında özel içerik görünürlüğü; resume ve yeniden başlatmada çift teslim olmaması; uygulama içi silmenin tray kopyasını kaldırması; warm/cold dokunuşun doğru kaydı okuyup Bildirimler'e yönlendirmesi. Geleceğe tarihli hatırlatıcılarda ayrıca seçilen saate planlama, settle/pause/delete/mute sonrası iptal, cold tap ile feed'e tek kayıt, process-kill, reboot, APK update, saat-dilimi değişiminden sonraki resume uzlaştırması ve Doze/OEM gecikmesi kaydedilmelidir. Force-stop sınırı ayrıca raporlanmalıdır. Expo Go sonucu bu davranışlar için cihaz kanıtı sayılmaz.
+Android sistem bildirimi değişikliklerinin APK smoke testi en az şu senaryoları kaydetmelidir: cold start sırasında reveal tamamlanmadan izin yüzeyi açılmaması; Android 13+ izin akışı; sessiz güncelleme ve dikkat gerektiren uyarı kanallarının önem/ses/titreşim farkı; kilit ekranında özel içerik görünürlüğü; resume ve yeniden başlatmada çift teslim olmaması; uygulama içi silmenin tray kopyasını kaldırması; warm/cold dokunuşun doğru kaydı okuyup Bildirimler'e yönlendirmesi. Geleceğe tarihli hatırlatıcılarda ayrıca seçilen saate planlama; tercihlerde doğrulanmış gerçek istek sayısı+sıradaki zaman; kapalı/düşürülmüş alerts kanalı ve onarım eylemi; settle/pause/delete/mute sonrası iptal; geçmiş tarihli kaydın uygulama açılışında yeni tray uyarısı üretmemesi; eski anlık catch-up kopyası temizlenirken gerçek future tray handle'ının korunması; cold tap ile feed'e tek kayıt; process-kill, reboot, APK update, saat-dilimi değişiminden sonraki resume uzlaştırması ve Doze/OEM gecikmesi kaydedilmelidir. Force-stop sınırı ayrıca raporlanmalıdır. Expo Go sonucu bu davranışlar için cihaz kanıtı sayılmaz.
 
 ## Güvenlik modeli
 
@@ -159,6 +176,14 @@ Feed, okuma, mute, dismissal ve özel kural durumu birden fazla UI ve refresh yo
 
 Native teslim başarısızlığı uygulama içi feed'in kalıcılığını geri almamalıdır. Tekrar teslimi önleyen ledger sınırlı ve idempotent olmalı; yalnız feed/native kimlikleri ile zaman damgalarını taşımalı, bildirim metni veya finansal veri saklamamalıdır. Başarılı teslim ledger'a yazılır; başarısız teslim sonraki resume/senkronizasyonda güvenle yeniden denenebilir. İlk native aktivasyon, eski feed kayıtlarını topluca sistem bildirimi olarak canlandırmamalıdır. Planlama öncesi kanonik feed `id/read/revision` kontrolü yapılmalı; schedule başarılıyken ledger yazımı başarısız olursa native side-effect geri alınarak retry hazırlanmalıdır. OS scheduling ile SQLite arasında mutlak atomiklik varsaymayın; ani süreç ölümü penceresini fiziksel APK'da tekrar-teslim senaryosuyla ayrıca kaydedin.
 
+Schedule API'sinin resolve olması gerçek native envanter doğrulaması değildir.
+Yazım sonrası uygulamaya ait scheduled-request listesi yeniden okunmalı, eksik
+deterministik istek sınırlı kez yeniden denenmeli ve doğrulama/ledger commit'i
+başarısızsa bu turda denenmiş side-effect telafi iptaliyle geri alınmalıdır.
+Sonuç ekranı scheduler `error`, istenen/doğrulanan sayı farkı ve iptal/yazma
+hatalarını sağlıklı durum gibi göstermemelidir. Async tanı isteklerinde eski
+sonucun yeni modal oturumunu ezmesi engellenmelidir.
+
 Geleceğe tarihli alarm uzlaştırması yalnız uygulamaya ait kimlik prefix'ini
 yönetmeli; `cancelAll` kullanmamalı ve gerçek OS planlarını kanonik isteklerle
 karşılaştırmalıdır. İptal edilmemiş future alarm ile daha önce sunulmuş tray
@@ -169,6 +194,11 @@ deposunda alarm başlık/gövdesi bulunabilir. Dokümantasyon bu iki depoyu
 birbirine karıştırmamalıdır. Exact-alarm özel erişimi yokken tam dakika garantisi
 verilmez; Doze/OEM, force-stop ve uygulama kapalıyken saat-dilimi değişikliği
 fiziksel cihaz kabulünde açık sınırlama olarak raporlanır.
+
+Planlı alarm ailesinin uygulama açılışında hesaplanan feed catch-up'ı anlık tray
+teslimi değildir. Geçmiş/bugün/yaklaşan aşamalar ile hedef/bütçe kilometre taşı
+kimlikleri bu köprüden bastırılmalı; migration cleanup yalnız eski anlık handle'ı
+kaldırmalı ve gerçek future prefix'li alarmı iptal etmemelidir.
 
 ## Güvenilirlik gereksinimleri
 
@@ -226,7 +256,7 @@ Performans çalışması doğruluğu ve görsel sürekliliği korumalıdır.
 - [ ] Görünür metin dört dil akışını izliyor.
 - [ ] Açık ve koyu tema çalışma zamanı tema token'larını kullanıyor.
 - [ ] Vurgu kullanan stiller tam palet veya revision değişimine reaktif; `primaryAction`/`onPrimary` kontrastı doğrulanmış.
-- [ ] Semantik, kategori/grafik ve logo/splash renkleri kullanıcı vurgusundan bağımsız kalıyor.
+- [ ] Semantik, kategori/grafik ve native uygulama ikonu/splash renkleri kullanıcı vurgusundan bağımsız kalıyor; uygulama içi Yaşayan Çekirdek İmzası yalnız belgelenmiş tema token'larını kullanıyor.
 - [ ] Kademeli vurgu seçicisi adaptif merkezleniyor; geri bildirim yalnız insanın
   geçtiği yeni kademede bir kez, kalıcılık yalnız nihai snap'te oluşuyor.
 - [ ] Async state daha eski istek tarafından ezilemiyor.

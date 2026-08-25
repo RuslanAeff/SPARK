@@ -60,7 +60,7 @@ Dosya tabanlı navigasyonun sahibi Expo Router'dır. [`app/_layout.tsx`](../app/
 
 ### Sunum — `src/components/`
 
-Paylaşılan UI, grafikler, modal'lar, sheet'ler, geri bildirim yüzeyleri ve analiz kartları burada bulunur. Analiz bilinçli olarak bölünmüştür: [`app/(tabs)/analytics.tsx`](<../app/(tabs)/analytics.tsx>) veri ile kart sırasını orkestre eder; ayrı memoize kartlar ve ortak stiller [`src/components/analytics/`](../src/components/analytics) altında yer alır. Ayarlar alt sayfalarının kart-dışı bölüm ve gezinme satırı sözleşmesi [`src/components/SettingsList.tsx`](../src/components/SettingsList.tsx) içinde ortaktır; ekranlar kendi kalıcı kart kabuklarını üretmez, yalnız gerçek seçim/giriş kontrollerini sınırlı yüzey olarak korur.
+Paylaşılan UI, grafikler, modal'lar, sheet'ler, geri bildirim yüzeyleri ve analiz kartları burada bulunur. Analiz bilinçli olarak bölünmüştür: [`app/(tabs)/analytics.tsx`](<../app/(tabs)/analytics.tsx>) veri ile kart sırasını orkestre eder; ayrı memoize kartlar ve ortak stiller [`src/components/analytics/`](../src/components/analytics) altında yer alır. Ayarlar ana menüsünün ve alt sayfalarının kart-dışı bölüm/gezinme satırı sözleşmesi [`src/components/SettingsList.tsx`](../src/components/SettingsList.tsx) içinde ortaktır; ekranlar kendi kalıcı kart kabuklarını üretmez, yalnız gerçek seçim/giriş kontrollerini sınırlı yüzey olarak korur.
 
 ### Uygulama durumu — `src/context/` ve `src/hooks/`
 
@@ -98,7 +98,23 @@ Nötr yüzey token'ları görünüm şemasına; `primary`, `primaryAction`,
 `onPrimary` ve tonal vurgu token'ları seçilen vurguya bağlıdır.
 `primaryAction`/`onPrimary` çifti dolu eylem kontrastının yetkili kaynağıdır.
 Başarı, tehlike, uyarı ve bilgi semantiği; kategori renkleri, grafik serileri,
-logo ve splash renkleri vurgu seçiminden bağımsızdır.
+uygulama ikonu ve splash renkleri vurgu seçiminden bağımsızdır. Uygulama içindeki
+tipografik `LivingSparkWordmark`, bu sabit native marka varlıklarından ayrıdır ve
+tema snapshot'ındaki vurgu tonlarını kontrollü bir UI kimliği olarak kullanır.
+Dashboard ve Ayarlar aynı bileşeni tüketir; harf geometrisi sabitken yalnız iç
+SVG ışık/çekirdek katmanları Reanimated ile hareket eder. Sekme odağı,
+uygulama-önplan durumu ve sistem hareket azaltma tercihi animasyon kapısıdır.
+Ortam hareketleri üç UI-thread döngüsüdür; bu saatlerden iki karşıt yatay akış,
+yarım fazlı iki merkez dalgası ve iki dolaşan sis çekirdeği olmak üzere altı
+eliptik primitive türetilir. Sert dikdörtgen bant yerine yalnız tema paletinin
+koyu/ana/açık tonlarını kullanan radial-gradient çekirdekleri hareket eder.
+İmzanın tek Pressable yüzeyine dokunma ayrıca sürekli
+döngü eklemeden, aynı SVG kırpma sınırı içinde merkezden sola ve sağa ayrılan
+kısa, yeniden başlatılabilir bir tepki üretir. Bu kontrol navigasyon veya
+finansal durum değişikliği yapmaz. Saf `resolveWordmarkMotionProfile`, aydınlık
+temada temel uç rengini ana vurguya eşitler ve sis hareketini `S`–`K` kapsamına
+genişletir; karanlık temanın onaylanmış koyu uç ve daha merkezî hareket profilini
+değiştirmez.
 
 [`src/theme/navigationTheme.ts`](../src/theme/navigationTheme.ts), aynı çözülmüş
 paleti React Navigation context'ine taşır; stack, pager, scene wrapper ve lazy
@@ -160,6 +176,13 @@ Kolonlar, constraint'ler, index'ler ve silme davranışında [`src/db/schema.ts`
 silme yalnız singleton hedef satırını etkiler; limitlerin silinmesi ayrı ve açık
 bir kullanıcı eylemi gerektirir. DAO silme sonucu etkilenen satır sayısıyla
 bildirilir; böylece boş veya eskimiş UI durumu başarı olarak sunulmaz.
+
+Satıcı silme finansal kayıtları da etkilediği için tekli ve toplu yollar aynı DAO
+sınırını kullanır. `VendorDao.deleteMany(...)` kimlikleri doğrular ve tekilleştirir;
+bağlı `expenses` satırlarını ve ardından seçili `vendors` satırlarını aynı
+`withTransactionAsync(...)` içinde siler. Onay yüzeyindeki etki sayısı tek bir
+parametreli toplu sorguyla hesaplanır; UI onayından önce hiçbir silme yazması
+başlatılmaz.
 
 Dashboard hedef sunumu, `settings` içindeki gizli olmayan iki yerel tercihle
 orkestre edilir: ana görünürlük tercihi varsayılan açık, kompakt öne çıkarma
@@ -378,6 +401,15 @@ Teslim idempotency'si, `settings` içindeki sınırlı yerel ledger ile korunur.
 
 Android scheduling ve SQLite ledger yazımı tek OS transaction'ı değildir. Schedule sonrası ledger hatasında servis native kaydı geri kaldırıp retry yapar; kaldırma da başarısızsa süreç içi guard ikinci uyarıyı keser. Ani süreç ölümü sınırında mutlak exactly-once kanıtı verilemez; deterministik native kimlik, kalıcı ledger ve APK tekrar-teslim smoke testi bu küçük pencerenin azaltıcı kontrolleridir.
 
+`scheduleNotificationAsync` çağrısının resolve olması tek başına başarı kanıtı
+sayılmaz. Uzlaştırıcı yazımdan sonra Expo'nun uygulamaya ait kalıcı
+scheduled-request envanterini tekrar okur, eksik deterministik kimliği bir kez
+yeniden dener ve ikinci kez doğrular. Yazım sonrası envanter okunamazsa veya iki
+ledger'ın ortak commit'i başarısızsa bu turda denenmiş native istekler telafi
+iptaliyle geri alınır; doğrulanmamış kayıt başarılı/baseline edilmiş gösterilmez.
+Bu envanter Expo'nun uygulama sahipliğindeki scheduled-request listesidir,
+ayrıcalıklı bir `AlarmManager` dump'ı değildir.
+
 Geleceğe tarihli planlama yalnız SPARK'a ait deterministik native kimlikleri
 uzlaştırır; başka uygulama veya özelliklerin OS bildirimleri topluca iptal
 edilmez. Borç için yaklaşan ve vade-günü alarmları, düzenli ödeme içinse mevcut
@@ -387,8 +419,9 @@ oluşumlar planlar arasında adil seçilir. Alarm kurulduğunda aynı feed kimli
 anlık teslim ledger'ında baselined edilerek uygulama açıldığında ikinci kez
 teslim edilmez. Doze/inexact teslim nedeniyle zamanı geçtiği halde native
 envanterde bekleyen alarm önce actual-vs-desired uzlaştırmasında iptal edilir;
-başarılı iptal aynı transaction'da eski baseline'ı kaldırır ve kanonik feed'in
-anlık fallback teslimine izin verir. İptali başarısız istek 512 OS kotasına dahil
+başarılı iptal aynı transaction'da eski baseline'ı kaldırır. Kanonik kayıt bundan
+sonra da anlık tray köprüsünde yeni uyarı olarak üretilmez; yalnız uygulama-içi
+feed catch-up'ı olarak kalır. İptali başarısız istek 512 OS kotasına dahil
 kalır ve ikinci alarm kurulmaz. Dil veya sunum metni değişirse revision değişir
 ve bekleyen OS isteği yenilenir. Tetiklenip scheduled envanterden düşmüş tray kopyaları exact
 feed kimliği ve içerik özetiyle izlenir; aşama, vade, tutar veya mute değişiminde
@@ -403,6 +436,14 @@ uygulama kapalıyken yapılan saat-dilimi değişikliği ancak sonraki startup/r
 uzlaştırmasında yeni yerel saate çevrilir. Force-stop sonrası teslim garantisi
 verilmez ve bu sınırlar standalone APK kabulünde ayrıca sınanır.
 
+Native planlı ailelerin uygulama açıldığında kural motorunca üretilen
+`upcoming/today/overdue` veya dikkat-kilometre taşı karşılıkları yalnız kanonik
+feed catch-up'ıdır. Anlık Android köprüsü bu kimlikleri bastırır; eski sürümün
+aynı feed kimliğiyle oluşturduğu anlık tray handle'ını temizlerken gerçek
+`spark:future:v1:` alarm/tray handle'ını korur. Böylece uygulama açılış saati
+alarmın planlanan teslim saati gibi görünmez ve gerçek zamanlı alarm ikinci kez
+üretilmez.
+
 Aynı desired-state uzlaştırması, veri yazmadan yalnız önceden bilinen dikkat
 zamanlarını da taşır: tamamlanmamış birikim hedefi için son tarihe kalan
 `90/30/14/7/3/1/0` günler saat `09:00`, pozitif aktif bütçe için dönem
@@ -415,6 +456,15 @@ verisini arka planda tahmin etmez. Bütçe tüketimi ve kategori aşımı yalnı
 yerel finansal event geldiğinde hesaplanır ve event sonrası senkronizasyonda
 teslim edilir. Bildirim tercihleri ledger tahmini yerine Android'in gerçek SPARK
 scheduled envanter sayısını gösterir.
+
+Borç, ödeme planı, hedef, bütçe, hedef katkısı, restore ve onboarding bütçe
+yazıları tamamlandıktan sonra scheduler desired-state'i doğrudan yenilenir;
+genel 300 ms UI invalidation'ı tek başına teslim garantisi değildir. Native
+senkronizasyon bu kalıcı yazılardan ayrı, best-effort bir yan etkidir ve hata
+durumunda tamamlanmış finansal/domain işlemi geri çevrilmez. Yedek hatırlatması
+ve kullanıcı tarafından henüz onaylanmamış abonelik tahminleri uygulama-tetikli
+feed kapsamındadır; tarih çıpası/domain kararı olmadan kapalı uygulama alarmına
+dönüştürülmez.
 
 ## Bağımlılık ve değişiklik sınırları
 

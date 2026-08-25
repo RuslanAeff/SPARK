@@ -73,8 +73,10 @@ teslim ve yedekten dönüşte bozuk ilişki riski oluşturur.
   uyarıyı ikinci kez anlık bildirim olarak üretmez.
 - Zamanı geçmiş fakat Doze/inexact nedeniyle hâlâ OS envanterinde bekleyen istek
   önce iptal edilir. Başarılı iptal eski future baseline'ını atomik snapshot'tan
-  çıkarır ve uygulama açıkken kanonik feed'in anlık fallback teslimine izin verir;
-  iptal başarısızsa istek kotaya dahil kalır ve duplicate kurulmaz.
+  çıkarır; iptal başarısızsa istek kotaya dahil kalır ve duplicate kurulmaz.
+  Bu bulletın “anlık fallback teslimi” kısmı aşağıdaki 25 Ağustos 2026 kararıyla
+  geçersizdir: kanonik kayıt uygulama-içi feed catch-up'ı olarak kalır, anlık
+  tray köprüsünde yeni uyarı olarak üretilmez.
 - Native reveal öncesinde çağrılan veya sync kuyruğunda bekleyen çalışma cursor
   ilerletemez. Cold notification response normal bootstrap sync'inden önce
   kanonik feed'e uygulanır; native uzlaştırma `not_ready` veya `error` ise eski
@@ -122,6 +124,31 @@ teslim ve yedekten dönüşte bozuk ilişki riski oluşturur.
   uyguladığında teslim garantisi yoktur. Exact-alarm özel izni istenmez.
 - Tercih yüzeyi, uygulama ledger'ı yerine Android'in gerçek SPARK future-alarm
   envanterini sayar. Expo Go bu davranış için kabul ortamı değildir.
+
+## 25 Ağustos 2026 teslim ve doğrulama sertleştirmesi
+
+- Gerçek cihazda “planlanan tarih geçti” kaydının uygulama açıldığı anda tray'e
+  gelmesi, kapalı uygulama alarmının gecikmesi değil; uygulama açılışında üretilen
+  kanonik catch-up feed kaydının anlık köprüden ikinci kez sunulmasıydı.
+- Borç/ödeme planı `upcoming/today/overdue` aşamaları ile hedef ve bütçe dikkat
+  kilometre taşlarının app-open karşılıkları feed-only catch-up olarak sınıflanır.
+  Eski anlık tray kopyası temizlenir; gerçek `spark:future:v1:` handle korunur.
+- `scheduleNotificationAsync` resolve sonucu yeterli değildir. İlk yazımdan sonra
+  Expo scheduled-request envanteri okunur, eksik deterministik istek bir kez
+  yeniden denenir ve son envanter tekrar doğrulanır. Post-write okuma veya ortak
+  ledger commit'i başarısızsa bu turda denenmiş native side-effect telafi
+  iptaliyle geri alınır; `verifiedCount` başarı gibi korunmaz.
+- Bildirim tercihleri permission'a ek olarak gerçek plan sayısı, sıradaki alarm,
+  alerts kanalının blocked/degraded durumu ve desired/verified uyumsuzluğunu
+  gösterir. Scheduler `error` sağlıklı ikonla sunulmaz ve onarım eylemi sağlar;
+  eski async sorgu yeni modal oturumunun sonucunu ezemez.
+- Borç, ödeme planı, hedef/bütçe ve restore gibi kalıcı kaynağı değiştiren
+  işlemler yazı tamamlandıktan sonra doğrudan desired-state sync'i çağırır.
+  Native hata tamamlanmış finansal/domain yazısını geri alamaz veya kullanıcıya
+  aynı işlemi tekrar yaptıracak sahte kayıt hatasına dönüştürülemez.
+- Exact-alarm özel erişimi istememe, Doze/OEM gecikmesi, force-stop sınırı ve
+  standalone APK fiziksel kabul gereksinimi değişmemiştir. Expo'nun uygulamaya
+  ait scheduled-request envanteri ayrıcalıklı AlarmManager dump'ı değildir.
 
 ## Sonuçlar ve ödünleşimler
 
