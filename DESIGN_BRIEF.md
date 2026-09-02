@@ -176,6 +176,14 @@ küçük dışa-genişlet rozeti alanın dokunulabilir olduğunu anlatır; kateg
 geçilince bunun karşılığı olan içe-topla ikonu görünür. Rozet ayrı bir erişilebilir
 kontrol değildir; merkez düğmesinin açıklayıcı eylem etiketi kanoniktir.
 
+Analiz sekmesindeki **Davranışsal Analiz** kartındaki ihtiyaç/keyif ve hafta
+içi/hafta sonu donut'ları aynı küçük-dilim erişilebilirlik sözleşmesini paylaşır:
+bir dilim seçildiğinde analiz metninin iki yanında beliren önceki/sonraki ok
+kontrolleri, o donut'un segmentleri arasında dizi boyutuna göre döngüsel
+gezinir. Hiçbir dilim seçili değilken kart, iki donut sayfası arasındaki yatay
+kaydırmayı anlatan mevcut ipucunu değiştirmeden gösterir; ok gezinmesi yalnız
+dilim seçimini, sayfa kaydırmayı değil hedefler.
+
 Dashboard'daki **Üst kategoriler** yalnız ikon ezberine dayanmaz. Her kategori
 ikonunun altında seçili uygulama dilindeki kategori adı, onun altında renkli oran
 görünür. Kompakt yatay akışı korumak için uzun ad en fazla iki satırda kısalabilir;
