@@ -25,6 +25,8 @@
   "donut_select_first_category": "Select the first category",
   "donut_previous_category": "Previous category",
   "donut_next_category": "Next category",
+  "donut_previous_segment": "Previous slice",
+  "donut_next_segment": "Next slice",
   "donut_spending_share": "{spending}% of spending",
   "donut_spending_budget_share": "{spending}% of spending · {budget}% of budget",
   "budget_card_title": "Monthly Budget Status",

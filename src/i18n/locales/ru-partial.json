@@ -1081,5 +1081,7 @@
   "donut_next_category": "Следующая категория",
   "donut_spending_share": "{spending}% расходов",
   "donut_spending_budget_share": "{spending}% расходов · {budget}% бюджета",
-  "dashboard_budget_period": "Бюджетный период"
+  "dashboard_budget_period": "Бюджетный период",
+  "donut_previous_segment": "Предыдущий сегмент",
+  "donut_next_segment": "Следующий сегмент"
 }

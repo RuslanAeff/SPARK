@@ -1081,5 +1081,7 @@
   "donut_next_category": "Növbəti kateqoriya",
   "donut_spending_share": "Xərclərin {spending}%-i",
   "donut_spending_budget_share": "Xərclərin {spending}%-i · büdcənin {budget}%-i",
-  "dashboard_budget_period": "Büdcə dövrü"
+  "dashboard_budget_period": "Büdcə dövrü",
+  "donut_previous_segment": "Əvvəlki dilim",
+  "donut_next_segment": "Növbəti dilim"
 }

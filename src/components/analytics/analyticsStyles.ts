@@ -288,12 +288,37 @@ export const getAnalyticsStyles = () => StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
+  donutAnalysisNavRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: '100%',
+    gap: Spacing.sm,
+  },
+  donutNavButton: {
+    width: 32,
+    height: 32,
+    borderRadius: BorderRadius.round,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: Colors.surface,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: Colors.border,
+  },
+  donutNavButtonPressed: {
+    opacity: 0.72,
+    transform: [{ scale: 0.94 }],
+  },
   donutAnalysisText: {
     ...Typography.bodyMedium,
     color: Colors.textPrimary,
     fontFamily: FontFamily.medium,
     textAlign: 'center',
     lineHeight: 22,
+  },
+  donutAnalysisTextFlex: {
+    flex: 1,
+    minWidth: 0,
   },
   donutAnalysisHint: {
     ...Typography.labelSmall,

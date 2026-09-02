@@ -25,6 +25,8 @@
   "donut_select_first_category": "İlk kateqoriyanı seç",
   "donut_previous_category": "Əvvəlki kateqoriya",
   "donut_next_category": "Növbəti kateqoriya",
+  "donut_previous_segment": "Əvvəlki dilim",
+  "donut_next_segment": "Növbəti dilim",
   "donut_spending_share": "Xərclərin {spending}%-i",
   "donut_spending_budget_share": "Xərclərin {spending}%-i · büdcənin {budget}%-i",
   "budget_card_title": "Aylıq büdcə statusu",

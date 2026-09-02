@@ -1179,6 +1179,25 @@ export default function AnalyticsScreen() {
     [],
   );
 
+  // Küçük donut dilimlerine dokunarak seçim yapmak zor olduğu için ok
+  // kontrolleri aynı seçimi dilim boyutundan bağımsız sırayla dolaştırır.
+  const handleNWMove = useCallback((direction: -1 | 1) => {
+    setSelectedNWIdx(previous => {
+      const length = needsWants.length;
+      if (length === 0) return null;
+      if (previous === null) return direction > 0 ? 0 : length - 1;
+      return (previous + direction + length) % length;
+    });
+  }, [needsWants.length]);
+  const handleWWMove = useCallback((direction: -1 | 1) => {
+    setSelectedWWIdx(previous => {
+      const length = weekWeekend.length;
+      if (length === 0) return null;
+      if (previous === null) return direction > 0 ? 0 : length - 1;
+      return (previous + direction + length) % length;
+    });
+  }, [weekWeekend.length]);
+
   const renderCard = (id: string, index: number) => {
     let content = null;
     if (id === 'chart') {
@@ -1207,6 +1226,8 @@ export default function AnalyticsScreen() {
           selectedWWIdx={selectedWWIdx}
           handleNWSelect={handleNWSelect}
           handleWWSelect={handleWWSelect}
+          handleNWMove={handleNWMove}
+          handleWWMove={handleWWMove}
         />
       );
     } else if (id === 'top_tx') {

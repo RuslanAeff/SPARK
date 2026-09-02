@@ -1,6 +1,6 @@
 // S.P.A.R.K. — Analiz kartı: Davranışsal analiz (needs/wants + week/weekend donut'ları)
 import React, { useState } from 'react';
-import { View, Text, ScrollView, Dimensions } from 'react-native';
+import { View, Text, ScrollView, Dimensions, Pressable } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import AnimatedCard from '../AnimatedCard';
 import DonutChart from '../DonutChart';
@@ -20,11 +20,14 @@ interface DonutCardProps extends BaseCardProps {
   selectedWWIdx: number | null;
   handleNWSelect: (idx: number) => void;
   handleWWSelect: (idx: number) => void;
+  handleNWMove: (direction: -1 | 1) => void;
+  handleWWMove: (direction: -1 | 1) => void;
 }
 
 function DonutCard({
   styles, t, currency, needsWants, weekWeekend, nwSegments, wwSegments,
   selectedNWIdx, selectedWWIdx, handleNWSelect, handleWWSelect,
+  handleNWMove, handleWWMove,
 }: DonutCardProps) {
   useThemeRevision();
   if (needsWants.length === 0 && weekWeekend.length === 0) return null;
@@ -88,13 +91,33 @@ function DonutCard({
           />
           <View style={styles.donutAnalysisContainer}>
             {nwItem ? (
-              <Text style={styles.donutAnalysisText}>
-                {nwItem.segment === t('needs')
-                   ? t('needs_analysis', { percentage: nwItem.percentage.toString() })
-                   : nwItem.segment === t('wants')
-                   ? t('wants_analysis', { percentage: nwItem.percentage.toString() })
-                   : t('savings_other_analysis', { percentage: nwItem.percentage.toString() })}
-              </Text>
+              <View style={styles.donutAnalysisNavRow}>
+                <Pressable
+                  testID="donut-nw-previous"
+                  onPress={() => handleNWMove(-1)}
+                  style={({ pressed }) => [styles.donutNavButton, pressed && styles.donutNavButtonPressed]}
+                  accessibilityRole="button"
+                  accessibilityLabel={t('donut_previous_segment')}
+                >
+                  <MaterialCommunityIcons name="chevron-left" size={20} color={Colors.textSecondary} />
+                </Pressable>
+                <Text style={[styles.donutAnalysisText, styles.donutAnalysisTextFlex]}>
+                  {nwItem.segment === t('needs')
+                     ? t('needs_analysis', { percentage: nwItem.percentage.toString() })
+                     : nwItem.segment === t('wants')
+                     ? t('wants_analysis', { percentage: nwItem.percentage.toString() })
+                     : t('savings_other_analysis', { percentage: nwItem.percentage.toString() })}
+                </Text>
+                <Pressable
+                  testID="donut-nw-next"
+                  onPress={() => handleNWMove(1)}
+                  style={({ pressed }) => [styles.donutNavButton, pressed && styles.donutNavButtonPressed]}
+                  accessibilityRole="button"
+                  accessibilityLabel={t('donut_next_segment')}
+                >
+                  <MaterialCommunityIcons name="chevron-right" size={20} color={Colors.textSecondary} />
+                </Pressable>
+              </View>
             ) : (
               <View style={styles.donutAnalysisHintRow}>
                 <Text style={styles.donutAnalysisHint}>{t('donut_hint_swipe_right')}</Text>
@@ -132,9 +155,29 @@ function DonutCard({
           />
           <View style={styles.donutAnalysisContainer}>
             {wwItem ? (
-              <Text style={styles.donutAnalysisText}>
-                {t('time_analysis', { percentage: wwItem.percentage.toString(), segment: wwItem.segment.toLowerCase() })}
-              </Text>
+              <View style={styles.donutAnalysisNavRow}>
+                <Pressable
+                  testID="donut-ww-previous"
+                  onPress={() => handleWWMove(-1)}
+                  style={({ pressed }) => [styles.donutNavButton, pressed && styles.donutNavButtonPressed]}
+                  accessibilityRole="button"
+                  accessibilityLabel={t('donut_previous_segment')}
+                >
+                  <MaterialCommunityIcons name="chevron-left" size={20} color={Colors.textSecondary} />
+                </Pressable>
+                <Text style={[styles.donutAnalysisText, styles.donutAnalysisTextFlex]}>
+                  {t('time_analysis', { percentage: wwItem.percentage.toString(), segment: wwItem.segment.toLowerCase() })}
+                </Text>
+                <Pressable
+                  testID="donut-ww-next"
+                  onPress={() => handleWWMove(1)}
+                  style={({ pressed }) => [styles.donutNavButton, pressed && styles.donutNavButtonPressed]}
+                  accessibilityRole="button"
+                  accessibilityLabel={t('donut_next_segment')}
+                >
+                  <MaterialCommunityIcons name="chevron-right" size={20} color={Colors.textSecondary} />
+                </Pressable>
+              </View>
             ) : (
               <View style={styles.donutAnalysisHintRow}>
                 <MaterialCommunityIcons name="arrow-left" size={15} color={Colors.textMuted} />

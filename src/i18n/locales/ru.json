@@ -25,6 +25,8 @@
   "donut_select_first_category": "Выбрать первую категорию",
   "donut_previous_category": "Предыдущая категория",
   "donut_next_category": "Следующая категория",
+  "donut_previous_segment": "Предыдущий сегмент",
+  "donut_next_segment": "Следующий сегмент",
   "donut_spending_share": "{spending}% расходов",
   "donut_spending_budget_share": "{spending}% расходов · {budget}% бюджета",
   "budget_card_title": "Статус месячного бюджета",
