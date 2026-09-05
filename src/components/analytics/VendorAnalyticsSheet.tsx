@@ -165,6 +165,7 @@ export default function VendorAnalyticsSheet({
       onDismiss={handleDismiss}
       sheetStyle={styles.sheet}
       showHandle
+      accentColor={Colors.primary}
     >
       <ScrollView
         testID="vendor-analytics-sheet-scroll"
@@ -187,15 +188,6 @@ export default function VendorAnalyticsSheet({
               </Text>
             </View>
           </View>
-          <Pressable
-            testID="vendor-analysis-close"
-            onPress={closeNormally}
-            accessibilityRole="button"
-            accessibilityLabel={t('close')}
-            style={({ pressed }) => [styles.closeButton, pressed && { opacity: 0.7 }]}
-          >
-            <MaterialCommunityIcons name="close" size={22} color={Colors.textSecondary} />
-          </Pressable>
         </View>
 
         {activeVendor && (
@@ -480,16 +472,6 @@ const getStyles = () => StyleSheet.create({
     ...Typography.headlineSmall,
     color: Colors.textPrimary,
     fontFamily: FontFamily.bold,
-  },
-  closeButton: {
-    width: 40,
-    height: 40,
-    borderRadius: BorderRadius.round,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: Colors.surfaceLight,
-    borderWidth: 1,
-    borderColor: Colors.border,
   },
   summaryRow: {
     flexDirection: 'row',

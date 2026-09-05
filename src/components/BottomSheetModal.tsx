@@ -35,6 +35,7 @@ import {
   SafeAreaProvider,
   useSafeAreaInsets,
 } from 'react-native-safe-area-context';
+import Svg, { Defs, RadialGradient, Rect, Stop } from 'react-native-svg';
 import { SparkToastContainer } from './SparkToast';
 
 interface BottomSheetModalProps {
@@ -49,6 +50,12 @@ interface BottomSheetModalProps {
   fadeDurationMs?: number;
   /** Üstte sürükle-kapat tutamağı göster (dokununca yatay genişler). */
   showHandle?: boolean;
+  /**
+   * Sayfanın üst kenarına vurgu hâlesi (radial gradient) çizer ve tutamağı aynı
+   * renge boyar. `ConfirmModal`/`GlassDeleteModal` ile ortak görsel dil: çıplak
+   * bir tutamak çizgisi panele karakter katmıyor. Verilmezse sayfa nötr kalır.
+   */
+  accentColor?: string;
 }
 
 const SCREEN_H = Dimensions.get('screen').height;
@@ -77,6 +84,7 @@ interface ModalContentProps {
   translateY: Animated.Value;
   showHandle: boolean;
   interactive: boolean;
+  accentColor?: string;
 }
 
 function ModalContent({
@@ -88,6 +96,7 @@ function ModalContent({
   translateY,
   showHandle,
   interactive,
+  accentColor,
 }: ModalContentProps) {
   const { bottom } = useSafeAreaInsets();
   const interactiveRef = useRef(interactive);
@@ -190,10 +199,37 @@ function ModalContent({
           dikey pan'ı yakalar ve ScrollView'a iletmez (ALIM GEÇMİŞİ kilitlenir).
         */}
         <View style={adjustedSheetStyle}>
+          {accentColor ? (
+            <View
+              pointerEvents="none"
+              style={[
+                styles.accentAura,
+                {
+                  borderTopLeftRadius: sheetBg.borderTopLeftRadius,
+                  borderTopRightRadius: sheetBg.borderTopRightRadius,
+                },
+              ]}
+            >
+              <Svg width="100%" height="100%">
+                <Defs>
+                  <RadialGradient id="sheet-accent-aura" cx="50%" cy="0%" rx="70%" ry="100%">
+                    <Stop offset="0" stopColor={accentColor} stopOpacity={0.22} />
+                    <Stop offset="0.55" stopColor={accentColor} stopOpacity={0.06} />
+                    <Stop offset="1" stopColor={accentColor} stopOpacity={0} />
+                  </RadialGradient>
+                </Defs>
+                <Rect x="0" y="0" width="100%" height="100%" fill="url(#sheet-accent-aura)" />
+              </Svg>
+            </View>
+          ) : null}
           {showHandle && (
             <View style={styles.handleZone} {...panResponder.panHandlers}>
               <Animated.View
-                style={[styles.handleBar, { transform: [{ scaleX: handleScaleX }] }]}
+                style={[
+                  styles.handleBar,
+                  accentColor ? { backgroundColor: accentColor + '99' } : null,
+                  { transform: [{ scaleX: handleScaleX }] },
+                ]}
               />
             </View>
           )}
@@ -218,6 +254,7 @@ export default function BottomSheetModal({
   slideDurationMs = 280,
   fadeDurationMs = 180,
   showHandle = false,
+  accentColor,
 }: BottomSheetModalProps) {
   const [mounted, setMounted] = useState(visible);
   const mountedRef = useRef(visible);
@@ -343,6 +380,7 @@ export default function BottomSheetModal({
           overlayOpacity={overlayOpacity}
           translateY={translateY}
           showHandle={showHandle}
+          accentColor={accentColor}
           interactive={visible}
         >
           {children}
@@ -364,6 +402,14 @@ const styles = StyleSheet.create({
     bottom: 0,
   },
   // Tutamak dokunma alanı — geniş tutuldu ki kolay yakalansın.
+  accentAura: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 190,
+    overflow: 'hidden',
+  },
   handleZone: {
     alignSelf: 'stretch',
     alignItems: 'center',
