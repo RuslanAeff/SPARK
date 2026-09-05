@@ -1,0 +1,22 @@
+{
+  "card_personal_inflation": "Şəxsi inflyasiya",
+  "inflation_card_title": "ŞƏXSİ İNFLYASİYA",
+  "inflation_hero_caption": "ödədiyin qiymət, keçən dövrlə müqayisədə",
+  "inflation_price_effect": "Qiymət təsiri",
+  "inflation_behavior_effect": "Səbət təsiri",
+  "inflation_drivers_title": "ƏN ÇOX TƏSİR EDƏNLƏR",
+  "inflation_coverage_note": "Səbətdə {count} məhsul — çek sətri olan xərcin {coverage} hissəsi. Sətirsiz əməliyyatlar və hər iki dövrdə alınmayan məhsullar bu hesaba daxil deyil.",
+  "inflation_empty_basket_title": "Müqayisə üçün ortaq məhsul yoxdur",
+  "inflation_empty_basket_hint": "Bu kart hər iki dövrdə aldığın məhsulların vahid qiymətini müqayisə edir. Eyni məhsulları almağa davam etdikcə dolacaq.",
+  "inflation_empty_history_title": "Hələ iki dövr yoxdur",
+  "inflation_empty_history_hint": "Daha bir dövr çek qeyd etdikdə, xərc dəyişikliyinin nə qədərinin qiymət artımından gəldiyini burada görəcəksən.",
+  "inflation_sentence_up": "Səbətindəki xərcin {total} artdı. Artımın mənbəyi:",
+  "inflation_sentence_down": "Səbətindəki xərcin {total} azaldı. Azalmanın mənbəyi:",
+  "inflation_total_change": "Ümumi dəyişiklik",
+  "inflation_list_price_effect": "Etiket qiyməti",
+  "inflation_discount_effect": "Endirim və kampaniya",
+  "inflation_info_a11y": "Şəxsi inflyasiya necə hesablanır",
+  "inflation_coverage_note_short": "{count} məhsul · dövrün %{coverage} hissəsi",
+  "inflation_info_basket": "Bu hesab, hər iki dövrdə də aldığın məhsulların qiymətini müqayisə edir. Yalnız çekdən sətir-sətir skan edilmiş xərclər daxil edilir — \"500 market\" kimi əl ilə tək sətir daxil edilən əməliyyatlar bu hesaba düşmür.",
+  "inflation_info_coverage": "Səbətdəki {count} məhsul dövr xərcinin yalnız %{coverage} hissəsini əhatə edir. Əhatə nə qədər aşağıdırsa, rəqəm ümumi xərci bir o qədər az əks etdirir."
+}

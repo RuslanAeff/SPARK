@@ -14,7 +14,6 @@
   "budget_left": "осталось",
   "over_budget_exceeded": "превышение",
   "no_budget_set": "Бюджет не задан",
-  "set_budget_hint": "Задайте бюджет в Настройках",
   "toast_success": "УСПЕХ",
   "toast_error": "ОШИБКА",
   "toast_info": "ИНФО",
