@@ -15,6 +15,7 @@ import { useAppTheme, useThemeRevision } from '../theme/themeStore';
 import { formatCurrency } from '../utils/formatCurrency';
 import { useTabSwipe } from '../context/TabSwipeContext';
 import {
+  alignedPreviousSeries,
   buildChartZoomSizes,
   buildRightAlignedPageRanges,
   moveChartZoom,
@@ -103,7 +104,10 @@ function ChartPage({ data, prevData, height, defaultColor, currency, progress }:
   const chartHeight = height - padding.top - padding.bottom;
   const chartBaseY = padding.top + chartHeight;
   const values = data.map(item => item.value);
-  const prevValues = prevData?.map(item => item.value) ?? [];
+  // Çizim ve ölçek aynı kapıdan geçer: hizasız önceki dönem serisi çizilemediği
+  // hâlde ölçeğe girerse gerçek çubuklar sıfıra yapışır.
+  const prevSeries = alignedPreviousSeries(data, prevData);
+  const prevValues = prevSeries ? prevSeries.map(item => item.value) : [];
   // Yakınlaştırılmış her pencere kendi ölçeğini kullanır. Başka bir haftadaki
   // uç değer, kullanıcının incelediği günleri ezmez.
   const maxVal = Math.max(...values, ...prevValues, 10);
@@ -127,8 +131,8 @@ function ChartPage({ data, prevData, height, defaultColor, currency, progress }:
           );
         })}
 
-        {prevData?.length === data.length && data.map((_, index) => {
-          const value = prevData[index]?.value ?? 0;
+        {prevSeries && data.map((_, index) => {
+          const value = prevSeries[index]?.value ?? 0;
           const barH = (value / maxVal) * chartHeight;
           const x = padding.left + index * spacePerBar + gap / 2;
           return <Rect key={`prev-${index}`} x={x} y={chartBaseY - barH} width={barWidth} height={Math.max(barH, 0)} fill={Colors.textMuted} opacity={0.18} rx={barWidth / 2} />;
@@ -182,12 +186,12 @@ function ChartPage({ data, prevData, height, defaultColor, currency, progress }:
         <View testID="bar-chart-tooltip" style={pageStyles.tooltip}>
           <Text style={pageStyles.tooltipLabel}>{data[selectedIndex].label}</Text>
           <Text style={pageStyles.tooltipValue}>{formatCurrency(data[selectedIndex].value, currency, false)}</Text>
-          {prevData?.[selectedIndex] && prevData[selectedIndex].value > 0 ? (
+          {prevSeries && prevSeries[selectedIndex] && prevSeries[selectedIndex].value > 0 ? (
             <Text style={[
               pageStyles.tooltipPrev,
-              { color: data[selectedIndex].value <= prevData[selectedIndex].value ? Colors.success : Colors.danger },
+              { color: data[selectedIndex].value <= prevSeries[selectedIndex].value ? Colors.success : Colors.danger },
             ]}>
-              {t('last_period')}: {formatCurrency(prevData[selectedIndex].value, currency, false)}
+              {t('last_period')}: {formatCurrency(prevSeries[selectedIndex].value, currency, false)}
             </Text>
           ) : null}
         </View>

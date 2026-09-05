@@ -108,3 +108,17 @@ export function moveChartZoom(
     pageIndex: findPageForAnchor(nextRanges, anchorIndex),
   };
 }
+
+/**
+ * Önceki dönem serisi yalnız gün gün hizalıysa (geçerli seriyle aynı uzunluk)
+ * kullanılabilir: karşılaştırma i. çubuğu i. çubukla eşler. Hizasız seri hem
+ * çizilemez hem de ölçeğe katılırsa gerçek çubukları sıfıra yapıştırır, bu
+ * yüzden tek bir kapıdan geçer.
+ */
+export function alignedPreviousSeries<T>(
+  data: readonly T[],
+  previousData?: readonly T[],
+): readonly T[] | null {
+  if (!previousData || previousData.length !== data.length) return null;
+  return previousData;
+}

@@ -1,4 +1,5 @@
 import {
+  alignedPreviousSeries,
   buildChartZoomSizes,
   buildRightAlignedPageRanges,
   moveChartZoom,
@@ -65,5 +66,19 @@ describe('barChartViewport', () => {
     expect(normalizeChartViewport(state, dataKey, 32, zoomSizes)).toEqual(state);
     expect(normalizeChartViewport(state, '31:2026-07-22:2026-08-21', 31, [31, 14, 7]))
       .toEqual({ dataKey: '31:2026-07-22:2026-08-21', zoomIndex: 0, pageIndex: 0 });
+  });
+});
+
+describe('alignedPreviousSeries', () => {
+  const data = [{ value: 10 }, { value: 20 }, { value: 30 }];
+
+  it('aynı uzunluktaki seriyi geçirir', () => {
+    const previous = [{ value: 1 }, { value: 2 }, { value: 3 }];
+    expect(alignedPreviousSeries(data, previous)).toBe(previous);
+  });
+
+  it('hizasız seriyi eler (ölçeği şişirmesin)', () => {
+    expect(alignedPreviousSeries(data, [{ value: 5000 }])).toBeNull();
+    expect(alignedPreviousSeries(data, undefined)).toBeNull();
   });
 });
