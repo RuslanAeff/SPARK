@@ -49,6 +49,53 @@ describe('PriceWatchCard', () => {
     expect(secondPage.getByText('Ürün 8')).toBeTruthy();
   });
 
+  it('her sayfa için bir rakam gösterir ve seçilen sayfaya doğrudan geçirir', async () => {
+    const rows: PriceChange[] = Array.from({ length: 20 }, (_, index) => ({
+      name: `Ürün ${index + 1}`,
+      turkishName: null,
+      firstPrice: 10,
+      lastPrice: 11 + index,
+      changePct: index + 1,
+      purchaseCount: 2,
+      measurementUnit: 'piece',
+    }));
+    const screen = await render(
+      <PriceWatchCard {...base} priceChanges={rows} onSelectItem={() => {}} />,
+    );
+    await fireEvent(screen.getByTestId('price-pager-viewport'), 'layout', {
+      nativeEvent: { layout: { width: 300, height: 300, x: 0, y: 0 } },
+    });
+
+    // 20 değişim / sayfa başına 6 = 4 sayfa
+    expect(screen.getByTestId('price-page-jump-0')).toBeTruthy();
+    expect(screen.getByTestId('price-page-jump-3')).toBeTruthy();
+    expect(screen.queryByTestId('price-page-jump-4')).toBeNull();
+    expect(screen.getByTestId('price-page-jump-0').props.accessibilityState.selected).toBe(true);
+
+    // Aradaki sayfaları kaydırmadan son sayfaya ışınlan.
+    await fireEvent.press(screen.getByTestId('price-page-jump-3'));
+    expect(screen.getByTestId('price-page-jump-3').props.accessibilityState.selected).toBe(true);
+    expect(screen.getByTestId('price-page-jump-0').props.accessibilityState.selected).toBe(false);
+  });
+
+  it('tek sayfa varken rakam şeridini göstermez', async () => {
+    const rows: PriceChange[] = Array.from({ length: 4 }, (_, index) => ({
+      name: `Ürün ${index + 1}`,
+      turkishName: null,
+      firstPrice: 10,
+      lastPrice: 12,
+      changePct: 20,
+      purchaseCount: 2,
+      measurementUnit: 'piece',
+    }));
+    const screen = await render(
+      <PriceWatchCard {...base} priceChanges={rows} onSelectItem={() => {}} />,
+    );
+
+    expect(screen.queryByTestId('price-page-jump')).toBeNull();
+    expect(screen.queryByTestId('price-page-jump-0')).toBeNull();
+  });
+
   it('kart dokunulurken üst sekme kaydırmasını geçici olarak devre dışı bırakır', async () => {
     const row: PriceChange = {
       name: 'Çilek', turkishName: null, firstPrice: 10, lastPrice: 12,

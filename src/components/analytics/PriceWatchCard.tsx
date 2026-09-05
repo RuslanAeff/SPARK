@@ -1,5 +1,5 @@
 // S.P.A.R.K. — Analiz kartı: Fiyat takibi (price watch) — ürün bazlı zam/indirim
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { View, Text, Pressable, ScrollView } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -19,9 +19,15 @@ interface PriceWatchCardProps extends BaseCardProps {
   ) => void;
 }
 
+/** Rakam şeridinin kaydırma hesabı için sabit pill genişliği ve aradaki boşluk. */
+const JUMP_PILL_WIDTH = 34;
+const JUMP_PILL_GAP = 6;
+
 function PriceWatchCard({ styles, t, currency, priceChanges, onSelectItem }: PriceWatchCardProps) {
   const [pageWidth, setPageWidth] = useState(0);
   const [pageIndex, setPageIndex] = useState(0);
+  const pagerRef = useRef<ScrollView>(null);
+  const jumpStripRef = useRef<ScrollView>(null);
   const { setNestedHorizontalGestureActive } = useTabSwipe();
   useEffect(
     () => () => setNestedHorizontalGestureActive(false),
@@ -34,6 +40,32 @@ function PriceWatchCard({ styles, t, currency, priceChanges, onSelectItem }: Pri
     }
     return result;
   }, [priceChanges]);
+
+  // Ürün listesi kısaldığında eski sayfa göstergesi boş sayfada asılı kalmasın.
+  useEffect(() => {
+    if (pages.length > 0 && pageIndex > pages.length - 1) setPageIndex(pages.length - 1);
+  }, [pageIndex, pages.length]);
+
+  // Seçilen rakam sayfayı doğrudan getirir; kullanıcı aradaki sayfaları teker teker
+  // kaydırmak zorunda kalmaz.
+  const jumpToPage = useCallback((index: number) => {
+    if (pageWidth <= 0) return;
+    pagerRef.current?.scrollTo({ x: index * pageWidth, animated: true });
+    // Programatik kaydırmada `onMomentumScrollEnd` her platformda tetiklenmez;
+    // göstergeyi burada doğrudan güncelliyoruz.
+    setPageIndex(index);
+  }, [pageWidth]);
+
+  // Çok sayfalı listede aktif rakam şeridin dışına düşebilir; görünür alana çek.
+  useEffect(() => {
+    if (pages.length < 2) return;
+    const step = JUMP_PILL_WIDTH + JUMP_PILL_GAP;
+    jumpStripRef.current?.scrollTo({
+      x: Math.max(0, pageIndex * step - step * 2),
+      animated: true,
+    });
+  }, [pageIndex, pages.length]);
+
   if (priceChanges.length === 0) return null;
   const upCount = priceChanges.filter(p => p.changePct > 0).length;
   const downCount = priceChanges.length - upCount;
@@ -65,6 +97,7 @@ function PriceWatchCard({ styles, t, currency, priceChanges, onSelectItem }: Pri
         style={styles.pricePagerViewport}
       >
         <ScrollView
+          ref={pagerRef}
           testID="price-pager"
           horizontal
           pagingEnabled
@@ -143,11 +176,49 @@ function PriceWatchCard({ styles, t, currency, priceChanges, onSelectItem }: Pri
         </ScrollView>
       </View>
       {pages.length > 1 && (
-        <View style={styles.pricePageDots}>
-          {pages.map((_, index) => (
-            <View key={`price-dot-${index}`} style={[styles.pricePageDot, index === pageIndex && styles.pricePageDotActive]} />
-          ))}
-        </View>
+        <ScrollView
+          ref={jumpStripRef}
+          testID="price-page-jump"
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          nestedScrollEnabled
+          directionalLockEnabled
+          onTouchStart={() => setNestedHorizontalGestureActive(true)}
+          onTouchEnd={() => setNestedHorizontalGestureActive(false)}
+          onTouchCancel={() => setNestedHorizontalGestureActive(false)}
+          style={styles.pricePageJumpRow}
+          contentContainerStyle={styles.pricePageJumpContent}
+        >
+          {pages.map((_, index) => {
+            const active = index === pageIndex;
+            return (
+              <Pressable
+                key={`price-page-jump-${index}`}
+                testID={`price-page-jump-${index}`}
+                onPress={() => jumpToPage(index)}
+                // Görsel pill sakin kalsın diye küçük; dokunma hedefi hitSlop ile büyür.
+                hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}
+                accessibilityRole="button"
+                accessibilityState={{ selected: active }}
+                accessibilityLabel={t('price_page_jump', { page: String(index + 1) })}
+                style={({ pressed }) => [
+                  styles.pricePageJumpPill,
+                  active && styles.pricePageJumpPillActive,
+                  pressed && styles.pricePageJumpPillPressed,
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.pricePageJumpText,
+                    active && styles.pricePageJumpTextActive,
+                  ]}
+                >
+                  {index + 1}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </ScrollView>
       )}
       <Text style={styles.priceHint}>{t('since_first')}</Text>
     </AnimatedCard>

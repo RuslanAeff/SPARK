@@ -915,6 +915,47 @@ export const getAnalyticsStyles = () => StyleSheet.create({
     width: 18,
     backgroundColor: Colors.primary,
   },
+  // Hızlı sayfa geçişi: nokta göstergesi yerine doğrudan hedeflenebilir rakamlar.
+  // Pill genişliği aktif/pasif durumda sabittir; seçim değişince satır kaymaz ve
+  // kullanıcı art arda dokunurken hedef yerinden oynamaz.
+  pricePageJumpRow: {
+    marginTop: Spacing.md,
+  },
+  pricePageJumpContent: {
+    flexGrow: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingHorizontal: Spacing.lg,
+  },
+  pricePageJumpPill: {
+    width: 34,
+    height: 28,
+    borderRadius: BorderRadius.round,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: Colors.surface,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: Colors.border,
+  },
+  pricePageJumpPillActive: {
+    backgroundColor: Colors.primaryAction,
+    borderColor: Colors.primaryAction,
+  },
+  pricePageJumpPillPressed: {
+    opacity: 0.72,
+    transform: [{ scale: 0.94 }],
+  },
+  pricePageJumpText: {
+    ...Typography.labelSmall,
+    color: Colors.textSecondary,
+    fontSize: 11,
+  },
+  pricePageJumpTextActive: {
+    color: Colors.onPrimary,
+    fontFamily: FontFamily.bold,
+  },
   priceTile: {
     // 2 sütun (gap: Spacing.sm) — küçük ekranlarda % hesabı kırpılmaz.
     width: '48.5%',
