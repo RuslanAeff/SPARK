@@ -131,6 +131,27 @@ uygulanır. Tamamlanmış dönemlerin tarih aralığı ve planlanan tutarı değ
 kullanıcı gerçek gelir veya işlem tarihini yapay biçimde ileri almak zorunda
 kalmaz.
 
+İlk kurulumda **dil seçimi her şeyden önce gelir.** Kullanıcı, anlamadığı bir
+dilde yazılmış karşılama ve tanıtım metnini okumak zorunda bırakılmaz; sistem
+dili öneri olarak seçili gelir, kullanıcı ilk ekranda değiştirir ve arayüz
+anında o dile geçer. Tanıtım, bütçe girişi ve tamamlama adımları bundan sonra
+gelir.
+
+Bir takvim gününü **en fazla bir** bütçe dönemi kapsar. Bu kural ürünün
+güvenilirlik sözü olduğu için yazma anında zorlanır: aynı harcama iki bütçede
+sayılamaz ve aynı gün için iki "mevcut dönem" gösterilemez. Eski sürümlerden
+çakışan kayıt kalmışsa kullanıcının verisi sessizce silinmez; hesaplamada
+yetkili olmayan kayıt "çakışıyor" olarak işaretlenir ve kullanıcı dokunarak
+düzeltir.
+
+Başlamamış bir dönemin bütçesi belirlenemez; kullanıcı henüz yaşamadığı bir
+dönemin tutarını bilemez ve bu bilgi sistemde erken bir taahhüt oluşturur.
+Buna karşılık geçmiş **düzeltilebilir olmalıdır**: mevcut dönem ve önceki dört
+dönem yeniden yazılabilir, gerekirse bütçe hedefi tamamen kaldırılabilir. Hedefi
+kaldırmak o dönemin harcamalarını silmez; dönem yalnız "bütçesiz" görünür.
+Yanlış bir dokunuş kalıcı hasar bırakmamalı, kullanıcı kendi bütçe geçmişini
+kendisi oturtabilmelidir.
+
 Harcama istatistikleri yalnız tamamlanmış takvim günlerini değerlendirir; bugün harcama kaydı olmayan gün, hedef-altı gün veya değerlendirme paydasına katılmaz, ancak bugünkü gerçek harcama aktif seriyi keser. Takip-temelli görünümde gözlem veritabanındaki ilk gerçek işlemle başlar. Üç tamamlanmış günden kısa kapsam başarı veya seri üretmez; kart kaç tamamlanmış günün kaçında harcama kaydı bulunduğunu açıkça gösterir. Mesaj yalnız son seri uzunluğuna dayanmaz: günlük plan varsa tüm dönemdeki kayıtlı harcama günlerinin ne kadarının plan içinde kaldığını, plan yoksa yalnız kayıt kapsamının güvenini açıklar. Kayıt bulunmayan gün tasarruf kanıtı sayılmaz. Bugünü içermeyen geçmiş bir aralıkta gösterilen seri, güncel seri gibi değil dönem sonu serisi olarak adlandırılır. Sabit günlük plan hedefi yalnız aktif bütçenin kanonik aylık döngüsünde `etkin bütçe / toplam döngü günü` hesabıyla sunulur; diğer aralıklarda yapay bir hedef üretilmez.
 
 Analiz karşılaştırması bütçeyi değil, iki tarih aralığındaki kayıtlı harcama toplamını karşılaştırır. Devam eden dönemde bugün ve gelecek günler dışarıda bırakılır; mevcut dönemin ilk tamamlanmış `N` günü, önceki dönemin ilk `N` günüyle karşılaştırılır ve iki gerçek tarih aralığı kartta görünür. Başarılı sorgudaki sıfır harcama ile verinin yüklenememesi aynı durum gibi sunulmaz.
@@ -360,7 +381,7 @@ Bu kurallar ürün davranışıdır; uygulama ayrıntısı gibi sessizce değiş
 11. **Hedef ve kategori limiti bağımsız kayıtlardır.** “Hedefi sil” yalnız gerçekten var olan birikim hedefini kaldırır; kategori limitlerini sessizce silmez. Kayıt yoksa yıkıcı eylem sunulmaz ve eskimiş ekran durumunda sahte başarı gösterilmez.
 12. **Dashboard önceliği kontrollüdür.** Açık borç uyarısı isteğe bağlı hedef özetinden önce gelir; aktif hedef kompakt veya tam karttan yalnız biriyle gösterilir ve görünüm tercihi finansal veriyi değiştirmez.
 13. **Hatırlatma taahhüdü tahminden ayrıdır.** Türetilmiş abonelik önerisi kullanıcı onayı olmadan kalıcı ödeme hatırlatıcısına dönüşmez; borç vadesi borcun işlem tarihini veya bütçe etkisini değiştirmez.
-14. **Kategori sınırı hedeften bağımsız ve erişilebilir olmalıdır.** Kullanıcı birikim hedefi oluşturmadan aylık kategori harcama sınırı kaydedebilir; giriş yolu Bütçe ve Analiz yüzeylerinde görünürdür. Fiyat değişimi özeti, kart yüksekliğini büyütmeden altılı yatay sayfalarda tüm değişimlere eriştirir; kart içindeki yatay jest üst sekme gezinmesine devredilmez. Satıcı özeti de ilk beşten başlayarak sabit yükseklikte yatay sayfalanır; satıcıya dokunmak ana kartı büyütmez, donut ve ürün analizi ayrı bir yüksek alt panelde açılır. Satıcı ürünleri panel içinde beşerli yatay sayfalarda sunulur ve kullanıcı sıralamayı alım sayısı veya toplam harcama olarak açıkça seçebilir. Fiyat karşılaştırması ürün adıyla birlikte kanonik ölçü türünü kullanır; adet, kg ve litre serileri karıştırılmaz, g/ml girişi anlaşılır gösterilip kanonik tabana çevrilir. Analiz kartı başlıklarında ikon ve metin aynı optik ekseni paylaşır. Projeksiyon şeridi veri göstergesidir, kullanıcı ayarı değildir; bütçe eşiği dolgu üzerinde ve uç konumlarda da kontrastlı görünür.
+14. **Kategori sınırı hedeften bağımsız ve erişilebilir olmalıdır.** Kullanıcı birikim hedefi oluşturmadan aylık kategori harcama sınırı kaydedebilir; giriş yolu Bütçe ve Analiz yüzeylerinde görünürdür. Fiyat değişimi özeti, kart yüksekliğini büyütmeden altılı yatay sayfalarda tüm değişimlere eriştirir; kart içindeki yatay jest üst sekme gezinmesine devredilmez. Sayfa göstergesi pasif nokta değil, doğrudan hedeflenebilir rakamlardır: kullanıcı aradaki sayfaları teker teker kaydırmadan istediği sayfaya tek dokunuşla geçer. Rakam genişliği seçili durumda değişmez, böylece art arda dokunuşta hedef yerinden oynamaz; sayfa sayısı şeride sığmazsa şerit yatay kayar ve aktif rakam görünür alana çekilir. Satıcı özeti de ilk beşten başlayarak sabit yükseklikte yatay sayfalanır; satıcıya dokunmak ana kartı büyütmez, donut ve ürün analizi ayrı bir yüksek alt panelde açılır. Satıcı ürünleri panel içinde beşerli yatay sayfalarda sunulur ve kullanıcı sıralamayı alım sayısı veya toplam harcama olarak açıkça seçebilir. Fiyat karşılaştırması ürün adıyla birlikte kanonik ölçü türünü kullanır; adet, kg ve litre serileri karıştırılmaz, g/ml girişi anlaşılır gösterilip kanonik tabana çevrilir. Analiz kartı başlıklarında ikon ve metin aynı optik ekseni paylaşır. Projeksiyon şeridi veri göstergesidir, kullanıcı ayarı değildir; bütçe eşiği dolgu üzerinde ve uç konumlarda da kontrastlı görünür.
 15. **Analiz güveni görünür ve karşılaştırma eş olmalıdır.** Harcama kaydı olmayan gün başarı etiketi değildir; kısa takip geçmişi başarı/seri üretmez ve kapsam sayısı kullanıcıya gösterilir. Devam eden harcama dönemi, önceki dönemin aynı sayıda tamamlanmış günüyle karşılaştırılır; bugün ve gelecek günler toplamlara katılmaz. Veri yükleme hatası ile geçerli `0 harcama` sonucu ayrıdır. İlgili veri bulunmayan opsiyonel analiz kartları boş yüzey olarak yer kaplamaz.
 16. **Ürün kimliği ölçüye bağlı ve geri düzeltilebilir olmalıdır.** Güvenli yazım farkları kalıcı canonical ürün ve aliaslarla toplanabilir; fuzzy benzerlik, ortak ürün ailesi veya AI önerisi kullanıcı onayı olmadan semantik merge yapamaz. Ham `name`/`turkish_name` korunur, kullanıcı etiketi ayrıdır ve merge/split hiçbir finansal gözlemi silmez.
 17. **Geçersiz AI çıktısı finansal kayıt değildir.** Seçili dil yalnız görünüm metnini değil fiş çeviri sözleşmesini belirler; kategori anahtarı dilden bağımsızdır. Eksik satıcı/tarih/kalem/tutar veya kanıtsız sıfır toplam kaydedilemez ve Detaylı Düzenle boş/sıfır bir harcamayı otomatik oluşturamaz. İşlem listesi her kaydın kendi para birimini gösterir.
