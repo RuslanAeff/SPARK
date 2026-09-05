@@ -56,6 +56,40 @@ interface ItemHistoryEntry {
   measurement_unit: MeasurementUnit;
 }
 
+// Üç özet kutusu tek bir iskeleti paylaşır: simge rozeti, tek satırlık değer ve
+// iki satır için yer ayrılmış etiket. Değer sığmazsa alta taşmak yerine küçülür;
+// etikete sabit yükseklik ayrılması üç kutunun taban çizgisini hizalar. Ölçü
+// birimi ("/adet") değerin yanında küçük ve sönük durur, sayıyı iki satıra
+// bölmez.
+function StatTile({ styles, icon, tone, value, unit, label }: {
+  styles: any;
+  icon: React.ComponentProps<typeof MaterialCommunityIcons>['name'];
+  tone: string;
+  value: string;
+  unit?: string;
+  label: string;
+}) {
+  return (
+    <View style={styles.statCard}>
+      <View style={[styles.statIcon, { backgroundColor: tone + '1F' }]}>
+        <MaterialCommunityIcons name={icon} size={14} color={tone} />
+      </View>
+      <View style={styles.statValueRow}>
+        <Text
+          style={styles.statValue}
+          numberOfLines={1}
+          adjustsFontSizeToFit
+          minimumFontScale={0.75}
+        >
+          {value}
+        </Text>
+        {unit ? <Text style={styles.statValueUnit} numberOfLines={1}>{unit}</Text> : null}
+      </View>
+      <Text style={styles.statLabel} numberOfLines={2}>{label}</Text>
+    </View>
+  );
+}
+
 export default function ItemAnalyticsModal({
   visible,
   itemName,
@@ -166,6 +200,7 @@ export default function ItemAnalyticsModal({
       onDismiss={onDismiss}
       sheetStyle={styles.sheet}
       showHandle
+      accentColor={Colors.primary}
     >
 
           {/* Kapat (X) yok — sürükle-kapat kulpu zaten var (gereksiz tekrar). */}
@@ -198,30 +233,28 @@ export default function ItemAnalyticsModal({
 
                 {/* Stats Grid */}
                 <View style={styles.statsGrid}>
-                  <View style={styles.statCard}>
-                    <MaterialCommunityIcons name="sigma" size={18} color={Colors.danger} />
-                    <Text style={styles.statValue}>
-                      {formatCurrency(stats?.total_spent || 0, currency)}
-                    </Text>
-                    <Text style={styles.statLabel}>{t('total_spending')}</Text>
-                  </View>
-                  <View style={styles.statCard}>
-                    <MaterialCommunityIcons name="chart-line" size={18} color={Colors.warning} />
-                    <Text style={styles.statValue}>
-                      {formatCurrency(stats?.avg_price || 0, currency)}
-                      {measurementUnitSuffix(resolvedUnit, t('measurement_unit_piece'))}
-                    </Text>
-                    <Text style={styles.statLabel}>{t('avg_unit_price')}</Text>
-                  </View>
-                  <View style={styles.statCard}>
-                    <MaterialCommunityIcons name="package-variant" size={18} color={Colors.info} />
-                    <Text style={styles.statValue}>
-                      {formatMeasurementQuantity(stats?.total_quantity || 0, resolvedUnit)}
-                    </Text>
-                    <Text style={styles.statLabel}>
-                      {resolvedUnit === 'piece' ? t('total_quantity_label') : t('total_measurement_label')}
-                    </Text>
-                  </View>
+                  <StatTile
+                    styles={styles}
+                    icon="sigma"
+                    tone={Colors.danger}
+                    value={formatCurrency(stats?.total_spent || 0, currency)}
+                    label={t('total_spending')}
+                  />
+                  <StatTile
+                    styles={styles}
+                    icon="chart-line"
+                    tone={Colors.warning}
+                    value={formatCurrency(stats?.avg_price || 0, currency)}
+                    unit={measurementUnitSuffix(resolvedUnit, t('measurement_unit_piece'))}
+                    label={t('avg_unit_price')}
+                  />
+                  <StatTile
+                    styles={styles}
+                    icon="package-variant"
+                    tone={Colors.info}
+                    value={formatMeasurementQuantity(stats?.total_quantity || 0, resolvedUnit)}
+                    label={resolvedUnit === 'piece' ? t('total_quantity_label') : t('total_measurement_label')}
+                  />
                 </View>
 
                 {/* Price Chart */}
@@ -449,23 +482,53 @@ const getStyles = () => StyleSheet.create({
   },
   statCard: {
     flex: 1,
+    minWidth: 0,
     backgroundColor: Colors.surface,
     borderRadius: BorderRadius.lg,
-    padding: Spacing.md,
-    alignItems: 'center',
-    gap: 4,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.md,
+    gap: Spacing.sm,
     borderWidth: 1,
     borderColor: Colors.border,
   },
+  statIcon: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  statValueRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    minHeight: 22,
+    gap: 2,
+  },
   statValue: {
     ...Typography.bodyLarge,
-    fontFamily: FontFamily.bold,
+    fontFamily: FontFamily.extraBold,
     color: Colors.textPrimary,
+    fontSize: 17,
+    lineHeight: 22,
+    letterSpacing: -0.2,
+    flexShrink: 1,
+  },
+  statValueUnit: {
+    ...Typography.labelSmall,
+    fontFamily: FontFamily.medium,
+    color: Colors.textMuted,
+    fontSize: 10,
+    lineHeight: 14,
+    marginBottom: 2,
   },
   statLabel: {
     ...Typography.labelSmall,
     color: Colors.textMuted,
-    textAlign: 'center',
+    fontSize: 10,
+    lineHeight: 13,
+    // İki satır için yer ayrılır → üç kutunun yüksekliği ve taban çizgisi eşit.
+    minHeight: 26,
+    letterSpacing: 0.2,
   },
 
   // Section
