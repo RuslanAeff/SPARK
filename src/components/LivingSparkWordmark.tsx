@@ -13,6 +13,7 @@ import Svg, {
   ClipPath,
   Defs,
   Ellipse,
+  G,
   LinearGradient,
   RadialGradient,
   Stop,
@@ -53,10 +54,9 @@ const SIZE_PRESETS = {
     fontSize: 32,
     baseline: 32,
     letterCenters: [11, 41, 71, 101, 131],
-    dotCenters: [25, 54, 86, 116],
+    dotCenters: [25, 51.5, 86, 116],
     dotCenterY: 29.5,
     dotRadius: 2.55,
-    strokeWidth: 1.2,
     classicFontSize: 24,
     classicLetterSpacing: 2,
   },
@@ -66,10 +66,9 @@ const SIZE_PRESETS = {
     fontSize: 29,
     baseline: 30,
     letterCenters: [10, 37, 64, 91, 118],
-    dotCenters: [22.7, 49, 77.5, 104.5],
+    dotCenters: [22.7, 46.8, 77.5, 104.5],
     dotCenterY: 27.5,
     dotRadius: 2.3,
-    strokeWidth: 1.2,
     classicFontSize: 20,
     classicLetterSpacing: 3,
   },
@@ -81,33 +80,79 @@ export function resolveWordmarkLayout(size: WordmarkSize): WordmarkPreset {
   return SIZE_PRESETS[size];
 }
 
+/** İki hex rengi doğrusal karıştırır (t=0 → a, t=1 → b). Geçersiz girdide a döner. */
+export function mixHexColors(a: string, b: string, t: number): string {
+  const parse = (value: string): [number, number, number] | null => {
+    const hex = value.trim().replace('#', '');
+    const full = hex.length === 3 ? hex.split('').map(c => c + c).join('') : hex;
+    if (!/^[0-9a-fA-F]{6}$/.test(full)) return null;
+    return [
+      parseInt(full.slice(0, 2), 16),
+      parseInt(full.slice(2, 4), 16),
+      parseInt(full.slice(4, 6), 16),
+    ];
+  };
+  const from = parse(a);
+  const to = parse(b);
+  if (!from || !to) return a;
+  const ratio = Math.max(0, Math.min(1, t));
+  const channel = (index: number) =>
+    Math.round(from[index] + (to[index] - from[index]) * ratio)
+      .toString(16)
+      .padStart(2, '0');
+  return `#${channel(0)}${channel(1)}${channel(2)}`;
+}
+
+/**
+ * Hareketin okunabilirliği iki temada farklı fizik ister.
+ *
+ * Aydınlık temada harfler koyu, arkaplan beyazdır: içeriden geçen ışık zaten
+ * belirgindir, geniş gezinme yeter.
+ *
+ * Karanlık temada ise harfler zaten parlak vurgu renginde. Aynı renk ailesinden
+ * düşük opaklıklı bir parıltı, parlak yeşilin üstünde neredeyse kaybolur —
+ * "yaşam belirtisi" görünmez olur. Bu yüzden karanlık temada üç şey birden
+ * değişir: taban rengi bir miktar koyulaşır (dinamik aralık açılır), gezen
+ * katmanların opaklığı yükselir ve parıltının çekirdeği vurgu renginin açığı
+ * yerine beyaza çekilir. Sonuç: harflerin içinden geçen ışık okunur olur.
+ */
 export function resolveWordmarkMotionProfile(
   scheme: 'light' | 'dark',
-  colors: { primary: string; primaryDark: string },
+  colors: { primary: string; primaryDark: string; primaryLight?: string },
   width: number,
 ) {
   const isLightScheme = scheme === 'light';
   return {
     baseEdgeColor: isLightScheme ? colors.primary : colors.primaryDark,
-    ambientOpacityMultiplier: isLightScheme ? 1.18 : 1,
-    mistPrimaryTravel: width * (isLightScheme ? 0.28 : 0.2),
-    mistSecondaryTravel: width * (isLightScheme ? 0.29 : 0.23),
+    // Karanlık temada taban kısılır ki üstünden geçen ışık fark edilsin. Bu
+    // kısma OPAKLIKLA değil RENKLE yapılır: yarı saydam dolgu, harf konturunun
+    // içeriye düşen yarısını görünür kılıp K/A/R gibi çok parçalı harflerde
+    // "üst üste yapıştırılmış" izlenimi veren iç dikişler yaratıyordu.
+    baseCenterColor: isLightScheme
+      ? colors.primary
+      : mixHexColors(colors.primary, '#000000', 0.26),
+    ambientOpacityMultiplier: isLightScheme ? 1.18 : 1.5,
+    // Parıltının çekirdeği vurgu renginin AÇIK TONUNDA kalır; beyaza çekilmez.
+    // Beyaza yaklaşan çekirdek harfin üstünde "el feneri" gibi okunuyordu ve
+    // sentetik kalınlaştırmanın dar açılı birleşimlerde bıraktığı iç binişmeyi
+    // ton farkıyla açığa çıkarıyordu. Işık harfle aynı renk ailesinde kalınca
+    // o birleşimler tek parça görünür; hareket ise parlaklık yerine konum ve
+    // yoğunluk değişimiyle okunur.
+    highlightColor: isLightScheme
+      ? (colors.primaryLight ?? colors.primary)
+      : mixHexColors(colors.primaryLight ?? colors.primary, '#FFFFFF', 0.18),
+    mistPrimaryTravel: width * (isLightScheme ? 0.28 : 0.34),
+    mistSecondaryTravel: width * (isLightScheme ? 0.29 : 0.36),
   };
 }
 
 function WordmarkGlyphs({
   preset,
   fill,
-  stroke,
-  strokeOpacity,
-  strokeWidth,
   testIDPrefix,
 }: {
   preset: WordmarkPreset;
   fill: string;
-  stroke?: string;
-  strokeOpacity?: number;
-  strokeWidth?: number;
   testIDPrefix?: string;
 }) {
   return (
@@ -119,11 +164,12 @@ function WordmarkGlyphs({
           y={preset.baseline}
           textAnchor="middle"
           fill={fill}
-          stroke={stroke}
-          strokeOpacity={strokeOpacity}
-          strokeWidth={strokeWidth}
           fontFamily={FontFamily.extraBold}
           fontSize={preset.fontSize}
+          // Ağırlık 900'de kalır: imzanın tokluğu kimliğin parçası. Sentetik
+          // kalınlaştırmanın dar açılı birleşimlerde bıraktığı iz, ağırlığı
+          // düşürerek değil, üstünden geçen ışığın tonu bastırılarak
+          // gizlenir (bkz. resolveWordmarkMotionProfile).
           fontWeight="900"
           testID={testIDPrefix ? `${testIDPrefix}-letter-${index}` : undefined}
         >
@@ -137,9 +183,6 @@ function WordmarkGlyphs({
           cy={preset.dotCenterY}
           r={preset.dotRadius}
           fill={fill}
-          stroke={stroke}
-          strokeOpacity={strokeOpacity}
-          strokeWidth={strokeWidth}
           testID={testIDPrefix ? `${testIDPrefix}-dot-${index}` : undefined}
         />
       ))}
@@ -183,7 +226,9 @@ export default function LivingSparkWordmark({
     && !reduceMotion;
   const {
     baseEdgeColor,
+    baseCenterColor,
     ambientOpacityMultiplier,
+    highlightColor,
     mistPrimaryTravel,
     mistSecondaryTravel,
   } = resolveWordmarkMotionProfile(scheme, palette, preset.width);
@@ -275,7 +320,7 @@ export default function LivingSparkWordmark({
       cy: preset.height * 0.52,
       rx: 6 + centerWave.value * (preset.width * 0.44),
       ry: 5 + pulse * (preset.height * 0.24),
-      opacity: pulse * 0.58 * ambientOpacityMultiplier,
+      opacity: pulse * 0.46 * ambientOpacityMultiplier,
     };
   }, [ambientOpacityMultiplier, preset.height, preset.width]);
 
@@ -410,24 +455,24 @@ export default function LivingSparkWordmark({
             y2="0"
           >
             <Stop offset="0" stopColor={baseEdgeColor} />
-            <Stop offset="0.3" stopColor={palette.primary} />
-            <Stop offset="0.7" stopColor={palette.primary} />
+            <Stop offset="0.3" stopColor={baseCenterColor} />
+            <Stop offset="0.7" stopColor={baseCenterColor} />
             <Stop offset="1" stopColor={baseEdgeColor} />
           </LinearGradient>
           <RadialGradient id={ids.energy} cx="0.5" cy="0.5" rx="0.5" ry="0.5">
-            <Stop offset="0" stopColor={palette.primaryLight} stopOpacity="0.9" />
+            <Stop offset="0" stopColor={highlightColor} stopOpacity="0.95" />
             <Stop offset="0.42" stopColor={palette.primary} stopOpacity="0.68" />
             <Stop offset="0.78" stopColor={palette.primaryDark} stopOpacity="0.26" />
             <Stop offset="1" stopColor={palette.primaryDark} stopOpacity="0" />
           </RadialGradient>
           <RadialGradient id={ids.centerWave} cx="0.5" cy="0.5" rx="0.5" ry="0.5">
-            <Stop offset="0" stopColor={palette.primaryLight} stopOpacity="0.88" />
+            <Stop offset="0" stopColor={highlightColor} stopOpacity="0.8" />
             <Stop offset="0.38" stopColor={palette.primary} stopOpacity="0.66" />
             <Stop offset="0.76" stopColor={palette.primaryDark} stopOpacity="0.28" />
             <Stop offset="1" stopColor={palette.primaryDark} stopOpacity="0" />
           </RadialGradient>
           <RadialGradient id={ids.mist} cx="0.5" cy="0.5" rx="0.5" ry="0.5">
-            <Stop offset="0" stopColor={palette.primaryLight} stopOpacity="0.82" />
+            <Stop offset="0" stopColor={highlightColor} stopOpacity="0.86" />
             <Stop offset="0.46" stopColor={palette.primary} stopOpacity="0.58" />
             <Stop offset="1" stopColor={palette.primaryDark} stopOpacity="0" />
           </RadialGradient>
@@ -437,7 +482,7 @@ export default function LivingSparkWordmark({
             <Stop offset="1" stopColor={palette.primaryDark} stopOpacity="0" />
           </RadialGradient>
           <RadialGradient id={ids.reaction} cx="0.5" cy="0.5" rx="0.5" ry="0.5">
-            <Stop offset="0" stopColor={palette.primaryLight} stopOpacity="0.98" />
+            <Stop offset="0" stopColor={highlightColor} stopOpacity="1" />
             <Stop offset="0.38" stopColor={palette.primary} stopOpacity="0.82" />
             <Stop offset="0.74" stopColor={palette.primaryDark} stopOpacity="0.42" />
             <Stop offset="1" stopColor={palette.primaryDark} stopOpacity="0" />
@@ -447,69 +492,73 @@ export default function LivingSparkWordmark({
           </ClipPath>
         </Defs>
 
+        {/*
+          Kontur YOK. SVG konturu yolun ortasına çizilir: yarısı harfin içine
+          düşer ve K (üç parça), A, R, P gibi harflerin iç birleşim yerlerinde
+          ikinci bir çizgi olarak görünür — harf "parçalardan yapıştırılmış"
+          gibi durur, içeriden ışık geçerken bu dikişler daha da belirir.
+          Keskinliği kontur değil, tam opak degrade dolgu taşır.
+        */}
         <WordmarkGlyphs
           preset={preset}
           fill={`url(#${ids.base})`}
-          stroke={palette.primaryLight}
-          strokeOpacity={scheme === 'dark' ? 0.2 : 0.12}
-          strokeWidth={preset.strokeWidth}
           testIDPrefix={testID}
         />
 
-        <AnimatedEllipse
-          animatedProps={mistPrimaryProps}
-          fill={`url(#${ids.mist})`}
-          clipPath={`url(#${ids.clip})`}
-          testID={`${testID}-core`}
-        />
-        <AnimatedEllipse
-          animatedProps={mistSecondaryProps}
-          fill={`url(#${ids.mistDeep})`}
-          clipPath={`url(#${ids.clip})`}
-          testID={`${testID}-mist-secondary`}
-        />
-        <AnimatedEllipse
-          animatedProps={centerWaveProps}
-          fill={`url(#${ids.centerWave})`}
-          clipPath={`url(#${ids.clip})`}
-          testID={`${testID}-center-wave`}
-        />
-        <AnimatedEllipse
-          animatedProps={centerWaveSecondaryProps}
-          fill={`url(#${ids.mistDeep})`}
-          clipPath={`url(#${ids.clip})`}
-          testID={`${testID}-center-wave-secondary`}
-        />
-        <AnimatedEllipse
-          animatedProps={sweepProps}
-          fill={`url(#${ids.energy})`}
-          clipPath={`url(#${ids.clip})`}
-          testID={`${testID}-energy`}
-        />
-        <AnimatedEllipse
-          animatedProps={sweepSecondaryProps}
-          fill={`url(#${ids.mistDeep})`}
-          clipPath={`url(#${ids.clip})`}
-          testID={`${testID}-energy-secondary`}
-        />
-        <AnimatedEllipse
-          animatedProps={reactionCoreProps}
-          fill={`url(#${ids.reaction})`}
-          clipPath={`url(#${ids.clip})`}
-          testID={`${testID}-reaction-core`}
-        />
-        <AnimatedEllipse
-          animatedProps={reactionLeftProps}
-          fill={`url(#${ids.reaction})`}
-          clipPath={`url(#${ids.clip})`}
-          testID={`${testID}-reaction-wave`}
-        />
-        <AnimatedEllipse
-          animatedProps={reactionRightProps}
-          fill={`url(#${ids.reaction})`}
-          clipPath={`url(#${ids.clip})`}
-          testID={`${testID}-reaction-wave-secondary`}
-        />
+        {/*
+          TEK kırpma grubu. Her ışık katmanı ayrı ayrı harflere kırpılırsa,
+          harf sınırı her katman için yeniden rasterlenir; kenar örtüşmeleri
+          üst üste binerek harfin içinde ince dikişler ve koyu izler bırakır.
+          Katmanlar önce kendi aralarında birleşir, sınır bir kez uygulanır.
+        */}
+        <G clipPath={`url(#${ids.clip})`}>
+          <AnimatedEllipse
+            animatedProps={mistPrimaryProps}
+            fill={`url(#${ids.mist})`}
+            testID={`${testID}-core`}
+          />
+          <AnimatedEllipse
+            animatedProps={mistSecondaryProps}
+            fill={`url(#${ids.mistDeep})`}
+            testID={`${testID}-mist-secondary`}
+          />
+          <AnimatedEllipse
+            animatedProps={centerWaveProps}
+            fill={`url(#${ids.centerWave})`}
+            testID={`${testID}-center-wave`}
+          />
+          <AnimatedEllipse
+            animatedProps={centerWaveSecondaryProps}
+            fill={`url(#${ids.mistDeep})`}
+            testID={`${testID}-center-wave-secondary`}
+          />
+          <AnimatedEllipse
+            animatedProps={sweepProps}
+            fill={`url(#${ids.energy})`}
+            testID={`${testID}-energy`}
+          />
+          <AnimatedEllipse
+            animatedProps={sweepSecondaryProps}
+            fill={`url(#${ids.mistDeep})`}
+            testID={`${testID}-energy-secondary`}
+          />
+          <AnimatedEllipse
+            animatedProps={reactionCoreProps}
+            fill={`url(#${ids.reaction})`}
+            testID={`${testID}-reaction-core`}
+          />
+          <AnimatedEllipse
+            animatedProps={reactionLeftProps}
+            fill={`url(#${ids.reaction})`}
+            testID={`${testID}-reaction-wave`}
+          />
+          <AnimatedEllipse
+            animatedProps={reactionRightProps}
+            fill={`url(#${ids.reaction})`}
+            testID={`${testID}-reaction-wave-secondary`}
+          />
+        </G>
+
       </Svg>
     </Pressable>
   );

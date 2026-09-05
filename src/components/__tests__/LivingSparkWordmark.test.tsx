@@ -2,6 +2,7 @@ import React from 'react';
 import { fireEvent, render } from '@testing-library/react-native';
 
 import LivingSparkWordmark, {
+  mixHexColors,
   resolveWordmarkLayout,
   resolveWordmarkMotionProfile,
 } from '../LivingSparkWordmark';
@@ -56,6 +57,15 @@ describe('LivingSparkWordmark', () => {
       'accessibilityHint',
       'Dokunarak animasyonu uyandır',
     );
+    // Harflerde kontur yok: yolun ortasına çizilen kontur K/A/R/P'nin iç
+    // birleşimlerinde ikinci bir çizgi olarak görünüp harfi parçalardan
+    // yapıştırılmış gibi gösteriyordu.
+    expect(screen.getByTestId('spark-signature-letter-0').props.stroke).toBeUndefined();
+    expect(screen.getByTestId('spark-signature-dot-0').props.stroke).toBeUndefined();
+    // İmzanın tokluğu kimliğin parçası: ağırlık 900'de kalır.
+    expect(screen.getByTestId('spark-signature-letter-0').props.font).toMatchObject({
+      fontWeight: '900',
+    });
     expect(screen.getByTestId('spark-signature-energy')).toBeTruthy();
     expect(screen.getByTestId('spark-signature-core')).toBeTruthy();
     expect(screen.getByTestId('spark-signature-center-wave')).toBeTruthy();
@@ -75,13 +85,12 @@ describe('LivingSparkWordmark', () => {
     const screen = await render(<LivingSparkWordmark testID="spaced-signature" />);
     const heroLayout = resolveWordmarkLayout('hero');
     const letterCenters = [11, 41, 71, 101, 131];
-    const dotCenters = [25, 54, 86, 116];
+    const dotCenters = [25, 51.5, 86, 116];
 
     letterCenters.forEach((x, index) => {
       expect(screen.getByTestId(`spaced-signature-letter-${index}`)).toHaveProp('x', [x]);
     });
     expect(heroLayout.fontSize).toBe(32);
-    expect(heroLayout.strokeWidth).toBe(1.2);
     dotCenters.forEach((cx, index) => {
       expect(screen.getByTestId(`spaced-signature-dot-${index}`)).toHaveProp('cx', cx);
     });
@@ -105,16 +114,36 @@ describe('LivingSparkWordmark', () => {
     );
   });
 
-  it('aydınlık temada uç tonu eşitler ve yaşayan çekirdekleri uçlara taşır', () => {
-    const colors = { primary: '#5AC8FA', primaryDark: '#168CC8' };
+  it('her temada uç tonu ayarlar; karanlıkta hareketi görünür kılar', () => {
+    const colors = { primary: '#5AC8FA', primaryDark: '#168CC8', primaryLight: '#8DD9FC' };
     const light = resolveWordmarkMotionProfile('light', colors, 144);
     const dark = resolveWordmarkMotionProfile('dark', colors, 144);
 
     expect(light.baseEdgeColor).toBe(colors.primary);
     expect(dark.baseEdgeColor).toBe(colors.primaryDark);
-    expect(light.mistPrimaryTravel).toBeGreaterThan(dark.mistPrimaryTravel);
-    expect(light.mistSecondaryTravel).toBeGreaterThan(dark.mistSecondaryTravel);
-    expect(light.ambientOpacityMultiplier).toBeGreaterThan(dark.ambientOpacityMultiplier);
+    // Karanlık temada harfler zaten parlak vurgu renginde: hareketin okunması
+    // için taban RENKLE koyulaşır (opaklıkla değil), gezinme ve opaklık artar,
+    // parıltı beyaza çekilir.
+    expect(light.baseCenterColor).toBe(colors.primary);
+    expect(dark.baseCenterColor).not.toBe(colors.primary);
+    expect(dark.mistPrimaryTravel).toBeGreaterThan(light.mistPrimaryTravel);
+    expect(dark.mistSecondaryTravel).toBeGreaterThan(light.mistSecondaryTravel);
+    expect(dark.ambientOpacityMultiplier).toBeGreaterThan(light.ambientOpacityMultiplier);
+    expect(light.highlightColor).toBe(colors.primaryLight);
+    // Karanlıkta parıltı beyaza çekilmez: "el feneri" görüntüsü, sentetik
+    // kalınlaştırmanın birleşim yerlerinde bıraktığı izi ton farkıyla açığa
+    // çıkarıyordu. Çekirdek vurgunun açık tonunda kalır.
+    expect(dark.highlightColor).toBe(mixHexColors(colors.primaryLight, '#FFFFFF', 0.18));
+    expect(dark.highlightColor).not.toBe('#ffffff');
+  });
+
+  it('renk karışımını sınır durumlarında güvenle yapar', () => {
+    expect(mixHexColors('#8DD9FC', '#FFFFFF', 0.6)).toBe('#d1f0fe');
+    expect(mixHexColors('#000', '#FFFFFF', 0.5)).toBe('#808080');
+    expect(mixHexColors('#8DD9FC', '#FFFFFF', 0)).toBe('#8dd9fc');
+    expect(mixHexColors('#8DD9FC', '#FFFFFF', 1)).toBe('#ffffff');
+    // Geçersiz girdi kaynağı korur (renk kaybolmaz).
+    expect(mixHexColors('bozuk', '#FFFFFF', 0.5)).toBe('bozuk');
   });
 
   it('klasik geri dönüş varyantında hareket katmanlarını oluşturmaz', async () => {
