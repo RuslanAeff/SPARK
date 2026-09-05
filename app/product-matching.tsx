@@ -966,7 +966,6 @@ export default function ProductMatchingScreen() {
         confirmLabel={t('product_match_merge_confirm_cta')}
         cancelLabel={t('cancel')}
         icon="source-merge"
-        confirmIcon="check"
         onCancel={() => setMergePromptOpen(false)}
         onConfirm={() => void mergeSelectedProducts()}
       />
@@ -980,7 +979,6 @@ export default function ProductMatchingScreen() {
         confirmLabel={t('product_match_split_confirm_cta')}
         cancelLabel={t('cancel')}
         icon="source-branch"
-        confirmIcon="check"
         onCancel={() => setSplitTarget(null)}
         onConfirm={() => void splitSelectedAlias()}
       />

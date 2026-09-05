@@ -514,6 +514,28 @@ isteği doğrudan veri değiştirmez: önce seçili satıcı sayısı ile bunlar
 işlem sayısını açıklayan geri alınamazlık onayı gösterilir. Kullanıcı onayladıktan
 sonra satıcılar ve bağlı işlemler tek atomik veritabanı işlemiyle kaldırılır.
 
+### Hâle deseni
+
+**Hâle**, vurgu rengini bir yüzeyin üst kenarına taşıyan kanonik desendir. Düz
+renk şeridi ("accent strip") kullanılmaz: şerit kazara çizilmiş gibi durur ve
+yüzeye karakter katmaz. Deseni bir yüzeye uygulamak şu üç kuralın tümünü
+uygulamak demektir:
+
+1. **Hâle** — yüzeyin üst kenarından aşağı sönen radial gradient (`react-native-svg`;
+   merkez üstte, yaklaşık %22–26 → %6–7 → 0 opaklık, 170–190 px). Renk yüzeyin
+   tonundan gelir: nötr/olumlu kararda vurgu rengi, yıkıcı kararda `danger`.
+   Yüzeyin üst köşe yarıçapları hâleye de uygulanır.
+2. **Çapa** — hâlenin merkezinde tek bir öğe durur ve aynı renge bağlanır:
+   karar pencerelerinde tonun %12 dolgulu, %30 halkalı simge dairesi; alt
+   sayfalarda sürükle-kapat tutamağı (nötr gri değil, tonun ~%60 opaklığı).
+3. **Yalın aksiyon** — onay/silme düğmesi yalnız metindir; anlamı baştaki büyük
+   simge taşıdığı için düğme içinde simge tekrarlanmaz. Vazgeç düğmesi hayalet
+   (şeffaf zemin + ince kenarlık), asıl düğme ~1,5 kat geniştir.
+
+Desen `ConfirmModal`, `GlassDeleteModal` ve `BottomSheetModal`'ın `accentColor`
+prop'unda yaşar. Alt sayfalarda opt-in'dir: prop verilmeyen sayfa nötr kalır.
+Şu an ürün analizi ve satıcı analizi sayfalarında uygulanır.
+
 ### Etkileşim ilkeleri
 
 - Ana eylem ilk bakışta anlaşılmalı; ikincil eylemler görsel gürültü yaratmamalıdır.

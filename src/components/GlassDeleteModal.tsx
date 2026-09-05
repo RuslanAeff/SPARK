@@ -1,4 +1,9 @@
 // S.P.A.R.K. — Sade, tema uyumlu silme onayı
+//
+// Görsel dil `ConfirmModal` ile ortaktır: vurgu rengi kartın üstünde düz bir
+// şerit yerine simgenin arkasından sönen bir hâle (radial gradient) olarak
+// taşınır, aksiyon butonu yalnız metindir (anlamı baştaki büyük simge taşır) ve
+// vazgeç butonu hayalet (şeffaf + ince kenarlık) kalır.
 import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   View,
@@ -10,6 +15,7 @@ import {
   Easing,
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import Svg, { Defs, RadialGradient, Rect, Stop } from 'react-native-svg';
 import * as Haptics from 'expo-haptics';
 
 import { Colors } from '../theme/colors';
@@ -158,6 +164,20 @@ export default function GlassDeleteModal({
             { transform: [{ scale: scaleAnim }], opacity: opacityAnim },
           ]}
         >
+          {/* Simgenin arkasından sönen tehlike hâlesi. */}
+          <View pointerEvents="none" style={styles.aura}>
+            <Svg width="100%" height="100%">
+              <Defs>
+                <RadialGradient id="delete-aura" cx="50%" cy="4%" rx="72%" ry="100%">
+                  <Stop offset="0" stopColor={Colors.danger} stopOpacity={0.26} />
+                  <Stop offset="0.55" stopColor={Colors.danger} stopOpacity={0.07} />
+                  <Stop offset="1" stopColor={Colors.danger} stopOpacity={0} />
+                </RadialGradient>
+              </Defs>
+              <Rect x="0" y="0" width="100%" height="100%" fill="url(#delete-aura)" />
+            </Svg>
+          </View>
+
           <View style={styles.body}>
             <View style={styles.iconWrap}>
               <MaterialCommunityIcons
@@ -198,7 +218,6 @@ export default function GlassDeleteModal({
                   onDelete();
                 }}
               >
-                <MaterialCommunityIcons name="trash-can-outline" size={18} color="#FFFFFF" />
                 <Text style={styles.deleteButtonText}>{t('delete')}</Text>
               </Pressable>
             </View>
@@ -233,6 +252,13 @@ const getStyles = () => StyleSheet.create({
     shadowRadius: 24,
     elevation: 22,
   },
+  aura: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 168,
+  },
   body: {
     alignItems: 'center',
     paddingHorizontal: Spacing.xl,
@@ -242,10 +268,12 @@ const getStyles = () => StyleSheet.create({
     width: 52,
     height: 52,
     borderRadius: 26,
+    borderWidth: 1,
+    borderColor: Colors.danger + '4D',
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: Spacing.md,
-    backgroundColor: Colors.danger + '18',
+    backgroundColor: Colors.danger + '1F',
   },
   title: {
     ...Typography.headlineSmall,
@@ -269,7 +297,6 @@ const getStyles = () => StyleSheet.create({
   },
   button: {
     minHeight: 48,
-    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
@@ -283,7 +310,8 @@ const getStyles = () => StyleSheet.create({
     transform: [{ scale: 0.98 }],
   },
   cancelButton: {
-    backgroundColor: Colors.surfaceLight,
+    flex: 1,
+    backgroundColor: 'transparent',
     borderWidth: 1,
     borderColor: Colors.cardBorder,
   },
@@ -293,11 +321,13 @@ const getStyles = () => StyleSheet.create({
     fontFamily: FontFamily.bold,
   },
   deleteButton: {
+    flex: 1.5,
     backgroundColor: Colors.dangerDark,
   },
   deleteButtonText: {
     ...Typography.labelLarge,
     color: '#FFFFFF',
-    fontFamily: FontFamily.bold,
+    fontFamily: FontFamily.extraBold,
+    letterSpacing: 0.2,
   },
 });

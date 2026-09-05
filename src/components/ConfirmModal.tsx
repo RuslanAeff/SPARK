@@ -8,6 +8,12 @@
 //   • Hem aydınlık hem karanlık temada otomatik görünüm alır.
 //   • `BottomSheetModal` yerine ortada (centered dialog) sunar — hızlı kararlar
 //     için alt sheet açmak gereğinden fazla ağır hissettiriyordu.
+//   • Vurgu rengi kartın üstünde düz bir şerit yerine simgenin arkasından sönen
+//     bir hâle (radial gradient) olarak taşınır; şerit kazara çizilmiş gibi
+//     duruyordu ve karta karakter katmıyordu.
+//   • Onay butonu yalnız metindir: metnin yanındaki tik simgesi hem anlamı
+//     tekrarlıyor hem de pill içinde dengesiz duruyordu; anlamı baştaki büyük
+//     simge taşıyor.
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import {
   View,
@@ -19,6 +25,7 @@ import {
   Easing,
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import Svg, { Defs, RadialGradient, Rect, Stop } from 'react-native-svg';
 import * as Haptics from 'expo-haptics';
 
 import { Colors } from '../theme/colors';
@@ -43,8 +50,6 @@ export interface ConfirmModalProps {
   tone?: ConfirmTone;
   /** Başlık üstünde gösterilecek MaterialCommunityIcons adı. */
   icon?: React.ComponentProps<typeof MaterialCommunityIcons>['name'];
-  /** Onay butonunda gösterilecek opsiyonel simge. */
-  confirmIcon?: React.ComponentProps<typeof MaterialCommunityIcons>['name'];
   onCancel: () => void;
   onConfirm: () => void;
   onDismiss?: () => void;
@@ -58,7 +63,6 @@ export default function ConfirmModal({
   cancelLabel,
   tone = 'primary',
   icon = 'help-circle-outline',
-  confirmIcon,
   onCancel,
   onConfirm,
   onDismiss,
@@ -156,6 +160,8 @@ export default function ConfirmModal({
   if (!mounted) return null;
 
   const toneColor = tone === 'warning' ? Colors.warning : Colors.primary;
+  // Aynı anda iki modal mount olabildiği için gradient id'si tona göre ayrışır.
+  const auraId = `confirm-aura-${tone}`;
 
   return (
     <Modal
@@ -177,12 +183,28 @@ export default function ConfirmModal({
             { transform: [{ scale: scaleAnim }], opacity: opacityAnim },
           ]}
         >
-          {/* Accent strip */}
-          <View style={[styles.accent, { backgroundColor: toneColor }]} />
+          {/* Simgenin arkasından sönen vurgu hâlesi (düz şerit yerine). */}
+          <View pointerEvents="none" style={styles.aura}>
+            <Svg width="100%" height="100%">
+              <Defs>
+                <RadialGradient id={auraId} cx="50%" cy="4%" rx="72%" ry="100%">
+                  <Stop offset="0" stopColor={toneColor} stopOpacity={0.26} />
+                  <Stop offset="0.55" stopColor={toneColor} stopOpacity={0.07} />
+                  <Stop offset="1" stopColor={toneColor} stopOpacity={0} />
+                </RadialGradient>
+              </Defs>
+              <Rect x="0" y="0" width="100%" height="100%" fill={`url(#${auraId})`} />
+            </Svg>
+          </View>
 
           <View style={styles.body}>
-            <View style={[styles.iconWrap, { backgroundColor: toneColor + '1F' }]}>
-              <MaterialCommunityIcons name={icon} size={28} color={toneColor} />
+            <View
+              style={[
+                styles.iconWrap,
+                { backgroundColor: toneColor + '1F', borderColor: toneColor + '4D' },
+              ]}
+            >
+              <MaterialCommunityIcons name={icon} size={26} color={toneColor} />
             </View>
 
             <Text style={styles.title}>{title}</Text>
@@ -207,18 +229,12 @@ export default function ConfirmModal({
                 }}
                 style={({ pressed }) => [
                   styles.btn,
+                  styles.btnConfirm,
                   { backgroundColor: toneColor },
                   pressed && styles.btnPressed,
                 ]}
                 accessibilityRole="button"
               >
-                {confirmIcon ? (
-                  <MaterialCommunityIcons
-                    name={confirmIcon}
-                    size={18}
-                    color={Colors.background}
-                  />
-                ) : null}
                 <Text style={[styles.btnConfirmText, { color: Colors.background }]}>
                   {confirmLabel}
                 </Text>
@@ -255,9 +271,12 @@ const getStyles = () =>
       shadowRadius: 24,
       elevation: 24,
     },
-    accent: {
-      height: 3,
-      width: '100%',
+    aura: {
+      position: 'absolute',
+      top: 0,
+      left: 0,
+      right: 0,
+      height: 168,
     },
     body: {
       paddingHorizontal: Spacing.xl,
@@ -268,6 +287,7 @@ const getStyles = () =>
       width: 56,
       height: 56,
       borderRadius: 28,
+      borderWidth: 1,
       alignItems: 'center',
       justifyContent: 'center',
       marginBottom: Spacing.md,
@@ -292,7 +312,6 @@ const getStyles = () =>
       width: '100%',
     },
     btn: {
-      flex: 1,
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'center',
@@ -305,9 +324,13 @@ const getStyles = () =>
       transform: [{ scale: 0.98 }],
     },
     btnCancel: {
-      backgroundColor: Colors.surfaceLight,
+      flex: 1,
+      backgroundColor: 'transparent',
       borderWidth: 1,
       borderColor: Colors.cardBorder,
+    },
+    btnConfirm: {
+      flex: 1.5,
     },
     btnCancelText: {
       ...Typography.labelLarge,
@@ -317,6 +340,6 @@ const getStyles = () =>
     btnConfirmText: {
       ...Typography.labelLarge,
       fontFamily: FontFamily.extraBold,
-      letterSpacing: 0.3,
+      letterSpacing: 0.2,
     },
   });

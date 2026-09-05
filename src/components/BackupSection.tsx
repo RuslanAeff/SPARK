@@ -457,7 +457,6 @@ export default function BackupSection() {
         title={t('backup_import_confirm_title')}
         message={t('backup_import_confirm_desc')}
         icon="tray-arrow-down"
-        confirmIcon="check"
         confirmLabel={t('backup_import_confirm_btn')}
         cancelLabel={t('cancel')}
         onCancel={() => setImportConfirm(false)}
@@ -472,7 +471,6 @@ export default function BackupSection() {
           end: endDate,
         })}
         icon="tray-arrow-up"
-        confirmIcon="check"
         confirmLabel={t('backup_export_confirm_btn')}
         cancelLabel={t('cancel')}
         onCancel={() => setExportConfirm(false)}
