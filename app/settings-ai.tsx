@@ -1,6 +1,6 @@
 // S.P.A.R.K. — Settings: AI (Gemini API key)
 import React, { useState, useEffect, useMemo } from 'react';
-import { View, Text, ScrollView, StyleSheet, Pressable, TextInput } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, Pressable, TextInput, Linking } from 'react-native';
 import { useAppTheme } from '../src/theme/themeStore';
 import { useRouter } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -17,6 +17,8 @@ import GlassCheckButton from '../src/components/GlassCheckButton';
 import GlassDeleteModal from '../src/components/GlassDeleteModal';
 import { SparkToast } from '../src/components/SparkToast';
 import { SettingsSection } from '../src/components/SettingsList';
+
+const API_KEY_CONSOLE_URL = 'https://aistudio.google.com/app/apikey';
 
 export default function SettingsAiScreen() {
   const colorScheme = useAppTheme();
@@ -45,6 +47,13 @@ export default function SettingsAiScreen() {
     setApiKey('');
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     SparkToast.show(t('api_key_saved'), 'success', t('api_key_ready'));
+  }
+
+  function handleOpenKeyConsole() {
+    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    Linking.openURL(API_KEY_CONSOLE_URL).catch(() => {
+      SparkToast.show(t('unknown_error'), 'error');
+    });
   }
 
   async function handleDeleteApiKey() {
@@ -108,6 +117,18 @@ export default function SettingsAiScreen() {
                 />
               )}
             </View>
+            <Text style={styles.helpText}>{t('api_key_help')}</Text>
+            <Pressable
+              testID="api-key-console-link"
+              onPress={handleOpenKeyConsole}
+              style={({ pressed }) => [styles.helpLink, pressed && styles.helpLinkPressed]}
+              accessibilityRole="link"
+              accessibilityLabel={t('api_key_get')}
+              hitSlop={8}
+            >
+              <MaterialCommunityIcons name="open-in-new" size={14} color={Colors.secondary} />
+              <Text style={styles.helpLinkText}>{t('api_key_get')}</Text>
+            </Pressable>
           </SettingsSection>
         </Animated.View>
       </ScrollView>
@@ -184,6 +205,25 @@ const getStyles = () => StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.sm,
+  },
+  helpText: {
+    ...Typography.bodySmall,
+    color: Colors.textMuted,
+    marginTop: Spacing.md,
+  },
+  helpLink: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    gap: Spacing.xs,
+    marginTop: Spacing.xs,
+    paddingVertical: Spacing.xs,
+  },
+  helpLinkPressed: { opacity: 0.6 },
+  helpLinkText: {
+    ...Typography.bodySmall,
+    color: Colors.secondary,
+    fontFamily: FontFamily.bold,
   },
   input: {
     ...Typography.bodyLarge,
