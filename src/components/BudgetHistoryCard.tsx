@@ -1,6 +1,6 @@
 // S.P.A.R.K. — Budget History Card (Compact Horizontal Design)
 import React, { useEffect, useState, useRef, useCallback, useMemo } from 'react';
-import { View, Text, StyleSheet, ActivityIndicator, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, ActivityIndicator, ScrollView, Pressable } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Colors } from '../theme/colors';
 import { Typography, FontFamily } from '../theme/typography';
@@ -11,6 +11,7 @@ import { BudgetDao } from '../db/budgetDao';
 import { ExpenseDao } from '../db/expenseDao';
 import { Budget } from '../db/schema';
 import { getCycleStartDay } from '../services/budgetCycleSettings';
+import { findShadowedBudgetIds } from '../utils/budgetPeriodConflicts';
 import {
   getCurrentCycle,
   getCycleForKey,
@@ -30,9 +31,24 @@ interface CycleEntry {
   budget: Budget | null;
   spent: number;
   isCurrent: boolean;
+  /** Eski sürümden kalan çakışma nedeniyle hesaplamada yetkili olmayan kayıt. */
+  isShadowed: boolean;
 }
 
-export default function BudgetHistoryCard() {
+interface BudgetHistoryCardProps {
+  /** Yukarıdaki navigatörde seçili dönem anahtarı (YYYY-MM). */
+  selectedKey?: string;
+  /** Düzenlenebilir pencerenin en eski dönemi; öncesi salt-okunur tarihtir. */
+  oldestEditableKey?: string;
+  /** Karta dokunulunca navigatörü o döneme taşır. */
+  onSelectPeriod?: (key: string) => void;
+}
+
+export default function BudgetHistoryCard({
+  selectedKey,
+  oldestEditableKey,
+  onSelectPeriod,
+}: BudgetHistoryCardProps = {}) {
   const scheme = useAppTheme();
   const themeRevision = useThemeRevision();
   const styles = useMemo(() => getStyles(), [scheme, themeRevision]);
@@ -69,6 +85,10 @@ export default function BudgetHistoryCard() {
       // hatasına (NativeStatement / released object) yol açabiliyor — sırayla yükle.
       const withData: CycleEntry[] = [];
       const representedPeriods = new Set<string>();
+      // Eski sürümlerden çakışan aktif dönem kalmış olabilir. Veri silinmez;
+      // yalnız hesaplamada yetkili olmayan kayıt işaretlenir ve kullanıcı
+      // dokunup düzeltebilir (ADR-008 onarım yolu).
+      const shadowedIds = findShadowedBudgetIds(budgets);
       for (const budget of budgets) {
         const key = budget.period_start ?? budget.start_date.slice(0, 7);
         const cycle = budget?.period_start && budget.period_end
@@ -84,13 +104,17 @@ export default function BudgetHistoryCard() {
         // En yeni DAO satırını göster, aynı fiziksel dönemi ikinci kez üretme.
         if (representedPeriods.has(periodKey)) continue;
         representedPeriods.add(periodKey);
+        const shadowed = shadowedIds.has(budget.id);
         withData.push({
           key,
           renderKey: `budget:${periodKey}:${budget.id}`,
           cycle,
           budget,
           spent,
-          isCurrent: cycle.start <= today && cycle.end >= today,
+          // Gölgelenen kayıt "MEVCUT" sayılmaz; aksi halde aynı gün için iki
+          // mevcut rozeti çıkar ve ekranlar birbiriyle çelişir.
+          isCurrent: !shadowed && cycle.start <= today && cycle.end >= today,
+          isShadowed: shadowed,
         });
       }
 
@@ -110,6 +134,7 @@ export default function BudgetHistoryCard() {
           budget: null,
           spent,
           isCurrent: cycle.start <= today && cycle.end >= today,
+          isShadowed: false,
         });
       }
       if (!withData.some((entry) => entry.isCurrent)) {
@@ -121,6 +146,7 @@ export default function BudgetHistoryCard() {
           budget: null,
           spent,
           isCurrent: true,
+          isShadowed: false,
         });
       }
       withData.sort((a, b) => b.cycle.start.localeCompare(a.cycle.start));
@@ -162,7 +188,13 @@ export default function BudgetHistoryCard() {
         decelerationRate="fast"
       >
         {entries.map((entry) => {
-          const { key, renderKey, cycle, budget, spent, isCurrent } = entry;
+          const { key, renderKey, cycle, budget, spent, isCurrent, isShadowed } = entry;
+          // Düzenleme penceresi dışındaki dönem salt-okunur tarihtir. Tek istisna:
+          // kuralı ihlal eden çakışma kaydı her zaman seçilip silinebilmelidir,
+          // yoksa erişilemeyen bir satır analizde çift saymaya devam eder.
+          const selectable = Boolean(onSelectPeriod)
+            && (isShadowed || !oldestEditableKey || cycle.key >= oldestEditableKey);
+          const isSelected = selectedKey === cycle.key;
           const hasBudget = budget !== null;
           const pct = hasBudget && budget!.monthly_amount > 0
             ? Math.min((spent / budget!.monthly_amount) * 100, 100)
@@ -176,10 +208,34 @@ export default function BudgetHistoryCard() {
             : `${formatDayMonth(cycle.start, t)}–${formatDayMonth(cycle.end, t)}`;
 
           return (
-            <View key={renderKey} style={[styles.card, isCurrent && styles.cardCurrent]}>
+            <Pressable
+              key={renderKey}
+              testID={`budget-history-card-${cycle.key}`}
+              onPress={selectable ? () => onSelectPeriod?.(cycle.key) : undefined}
+              disabled={!selectable}
+              accessibilityRole={selectable ? 'button' : 'text'}
+              accessibilityState={{ selected: isSelected }}
+              accessibilityLabel={selectable ? t('budget_history_select', { period: label }) : label}
+              style={({ pressed }) => [
+                styles.card,
+                isCurrent && styles.cardCurrent,
+                isShadowed && styles.cardShadowed,
+                isSelected && styles.cardSelected,
+                pressed && selectable && styles.cardPressed,
+              ]}
+            >
               {/* Header */}
               <View style={styles.cardHeader}>
-                {isCurrent ? (
+                {isShadowed ? (
+                  <View style={styles.conflictBadge}>
+                    <MaterialCommunityIcons
+                      name="alert-outline"
+                      size={11}
+                      color={Colors.warning}
+                    />
+                    <Text style={styles.conflictText}>{t('budget_conflict_badge')}</Text>
+                  </View>
+                ) : isCurrent ? (
                   <View style={styles.currentBadge}>
                     <View style={styles.currentDot} />
                     <Text style={styles.currentText}>{t('current_month')}</Text>
@@ -221,7 +277,7 @@ export default function BudgetHistoryCard() {
                   <Text style={styles.noBudgetNote}>{t('no_budget_set')}</Text>
                 </View>
               )}
-            </View>
+            </Pressable>
           );
         })}
       </ScrollView>
@@ -259,6 +315,33 @@ const getStyles = () => StyleSheet.create({
   },
   cardCurrent: {
     borderTopColor: Colors.primary,
+  },
+  // Çakışan eski kayıt: hesaplamada yetkili değil, kullanıcı düzeltebilsin diye
+  // sessiz bir uyarı tonuyla ayrışır.
+  cardShadowed: {
+    borderTopColor: Colors.warning,
+    opacity: 0.82,
+  },
+  cardSelected: {
+    borderColor: Colors.primary,
+    borderWidth: 1,
+  },
+  cardPressed: {
+    opacity: 0.78,
+    transform: [{ scale: 0.985 }],
+  },
+  conflictBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+  },
+  conflictText: {
+    ...Typography.labelSmall,
+    color: Colors.warning,
+    fontFamily: FontFamily.bold,
+    fontSize: 9,
+    letterSpacing: 0.4,
+    textTransform: 'uppercase',
   },
   cardHeader: {
     flexDirection: 'row',

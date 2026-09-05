@@ -26,7 +26,8 @@ import { createSusevarStyles, susevarButtonPressed } from '../src/theme/susevar'
 import { sanitizeAmount, sanitizeText } from '../src/utils/inputValidation';
 import { BudgetDao } from '../src/db/budgetDao';
 import { useNotifications } from '../src/context/NotificationsContext';
-import { getStartOfMonth } from '../src/utils/dateUtils';
+import { getCycleStartDay } from '../src/services/budgetCycleSettings';
+import { getCurrentCycle } from '../src/utils/budgetCycle';
 import { useOnboardingStatus } from '../src/hooks/useOnboardingStatus';
 
 const TOTAL_PAGES = 4;
@@ -81,10 +82,17 @@ export default function OnboardingScreen() {
 
     await setCurrency(selectedCurrency);
     if (safeBudget > 0) {
-      // getStartOfMonth() yerel saate duyarlı; toISOString UTC'ye çevirip
-      // gece yarısı civarında bir önceki ayı döndürebilirdi (P15 timezone fix).
-      const monthKey = getStartOfMonth().substring(0, 7);
-      await BudgetDao.setMonthlyBudget(safeBudget, monthKey, selectedCurrency);
+      // Kayıtlı döngü gününü oku: varsayılanı sabit yazmak, kullanıcı sonradan
+      // günü değiştirdiğinde karışık `cycle_start_day` verisi üretiyordu.
+      const cycleDay = await getCycleStartDay();
+      const cycle = getCurrentCycle(cycleDay);
+      await BudgetDao.setBudgetForPeriod({
+        amount: safeBudget,
+        currency: selectedCurrency,
+        periodStart: cycle.start,
+        periodEnd: cycle.end,
+        cycleStartDay: cycleDay,
+      });
       try {
         await syncNotifications();
       } catch (error) {
@@ -109,6 +117,7 @@ export default function OnboardingScreen() {
 
       <ScrollView
         ref={scrollRef}
+        testID="onboarding-pager"
         horizontal
         pagingEnabled
         showsHorizontalScrollIndicator={false}
@@ -118,29 +127,7 @@ export default function OnboardingScreen() {
           setPage(nextPage);
         }}
       >
-        <View style={[styles.page, { width }]}>
-          <Animated.View entering={FadeInDown.duration(420)} style={styles.centered}>
-            <View style={styles.logoWrap}>
-              <MaterialCommunityIcons name="sparkles" size={52} color={Colors.primary} />
-            </View>
-            <Text style={styles.title}>{t('onboarding_welcome_title')}</Text>
-            <Text style={styles.subtitle}>{t('onboarding_welcome_subtitle')}</Text>
-            <View style={styles.featureRow}>
-              {[
-                ['line-scan', t('onboarding_feature_scan')],
-                ['wallet-outline', t('onboarding_feature_budget')],
-                ['chart-donut', t('onboarding_feature_analytics')],
-              ].map(([icon, label]) => (
-                <View key={String(label)} style={styles.featurePill}>
-                  <MaterialCommunityIcons name={icon as any} size={18} color={Colors.primary} />
-                  <Text style={styles.featureText}>{label}</Text>
-                </View>
-              ))}
-            </View>
-          </Animated.View>
-        </View>
-
-        <View style={[styles.page, { width }]}>
+        <View testID="onboarding-page-language" style={[styles.page, { width }]}>
           <Animated.View entering={FadeInDown.duration(420)} style={styles.centered}>
             <Text style={styles.title}>{t('onboarding_language_title')}</Text>
             <Text style={styles.subtitle}>{t('onboarding_language_subtitle')}</Text>
@@ -167,7 +154,29 @@ export default function OnboardingScreen() {
           </Animated.View>
         </View>
 
-        <View style={[styles.page, { width }]}>
+        <View testID="onboarding-page-welcome" style={[styles.page, { width }]}>
+          <Animated.View entering={FadeInDown.duration(420)} style={styles.centered}>
+            <View style={styles.logoWrap}>
+              <MaterialCommunityIcons name="sparkles" size={52} color={Colors.primary} />
+            </View>
+            <Text style={styles.title}>{t('onboarding_welcome_title')}</Text>
+            <Text style={styles.subtitle}>{t('onboarding_welcome_subtitle')}</Text>
+            <View style={styles.featureRow}>
+              {[
+                ['line-scan', t('onboarding_feature_scan')],
+                ['wallet-outline', t('onboarding_feature_budget')],
+                ['chart-donut', t('onboarding_feature_analytics')],
+              ].map(([icon, label]) => (
+                <View key={String(label)} style={styles.featurePill}>
+                  <MaterialCommunityIcons name={icon as any} size={18} color={Colors.primary} />
+                  <Text style={styles.featureText}>{label}</Text>
+                </View>
+              ))}
+            </View>
+          </Animated.View>
+        </View>
+
+        <View testID="onboarding-page-budget" style={[styles.page, { width }]}>
           <Animated.View entering={FadeInDown.duration(420)} style={styles.centered}>
             <Text style={styles.title}>{t('onboarding_budget_title')}</Text>
             <Text style={styles.subtitle}>{t('onboarding_budget_subtitle')}</Text>
@@ -204,7 +213,7 @@ export default function OnboardingScreen() {
           </Animated.View>
         </View>
 
-        <View style={[styles.page, { width }]}>
+        <View testID="onboarding-page-done" style={[styles.page, { width }]}>
           <Animated.View entering={FadeInUp.duration(420)} style={styles.centered}>
             <Animated.View entering={ZoomIn.delay(120)} style={styles.doneIconWrap}>
               <MaterialCommunityIcons name="check" size={40} color={Colors.onPrimary} />
@@ -242,7 +251,7 @@ export default function OnboardingScreen() {
               goToPage(page + 1);
             }}
           >
-            <Text style={styles.ctaText}>{page === 0 ? t('onboarding_welcome_cta') : t('onboarding_next')}</Text>
+            <Text style={styles.ctaText}>{page === 1 ? t('onboarding_welcome_cta') : t('onboarding_next')}</Text>
           </Pressable>
         )}
       </View>

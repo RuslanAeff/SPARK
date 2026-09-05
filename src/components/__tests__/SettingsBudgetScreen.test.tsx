@@ -84,6 +84,8 @@ jest.mock('../../db/budgetDao', () => ({
     getForMonth: jest.fn().mockResolvedValue(null),
     setMonthlyBudget: jest.fn(),
     transitionAndSetBudget: jest.fn(),
+    setBudgetForPeriod: jest.fn(),
+    deleteBudget: jest.fn().mockResolvedValue(1),
   },
 }));
 
@@ -109,6 +111,17 @@ jest.mock('../GlassCheckButton', () => {
     );
 });
 jest.mock('../BudgetHistoryCard', () => () => null);
+jest.mock('../GlassDeleteModal', () => {
+  const React = require('react');
+  const { Pressable, Text } = require('react-native');
+  return ({ visible, onDelete }: any) => visible
+    ? React.createElement(
+        Pressable,
+        { testID: 'budget-delete-confirm', onPress: onDelete },
+        React.createElement(Text, null, 'confirm-delete'),
+      )
+    : null;
+});
 jest.mock('../SparkToast', () => ({ SparkToast: { show: jest.fn() } }));
 jest.mock('../SettingsInfoHint', () => ({
   SettingsInfoHintModal: () => null,
@@ -218,5 +231,73 @@ describe('SettingsBudgetScreen goal focus preference', () => {
     await waitFor(() => expect(mockSyncNotifications).toHaveBeenCalledTimes(1));
     expect(BudgetDao.setMonthlyBudget).toHaveBeenCalled();
     expect(SparkToast.show).not.toHaveBeenCalledWith('error_saving_data', 'error');
+  });
+});
+
+describe('SettingsBudgetScreen dönem sınırı ve bütçe silme', () => {
+  const getPreferences = getGoalFeaturePreferences as jest.MockedFunction<
+    typeof getGoalFeaturePreferences
+  >;
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    getPreferences.mockResolvedValue({ enabled: true, dashboardFocusEnabled: false });
+    (BudgetDao.getForMonth as jest.Mock).mockResolvedValue(null);
+  });
+
+  it('başlamamış döneme geçişi kilitler ve gerekçesini gösterir', async () => {
+    const screen = await render(<SettingsBudgetScreen />);
+    await waitFor(() => expect(screen.getByText('budget_cycle_day_default')).toBeTruthy());
+
+    // Açılışta mevcut dönem seçilidir: ileri ok kapalı, geri ok açıktır.
+    expect(screen.getByTestId('budget-period-next').props.accessibilityState.disabled).toBe(true);
+    expect(screen.getByTestId('budget-period-previous').props.accessibilityState.disabled).toBe(false);
+    expect(screen.getByText('budget_future_locked')).toBeTruthy();
+  });
+
+  it('geriye yalnız mevcut dönem dahil 5 dönem gezdirir', async () => {
+    const screen = await render(<SettingsBudgetScreen />);
+    await waitFor(() => expect(screen.getByText('budget_cycle_day_default')).toBeTruthy());
+
+    for (let step = 0; step < 4; step += 1) {
+      await fireEvent.press(screen.getByTestId('budget-period-previous'));
+    }
+    // 4 adım sonra en eski düzenlenebilir döneme gelinir; geri ok kapanır.
+    await waitFor(() =>
+      expect(screen.getByTestId('budget-period-previous').props.accessibilityState.disabled).toBe(true),
+    );
+    // Geriye gidilebildiği için ileri ok yeniden açılmıştır.
+    expect(screen.getByTestId('budget-period-next').props.accessibilityState.disabled).toBe(false);
+  });
+
+  it('kayıtlı bütçe yokken silme eylemini göstermez', async () => {
+    const screen = await render(<SettingsBudgetScreen />);
+    await waitFor(() => expect(screen.getByText('budget_cycle_day_default')).toBeTruthy());
+
+    expect(screen.queryByTestId('budget-delete-action')).toBeNull();
+  });
+
+  it('onaydan sonra bütçe hedefini siler ve alanı temizler', async () => {
+    (BudgetDao.getForMonth as jest.Mock).mockResolvedValue({
+      id: 42,
+      monthly_amount: 3450,
+      currency: 'PLN',
+      start_date: '2026-09',
+      period_start: '2026-09-01',
+      period_end: '2026-09-30',
+      cycle_start_day: 1,
+      active: 1,
+    });
+
+    const screen = await render(<SettingsBudgetScreen />);
+    await waitFor(() => expect(screen.getByTestId('budget-delete-action')).toBeTruthy());
+    expect(screen.getByPlaceholderText('5000').props.value).toBe('3450');
+
+    await fireEvent.press(screen.getByTestId('budget-delete-action'));
+    await fireEvent.press(screen.getByTestId('budget-delete-confirm'));
+
+    await waitFor(() => expect(BudgetDao.deleteBudget).toHaveBeenCalledWith(42));
+    expect(mockTriggerRefresh).toHaveBeenCalled();
+    await waitFor(() => expect(screen.queryByTestId('budget-delete-action')).toBeNull());
   });
 });

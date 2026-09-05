@@ -2,7 +2,9 @@ import {
   isDisplayCurrency,
   getCurrencySymbol,
   getCurrencyLocale,
+  CURRENCY_META,
   DEFAULT_LOCALE,
+  DISPLAY_CURRENCIES,
 } from '../currencyMeta';
 
 describe('isDisplayCurrency', () => {
@@ -37,5 +39,19 @@ describe('getCurrencyLocale', () => {
 
   it('bilinmeyen para biriminde varsayılan locale döner', () => {
     expect(getCurrencyLocale('XYZ')).toBe(DEFAULT_LOCALE);
+  });
+});
+
+describe('DISPLAY_CURRENCIES sunum sırası', () => {
+  it('seçicilerde AZN, USD, TRY, EUR, PLN sırasını korur', () => {
+    // Sıra ürün kararıdır; picker'lar bu diziyi olduğu gibi map'ler.
+    expect([...DISPLAY_CURRENCIES]).toEqual(['AZN', 'USD', 'TRY', 'EUR', 'PLN']);
+  });
+
+  it('her seçilebilir para biriminin meta kaydı vardır', () => {
+    for (const code of DISPLAY_CURRENCIES) {
+      expect(CURRENCY_META[code]).toBeDefined();
+      expect(CURRENCY_META[code].symbol.length).toBeGreaterThan(0);
+    }
   });
 });

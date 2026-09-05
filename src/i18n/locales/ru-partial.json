@@ -1083,5 +1083,15 @@
   "donut_spending_budget_share": "{spending}% расходов · {budget}% бюджета",
   "dashboard_budget_period": "Бюджетный период",
   "donut_previous_segment": "Предыдущий сегмент",
-  "donut_next_segment": "Следующий сегмент"
+  "donut_next_segment": "Следующий сегмент",
+  "price_page_jump": "Перейти на страницу {page}",
+  "budget_period_previous": "Предыдущий период",
+  "budget_period_next": "Следующий период",
+  "budget_future_locked": "Нельзя задать бюджет для периода, который ещё не начался",
+  "budget_delete_action": "Удалить бюджет этого периода",
+  "budget_delete_title": "Удалить цель бюджета",
+  "budget_delete_confirm": "Цель бюджета за период {period} будет удалена. Расходы этого периода сохранятся, период просто останется без бюджета.",
+  "budget_deleted": "Цель бюджета удалена",
+  "budget_conflict_badge": "Конфликт",
+  "budget_history_select": "Изменить период {period}"
 }

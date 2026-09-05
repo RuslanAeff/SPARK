@@ -7,8 +7,11 @@
 // Bağımlılık yok (leaf modül): React/DB import etmez, böylece saf util ve testler
 // bu dosyayı db mock'u olmadan kullanabilir.
 
-/** Kullanıcının görüntü para birimi olarak seçebileceği kapalı küme (picker'lar bunu döner). */
-export const DISPLAY_CURRENCIES = ['PLN', 'USD', 'EUR', 'AZN', 'TRY'] as const;
+/**
+ * Kullanıcının görüntü para birimi olarak seçebileceği kapalı küme (picker'lar bunu döner).
+ * Dizi sırası yalnız sunum sırasıdır; varsayılan seçim veya formatlama buna bağlı değildir.
+ */
+export const DISPLAY_CURRENCIES = ['AZN', 'USD', 'TRY', 'EUR', 'PLN'] as const;
 export type DisplayCurrency = (typeof DISPLAY_CURRENCIES)[number];
 
 export interface CurrencyMeta {

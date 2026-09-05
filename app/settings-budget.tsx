@@ -23,10 +23,13 @@ import { getToday } from '../src/utils/dateUtils';
 import {
   getCurrentCycle,
   getCycleForKey,
+  shiftCycleKey,
   MIN_CYCLE_START_DAY,
   MAX_CYCLE_START_DAY,
 } from '../src/utils/budgetCycle';
+import type { Budget } from '../src/db/schema';
 import GlassCheckButton from '../src/components/GlassCheckButton';
+import GlassDeleteModal from '../src/components/GlassDeleteModal';
 import BudgetHistoryCard from '../src/components/BudgetHistoryCard';
 import { SparkToast } from '../src/components/SparkToast';
 import {
@@ -42,6 +45,9 @@ import {
   SettingsNavigationRow,
   SettingsSection,
 } from '../src/components/SettingsList';
+
+/** Mevcut dönem + önceki 4. Daha eskisi salt-okunur tarihtir. */
+const EDITABLE_PERIOD_COUNT = 5;
 
 export default function SettingsBudgetScreen() {
   const colorScheme = useAppTheme();
@@ -59,6 +65,8 @@ export default function SettingsBudgetScreen() {
     return `${now.getFullYear()}-${m}`;
   });
   const [budgetAmount, setBudgetAmount] = useState('');
+  const [selectedBudget, setSelectedBudget] = useState<Budget | null>(null);
+  const [deleteOpen, setDeleteOpen] = useState(false);
   const [goalFeatureOn, setGoalFeatureOn] = useState(true);
   const [goalFocusOn, setGoalFocusOn] = useState(false);
   const [cycleDay, setCycleDay] = useState(1);
@@ -85,6 +93,16 @@ export default function SettingsBudgetScreen() {
     };
   }, []);
 
+  // Düzenlenebilir pencere: mevcut dönem + önceki 4. Gelecek dönemin bütçesi
+  // henüz bilinemez; başlamamış döneme hedef yazmak sistemi karıştırıyordu.
+  const currentPeriodKey = useMemo(() => getCurrentCycle(cycleDay).key, [cycleDay]);
+  const oldestEditableKey = useMemo(
+    () => shiftCycleKey(currentPeriodKey, -(EDITABLE_PERIOD_COUNT - 1)),
+    [currentPeriodKey],
+  );
+  const canGoBack = selectedMonth > oldestEditableKey;
+  const canGoForward = selectedMonth < currentPeriodKey;
+
   // Seçili döngünün tarih aralığı (etiket için). anchor=1'de ay adı, aksi halde aralık.
   const cycleLabel = useMemo(() => {
     if (cycleDay === 1) return formatMonthYear(`${selectedMonth}-01`, t);
@@ -106,7 +124,31 @@ export default function SettingsBudgetScreen() {
 
   async function loadBudgetForMonth(monthStr: string) {
     const budget = await BudgetDao.getForMonth(monthStr);
+    setSelectedBudget(budget);
     setBudgetAmount(budget ? budget.monthly_amount.toString() : '');
+  }
+
+  /**
+   * Bütçe hedefi kaldırılır; dönemin harcamaları ve tarihsel toplamları korunur.
+   * Kural ihlali içeren eski satır 5 dönemlik pencerenin dışında kalsa bile
+   * geçmiş şeridinden seçilip buradan silinebilir.
+   */
+  async function handleDeleteBudget() {
+    if (!selectedBudget) return;
+    try {
+      await BudgetDao.deleteBudget(selectedBudget.id);
+      setDeleteOpen(false);
+      setSelectedBudget(null);
+      setBudgetAmount('');
+      triggerRefresh();
+      await syncNotificationsBestEffort(syncNotifications, 'budget-delete');
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      SparkToast.show(t('budget_deleted'), 'success');
+    } catch (error) {
+      if (__DEV__) console.warn('[budget] delete failed', error);
+      setDeleteOpen(false);
+      SparkToast.show(t('error_saving_data'), 'error');
+    }
   }
 
   async function handleSaveBudget() {
@@ -166,11 +208,10 @@ export default function SettingsBudgetScreen() {
   }
 
   function changeMonth(delta: number) {
-    const [y, m] = selectedMonth.split('-').map(Number);
-    const date = new Date(y, m - 1 + delta, 1);
-    const newY = date.getFullYear();
-    const newM = (date.getMonth() + 1).toString().padStart(2, '0');
-    setSelectedMonth(`${newY}-${newM}`);
+    const next = shiftCycleKey(selectedMonth, delta);
+    // Başlamamış dönem bütçelenemez, 5 dönemden eskisi düzenlenemez.
+    if (next > currentPeriodKey || next < oldestEditableKey) return;
+    setSelectedMonth(next);
   }
 
   return (
@@ -261,22 +302,41 @@ export default function SettingsBudgetScreen() {
               </View>
 
               <View style={styles.monthSelector}>
-                <Pressable onPress={() => changeMonth(-1)} style={styles.monthArrow}>
+                <Pressable
+                  testID="budget-period-previous"
+                  onPress={() => changeMonth(-1)}
+                  disabled={!canGoBack}
+                  style={styles.monthArrow}
+                  accessibilityRole="button"
+                  accessibilityState={{ disabled: !canGoBack }}
+                  accessibilityLabel={t('budget_period_previous')}
+                >
                   <MaterialCommunityIcons
                     name="chevron-left"
                     size={24}
-                    color={Colors.textPrimary}
+                    color={canGoBack ? Colors.textPrimary : Colors.textMuted}
                   />
                 </Pressable>
                 <Text style={styles.monthText}>{cycleLabel}</Text>
-                <Pressable onPress={() => changeMonth(1)} style={styles.monthArrow}>
+                <Pressable
+                  testID="budget-period-next"
+                  onPress={() => changeMonth(1)}
+                  disabled={!canGoForward}
+                  style={styles.monthArrow}
+                  accessibilityRole="button"
+                  accessibilityState={{ disabled: !canGoForward }}
+                  accessibilityLabel={t('budget_period_next')}
+                >
                   <MaterialCommunityIcons
                     name="chevron-right"
                     size={24}
-                    color={Colors.textPrimary}
+                    color={canGoForward ? Colors.textPrimary : Colors.textMuted}
                   />
                 </Pressable>
               </View>
+              {!canGoForward && (
+                <Text style={styles.periodBoundHint}>{t('budget_future_locked')}</Text>
+              )}
 
               <View style={styles.inputRow}>
                 <TextInput
@@ -291,11 +351,35 @@ export default function SettingsBudgetScreen() {
                 <GlassCheckButton onPress={handleSaveBudget} />
               </View>
 
+              {selectedBudget && (
+                <Pressable
+                  testID="budget-delete-action"
+                  onPress={() => setDeleteOpen(true)}
+                  style={({ pressed }) => [
+                    styles.budgetDeleteBtn,
+                    pressed && styles.budgetDeleteBtnPressed,
+                  ]}
+                  accessibilityRole="button"
+                  accessibilityLabel={t('budget_delete_action')}
+                >
+                  <MaterialCommunityIcons
+                    name="trash-can-outline"
+                    size={15}
+                    color={Colors.danger}
+                  />
+                  <Text style={styles.budgetDeleteText}>{t('budget_delete_action')}</Text>
+                </Pressable>
+              )}
+
               <View style={styles.historyDivider}>
                 <MaterialCommunityIcons name="history" size={14} color={Colors.textMuted} />
                 <Text style={styles.historyDividerText}>{t('past_budgets')}</Text>
               </View>
-              <BudgetHistoryCard />
+              <BudgetHistoryCard
+                selectedKey={selectedMonth}
+                oldestEditableKey={oldestEditableKey}
+                onSelectPeriod={setSelectedMonth}
+              />
             </SettingsSection>
           </Animated.View>
 
@@ -406,6 +490,13 @@ export default function SettingsBudgetScreen() {
         onClose={() => setGoalInfoOpen(false)}
         title={t('goal_feature_section_title')}
         paragraphs={[t('goal_feature_section_hint'), t('goal_focus_hint')]}
+      />
+      <GlassDeleteModal
+        visible={deleteOpen}
+        title={t('budget_delete_title')}
+        message={t('budget_delete_confirm', { period: cycleLabel })}
+        onCancel={() => setDeleteOpen(false)}
+        onDelete={handleDeleteBudget}
       />
     </>
   );
@@ -525,6 +616,27 @@ const getStyles = () => StyleSheet.create({
     flex: 1,
   },
   currency: { ...Typography.labelLarge, color: Colors.textSecondary },
+  periodBoundHint: {
+    ...Typography.labelSmall,
+    color: Colors.textMuted,
+    textAlign: 'center',
+    marginTop: Spacing.xs,
+  },
+  // Yıkıcı eylem sessiz durur; onay penceresi olmadan silme yapılmaz.
+  budgetDeleteBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: Spacing.xs,
+    minHeight: 40,
+    marginTop: Spacing.sm,
+  },
+  budgetDeleteBtnPressed: { opacity: 0.7 },
+  budgetDeleteText: {
+    ...Typography.labelMedium,
+    color: Colors.danger,
+    fontFamily: FontFamily.medium,
+  },
   historyDivider: {
     flexDirection: 'row',
     alignItems: 'center',

@@ -1083,5 +1083,15 @@
   "donut_spending_budget_share": "Xərclərin {spending}%-i · büdcənin {budget}%-i",
   "dashboard_budget_period": "Büdcə dövrü",
   "donut_previous_segment": "Əvvəlki dilim",
-  "donut_next_segment": "Növbəti dilim"
+  "donut_next_segment": "Növbəti dilim",
+  "price_page_jump": "{page}. səhifəyə keç",
+  "budget_period_previous": "Əvvəlki dövr",
+  "budget_period_next": "Növbəti dövr",
+  "budget_future_locked": "Başlamamış dövr üçün büdcə təyin edilə bilməz",
+  "budget_delete_action": "Bu dövrün büdcəsini sil",
+  "budget_delete_title": "Büdcə hədəfini sil",
+  "budget_delete_confirm": "{period} dövrünə aid büdcə hədəfi silinəcək. Bu dövrün xərcləri silinmir, dövr sadəcə büdcəsiz görünür.",
+  "budget_deleted": "Büdcə hədəfi silindi",
+  "budget_conflict_badge": "Toqquşur",
+  "budget_history_select": "{period} dövrünü redaktə et"
 }
