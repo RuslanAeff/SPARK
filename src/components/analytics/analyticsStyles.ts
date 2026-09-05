@@ -1670,108 +1670,6 @@ export const getAnalyticsStyles = () => StyleSheet.create({
   },
 
   // ── A12: Time-of-day Heatmap ──
-  todHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: Spacing.md,
-    gap: Spacing.sm,
-  },
-  todHeaderLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.sm,
-    flex: 1,
-    minWidth: 0,
-  },
-  todHeaderIcon: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  todPeakChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: 4,
-    borderRadius: BorderRadius.round,
-  },
-  todPeakChipText: {
-    ...Typography.labelSmall,
-    color: Colors.primary,
-    fontFamily: FontFamily.semiBold,
-    fontSize: 11,
-  },
-  todGridWrap: {
-    gap: 4,
-    marginBottom: Spacing.md,
-  },
-  todGridHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  todGridRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  todDayLabelCell: {
-    width: 32,
-    alignItems: 'flex-start',
-    justifyContent: 'center',
-  },
-  todDayLabelText: {
-    ...Typography.labelSmall,
-    color: Colors.textSecondary,
-    fontFamily: FontFamily.medium,
-    fontSize: 11,
-  },
-  todSlotHeaderCell: {
-    flex: 1,
-    alignItems: 'center',
-  },
-  todSlotHeaderText: {
-    ...Typography.labelSmall,
-    color: Colors.textMuted,
-    fontFamily: FontFamily.medium,
-    fontSize: 10,
-  },
-  todCell: {
-    flex: 1,
-    height: 26,
-    borderRadius: 6,
-  },
-  todCellPeak: {
-    borderWidth: 2,
-    borderColor: Colors.primary,
-  },
-  todDisclaimer: {
-    ...Typography.labelSmall,
-    color: Colors.textMuted,
-    textAlign: 'center',
-    fontSize: 11,
-  },
-  todEmptyWrap: {
-    alignItems: 'center',
-    paddingVertical: Spacing.xl,
-    gap: Spacing.xs,
-  },
-  todEmptyTitle: {
-    ...Typography.bodyLarge,
-    color: Colors.textSecondary,
-    fontFamily: FontFamily.medium,
-    marginTop: Spacing.xs,
-  },
-  todEmptyHint: {
-    ...Typography.bodySmall,
-    color: Colors.textMuted,
-    textAlign: 'center',
-    paddingHorizontal: Spacing.lg,
-  },
 
   // ── A13: Silent Spend ──
   silentHeader: {
@@ -1928,6 +1826,175 @@ export const getAnalyticsStyles = () => StyleSheet.create({
     marginTop: Spacing.xs,
   },
   silentEmptyHint: {
+    ...Typography.bodySmall,
+    color: Colors.textMuted,
+    textAlign: 'center',
+    paddingHorizontal: Spacing.lg,
+  },
+
+  // ── Kişisel enflasyon ───────────────────────────────────────────
+  inflationHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: Spacing.md,
+  },
+  inflationHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    flex: 1,
+    minWidth: 0,
+  },
+  inflationHeaderIcon: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  inflationHeroRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    gap: Spacing.sm,
+    marginBottom: 2,
+  },
+  inflationHeroValue: {
+    ...Typography.displaySmall,
+    fontFamily: FontFamily.extraBold,
+    letterSpacing: -0.5,
+  },
+  inflationHeroCaption: {
+    ...Typography.bodySmall,
+    color: Colors.textMuted,
+    flex: 1,
+    marginBottom: 4,
+  },
+  inflationSentence: {
+    ...Typography.bodyMedium,
+    color: Colors.textSecondary,
+    lineHeight: 20,
+    marginBottom: Spacing.md,
+  },
+  // Ayrışmanın oranı ÖNCE görsel olarak okunur: iki sayıyı karşılaştırmak
+  // yerine tek şerit hangi etkinin baskın olduğunu bir bakışta söyler.
+  inflationBar: {
+    flexDirection: 'row',
+    height: 8,
+    borderRadius: 4,
+    overflow: 'hidden',
+    backgroundColor: Colors.surfaceLight,
+    marginBottom: Spacing.md,
+  },
+  inflationBarSegment: {
+    height: '100%',
+  },
+  inflationRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    paddingVertical: 5,
+  },
+  inflationRowSwatch: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  inflationRowLabel: {
+    ...Typography.bodySmall,
+    color: Colors.textSecondary,
+    flex: 1,
+    minWidth: 0,
+  },
+  inflationRowAmount: {
+    ...Typography.bodySmall,
+    color: Colors.textMuted,
+  },
+  inflationRowPct: {
+    ...Typography.labelLarge,
+    fontFamily: FontFamily.bold,
+    minWidth: 64,
+    textAlign: 'right',
+  },
+  inflationTotalRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    paddingTop: Spacing.sm,
+    marginTop: 2,
+    borderTopWidth: 1,
+    borderTopColor: Colors.divider,
+  },
+  inflationTotalLabel: {
+    ...Typography.bodySmall,
+    color: Colors.textPrimary,
+    fontFamily: FontFamily.bold,
+    flex: 1,
+    minWidth: 0,
+  },
+  inflationDriversWrap: {
+    marginTop: Spacing.md,
+  },
+  inflationDriverRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: Spacing.sm,
+    paddingVertical: Spacing.xs,
+  },
+  inflationDriverName: {
+    ...Typography.bodySmall,
+    color: Colors.textPrimary,
+    flex: 1,
+    minWidth: 0,
+  },
+  inflationDriverPrices: {
+    ...Typography.labelSmall,
+    color: Colors.textMuted,
+  },
+  inflationDriverPct: {
+    ...Typography.labelSmall,
+    fontFamily: FontFamily.bold,
+    minWidth: 52,
+    textAlign: 'right',
+  },
+  inflationDriversTitle: {
+    ...Typography.labelSmall,
+    color: Colors.textMuted,
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+    marginBottom: Spacing.xs,
+  },
+  inflationCoverage: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 6,
+    marginTop: Spacing.md,
+    paddingTop: Spacing.sm,
+    borderTopWidth: 1,
+    borderTopColor: Colors.divider,
+  },
+  inflationCoverageText: {
+    ...Typography.labelSmall,
+    color: Colors.textMuted,
+    flex: 1,
+    lineHeight: 15,
+  },
+  inflationCoverageTextLow: {
+    color: Colors.warning,
+  },
+  inflationEmptyWrap: {
+    alignItems: 'center',
+    paddingVertical: Spacing.lg,
+    gap: Spacing.xs,
+  },
+  inflationEmptyTitle: {
+    ...Typography.bodyMedium,
+    color: Colors.textSecondary,
+    fontFamily: FontFamily.medium,
+    textAlign: 'center',
+  },
+  inflationEmptyHint: {
     ...Typography.bodySmall,
     color: Colors.textMuted,
     textAlign: 'center',

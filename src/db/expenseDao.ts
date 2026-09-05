@@ -20,6 +20,8 @@ import {
   type ProductIdentityHint,
 } from './productIdentityDao';
 import { productIdentityGroupKey } from '../utils/productIdentity';
+import { itemDisplayName } from '../utils/itemDisplayName';
+import { effectiveListLineTotal } from '../utils/receiptLineDiscountUi';
 
 type ExpenseItemWrite = Omit<ExpenseItem, 'id'> & {
   turkish_name?: string | null;
@@ -662,6 +664,85 @@ export const ExpenseDao = {
        ORDER BY date ASC`,
       [startDate, endDate]
     );
+  },
+
+  /**
+   * Kişisel enflasyon sepeti için bir dönemin fiş SATIRLARI.
+   *
+   * Hem ÖDENEN hem ETİKET birim fiyatı taşır: kampanyayla düşen fiyat ile
+   * raftaki fiyatın düşmesi aynı şey değildir ve kart bunları ayırır.
+   *
+   * Toplam ya da ortalama döndürmez: fiyat endeksi, aynı ürünün iki dönemdeki
+   * birim fiyatını gerektirir; gruplama ve medyan hesabı saf katmanda
+   * (`computePersonalInflation`) yapılır. Anahtar, ürün analizleriyle AYNI
+   * kanonik kimlikten üretilir — ölçü birimi anahtarın parçasıdır, böylece
+   * "1 adet peynir" ile "1 kg peynir" aynı sepete girmez.
+   */
+  async getInflationBasketRows(startDate: string, endDate: string) {
+    const db = await getDatabase();
+    const rows = await db.getAllAsync<{
+      name: string;
+      turkish_name: string | null;
+      user_label: string | null;
+      canonical_product_id: number | null;
+      canonical_name: string | null;
+      measurement_unit: MeasurementUnit;
+      unit_price: number;
+      quantity: number;
+      total_price: number;
+      line_discount: number | null;
+      list_line_total_before_discount: number | null;
+    }>(
+      `SELECT i.name, i.turkish_name, i.user_label, i.canonical_product_id,
+              p.canonical_name, i.measurement_unit, i.unit_price, i.quantity,
+              i.total_price, i.line_discount, i.list_line_total_before_discount
+       FROM expense_items i
+       JOIN expenses e ON i.expense_id = e.id
+       LEFT JOIN canonical_products p ON p.id = i.canonical_product_id
+       WHERE e.date BETWEEN ? AND ?`,
+      [startDate, endDate],
+    );
+
+    const basket: {
+      key: string;
+      name: string;
+      unitPrice: number;
+      listUnitPrice: number;
+      quantity: number;
+      totalPrice: number;
+    }[] = [];
+    for (const row of rows) {
+      const unit = sanitizeMeasurementUnit(row.measurement_unit);
+      const key = productIdentityGroupKey({
+        canonicalProductId: row.canonical_product_id,
+        name: row.name,
+        measurementUnit: unit,
+      });
+      if (!key) continue;
+      const quantity = Number(row.quantity) || 0;
+      const unitPrice = Number(row.unit_price) || 0;
+      // Etiket (indirim öncesi) birim fiyat: açık kolon yoksa net + indirimden
+      // yeniden kurulur; ikisi de yoksa etiket = ödenen kabul edilir.
+      const listLineTotal = effectiveListLineTotal({
+        total_price: Number(row.total_price) || 0,
+        line_discount: row.line_discount,
+        list_line_total_before_discount: row.list_line_total_before_discount,
+      });
+      basket.push({
+        key,
+        name: row.canonical_name
+          || itemDisplayName({
+            name: row.name,
+            turkish_name: row.turkish_name,
+            user_label: row.user_label,
+          }).primary,
+        unitPrice,
+        listUnitPrice: quantity > 0 ? listLineTotal / quantity : unitPrice,
+        quantity,
+        totalPrice: Number(row.total_price) || 0,
+      });
+    }
+    return basket;
   },
 
   async getItemAnalytics(

@@ -12,18 +12,7 @@ export type Timeframe = 'week' | 'month' | 'year' | 'custom';
 /** Abonelik kartı özeti (parent `subscriptionInfo` memo'sundan gelir). */
 export type SubscriptionInfo = SubscriptionAnalyticsInfo;
 
-/** Gün/zaman dilimi ısı haritası özeti (ayrımcı union — veri yoksa available:false). */
-export type TimeOfDayInfo =
-  | { available: false }
-  | {
-      available: true;
-      matrix: number[][];
-      peakDow: number;
-      peakSlot: number;
-      peakValue: number;
-      total: number;
-    };
-
+/** Sessiz harcama kalemi (küçük ama tekrarlayan alım). */
 export interface SilentSpendItem {
   name: string;
   turkish_name: string | null;

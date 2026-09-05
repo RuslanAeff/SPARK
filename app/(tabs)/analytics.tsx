@@ -26,6 +26,11 @@ import {
 } from '../../src/utils/analyticsPeriod';
 import { computeSpendingProjection } from '../../src/utils/spendingProjection';
 import { computeSpendingStats } from '../../src/utils/spendingStats';
+import { alignPreviousDailySeries } from '../../src/utils/dailySeriesAlignment';
+import {
+  computePersonalInflation,
+  type PersonalInflationResult,
+} from '../../src/utils/personalInflation';
 
 import AnimatedCard from '../../src/components/AnimatedCard';
 import CustomDatePicker from '../../src/components/CustomDatePicker';
@@ -56,6 +61,7 @@ import DonutCard from '../../src/components/analytics/DonutCard';
 import VendorsCard from '../../src/components/analytics/VendorsCard';
 import VendorAnalyticsSheet from '../../src/components/analytics/VendorAnalyticsSheet';
 import StreakCard from '../../src/components/analytics/StreakCard';
+import PersonalInflationCard from '../../src/components/analytics/PersonalInflationCard';
 import { useBudget } from '../../src/hooks/useBudget';
 import { useExpenseDataRefresh } from '../../src/context/RefreshContext';
 import { useTabSwipe } from '../../src/context/TabSwipeContext';
@@ -105,6 +111,7 @@ const ALL_CARDS: { id: string; icon: string; labelKey: string }[] = [
   { id: 'limits_health',   icon: 'gauge',              labelKey: 'card_limits_health' },
   { id: 'subscriptions',   icon: 'sync-circle',        labelKey: 'card_subscriptions' },
   { id: 'silent_spend',    icon: 'water-outline',      labelKey: 'card_silent_spend' },
+  { id: 'personal_inflation', icon: 'basket-outline',  labelKey: 'card_personal_inflation' },
   { id: 'categories',      icon: 'shape-outline',      labelKey: 'card_categories' },
   { id: 'streak',          icon: 'fire',               labelKey: 'card_streak' },
   { id: 'donut',           icon: 'chart-donut',        labelKey: 'card_donut' },
@@ -114,7 +121,7 @@ const ALL_CARDS: { id: string; icon: string; labelKey: string }[] = [
   { id: 'vendors',         icon: 'store-outline',      labelKey: 'card_vendors' },
 ];
 
-const DEFAULT_ACTIVE = ['chart', 'projection', 'monthly_compare', 'goal', 'limits_health', 'subscriptions', 'silent_spend', 'categories', 'vendors', 'top_tx'];
+const DEFAULT_ACTIVE = ['chart', 'projection', 'monthly_compare', 'personal_inflation', 'goal', 'limits_health', 'subscriptions', 'silent_spend', 'categories', 'vendors', 'top_tx'];
 const DEFAULT_HIDDEN = ALL_CARDS.map(card => card.id).filter(id => !DEFAULT_ACTIVE.includes(id));
 
 interface DragInfo {
@@ -528,6 +535,9 @@ export default function AnalyticsScreen() {
   const [trackingStartDate, setTrackingStartDate] = useState<string | null>(null);
   const [prevDailyData, setPrevDailyData] = useState<{ date: string; total: number }[]>([]);
   const [prevVendorTotals, setPrevVendorTotals] = useState<Map<number, number>>(new Map());
+  const [inflationInfo, setInflationInfo] = useState<PersonalInflationResult>(
+    () => computePersonalInflation([], []),
+  );
   const [priceChanges, setPriceChanges] = useState<PriceChange[]>([]);
   const prevRangeSequence = useRef(0);
   const silentSpendSequence = useRef(0);
@@ -593,6 +603,7 @@ export default function AnalyticsScreen() {
       setComparisonTotals({ status: 'no_completed_days', current: 0, previous: 0 });
       setPrevDailyData([]);
       setPrevVendorTotals(new Map());
+      setInflationInfo(computePersonalInflation([], []));
       return;
     }
     try {
@@ -622,8 +633,25 @@ export default function AnalyticsScreen() {
         );
         nextComparison = { status: 'ready', current, previous };
       }
+      // Kişisel enflasyon sepeti KARŞILAŞTIRILABİLİR pencerelerden kurulur:
+      // yarım bir dönemi tam bir dönemle kıyaslamak sepet etkisini yapay
+      // biçimde eksiye çeker. Fiyat etkisi baz miktarlara dayandığı için bu
+      // sapmadan etkilenmezdi, ama üç sayının birbirini tutması gerekiyor.
+      let nextInflation = computePersonalInflation([], []);
+      if (comparisonRanges) {
+        const currentBasket = await ExpenseDao.getInflationBasketRows(
+          comparisonRanges.current.start,
+          comparisonRanges.current.end,
+        );
+        const previousBasket = await ExpenseDao.getInflationBasketRows(
+          comparisonRanges.previous.start,
+          comparisonRanges.previous.end,
+        );
+        nextInflation = computePersonalInflation(currentBasket, previousBasket);
+      }
       if (sequence !== prevRangeSequence.current) return;
       setComparisonTotals(nextComparison);
+      setInflationInfo(nextInflation);
       setPrevDailyData(daily);
       const vMap = new Map<number, number>();
       vSpending.forEach((v: any) => vMap.set(v.vendor_id, v.total));
@@ -633,6 +661,7 @@ export default function AnalyticsScreen() {
       setComparisonTotals({ status: 'unavailable', current: 0, previous: 0 });
       setPrevDailyData([]);
       setPrevVendorTotals(new Map());
+      setInflationInfo(computePersonalInflation([], []));
     }
   }
 
@@ -1144,16 +1173,24 @@ export default function AnalyticsScreen() {
     });
   }, [timeframe, yearlyData, dailyData, language]);
 
+  // Önceki dönem DAO'dan ham (yalnız harcamalı günler) gelir; grafiğin gün gün
+  // karşılaştırma yapabilmesi için geçerli seriyle aynı uzunlukta ve dönem
+  // başından hizalı olmalıdır.
+  const alignedPrevDaily = useMemo(
+    () => alignPreviousDailySeries(dailyData.length, prevDateRange, prevDailyData),
+    [dailyData.length, prevDateRange, prevDailyData],
+  );
+
   const prevBarData = useMemo(() => {
-    if (timeframe === 'year' || prevDailyData.length === 0) return undefined;
-    return prevDailyData.map(d => {
+    if (timeframe === 'year' || alignedPrevDaily.length === 0) return undefined;
+    return alignedPrevDaily.map(d => {
       const date = new Date(d.date);
       const label = timeframe === 'week'
         ? date.toLocaleDateString(intlLocaleForLanguage(language), { weekday: 'short' })
         : date.getDate().toString();
       return { id: d.date, label, value: d.total };
     });
-  }, [timeframe, prevDailyData, language]);
+  }, [timeframe, alignedPrevDaily, language]);
 
   // P11: DonutChart React.memo’lu; her render’da inline `needsWants.map(...)`
   // dizisi yeniden üretilmesi memo karşılaştırmasını (referans eşitliği) kırıyor
@@ -1284,6 +1321,11 @@ export default function AnalyticsScreen() {
           onSelectItem={openItemAnalysis}
         />
       );
+    }
+
+    // ──── Kişisel enflasyon: harcama değişiminin fiyat/sepet ayrışması ────
+    if (id === 'personal_inflation') {
+      content = <PersonalInflationCard {...cardBase} inflationInfo={inflationInfo} />;
     }
 
     // ──── A7: Spending Streak ────
