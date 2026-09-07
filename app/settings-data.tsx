@@ -29,6 +29,7 @@ import { SparkToast } from '../src/components/SparkToast';
 import GlassDeleteModal from '../src/components/GlassDeleteModal';
 import VendorOptionsSheet from '../src/components/VendorOptionsSheet';
 import BackupSection from '../src/components/BackupSection';
+import DataResetSection from '../src/components/DataResetSection';
 import {
   SettingsInfoHintModal,
   SettingsInfoIconButton,
@@ -588,6 +589,11 @@ export default function SettingsDataScreen() {
           {/* Backup */}
           <Animated.View entering={FadeInDown.delay(240).duration(400)}>
             <BackupSection />
+          </Animated.View>
+
+          {/* Sıfırlama en altta: kaçış yolu (yedek) hemen üstünde kalsın. */}
+          <Animated.View entering={FadeInDown.delay(300).duration(400)}>
+            <DataResetSection />
           </Animated.View>
         </ScrollView>
       </SafeAreaView>

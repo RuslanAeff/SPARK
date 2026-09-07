@@ -274,7 +274,7 @@ export default function BackupSection() {
   ];
 
   return (
-    <SettingsSection testID="settings-data-backup-section" last>
+    <SettingsSection testID="settings-data-backup-section">
       <View style={styles.sectionHeader}>
         <View style={[styles.sectionIcon, { backgroundColor: Colors.chartBlue + '22' }]}>
           <MaterialCommunityIcons

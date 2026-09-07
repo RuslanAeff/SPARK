@@ -72,6 +72,11 @@ jest.mock('../../theme/themeStore', () => ({
   useThemeRevision: () => 0,
 }));
 
+// Tehlikeli bölge, silme sonrası native alarmları uzlaştırmak için bildirim
+// senkronunu çağırır (diğer mutasyon ekranlarıyla aynı desen).
+jest.mock('../../context/NotificationsContext', () => ({
+  useNotifications: () => ({ sync: jest.fn(async () => undefined) }),
+}));
 jest.mock('../../i18n/LanguageContext', () => ({
   useLanguage: () => ({
     t: (key: string, params?: Record<string, string>) => {
