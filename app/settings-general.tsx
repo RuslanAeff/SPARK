@@ -170,8 +170,6 @@ export default function SettingsGeneralScreen() {
               title={t('language_row_label')}
               description={languageNativeLabel(language)}
               icon="google-translate"
-              iconColor={palette.primary}
-              iconBackgroundColor={palette.primaryGlow}
               accessibilityLabel={t('language_title')}
               onPress={() => {
                 Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);

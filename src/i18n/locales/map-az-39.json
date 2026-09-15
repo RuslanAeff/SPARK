@@ -16,7 +16,7 @@
   "inflation_list_price_effect": "Etiket qiyməti",
   "inflation_discount_effect": "Endirim və kampaniya",
   "inflation_info_a11y": "Şəxsi inflyasiya necə hesablanır",
-  "inflation_coverage_note_short": "{count} məhsul · dövrün %{coverage} hissəsi",
-  "inflation_info_basket": "Bu hesab, hər iki dövrdə də aldığın məhsulların qiymətini müqayisə edir. Yalnız çekdən sətir-sətir skan edilmiş xərclər daxil edilir — \"500 market\" kimi əl ilə tək sətir daxil edilən əməliyyatlar bu hesaba düşmür.",
-  "inflation_info_coverage": "Səbətdəki {count} məhsul dövr xərcinin yalnız %{coverage} hissəsini əhatə edir. Əhatə nə qədər aşağıdırsa, rəqəm ümumi xərci bir o qədər az əks etdirir."
+  "inflation_coverage_note_short": "{count} məhsul · dövrün {coverage} hissəsi",
+  "inflation_info_basket": "Hər iki dövrdə aldığın məhsulların qiymətlərinin necə dəyişdiyini göstərir.",
+  "inflation_info_coverage": "Yalnız məhsul təfərrüatları qeydə alınmış alışlar müqayisə edilir. Nəticə bütün xərclərini əhatə etmir."
 }

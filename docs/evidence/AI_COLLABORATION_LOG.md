@@ -28,6 +28,14 @@ oturumun amacı, kararları, çıktıları, kanıtları ve sınırlamaları kayd
 
 | Oturum | Tarih | Amaç | İnsan onayı | AI katkısı | Ürün kodu değişti mi? | Kanıt/çıktı | Durum |
 |---|---|---|---|---|---|---|---|
+| `AI-2026-09-15-SPENDING-CHANGE-001` | 2026-09-15 | Harcama değişimini kategori katkılarıyla açıklamak | Kullanıcı bu kartı uygulamayı seçti; diğerleri için karar bekleniyor | `tasarım`, `kod`, `test`, `dokümantasyon` | Evet | Yeni aktif kart ve dönem karşılaştırma hesapları | Otomatik kontroller geçti; cihaz kabulü bekleniyor |
+| `AI-2026-09-15-BACKUP-REDESIGN-001` | 2026-09-15 | Yedekleme bölümünü sadeleştirmek | Kullanıcı tasarım yenilemesi ve Özel düğmesinin kaldırılmasını istedi | `tasarım`, `kod`, `test`, `dokümantasyon` | Evet | Tek export grubu, ayrı restore satırı | Otomatik kontroller geçti; cihaz kabulü bekleniyor |
+| `AI-2026-09-15-INFO-BUTTON-GLASS-001` | 2026-09-15 | Ortak bilgi düğmesini sade cam tasarımına taşımak | Kullanıcı ortak tasarım istedi | `tasarım`, `kod`, `doğrulama`, `dokümantasyon` | Evet | SettingsInfoIconButton | Otomatik kontroller geçti; cihaz kabulü bekleniyor |
+| `AI-2026-09-15-INFLATION-COPY-001` | 2026-09-15 | Kişisel enflasyon yardımını sadeleştirmek | Kullanıcı dört dilde kısa açıklama istedi | `metin`, `çeviri`, `doğrulama`, `dokümantasyon` | Evet | Parametresiz yardım metni | Otomatik kontroller geçti; dil kabulü bekleniyor |
+| `AI-2026-09-15-VENDOR-SHEET-HEIGHT-001` | 2026-09-15 | Donut seçiminde panelin aşağı kayıp daralmasını önlemek | Kullanıcı görselle sorunu bildirdi ve düzeltme istedi | `analiz`, `kod`, `test`, `dokümantasyon` | Evet | İçerikten bağımsız panel yüksekliği | Uygulandı; cihaz kabulü bekleniyor |
+| `AI-2026-09-15-CHART-SHEET-POLISH-001` | 2026-09-15 | Grafik kontrollerini ortalamak, sakin cam görünümü ve çizgisiz panel üstü | Kullanıcı görsellerle iki düzenlemeyi istedi | `analiz`, `kod`, `doğrulama`, `dokümantasyon` | Evet | BarChart ve üç analiz paneli | Otomatik doğrulama geçti; cihaz kabulü bekleniyor |
+| `AI-2026-09-15-ITEM-PERIOD-001` | 2026-09-15 | Ürün analizine zamansal filtre eklemek | Kullanıcı görsel üzerinde zamansal filtreleme önerisini iletti; seçenekler AI uygulama tercihidir | `analiz`, `kod`, `test`, `dokümantasyon` | Evet | Ortak tarih filtresi ve dört dil | Uygulandı; cihaz ve insan kabulü bekleniyor |
+| `AI-2026-09-15-VENDOR-OVERFLOW-001` | 2026-09-15 | Uzun satıcı adında sağ okun komşu sayfaya taşmasını önlemek | Kullanıcı önceki düzeltmenin yetersizliğini bildirdi, düzeltme ve belge güncellemesi istedi | `analiz`, `kod`, `test`, `dokümantasyon` | Evet | Sabit ok alanı, sınırlı sayfa/satır, uzun ad regresyonu | Otomatik kontroller geçti; cihaz ve insan kabulü bekleniyor |
 | `AI-2026-08-01-DOCS-001` | 2026-08-01 | SPARK belgelerini profesyonelleştirmek; akademik izlenebilirlik ve taşınabilir şablonlar oluşturmak | Kullanıcı önce ayrıntılı plan istedi, mevcut rehberi yedeklediğini bildirdi ve planı açıkça onayladı | `analiz`, `plan`, `inceleme`, `dokümantasyon` | Hayır | Kök belge sistemi, `docs/` rehberleri, ADR/tarihçe/evidence ve şablonlar | Uygulandı ve yerel doğrulama geçti; insan incelemesi bekleniyor |
 | `AI-2026-08-01-ANALYTICS-001` | 2026-08-01 | Kayıtlar varken boş görünen Analiz kartlarının dönem/veri akışını düzeltmek | Kullanıcı ekran görüntüleriyle sorunu bildirdi ve doğrudan düzenleme istedi | `analiz`, `kod`, `test`, `dokümantasyon` | Evet | Ortak bütçe-döngüsü aralığı, önceki dönem çözümü, latest-wins sorgu koruması ve çapraz-ay heatmap | Uygulandı ve yerel doğrulama geçti; cihaz kabulü bekleniyor |
 | `AI-2026-08-01-PRICE-CHART-001` | 2026-08-01 | Ürün fiyat grafiğindeki örtüşen ve kalıcı seçim balonunu profesyonel bir inceleme deneyimine dönüştürmek | Kullanıcı iki Expo Go ekran görüntüsüyle sorunu gösterdi, köklü UX düzenlemesine ve `DESIGN_BRIEF.md` güncellemesine yetki verdi | `analiz`, `kod`, `test`, `inceleme`, `dokümantasyon` | Evet | Ayrılmış inceleme şeridi, yoğun veri seçim bantları, hassas para gösterimi, erişilebilir seçim ve veri görselleştirme ilkeleri | Uygulandı ve yerel doğrulama geçti; cihaz kabulü bekleniyor |
@@ -76,6 +84,259 @@ oturumun amacı, kararları, çıktıları, kanıtları ve sınırlamaları kayd
 > kanıtı tezde kullanılacaksa kontrollü konuşma/issue referansı sonradan eklenmelidir.
 
 ## 4. Ayrıntılı oturum kaydı
+
+### AI-2026-09-15-SPENDING-CHANGE-001
+
+#### Yatay sayfalama revizyonu
+
+- Görsel takip düzeltmesi: Kullanıcı rakam ve seçim dairesini fazla büyük buldu.
+  Rakam 12 dp, görünür yüzey 26 dp minimum ve 9 dp köşe yarıçapıyla düzenlendi;
+  yoğun dolgu yerine düşük opaklıklı vurgu ve ince cam kenarı kullanıldı.
+  Dokunma hedefi 44 dp minimum kaldı; büyük sistem yazısında içerik büyüyebilir.
+  Bu yeni görünümün cihaz/insan kabulü bekleniyor.
+  Görsel revizyon sonrası `npm run typecheck` exit 0;
+  `npm test -- --ci --coverage=false` 127 suite / 1036 test geçti
+  (2026-09-15, yerel çalışma ağacı).
+
+- İnsan geri bildirimi: Kartın görünümü beğenildi; tüm kategorileri açmanın
+  yüksekliği artırması yerine dört/beş kategorilik yatay sayfalar istendi.
+- AI uygulaması: Dört satırlık sayfalar, ölçülen viewport genişliği, numaralı
+  44 dp sayfa kontrolleri ve iç yatay hareket sırasında üst sekme kilidi.
+  Son sayfada görünmez satır yerleri yüksekliği korur. Çubuk ölçeği tüm
+  kategoriler üzerinden hesaplanır; dönem/veri veya genişlik değişimi ilk sayfaya
+  döndürür. Gruplanmış Diğer satırı ve genişletme eylemi artık gösterilmez.
+- Test: SpendingChangeCard testi sayfa dağılımı, ölçülen genişlik, swipe,
+  doğrudan sayfa seçimi ve boş veriyle sıfırlamayı kapsar. 2026-09-15:
+  `npm run typecheck` exit 0; `npm test -- --ci --coverage=false`
+  127 suite / 1036 test geçti, exit 0. Yerel çalışma ağacı; CI artefaktı yok.
+- Cihaz kabulü: Bekleniyor. Dar ekran, büyük yazı, uzun kategori adı, ilk/son
+  sayfa yüksekliği ve iç kaydırmanın üst sekmeye geçmemesi cihazda denenmeli.
+  Önceki genişletme testinin aşağıdaki tarihsel özeti ilk uygulamaya aittir.
+
+- İnsan kararı: Önerilen yeni kartlardan önce “Harcamam neden değişti?” kartını
+  uygulamak; görünümü denedikten sonra diğer kartlara karar vermek.
+- AI tasarımı: Net fark manşeti; artış/azalışı işaret ve renkle anlatan dört kısa
+  kategori çubuğu; diğerlerinin net farkı ve tümünü açma. Tarihler dipte, hesap
+  açıklaması ortak bilgi düğmesinde. Yeni kart varsayılan aktif; eski kurulumun
+  kart migration'ı mevcut düzeni koruyarak sona ekler.
+- Kod: `src/components/analytics/SpendingChangeCard.tsx`,
+  `src/utils/spendingChange.ts`, `src/db/expenseDao.ts`, `app/(tabs)/analytics.tsx`.
+  Ana kategori/kategorisiz birleşimi, minor-unit toplam, seri okuma ve tarih
+  anahtarıyla eski sonuç koruması. Bugün hariç tamamlanmış günler; yıllık için
+  açıkça bu yıl/geçen yıl eşit günlük pencere. Mevcut tüm-yıllar grafiği korunur.
+- Çeviri: TR/EN ve AZ/RU kaynakları; compilePartial/buildLocales çalıştırıldı.
+- Otomatik doğrulama: Yeni yardımcı testleri kategori birleşimi, eski/yeni ve
+  kategorisiz kayıtlar, kuruş hassasiyeti, kalan toplamı, sıfır net fark, bütçe
+  dönemi ve artık yıl sınırlarını kapsar. Kart testleri genişletme ve yükleme
+  hatasının sıfır gösterilmemesini kapsar. 2026-09-15: `npm run typecheck` exit 0;
+  `npm test -- --ci --coverage=false` 127 suite / 1036 test geçti, exit 0.
+  Yerel çalışma ağacı; kalıcı CI artefaktı yok.
+- Cihaz/insan kabulü: Bekleniyor. Haftalık/aylık/yıllık/özel seçim, eski kart
+  düzeninde yeni kartın görünmesi, dar ekran/büyük yazı, dört dil, açık/koyu tema,
+  tüm kategorileri açma ve DB yenileme Android'de denenmeli. Jest fiziksel görsel
+  kabul veya SQLite cihaz doğrulaması değildir. Kullanıcının sonraki kartlar için
+  kararı henüz yoktur.
+- Gizlilik: Testler sentetik veriler kullanır; ham kullanıcı verisi yoktur.
+  Commit, dışa gönderim veya yayın yapılmadı.
+
+### AI-2026-09-15-BACKUP-REDESIGN-001
+
+- İnsan isteği: Veri ve yedekte yedek alma/geri yükleme bölümünü yeniden
+  tasarlamak; tarih alanları varken gereksiz olan Özel kısayolunu kaldırmak.
+- AI tasarımı: `BackupSection.tsx` içinde dört sade tarih kısayolu, birleşik
+  tarih yüzeyi ve `susevar` birincil CTA ile tek export bölümü. Restore ayrı
+  ikon/başlık/kısa açıklama satırı; hatırlatma tek tonal seçim şeridi. Yerel
+  tarih biçimi, seçili/engelli erişilebilirlik durumları ve 44 dp kısayollar.
+- Davranış: Tarih seçici açılınca değil, tarih kabul edilince manuel aralığa
+  geçilir; iptal mevcut kısayolu korur. İşlem sürerken tarih/kısayol kontrolleri
+  kilitlenir. Backup servisleri, formatı, onayları ve finansal veri mantığı korunur.
+- Çeviri: `backup_range_title`, `backup_restore_hint` TR/EN ve AZ/RU kaynaklarına
+  eklendi; `compilePartial.mjs` ve `buildLocales.mjs` ile locale çıktıları üretildi.
+- Otomatik doğrulama: `BackupSection.test.tsx` iki testle Özel kısayolunun
+  kaldırılmasını, iptal/seçim davranışını ve export/import onay sınırlarını
+  doğruladı. 2026-09-15: `npm run typecheck` exit 0;
+  `npm test -- --ci --coverage=false` 125 suite / 1029 test geçti, exit 0.
+  Yerel çalışma ağacı; kalıcı CI artefaktı yok.
+- Cihaz/insan kabulü: Bekleniyor. Dört dil, dar ekran/büyük yazı, tarih alanları,
+  kısayolların yatay erişimi ve gerçek dosya seçici/paylaşım akışı cihazda ayrıca
+  denenmeli. Bu çalışma gerçek kullanıcı verisi export/import etmedi.
+- Gizlilik: Kullanıcı görseli ve kişisel yollar kayda aktarılmadı; commit/yayın yok.
+
+### AI-2026-09-15-INFO-BUTTON-GLASS-001
+
+- İnsan isteği: Kartlardaki ortak bilgi düğmesini sade, profesyonel ve cam
+  görünümünde yeniden tasarlamak.
+- AI katkısı: `src/components/SettingsInfoHint.tsx` içindeki kalın yeşil halka,
+  dolu bilgi simgesi ve yükselti kaldırıldı. 28 dp nötr cam disk, ince kenar,
+  SVG ışık geçişi ve yalın `information-variant` simgesi kullanıldı. 8 dp hitSlop
+  ile toplam hedef 44 dp; erişilebilir etiket, callback ve haptic korunur.
+  Açık/koyu tema ve vurgu değişimine reaktif stil; vurgu yalnız basış yüzeyinde.
+- Kapsam: Ortak düğmeyi kullanan analiz, ayarlar ve yedekleme başlıkları.
+  Metin içindeki dekoratif bilgi simgeleri bu kontrolün parçası değildir.
+- Doğrulama (2026-09-15): `npm run typecheck` exit 0;
+  `npm test -- --ci --coverage=false` 124 suite / 1027 test geçti, exit 0.
+  Yerel çalışma ağacı; commit/CI artefaktı yok. Yeni native bağımlılık veya animasyon yok.
+- Cihaz/insan kabulü: Bekleniyor; açık/koyu temada başlık hizası, küçük simgenin
+  okunabilirliği, dokunma hedefi ve bilgi penceresinin açılması kontrol edilmeli.
+  Görseldeki finansal bilgiler kayda alınmadı; commit/yayın yapılmadı.
+
+### AI-2026-09-15-INFLATION-COPY-001
+
+- İnsan isteği: Kişisel enflasyon yardımını kısa ve anlaşılır yapmak; count ve
+  coverage gibi ayrıntıları kaldırmak; aynı düzenlemeyi dört dile uygulamak.
+- AI katkısı: `inflation_info_basket` ve `inflation_info_coverage` TR/EN/AZ/RU
+  kaynaklarında sadeleştirildi. İki dönemde ortak ürünlerin karşılaştırılması,
+  ürün ayrıntısı gerekliliği ve sonucun tüm harcamaları kapsamaması korunur.
+  Yardım metni artık parametre gerektirmez. Kart altındaki ayrı sayısal notta
+  TR/AZ için Intl'in sağladığı yüzdeye ikinci yüzde ekleyen literal kaldırıldı.
+- Dosyalar: `src/i18n/translations.ts`, `locales/_en.json`,
+  `locales/map-az-39.json`, `locales/map-ru-29.json` (i18n altında).
+  `compilePartial.mjs` ve `buildLocales.mjs` ile çıktılar yeniden üretildi.
+- Otomatik doğrulama (2026-09-15): `npm run typecheck` exit 0;
+  `npm test -- --ci --coverage=false` 124 suite / 1027 test geçti, exit 0.
+  Yerel çalışma ağacı; commit/CI artefaktı yok.
+- İnsan kabulü: Bekleniyor. Bu metin revizyonunda yeni native davranış yok;
+  dört dilde yardım metninin okunabilirlik değerlendirmesi kullanıcıya aittir.
+  Ham ekran görüntüsü ve kişisel veriler kayda aktarılmadı.
+
+### AI-2026-09-15-VENDOR-SHEET-HEIGHT-001
+
+- İnsan girdisi: Satıcı donutunda seçim sonrası alt panelin aşağı kayıp görünür
+  alanı daralttığı bildirildi. Görseldeki özel satıcı/veriler kayda kopyalanmadı.
+- AI analizi: Seçim listeyi tek ürüne indirip sıralama kontrolünü kaldırıyor.
+  Panelin yalnız `maxHeight` kullanması içeriğe göre küçülmesine ve alt kenara
+  hizalı pencerenin üst sınırının aşağı inmesine izin veriyordu.
+- Uygulama: `src/components/analytics/VendorAnalyticsSheet.tsx` panel yüksekliği
+  `useWindowDimensions` ile pencerenin %92'sine bağlandı; dikey ScrollView kalan
+  alanı `flex: 1` ile kullanıyor. Filtreleme, sıralama ve ürün açma davranışı korunur.
+- Regresyon: `src/components/analytics/__tests__/VendorsCard.test.tsx` donut
+  seçiminin listeyi filtrelediğini, tekrar seçimde geri getirdiğini ve iki durumda
+  da panelin aynı belirli yüksekliği taşıdığını kontrol eder.
+- Otomatik doğrulama (2026-09-15): `npm run typecheck` exit 0;
+  `npm test -- --ci --coverage=false` 124 suite / 1027 test geçti, exit 0.
+  Yerel çalışma ağacı; commit/CI artefaktı yok.
+- Cihaz/insan kabulü: Bekleniyor. Android'de iki ürünlü ve çok ürünlü satıcıda
+  dilim/legend seçimi, seçimi kaldırma, liste kaydırma, panel kapatıp açma ve ekran
+  yönü değişimi denenmeli. Panel üst sınırı seçimle hareket etmemeli; alttaki ürüne
+  kaydırarak erişilebilmeli. Jest gerçek native geometriyi kanıtlamaz.
+
+### AI-2026-09-15-CHART-SHEET-POLISH-001
+
+- İnsan isteği: Günlük Dalgalanma +/− düğmelerini aşağıya doğru ortalamak ve
+  göze batmayan cam görünümü vermek; ürün/satıcı ve örnek harcama istatistiği
+  panelindeki ince beyaz üst çizgiyi kaldırmak.
+- AI analizi/uygulaması: `BarChart.tsx` içinde tarih etiketi ölçekle aynı orta
+  sütuna taşındı; yan düğmeler tüm sütuna göre ortalandı. 44 dp dokunma hedefinde
+  34 dp nötr cam yüzeyi, düşük opaklıklı SVG ışık geçişi ve ince kenar kullanıldı.
+  `ItemAnalyticsModal.tsx`, `analytics/VendorAnalyticsSheet.tsx` ve
+  `StreakDetailsSheet.tsx` içindeki `borderTopWidth`/`cardBorder` kaldırıldı.
+  Ortak modal yaşam döngüsü, tutamaç ve vurgu hâlesi değiştirilmedi.
+- Otomatik doğrulama (2026-09-15): `npm run typecheck` exit 0;
+  `npm test -- --ci --coverage=false` 124 suite / 1026 test geçti, exit 0.
+  Yerel çalışma ağacı; commit/CI artefaktı yok.
+- Cihaz/insan kabulü: Bekleniyor. Açık/koyu temada +/− hizası ve sakin kontrast,
+  zoom sınırları, üç panelin açılış/kapanışındaki üst kenar ve tutamaç kontrol
+  edilmeli. Jest gerçek cam görünümü veya native modal karelerini kanıtlamaz.
+- Gizlilik: Görsellerdeki gerçek alım/satıcı bilgileri ve kişisel yollar kayda
+  aktarılmadı. Commit veya yayın yapılmadı.
+
+### AI-2026-09-15-ITEM-PERIOD-001
+
+#### Aynı oturumda hareketli cam kapsül revizyonu
+
+- İnsan isteği: Kompakt tasarım olumlu karşılandı; köşeli seçili alan yerine
+  seçenekler arasında kayan saydam cam buton ve akıcı animasyon istendi.
+- AI katkısı: `GlassSelectionIndicator.tsx` gerçek seçenek layout'larını kullanır;
+  tek kapsülün konumu ve genişliği Reanimated `withTiming` ile 300 ms cubic-out
+  geçiş yapar. Hızlı seçim güncel animasyon konumundan yeniden hedeflenir.
+  İlk ölçüm sıçramasızdır; `ReduceMotion.System` işletim sistemi tercihini izler.
+  SVG ışık geçişi, tema/vurgu duyarlı saydam dolgu ve ince kenar kullanıldı;
+  gerçek arka plan blur'u veya yeni native bağımlılık eklenmedi.
+- Kod/doküman tutarlılığı: ItemAnalyticsModal başındaki eski, genel Reanimated
+  yasağı yorumu artık uygulanan davranışı yansıtmadığından güncellendi. Ortak
+  BottomSheetModal'ın mevcut açma/kapatma mekanizması korunur. Bu değişiklik,
+  geçmiş Android donma riskinin cihazda giderildiği anlamına gelmez.
+- Otomatik doğrulama: `npm run typecheck` exit 0; odaklı
+  `npm test -- --runInBand src/components/__tests__/ItemAnalyticsModal.test.tsx --coverage=false`
+  1 suite / 4 test geçti. `npm test -- --ci --coverage=false` 124 suite / 1026
+  test geçti, exit 0 (2026-09-15, yerel çalışma ağacı; commit/CI artefaktı yok).
+- Cihaz/insan kabulü: Bekleniyor. Android sheet açıkken hızlı ve ardışık seçim,
+  kapat/yeniden aç, yatay kaydırma, dört dil, büyük yazı, açık/koyu ve farklı vurgu
+  renkleri; hareket azaltma açık/kapalı test edilmeli. Jest akıcılığı, shader
+  görünümünü veya native donma olmadığını kanıtlamaz. Görseldeki ham veriler alınmadı.
+
+#### Aynı oturumda kompakt filtre revizyonu
+
+- İnsan geri bildirimi: Tarih filtresi olumlu karşılandı, büyük butonların iki
+  satıra yayılması eleştirildi; okunabilirlik korunarak küçültme veya yeniden
+  tasarım istendi. Bu, ilk filtrenin genel kabulüdür; yeni görünümün kabulü değildir.
+- AI tercihi ve uygulaması: Ortak tonal zeminde tek yatay şerit; ayrı kapsül
+  kenarlıkları kaldırıldı, görünür seçili yüzey 32 dp minimum yüksekliğe indirildi.
+  Metin boyutu ve 44 dp minimum dokunma alanı korundu. Seçim font ağırlığı sabit;
+  dar ekran/büyük yazıda yatay kaydırma ve üst sekme gesture kilidi kullanılır.
+- Kapsam: `ItemAnalyticsModal.tsx`, `DESIGN_BRIEF.md` ve kanıt belgeleri.
+  Tarih seçenekleri, hesaplama ve mevcut çeviriler korunur.
+- Doğrulama (2026-09-15): `npm run typecheck` exit 0;
+  `npm test -- --ci --coverage=false` 124 suite / 1026 test geçti, exit 0.
+  Yerel çalışma ağacında çalıştırıldı; yeni tasarımın cihaz kabulü bekleniyor;
+  dört dil, büyük yazı, son seçeneğe yatay erişim ve sheet/üst sekme hareketi
+  fiziksel cihazda kontrol edilmeli. Kullanıcının görseli depoya kopyalanmadı.
+
+- İnsan girdisi: Ürün ayrıntısı görselinde alım geçmişine zamansal filtreleme
+  önerisi. Ham görsel, gerçek satıcılar, tutarlar ve kişisel yollar kayda alınmadı.
+- AI uygulama tercihi: Tüm zamanlar / son 30 / 90 / 365 gün; bugün dahil yerel
+  takvim sınırları. Kullanıcı bu seçenekleri ayrı ayrı seçmedi; nihai kabul bekliyor.
+- Kod: `src/utils/itemHistoryPeriod.ts`, `src/components/ItemAnalyticsModal.tsx`.
+  DAO'nun mevcut ürün/ölçü ayrımından gelen geçmiş filtrelenir; filtre değişimi yeni
+  DB veya ağ isteği başlatmaz. Özet, grafik, satıcı kıyası ve geçmiş aynı kayıtları
+  kullanır. Parasal toplamlar minor-unit ile; ortalama miktarla ağırlıklı hesaplanır.
+  Grafik ve geçmiş pager'ı filtre değişiminde yeniden başlar; panel/ürün değişimi
+  Tüm zamanlar seçimini geri getirir. Boş aralık açık mesajla sunulur.
+- Çeviri: TR/EN kaynakları ve AZ/RU kaynak haritaları güncellendi;
+  `node src/i18n/compilePartial.mjs` ve `node src/i18n/buildLocales.mjs` çalıştırıldı.
+- Testler: `src/utils/__tests__/itemHistoryPeriod.test.ts` tarih sınırı, yıl geçişi,
+  boş veri ve ağırlıklı hesap; `src/components/__tests__/ItemAnalyticsModal.test.tsx`
+  ortak filtre, boş durum, yeniden açılma ve eski sorgu korumasını kapsar.
+- Otomatik sonuç (2026-09-15):
+  `npm test -- --runInBand src/components/__tests__/ItemAnalyticsModal.test.tsx src/utils/__tests__/itemHistoryPeriod.test.ts --coverage=false`
+  2 suite / 8 test geçti; `npm run typecheck` exit 0;
+  `npm test -- --ci --coverage=false` 124 suite / 1026 test geçti, exit 0.
+  Mevcut çalışma ağacında yerel komut çıktıları; commit/CI kaydı yok.
+- Cihaz kabulü: Bekleniyor. Android'de geçmişin ikinci sayfasından filtre değiştirip
+  ilk sayfaya dönüş, grafik seçiminin temizlenmesi, boş aralıktan geri dönüş,
+  TR/EN/AZ/RU ve açık/koyu görünüm, büyütülmüş yazı ve sheet kaydırması denenmeli.
+  Jest native geometri ve gesture kanıtı değildir.
+
+
+### AI-2026-09-15-VENDOR-OVERFLOW-001
+
+- İnsan gereksinimi: Uzun satıcı adında sağ ayrıntı okunun komşu kaydırmalı
+  sayfaya taşmasını düzeltmek; AI katkısı ve izlenebilirlik belgelerini güncellemek.
+- İnsan geri bildirimi: İlk metin-küçültme düzeltmesinden sonra taşmanın sürdüğü
+  bildirildi. Bu bildirim nihai kabul değildir; build/cihaz bilgisi sağlanmadı.
+- AI katkısı: Kaynak incelemesi, sınırlı yerleşim düzeltmesi, regresyon testi ve
+  dokümantasyon. Ok sağ kenara mutlak konumla sabitlendi ve satırda ona yer ayrıldı;
+  ad alanının içerik genişliği sıfır tabandan esner, tutar sütunu sınırlandırılır.
+  Sayfa genişliği yuvarlanmadan viewport ölçümünden alınır ve sayfa dışı çizim kırpılır.
+- Dosyalar: `src/components/analytics/VendorsCard.tsx`, `analyticsStyles.ts`,
+  `__tests__/VendorsCard.test.tsx` (aynı dizin); `DESIGN_BRIEF.md` ve bu kanıt belgeleri.
+- Hatalı/yarım AI çıktısı: Önceki turda yalnız adın küçülmesi ve üç nokta kullanımı
+  yeterli sayıldı; Jest/typecheck başarısı görsel çözüm gibi ifade edildi.
+  Kullanıcı geri bildirimi bu sonucu reddetti. Önceki tur özeti retrospektiftir;
+  mevcut konuşmaya dayanır, hedef build ile eşleştirilmiş cihaz kanıtı yoktur.
+- Otomatik doğrulama (2026-09-15, mevcut çalışma ağacı):
+  `npm test -- --runInBand src/components/analytics/__tests__/VendorsCard.test.tsx --coverage=false`
+  1 suite / 7 test geçti; `npm run typecheck` exit 0;
+  `npm test -- --ci --coverage=false` 123 suite / 1021 test geçti, exit 0.
+  Sonuçlar bu oturumdaki yerel komut çıktılarıdır; kalıcı CI artefaktı yoktur.
+- Cihaz doğrulaması ve insan kabulü: Bekleniyor. Dar ekranda uzun ad, trend oku,
+  büyük tutar ve büyütülmüş yazı ile ilk/ikinci sayfa; ekran genişliği değişimi,
+  satır dokunuşu ve yatay kaydırma açık/koyu temada kontrol edilmeli. Sağ ok kendi
+  sayfasının sağ kenarında görünmeli; komşu sayfaya taşma veya üst sekmeye yanlış
+  geçiş olmamalı. Jest native metin ölçümü ve gerçek gesture davranışını kanıtlamaz.
+- Gizlilik: Görseldeki gerçek satıcı/tutarlar ve kişisel dosya yolu kopyalanmadı;
+  test yalnız sentetik ad/veri kullanır. Commit, yayın veya kullanıcı kabulü yoktur.
+
 
 ### AI-2026-08-01-DOCS-001
 

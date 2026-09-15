@@ -93,6 +93,7 @@ export default function SettingsScreen() {
               title={t(g.titleKey)}
               description={t(g.descKey)}
               icon={g.icon}
+              tone="accent"
               iconColor={g.iconColor}
               iconBackgroundColor={g.iconBg}
               last={i === groups.length - 1}

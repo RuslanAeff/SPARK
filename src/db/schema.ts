@@ -395,6 +395,16 @@ export const DEFAULT_CATEGORIES = [
     { name: 'Tadilat & Bakım', icon: 'hammer-wrench', color: '#534286' },
     { name: 'Bahçe / Peyzaj', icon: 'flower-outline', color: '#4B397C' },
   ]},
+  // Paranın kendisini tutmanın ve taşımanın maliyeti — bir mal ya da hizmet alımı
+  // değil. `Konut > Konut Kredisi` ve `Konut > Ev Sigortası` bu kök yokken açıldığı
+  // için yerlerinde bırakıldı; taşımak mevcut harcamaların kategori bağını koparırdı.
+  { name: 'Finans', icon: 'bank-outline', color: '#3E6B8C', children: [
+    { name: 'Banka Ücreti', icon: 'bank-outline', color: '#3E6B8C' },
+    { name: 'Havale & Komisyon', icon: 'bank-transfer', color: '#37607E' },
+    { name: 'Kredi Taksiti', icon: 'hand-coin-outline', color: '#315670' },
+    { name: 'Vergi & Harç', icon: 'scale-balance', color: '#2B4C62' },
+    { name: 'Sigorta', icon: 'shield-check-outline', color: '#254254' },
+  ]},
   { name: 'Diğer', icon: 'dots-horizontal-circle-outline', color: '#8B8B9E', children: [] },
 ];
 

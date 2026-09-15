@@ -439,6 +439,20 @@ export const ExpenseDao = {
     );
   },
 
+  /** Ham tutarlar JS tarafında minor-unit ile toplanır; kategorisiz kayıtlar korunur. */
+  async getCategoryChangeRows(startDate: string, endDate: string) {
+    const db = await getDatabase();
+    return db.getAllAsync<import('../utils/spendingChange').CategoryChangeTotal>(
+      `SELECT COALESCE(p.id, c.id) AS category_id,
+              COALESCE(p.name, c.name) AS category_name, e.total_amount AS total
+       FROM expenses e
+       LEFT JOIN categories c ON e.category_id = c.id
+       LEFT JOIN categories p ON c.parent_id = p.id
+       WHERE e.date BETWEEN ? AND ?`,
+      [startDate, endDate],
+    );
+  },
+
   async getSubcategorySpending(parentId: number, startDate: string, endDate: string) {
     const db = await getDatabase();
     return db.getAllAsync(

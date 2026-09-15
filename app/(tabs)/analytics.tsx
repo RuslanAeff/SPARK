@@ -52,6 +52,8 @@ import TopTxCard from '../../src/components/analytics/TopTxCard';
 import PriceWatchCard from '../../src/components/analytics/PriceWatchCard';
 import SubscriptionsCard from '../../src/components/analytics/SubscriptionsCard';
 import SilentSpendCard from '../../src/components/analytics/SilentSpendCard';
+import SpendingChangeCard, { type SpendingChangeState } from '../../src/components/analytics/SpendingChangeCard';
+import { buildSpendingChange, resolveSpendingChangeRanges } from '../../src/utils/spendingChange';
 import MonthlyCompareCard from '../../src/components/analytics/MonthlyCompareCard';
 import ProjectionCard from '../../src/components/analytics/ProjectionCard';
 import LimitsHealthCard from '../../src/components/analytics/LimitsHealthCard';
@@ -106,6 +108,7 @@ const editDragHandleStyles = StyleSheet.create({
 const ALL_CARDS: { id: string; icon: string; labelKey: string }[] = [
   { id: 'chart',           icon: 'chart-bar',          labelKey: 'card_chart' },
   { id: 'projection',      icon: 'crystal-ball',       labelKey: 'card_projection' },
+  { id: 'spending_change', icon: 'chart-waterfall', labelKey: 'spending_change_title' },
   { id: 'monthly_compare', icon: 'swap-horizontal',    labelKey: 'card_monthly_compare' },
   { id: 'goal',            icon: 'flag-checkered',     labelKey: 'card_goal' },
   { id: 'limits_health',   icon: 'gauge',              labelKey: 'card_limits_health' },
@@ -121,7 +124,7 @@ const ALL_CARDS: { id: string; icon: string; labelKey: string }[] = [
   { id: 'vendors',         icon: 'store-outline',      labelKey: 'card_vendors' },
 ];
 
-const DEFAULT_ACTIVE = ['chart', 'projection', 'monthly_compare', 'personal_inflation', 'goal', 'limits_health', 'subscriptions', 'silent_spend', 'categories', 'vendors', 'top_tx'];
+const DEFAULT_ACTIVE = ['chart', 'projection', 'monthly_compare', 'spending_change', 'personal_inflation', 'goal', 'limits_health', 'subscriptions', 'silent_spend', 'categories', 'vendors', 'top_tx'];
 const DEFAULT_HIDDEN = ALL_CARDS.map(card => card.id).filter(id => !DEFAULT_ACTIVE.includes(id));
 
 interface DragInfo {
@@ -319,6 +322,8 @@ export default function AnalyticsScreen() {
   // Bu, ilk görünür karede yanlış takvim ayı verisini ve SQLite okuma çakışmasını önler.
   const analyticsPeriodReady = budgetPeriodReady;
   const activeAnalyticsKey = `${timeframe}:${dateRange.start}:${dateRange.end}`;
+  const spendingChangeKeyRef = useRef(activeAnalyticsKey);
+  spendingChangeKeyRef.current = activeAnalyticsKey;
   const analyticsQueryOptions = useMemo(
     () => ({ enabled: analyticsPeriodReady, autoLoad: false }),
     [analyticsPeriodReady],
@@ -540,6 +545,7 @@ export default function AnalyticsScreen() {
   );
   const [priceChanges, setPriceChanges] = useState<PriceChange[]>([]);
   const prevRangeSequence = useRef(0);
+  const [spendingChange, setSpendingChange] = useState<SpendingChangeState>({ status: 'loading', data: buildSpendingChange([], []), ranges: null });
   const silentSpendSequence = useRef(0);
   const vendorItemsSequence = useRef(0);
   const refreshQueueRef = useRef<Promise<void>>(Promise.resolve());
@@ -596,6 +602,23 @@ export default function AnalyticsScreen() {
     dateRange,
     budget.cycleStartDay,
   ), [timeframe, dateRange.start, dateRange.end, budget.cycleStartDay]);
+
+  async function loadSpendingChange() {
+    const key = activeAnalyticsKey;
+    if (spendingChangeKeyRef.current !== key) return;
+    const ranges = resolveSpendingChangeRanges(timeframe, dateRange, budget.cycleStartDay);
+    setSpendingChange({ status: ranges ? 'loading' : 'no_completed_days', data: buildSpendingChange([], []), ranges });
+    if (!ranges) return;
+    try {
+      const current = await ExpenseDao.getCategoryChangeRows(ranges.current.start, ranges.current.end);
+      const previous = await ExpenseDao.getCategoryChangeRows(ranges.previous.start, ranges.previous.end);
+      if (spendingChangeKeyRef.current !== key) return;
+      setSpendingChange({ status: 'ready', data: buildSpendingChange(current, previous), ranges });
+    } catch {
+      if (spendingChangeKeyRef.current !== key) return;
+      setSpendingChange({ status: 'unavailable', data: buildSpendingChange([], []), ranges });
+    }
+  }
 
   async function loadPrevTotal() {
     const sequence = ++prevRangeSequence.current;
@@ -1015,6 +1038,7 @@ export default function AnalyticsScreen() {
         await refreshBehavior();
         await loadTrackingStartDate();
         await loadPrevTotal();
+        await loadSpendingChange();
         await loadPriceChanges();
         await loadActiveSubscriptions();
         await loadCategoryLimits();
@@ -1237,7 +1261,9 @@ export default function AnalyticsScreen() {
 
   const renderCard = (id: string, index: number) => {
     let content = null;
-    if (id === 'chart') {
+    if (id === 'spending_change') {
+      content = <SpendingChangeCard key={`${timeframe}-${dateRange.start}-${dateRange.end}`} {...cardBase} state={spendingChange} />;
+    } else if (id === 'chart') {
       content = (
         <ChartCard {...cardBase} timeframe={timeframe} barData={barData} prevBarData={prevBarData} />
       );

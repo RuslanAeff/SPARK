@@ -284,8 +284,6 @@ const getStyles = () => StyleSheet.create({
     borderTopRightRadius: 24,
     maxHeight: SCREEN_H * 0.82,
     paddingTop: Spacing.sm,
-    borderTopWidth: 1,
-    borderColor: Colors.cardBorder,
   },
   handleBar: {
     width: 40,

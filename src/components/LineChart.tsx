@@ -1,5 +1,5 @@
 // S.P.A.R.K. — Interactive price-history chart
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { View, Text, StyleSheet, Pressable } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import Svg, { Path, Circle, Line, G, Defs, LinearGradient, Stop, Text as SvgText } from 'react-native-svg';
@@ -129,13 +129,17 @@ export default function LineChart({
   const { t } = useLanguage();
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
   const [layoutWidth, setLayoutWidth] = useState(320);
+  const scrubbedRef = useRef(false);
 
   // A different item/data set must never inherit an old inspection state.
   useEffect(() => {
     setSelectedIndex(null);
   }, [data]);
 
-  const width = 320;
+  // Ölçünün kendisi ölçülen genişliktir: viewBox ile taşıyıcı 1:1 olduğu sürece
+  // koordinat dönüşümü yoktur, dolayısıyla işaretle dokunuş arasında kayma da
+  // olamaz. Sabit 320'ye kilitlenmek grafiği dar bırakıp noktaları sıkıştırıyordu.
+  const width = layoutWidth;
   const padding = { top: 28, right: 16, bottom: 28, left: 44 };
   const chartWidth = width - padding.left - padding.right;
   const chartHeight = height - padding.top - padding.bottom;
@@ -208,14 +212,9 @@ export default function LineChart({
     points.map((point) => point.x),
     xLabelMinSpacing,
   ));
-  const contentScale = Math.min(layoutWidth / width, 1);
-  const contentOffsetX = (layoutWidth - width * contentScale) / 2;
-  const contentOffsetY = (height - height * contentScale) / 2;
-
-  const selectNearestPoint = (locationX: number) => {
-    const renderedPlotWidth = Math.max(1, chartWidth * contentScale);
-    const clampedX = Math.max(0, Math.min(renderedPlotWidth, locationX));
-    const viewBoxX = padding.left + (clampedX / renderedPlotWidth) * chartWidth;
+  const nearestIndexAt = (locationX: number): number => {
+    const clampedX = Math.max(0, Math.min(chartWidth, locationX));
+    const viewBoxX = padding.left + clampedX;
     let nearestIndex = 0;
     let nearestDistance = Number.POSITIVE_INFINITY;
     points.forEach((point, index) => {
@@ -225,7 +224,7 @@ export default function LineChart({
         nearestIndex = index;
       }
     });
-    handlePress(nearestIndex);
+    return nearestIndex;
   };
 
   const moveAccessibleSelection = (direction: -1 | 1) => {
@@ -367,7 +366,17 @@ export default function LineChart({
               strokeDasharray="3,3"
               opacity={0.55}
             />
-            <Circle cx={selectedPoint.x} cy={selectedPoint.y} r={9} fill={color} opacity={0.18} />
+            {/* Hedef halkası: seçimin hangi gözlemde durduğu tereddütsüz okunsun. */}
+            <Circle cx={selectedPoint.x} cy={selectedPoint.y} r={11} fill={color} opacity={0.16} />
+            <Circle
+              cx={selectedPoint.x}
+              cy={selectedPoint.y}
+              r={11}
+              fill="none"
+              stroke={color}
+              strokeWidth={1}
+              opacity={0.5}
+            />
           </G>
         )}
 
@@ -413,14 +422,24 @@ export default function LineChart({
           testID="line-chart-plot"
           style={[
             styles.plotInteraction,
-            {
-              left: contentOffsetX + padding.left * contentScale,
-              top: contentOffsetY + padding.top * contentScale,
-              width: chartWidth * contentScale,
-              height: chartHeight * contentScale,
-            },
+            // Dikeyde tüm sahne: parmak çizginin altına ya da üstüne düşse de
+            // gözlem seçilir. Yatayda eksen boşluklarına hitSlop ile taşar, böylece
+            // ilk ve son nokta kenara sıkışmaz.
+            { left: padding.left, top: 0, width: chartWidth, height },
           ]}
-          onPress={(event) => selectNearestPoint(event.nativeEvent.locationX)}
+          hitSlop={{ left: padding.left, right: padding.right }}
+          onTouchStart={() => { scrubbedRef.current = false; }}
+          onTouchMove={(event) => {
+            // Parmağı kaydırdıkça seçim onu izler; yoğun seride tek tek noktayı
+            // tutturmaya çalışmaktan çok daha isabetli.
+            scrubbedRef.current = true;
+            setSelectedIndex(nearestIndexAt(event.nativeEvent.locationX));
+          }}
+          onPress={(event) => {
+            // Sürükleme bittiğinde gelen basış seçimi kapatmasın.
+            if (scrubbedRef.current) return;
+            handlePress(nearestIndexAt(event.nativeEvent.locationX));
+          }}
           accessibilityRole="adjustable"
           accessibilityLabel={t('chart_accessibility_label')}
           accessibilityHint={t('chart_accessibility_hint')}
@@ -434,27 +453,6 @@ export default function LineChart({
             if (event.nativeEvent.actionName === 'decrement') moveAccessibleSelection(-1);
           }}
         />
-        {points.map((point, index) => (
-          <Pressable
-            key={`hit-target-${index}`}
-            testID={`line-chart-hit-target-${index}`}
-            style={[
-              styles.pointHitTarget,
-              {
-                left: contentOffsetX + point.x * contentScale - 22,
-                top: contentOffsetY + point.y * contentScale - 22,
-              },
-            ]}
-            onPress={() => handlePress(index)}
-            accessibilityRole="button"
-            accessibilityLabel={[
-              data[index].label,
-              formatCurrency(data[index].value, currency),
-              data[index].meta,
-            ].filter(Boolean).join(', ')}
-            accessibilityHint={t('chart_point_select_hint')}
-          />
-        ))}
       </View>
     </View>
   );
@@ -471,13 +469,6 @@ const getStyles = () => StyleSheet.create({
   },
   plotInteraction: {
     position: 'absolute',
-    backgroundColor: 'transparent',
-  },
-  pointHitTarget: {
-    position: 'absolute',
-    width: 44,
-    height: 44,
-    borderRadius: 22,
     backgroundColor: 'transparent',
   },
   emptyText: {

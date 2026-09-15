@@ -2,7 +2,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import Svg, { G, Line, Rect, Text as SvgText } from 'react-native-svg';
+import Svg, { Defs, LinearGradient, Stop, G, Line, Rect, Text as SvgText } from 'react-native-svg';
 import Animated, {
   Easing, useAnimatedProps, useSharedValue, withTiming, type SharedValue,
 } from 'react-native-reanimated';
@@ -358,19 +358,35 @@ export default function BarChart({
               onPress={() => setZoom(current => current - 1)}
               style={({ pressed }) => [styles.zoomButton, zoomIndex === 0 && styles.disabled, pressed && styles.pressed]}
             >
-              <MaterialCommunityIcons name="minus" size={18} color={Colors.textPrimary} />
+              <View style={styles.zoomButtonGlass} pointerEvents="none">
+                <Svg style={StyleSheet.absoluteFill} width="100%" height="100%">
+                  <Defs>
+                    <LinearGradient id="zoom-minus-glass" x1="0" y1="0" x2="0" y2="1">
+                      <Stop offset="0" stopColor={Colors.textPrimary} stopOpacity={0.07} />
+                      <Stop offset="1" stopColor={Colors.textPrimary} stopOpacity={0.015} />
+                    </LinearGradient>
+                  </Defs>
+                  <Rect width="100%" height="100%" fill="url(#zoom-minus-glass)" />
+                </Svg>
+                <MaterialCommunityIcons name="minus" size={18} color={Colors.textPrimary} />
+              </View>
             </Pressable>
-            <View style={styles.zoomTrack} accessibilityLabel={t('chart_zoom_level')}>
-              {zoomSizes.map((_, index) => (
-                <Pressable
-                  key={`zoom-${index}`}
-                  testID={`bar-chart-zoom-${index}`}
-                  accessibilityRole="button"
-                  accessibilityState={{ selected: index === zoomIndex }}
-                  onPress={() => setZoom(index)}
-                  style={[styles.zoomDetent, index <= zoomIndex && styles.zoomDetentActive]}
-                />
-              ))}
+            <View style={styles.zoomCenter}>
+              <View style={styles.zoomTrack} accessibilityLabel={t('chart_zoom_level')}>
+                {zoomSizes.map((_, index) => (
+                  <Pressable
+                    key={`zoom-${index}`}
+                    testID={`bar-chart-zoom-${index}`}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected: index === zoomIndex }}
+                    onPress={() => setZoom(index)}
+                    style={[styles.zoomDetent, index <= zoomIndex && styles.zoomDetentActive]}
+                  />
+                ))}
+              </View>
+              <Text testID="bar-chart-page-label" style={styles.pageLabel}>
+                {formatPageRange(activePage?.data ?? [])} · {pageIndex + 1}/{pages.length}
+              </Text>
             </View>
             <Pressable
               testID="bar-chart-zoom-in"
@@ -381,12 +397,20 @@ export default function BarChart({
               onPress={() => setZoom(current => current + 1)}
               style={({ pressed }) => [styles.zoomButton, zoomIndex === zoomSizes.length - 1 && styles.disabled, pressed && styles.pressed]}
             >
-              <MaterialCommunityIcons name="plus" size={18} color={Colors.textPrimary} />
+              <View style={styles.zoomButtonGlass} pointerEvents="none">
+                <Svg style={StyleSheet.absoluteFill} width="100%" height="100%">
+                  <Defs>
+                    <LinearGradient id="zoom-plus-glass" x1="0" y1="0" x2="0" y2="1">
+                      <Stop offset="0" stopColor={Colors.textPrimary} stopOpacity={0.07} />
+                      <Stop offset="1" stopColor={Colors.textPrimary} stopOpacity={0.015} />
+                    </LinearGradient>
+                  </Defs>
+                  <Rect width="100%" height="100%" fill="url(#zoom-plus-glass)" />
+                </Svg>
+                <MaterialCommunityIcons name="plus" size={18} color={Colors.textPrimary} />
+              </View>
             </Pressable>
           </View>
-          <Text testID="bar-chart-page-label" style={styles.pageLabel}>
-            {formatPageRange(activePage?.data ?? [])} · {pageIndex + 1}/{pages.length}
-          </Text>
         </View>
       ) : null}
     </View>
@@ -418,8 +442,14 @@ const getStyles = () => StyleSheet.create({
   zoomControlRow: {
     minHeight: 34, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: Spacing.sm,
   },
-  zoomButton: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center', backgroundColor: Colors.cardSurface },
-  zoomTrack: { flex: 1, maxWidth: 190, flexDirection: 'row', alignItems: 'center', gap: 6 },
+  zoomButton: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
+  zoomButtonGlass: {
+    width: 34, height: 34, borderRadius: 17, overflow: 'hidden',
+    alignItems: 'center', justifyContent: 'center',
+    borderWidth: StyleSheet.hairlineWidth, borderColor: Colors.divider,
+  },
+  zoomCenter: { flex: 1, maxWidth: 190, alignItems: 'stretch', justifyContent: 'center', gap: Spacing.sm },
+  zoomTrack: { height: 12, flexDirection: 'row', alignItems: 'center', gap: 6 },
   zoomDetent: { flex: 1, height: 4, borderRadius: 2, backgroundColor: Colors.divider },
   zoomDetentActive: { backgroundColor: Colors.primary },
   pageLabel: { ...Typography.labelSmall, color: Colors.textMuted, textAlign: 'center' },

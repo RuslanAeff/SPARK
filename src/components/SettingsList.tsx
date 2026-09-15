@@ -41,12 +41,10 @@ export function SettingsSection({
   );
 }
 
-type SettingsNavigationRowProps = {
+type SettingsNavigationRowBase = {
   title: string;
   description?: string;
   icon: ComponentProps<typeof MaterialCommunityIcons>['name'];
-  iconColor: string;
-  iconBackgroundColor: string;
   onPress: () => void;
   last?: boolean;
   testID?: string;
@@ -54,20 +52,34 @@ type SettingsNavigationRowProps = {
   accessibilityHint?: string;
 };
 
-export function SettingsNavigationRow({
-  title,
-  description,
-  icon,
-  iconColor,
-  iconBackgroundColor,
-  onPress,
-  last = false,
-  testID,
-  accessibilityLabel,
-  accessibilityHint,
-}: SettingsNavigationRowProps) {
+/** Satırın iki görevi var, ikisi aynı görünmemeli:
+ *  - `accent`: ayarlar kök menüsü. Sayfanın tek içeriği satırlar olduğu için renkli
+ *    ikon karesi onları birbirinden ayırır ve menüye kimlik verir.
+ *  - `plain` (varsayılan): alt sayfalardaki kapı. Nötr ikon, zemin yok — bölüm
+ *    başlıkları da renkli kare taşıdığından, kapılar da taşırsa ekran ayırt
+ *    edilemeyen bir simge dizisine dönüşüyordu. */
+type SettingsNavigationRowProps =
+  | (SettingsNavigationRowBase & { tone?: 'plain' })
+  | (SettingsNavigationRowBase & {
+      tone: 'accent';
+      iconColor: string;
+      iconBackgroundColor: string;
+    });
+
+export function SettingsNavigationRow(props: SettingsNavigationRowProps) {
+  const {
+    title,
+    description,
+    icon,
+    onPress,
+    last = false,
+    testID,
+    accessibilityLabel,
+    accessibilityHint,
+  } = props;
   const scheme = useAppTheme();
   const styles = useMemo(() => getStyles(), [scheme]);
+  const accent = props.tone === 'accent' ? props : null;
 
   return (
     <Pressable
@@ -82,8 +94,21 @@ export function SettingsNavigationRow({
       accessibilityLabel={accessibilityLabel ?? title}
       accessibilityHint={accessibilityHint}
     >
-      <View style={[styles.navigationIcon, { backgroundColor: iconBackgroundColor }]}>
-        <MaterialCommunityIcons name={icon} size={22} color={iconColor} />
+      <View
+        testID={testID ? `${testID}-icon` : undefined}
+        style={[
+          styles.navigationIcon,
+          accent && {
+            backgroundColor: accent.iconBackgroundColor,
+            borderRadius: BorderRadius.md,
+          },
+        ]}
+      >
+        <MaterialCommunityIcons
+          name={icon}
+          size={22}
+          color={accent ? accent.iconColor : Colors.textSecondary}
+        />
       </View>
       <View style={styles.navigationCopy}>
         <Text style={styles.navigationTitle}>{title}</Text>
@@ -107,13 +132,14 @@ const getStyles = () => StyleSheet.create({
     paddingBottom: Spacing.lg,
   },
   navigationRow: {
-    minHeight: 76,
+    minHeight: 64,
     marginHorizontal: -Spacing.sm,
     paddingHorizontal: Spacing.sm,
     paddingVertical: Spacing.md,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.md,
+    // Bölüm başlığıyla aynı sol hat: 40'lık ikon alanı + sm boşluk = 48.
+    gap: Spacing.sm,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: Colors.divider,
   },
@@ -127,7 +153,6 @@ const getStyles = () => StyleSheet.create({
   navigationIcon: {
     width: 40,
     height: 40,
-    borderRadius: BorderRadius.md,
     alignItems: 'center',
     justifyContent: 'center',
   },

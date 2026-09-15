@@ -80,6 +80,41 @@ Temel ihtiyaçlar:
 
 ## 5. Kritik kullanıcı akışları
 
+**Harcamam neden değişti?** kartı iki karşılaştırılabilir dönemin kategori
+farklarını açıklar. Üstte net tutar farkı, altında mutlak farka göre sıralanan
+ana kategoriler dörderli yatay sayfalarda bulunur. Numaralı sayfa kontrolleri
+doğrudan geçiş sağlar; son sayfadaki eksik satırlar kart yüksekliğini değiştirmez.
+Sayfa numaraları 12 dp, seçili gösterge en az 26 dp boyutunda ince kenarlı
+yarı saydam yuvarlatılmış yüzeydir; dokunma hedefi en az 44 dp olarak korunur.
+Çubuk ölçeği tüm sayfalarda ortaktır. Dikey genişletme ve toplu “Diğer” satırı
+kullanılmaz. Artış/azalış işareti ve renk birlikte kullanılır. Kategorisiz
+harcamalar da hesaba katılır ve satırların toplamı net farka eşittir.
+Haftalık, bütçe dönemi ve özel aralıklar mevcut tamamlanmış-gün karşılaştırmasını
+izler. Yıllık görünümde bu yılın tamamlanmış günleri geçen yılın aynı uzunluktaki
+başlangıcıyla karşılaştırılır; artık yılda tarihler farklılaşabilir, gerçek iki
+aralık kartta yazılır. Bugünün kısmi verisi dışarıda kalır. Yükleme hatası sıfır
+harcama gibi sunulmaz. Yeni kart varsayılan aktiftir; eski kart düzenine eklenir
+ve kullanıcı diğer kartlar gibi gizleyip sıralayabilir.
+
+Veri ve yedek bölümünde yedek alma tek bir sakin yüzeyde toplanır: dört metin
+kısayolu, birleşik başlangıç/bitiş alanı ve tam genişlikte birincil Dışa aktar
+düğmesi. Ayrı Özel kısayolu yoktur; tarih alanları doğrudan düzenlenebilir.
+Seçiciyi iptal etmek aktif kısayolu kaldırmaz, tarih seçimi kaldırır. Tarihler
+uygulama dilinde gösterilir. Geri yükle, dosya seçimini açıklayan ayrı ikincil
+satırdır; tarih alanının geri yüklemeyi filtrelediği izlenimi verilmez.
+Hatırlatma seçenekleri tek ortak zeminde sunulur. Export/import onayları korunur.
+
+Ortak bilgi düğmesi, kalın vurgu halkası yerine 28 dp dairesel cam yüzey ve
+yalın “i” simgesi kullanır. Nötr saydam ışık geçişi ve ince kenar başlıkla yarışmaz;
+vurgu yalnız basışta belirir. Çevresindeki 8 dp dokunma payıyla hedef 44 dp olur.
+Analiz, ayarlar ve yedekleme aynı `SettingsInfoIconButton` görünümünü paylaşır.
+
+Kişisel enflasyon yardım metni, iki dönemde ortak alınan ürünlerin fiyat
+değişimini anlattığını kısa ve günlük dille açıklar. Ürün ayrıntısı gerekliliği ve
+sonucun tüm harcamaları kapsamadığı belirtilir; yardım metninde ürün sayısı,
+kapsam yüzdesi veya teknik şablon parametreleri gösterilmez. Dört dil aynı
+anlamı korur.
+
 ### 5.1 Manuel harcama
 
 Kullanıcı tutar, tarih, satıcı, kategori ve isteğe bağlı not girer. Kayıt tamamlandığında ilgili liste, Dashboard, analiz ve bildirim türevleri aynı finansal gerçeği göstermelidir.
@@ -211,6 +246,36 @@ görünür. Kompakt yatay akışı korumak için uzun ad en fazla iki satırda k
 tek satırlık adlar kullanılmayan ikinci satır yüksekliğini ayırmaz ve oran gerçek
 metnin hemen altında kalır. Tam kategori adı ve oran ekran okuyucu etiketinde
 birlikte korunur.
+
+Analiz ekranındaki **Satıcılar / Mağazalar** kartında uzun ad, tutarı veya
+ayrıntı okunu komşu yatay sayfaya itemez. Her sayfa kartın ölçülen iç genişliğiyle
+sınırlıdır; sağ ok satırın sağ kenarında ayrılmış alanda kalır. Ad kalan alanda
+tek satır ve üç noktayla kısalır; tam ad erişilebilir satır etiketinde korunur.
+Satıcı ayrıntı panelinin yüksekliği kullanılabilir pencere yüksekliğinin %92'sine
+bağlıdır; donut seçimiyle ürün listesi kısaldığında panel aşağı çekilmez veya
+daralmaz. İçerik panelin kalan alanında dikey kayar; ekran boyutu değişirse
+panel yüksekliği yeniden hesaplanır.
+
+Ürün ayrıntısında tarih filtresi **Tüm zamanlar**, **Son 30 gün**, **Son 90 gün**
+ve **Son 1 yıl** seçeneklerini sunar. Son yıl 365 gün, tüm sınırlı aralıklar bugün
+dahil yerel takvim günleri olarak hesaplanır. Özetler, fiyat grafiği, satıcıların
+miktarla ağırlıklandırılmış fiyat kıyası ve alım geçmişi aynı filtreyi kullanır.
+Filtre değişince geçmiş ilk sayfaya döner; alım olmayan aralık açıkça belirtilir.
+Panel yeniden açıldığında veya ürün değiştiğinde Tüm zamanlar seçilir.
+Seçenekler ayrı büyük kapsüller ve ikinci satır yerine ortak tonal zeminde tek
+satırlık seçim şerididir. Metin boyutu korunur; görünen seçili yüzey kompakt,
+dokunma hedefi en az 44 dp olur. Dar ekran veya büyük sistem yazısında şerit
+yatay kayar; seçim sırasında yazı kalınlığı değişip komşu hedefleri oynatmaz.
+Seçili alan tek bir yuvarlak, yarı saydam cam kapsülle gösterilir. Kapsül gerçek
+buton ölçüleri arasında 300 ms yavaşlayan geçişle konum ve genişlik değiştirir;
+ilk yerleşimde ve sistem hareket azaltma tercihinde animasyon uygulanmaz.
+Cam etkisi tema/vurgu duyarlı saydam dolgu, ince kenar ve ışık geçişidir.
+
+Günlük Dalgalanma grafiğinin yakınlaştırma şeridinde ölçek ve tarih/sayfa etiketi
+orta sütunu oluşturur; +/− düğmeleri bu sütunun tamamına göre dikey ortalanır.
+Düğmelerin cam etkisi nötr, düşük opaklıkta ve sakindir; dokunma alanı en az
+44 dp'dir. Ürün, satıcı ve harcama istatistiği ayrıntı panellerinde üst kenarlık
+çizgisi kullanılmaz; yuvarlak köşeler ve sürükleme tutamacı panel sınırını anlatır.
 
 Dashboard'daki **Sık gidilen yerler** iki sütunlu kompakt yapısını korur. Satıcı
 yüzdesi adla aynı yatay alan için yarışmak yerine adın altında gösterilir; sütun

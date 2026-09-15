@@ -2,7 +2,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
-  Dimensions,
+  useWindowDimensions,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -26,7 +26,6 @@ import { useTabSwipe } from '../../context/TabSwipeContext';
 
 type VendorItemSort = 'frequency' | 'spending';
 const PRODUCT_PAGE_SIZE = 5;
-const SCREEN_HEIGHT = Dimensions.get('window').height;
 
 interface VendorItem {
   name: string;
@@ -68,7 +67,8 @@ export default function VendorAnalyticsSheet({
 }: VendorAnalyticsSheetProps) {
   const scheme = useAppTheme();
   const themeRevision = useThemeRevision();
-  const styles = useMemo(() => getStyles(), [scheme, themeRevision]);
+  const { height: windowHeight } = useWindowDimensions();
+  const styles = useMemo(() => getStyles(windowHeight), [scheme, themeRevision, windowHeight]);
   const { setNestedHorizontalGestureActive } = useTabSwipe();
   const [displayVendor, setDisplayVendor] = useState<VendorSpending | null>(vendor);
   const [displayItems, setDisplayItems] = useState<VendorItem[]>(items);
@@ -169,6 +169,7 @@ export default function VendorAnalyticsSheet({
     >
       <ScrollView
         testID="vendor-analytics-sheet-scroll"
+        style={styles.scrollViewport}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
       >
@@ -434,15 +435,18 @@ export default function VendorAnalyticsSheet({
   );
 }
 
-const getStyles = () => StyleSheet.create({
+const getStyles = (windowHeight: number) => StyleSheet.create({
   sheet: {
     backgroundColor: Colors.background,
     borderTopLeftRadius: BorderRadius.xxl,
     borderTopRightRadius: BorderRadius.xxl,
-    borderTopWidth: 1,
-    borderColor: Colors.cardBorder,
-    maxHeight: SCREEN_HEIGHT * 0.92,
+    // Dilim seçimi içerik miktarını değiştirir; panelin yüksekliğini değil.
+    height: windowHeight * 0.92,
+    maxHeight: windowHeight * 0.92,
     paddingTop: Spacing.xs,
+  },
+  scrollViewport: {
+    flex: 1,
   },
   scrollContent: {
     paddingHorizontal: ScreenPadding.horizontal,

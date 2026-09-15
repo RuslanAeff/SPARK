@@ -153,4 +153,35 @@ describe('ItemAnalyticsModal latest request davranışı', () => {
     await fireEvent.press(screen.getByTestId('mock-item-sheet-dismiss'));
     expect(onDismiss).toHaveBeenCalledTimes(1);
   });
+
+  it('tarih seçimini grafik, kıyas ve geçmişe birlikte uygular; yeniden açınca sıfırlar', async () => {
+    const dateKey = (daysAgo: number) => {
+      const d = new Date();
+      d.setDate(d.getDate() - daysAgo);
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    };
+    const result = resultFor(70, 8);
+    result.history = [
+      { ...result.history[0], date: dateKey(120), vendor_name: 'Old Market' },
+      { ...result.history[1], date: dateKey(60), vendor_name: 'Recent Market' },
+      { ...result.history[1], date: dateKey(40), vendor_name: 'Recent Market', unit_price: 9, total_price: 9 },
+    ];
+    (ExpenseDao.getItemAnalytics as jest.Mock).mockResolvedValue(result);
+    const screen = await render(<ItemAnalyticsModal visible itemName="Ürün" onClose={jest.fn()} />);
+    await screen.findByTestId('item-period-90');
+    await fireEvent.press(screen.getByTestId('item-period-90'));
+    expect(screen.getByTestId('mock-line-chart')).toHaveTextContent('8,9');
+    expect(screen.queryByText('Old Market')).toBeNull();
+    expect(screen.queryByText(/vendor_comparison/)).toBeNull();
+    expect(screen.getByTestId('item-period-90')).toHaveProp('accessibilityState', { checked: true });
+    await fireEvent.press(screen.getByTestId('item-period-30'));
+    expect(screen.getByText('item_period_empty')).toBeTruthy();
+    expect(screen.queryByTestId('purchase-history-pager')).toBeNull();
+    expect(screen.queryByTestId('mock-line-chart')).toBeNull();
+    expect(ExpenseDao.getItemAnalytics).toHaveBeenCalledTimes(1);
+    await screen.rerender(<ItemAnalyticsModal visible={false} itemName="Ürün" onClose={jest.fn()} />);
+    await screen.rerender(<ItemAnalyticsModal visible itemName="Ürün" onClose={jest.fn()} />);
+    await waitFor(() => expect(screen.getByTestId('item-period-all')).toHaveProp('accessibilityState', { checked: true }));
+    expect(screen.queryByText('item_period_empty')).toBeNull();
+  });
 });

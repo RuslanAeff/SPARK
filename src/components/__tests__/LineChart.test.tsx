@@ -74,15 +74,41 @@ describe('LineChart price inspection', () => {
     expect(screen.getByTestId('line-chart-plot').props.accessibilityValue.text).toContain('6,50 zł');
   });
 
-  it('her gözlem için parmak dostu 44px doğrudan dokunma hedefi sunar', async () => {
+  // Gözlem başına ayrı 44px hedefler yoğun seride üst üste biniyordu; sonra render
+  // edilen kazandığı için dokunuş hep sağdaki komşuya kayıyordu.
+  it('gözlem başına örtüşen dokunma hedefi bırakmaz', async () => {
+    const denseData = Array.from({ length: 20 }, (_, index): LinePoint => ({
+      label: `${String(index + 1).padStart(2, '0')}/07`,
+      value: 7 + (index % 3),
+    }));
+    const screen = await render(<LineChart data={denseData} currency="PLN" />);
+
+    expect(screen.queryAllByTestId(/^line-chart-hit-target-/)).toHaveLength(0);
+    expect(screen.getAllByTestId('line-chart-plot')).toHaveLength(1);
+  });
+
+  it('parmak kaydırıldıkça seçim gözlemleri izler ve bırakış onu kapatmaz', async () => {
     const screen = await render(<LineChart data={data} currency="PLN" />);
-    const target = screen.getByTestId('line-chart-hit-target-1');
+    const plot = screen.getByTestId('line-chart-plot');
 
-    expect(StyleSheet.flatten(target.props.style)).toMatchObject({ width: 44, height: 44 });
-    await fireEvent.press(target);
-
-    expect(screen.getByText('24/07')).toBeTruthy();
+    await fireEvent(plot, 'touchStart');
+    await fireEvent(plot, 'touchMove', { nativeEvent: { locationX: 260 } });
     expect(screen.getByText('6,50 zł')).toBeTruthy();
+
+    await fireEvent(plot, 'touchMove', { nativeEvent: { locationX: 0 } });
+    expect(screen.getByText('9,75 zł')).toBeTruthy();
+
+    // Sürüklemeyi bitiren basış, aynı noktaya geldiği için seçimi kapatmamalı.
+    await fireEvent.press(plot, { nativeEvent: { locationX: 0 } });
+    expect(screen.getByText('9,75 zł')).toBeTruthy();
+  });
+
+  it('dokunma yüzeyi sahnenin tüm yüksekliğini kaplar', async () => {
+    const screen = await render(<LineChart data={data} height={160} currency="PLN" />);
+    const style = StyleSheet.flatten(screen.getByTestId('line-chart-plot').props.style);
+
+    expect(style.top).toBe(0);
+    expect(style.height).toBe(160);
   });
 
   it('clears selection through the explicit action', async () => {

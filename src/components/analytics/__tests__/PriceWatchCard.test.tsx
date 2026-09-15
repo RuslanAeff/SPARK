@@ -110,4 +110,16 @@ describe('PriceWatchCard', () => {
     expect(mockSetNestedHorizontalGestureActive).toHaveBeenNthCalledWith(1, true);
     expect(mockSetNestedHorizontalGestureActive).toHaveBeenNthCalledWith(2, false);
   });
+
+  it('yüzdenin kaç alıma dayandığını kutuda gösterir', async () => {
+    const row: PriceChange = {
+      name: 'Çilek', turkishName: null, firstPrice: 10, lastPrice: 12,
+      changePct: 20, purchaseCount: 7, measurementUnit: 'kg',
+    };
+    const screen = await render(
+      <PriceWatchCard {...base} priceChanges={[row]} onSelectItem={() => {}} />,
+    );
+    const count = screen.getByLabelText('price_watch_purchase_count:7');
+    expect(within(count).getByText('7')).toBeTruthy();
+  });
 });

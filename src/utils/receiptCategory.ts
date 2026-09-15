@@ -49,6 +49,11 @@ export const RECEIPT_CATEGORY_NAMES = {
   furniture: 'Mobilya & Dekorasyon',
   home_maintenance: 'Tadilat & Bakım',
   garden: 'Bahçe / Peyzaj',
+  bank_fee: 'Banka Ücreti',
+  transfer_fee: 'Havale & Komisyon',
+  loan_installment: 'Kredi Taksiti',
+  tax: 'Vergi & Harç',
+  insurance: 'Sigorta',
   other: 'Diğer',
 } as const;
 
@@ -125,6 +130,11 @@ addAliases('home_insurance', 'home insurance', 'ev sığortası', 'страхо�
 addAliases('furniture', 'furniture decoration', 'mebel', 'мебель');
 addAliases('home_maintenance', 'repair maintenance', 'təmir', 'ремонт');
 addAliases('garden', 'garden landscaping', 'bağ', 'сад');
+addAliases('bank_fee', 'bank fee', 'account fee', 'account maintenance fee', 'banka komisyonu', 'bank haqqı', 'банковская комиссия', 'плата за обслуживание счёта');
+addAliases('transfer_fee', 'transfer fee', 'commission', 'wire fee', 'köçürmə haqqı', 'комиссия за перевод', 'перевод');
+addAliases('loan_installment', 'loan', 'loan installment', 'credit installment', 'kredit ödənişi', 'платёж по кредиту', 'кредит');
+addAliases('tax', 'tax', 'duty', 'vergi', 'rüsum', 'налог', 'пошлина');
+addAliases('insurance', 'insurance', 'sığorta', 'страхование', 'страховка');
 addAliases('other', 'other', 'digər', 'прочее', 'другое');
 
 export function normalizeReceiptCategoryKey(

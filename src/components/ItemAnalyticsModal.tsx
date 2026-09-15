@@ -1,12 +1,13 @@
 // S.P.A.R.K. — Item Analytics Modal
-// NOTE: No react-native-reanimated inside Modal to prevent Android freeze
+// Sheet lifecycle stays in BottomSheetModal; the selection capsule uses Reanimated.
 import React, { useEffect, useState, useRef, useMemo } from 'react';
 import {
   View, Text, Pressable, ScrollView, StyleSheet,
-  ActivityIndicator, Dimensions,
+  ActivityIndicator, Dimensions, type LayoutRectangle,
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import BottomSheetModal from './BottomSheetModal';
+import GlassSelectionIndicator from './GlassSelectionIndicator';
 import { Colors } from '../theme/colors';
 import { Typography, FontFamily } from '../theme/typography';
 import { Spacing, BorderRadius, ScreenPadding } from '../theme/spacing';
@@ -23,6 +24,8 @@ import {
   sanitizeMeasurementUnit,
   type MeasurementUnit,
 } from '../utils/measurementUnit';
+import { filterItemHistory, summarizeItemHistory, type ItemHistoryPeriod } from '../utils/itemHistoryPeriod';
+import { fromMinorUnits, toMinorUnits } from '../utils/moneyMath';
 import { useTabSwipe } from '../context/TabSwipeContext';
 
 const HISTORY_PAGE_SIZE = 6;
@@ -105,10 +108,15 @@ export default function ItemAnalyticsModal({
   const { currency } = useCurrency();
   const { setNestedHorizontalGestureActive } = useTabSwipe();
   const [loading, setLoading] = useState(true);
-  const [stats, setStats] = useState<ItemStats | null>(null);
-  const [history, setHistory] = useState<ItemHistoryEntry[]>([]);
+  const [loadedStats, setStats] = useState<ItemStats | null>(null);
+  const [allHistory, setHistory] = useState<ItemHistoryEntry[]>([]);
   const [historyPageWidth, setHistoryPageWidth] = useState(0);
   const [historyPageIndex, setHistoryPageIndex] = useState(0);
+  const [period, setPeriod] = useState<ItemHistoryPeriod>('all');
+  const [periodLayouts, setPeriodLayouts] = useState<Partial<Record<ItemHistoryPeriod, LayoutRectangle>>>({});
+  const [periodAnchor, setPeriodAnchor] = useState(() => new Date());
+  const history = useMemo(() => filterItemHistory(allHistory, period, periodAnchor), [allHistory, period, periodAnchor]);
+  const stats = useMemo(() => ({ ...summarizeItemHistory(history), measurement_unit: loadedStats?.measurement_unit }), [history, loadedStats]);
   const mountedRef = useRef(true);
   const requestSequenceRef = useRef(0);
 
@@ -120,6 +128,8 @@ export default function ItemAnalyticsModal({
   useEffect(() => {
     if (visible && itemName) {
       const sequence = ++requestSequenceRef.current;
+      setPeriod('all');
+      setPeriodAnchor(new Date());
       setStats(null);
       setHistory([]);
       setHistoryPageIndex(0);
@@ -162,7 +172,7 @@ export default function ItemAnalyticsModal({
     history.forEach(h => {
       const vn = h.vendor_name || t('unknown');
       const existing = vendorMap.get(vn) || { spent: 0, quantity: 0, count: 0 };
-      existing.spent += h.total_price;
+      existing.spent += toMinorUnits(h.total_price);
       existing.quantity += h.quantity;
       existing.count += 1;
       vendorMap.set(vn, existing);
@@ -171,7 +181,7 @@ export default function ItemAnalyticsModal({
     vendorMap.forEach((val, key) => {
       prices.push({
         name: key,
-        avgPrice: val.quantity > 0 ? val.spent / val.quantity : 0,
+        avgPrice: val.quantity > 0 ? fromMinorUnits(val.spent) / val.quantity : 0,
         count: val.count,
       });
     });
@@ -231,6 +241,52 @@ export default function ItemAnalyticsModal({
                   </View>
                 </View>
 
+                <ScrollView
+                  testID="item-period-strip"
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  style={styles.periodFilters}
+                  contentContainerStyle={styles.periodFilterContent}
+                  accessibilityRole="radiogroup"
+                  nestedScrollEnabled
+                  directionalLockEnabled
+                  onTouchStart={() => setNestedHorizontalGestureActive(true)}
+                  onTouchEnd={() => setNestedHorizontalGestureActive(false)}
+                  onTouchCancel={() => setNestedHorizontalGestureActive(false)}
+                  onMomentumScrollEnd={() => setNestedHorizontalGestureActive(false)}
+                >
+                  <GlassSelectionIndicator target={periodLayouts[period]} />
+                  {(['all', 30, 90, 365] as const).map(option => (
+                    <Pressable
+                      key={option}
+                      testID={`item-period-${option}`}
+                      accessibilityRole="radio"
+                      accessibilityState={{ checked: period === option }}
+                      onLayout={({ nativeEvent: { layout } }) => {
+                        setPeriodLayouts(current => {
+                          const old = current[option];
+                          if (old && old.x === layout.x && old.y === layout.y && old.width === layout.width && old.height === layout.height) return current;
+                          return { ...current, [option]: layout };
+                        });
+                      }}
+                      onPress={() => {
+                        setPeriod(option);
+                        setPeriodAnchor(new Date());
+                        setHistoryPageIndex(0);
+                        setNestedHorizontalGestureActive(false);
+                      }}
+                      style={styles.periodButton}
+                    >
+                      <View style={styles.periodButtonSurface}>
+                        <Text numberOfLines={1} style={[styles.periodText, period === option && styles.periodTextActive]}>
+                          {t(option === 'all' ? 'all_time' : `item_period_${option}`)}
+                        </Text>
+                      </View>
+                    </Pressable>
+                  ))}
+                </ScrollView>
+                {history.length === 0 && <Text style={styles.emptyHistory}>{t('item_period_empty')}</Text>}
+
                 {/* Stats Grid */}
                 <View style={styles.statsGrid}>
                   <StatTile
@@ -265,7 +321,7 @@ export default function ItemAnalyticsModal({
                       {'  '}{t('price_change')}
                     </Text>
                     <LineChart
-                      key={`${itemName}-${resolvedUnit}`}
+                      key={`${itemName}-${resolvedUnit}-${period}`}
                       data={chartData}
                       height={160}
                       color={Colors.primary}
@@ -333,6 +389,7 @@ export default function ItemAnalyticsModal({
                       onLayout={event => setHistoryPageWidth(Math.round(event.nativeEvent.layout.width))}
                     >
                       <ScrollView
+                        key={`${itemName}-${resolvedUnit}-${period}`}
                         testID="purchase-history-pager"
                         horizontal
                         pagingEnabled
@@ -421,8 +478,6 @@ const getStyles = () => StyleSheet.create({
     borderTopRightRadius: 24,
     maxHeight: SCREEN_H * 0.85,
     paddingTop: Spacing.sm,
-    borderTopWidth: 1,
-    borderColor: Colors.cardBorder,
   },
   handleBar: {
     width: 40,
@@ -473,6 +528,36 @@ const getStyles = () => StyleSheet.create({
     ...Typography.labelSmall,
     color: Colors.primary,
   },
+
+  periodFilters: {
+    marginBottom: Spacing.md,
+    backgroundColor: Colors.surface,
+    borderRadius: BorderRadius.md,
+    flexGrow: 0,
+  },
+  periodFilterContent: {
+    flexDirection: 'row',
+    flexGrow: 1,
+    paddingHorizontal: Spacing.xxs,
+  },
+  periodButton: {
+    minHeight: 44,
+    flexGrow: 1,
+    justifyContent: 'center',
+    paddingHorizontal: Spacing.xxs,
+    paddingVertical: Spacing.xs,
+  },
+  periodButtonSurface: {
+    minHeight: 32,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: Spacing.xs,
+    borderRadius: BorderRadius.sm,
+  },
+  periodText: { ...Typography.labelSmall, color: Colors.textSecondary, fontFamily: FontFamily.medium },
+  periodTextActive: { color: Colors.primary },
+  emptyHistory: { ...Typography.bodyMedium, color: Colors.textSecondary, marginBottom: Spacing.lg },
 
   // Stats Grid
   statsGrid: {

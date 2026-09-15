@@ -1,4 +1,5 @@
 import React from 'react';
+import { StyleSheet } from 'react-native';
 import { fireEvent, render, within } from '@testing-library/react-native';
 
 import VendorsCard from '../VendorsCard';
@@ -21,8 +22,9 @@ jest.mock('../../VendorAvatar', () => {
 });
 jest.mock('../../DonutChart', () => {
   const React = require('react');
-  const { View } = require('react-native');
-  return ({ innerContent }: any) => React.createElement(View, null, innerContent);
+  const { View, Pressable } = require('react-native');
+  return ({ innerContent, onSelect }: any) => React.createElement(View, null, innerContent,
+    React.createElement(Pressable, { testID: 'mock-vendor-donut-select', onPress: () => onSelect(1) }));
 });
 jest.mock('../../AnimatedCard', () => {
   const React = require('react');
@@ -32,10 +34,10 @@ jest.mock('../../AnimatedCard', () => {
 jest.mock('../../BottomSheetModal', () => {
   const React = require('react');
   const { Pressable, View } = require('react-native');
-  return ({ visible, children, onDismiss }: any) => visible
+  return ({ visible, children, onDismiss, sheetStyle }: any) => visible
     ? React.createElement(
       View,
-      { testID: 'mock-bottom-sheet' },
+      { testID: 'mock-bottom-sheet', style: sheetStyle },
       children,
       React.createElement(Pressable, { testID: 'mock-bottom-sheet-dismiss', onPress: onDismiss }),
     )
@@ -136,10 +138,49 @@ describe('VendorsCard vendor pager', () => {
     await fireEvent.press(screen.getByTestId('vendor-row-3'));
     expect(handleVendorPress).toHaveBeenCalledWith(3);
   });
+
+  it('uzun adı erişilebilir tutar ve ölçülen sayfa ile sağ ok alanını sınırlar', async () => {
+    const longName = 'Örnek Uzun Satıcı ve Mağazalar Şubesi '.repeat(5);
+    const handleVendorPress = jest.fn();
+    const screen = await render(
+      <VendorsCard {...base} vendors={[{ ...vendors[0], vendor_name: longName }, ...vendors.slice(1)]}
+        prevVendorTotals={new Map([[1, 100]])} handleVendorPress={handleVendorPress} />,
+    );
+
+    // Jest native metin ölçmez; bu test genişlik/ankraj ve erişim sözleşmesidir.
+    for (const width of [280.5, 340.25]) {
+      await fireEvent(screen.getByTestId('vendor-pager-viewport'), 'layout', {
+        nativeEvent: { layout: { width } },
+      });
+      expect(screen.getByTestId('vendor-page-0')).toHaveStyle({ width, overflow: 'hidden', flexShrink: 0 });
+      expect(screen.getByTestId('vendor-page-1')).toHaveStyle({ width });
+      expect(screen.getByTestId('vendor-chevron-1')).toHaveStyle({ position: 'absolute', right: 0, width: 18 });
+    }
+    expect(screen.getByText(longName)).toHaveProp('numberOfLines', 1);
+    await fireEvent.press(screen.getByRole('button', { name: `${longName}. vendor_analysis_title` }));
+    expect(handleVendorPress).toHaveBeenCalledWith(1);
+    expect(screen.getByTestId('vendor-page-counter')).toHaveTextContent('1 / 3');
+  });
 });
 
 describe('VendorAnalyticsSheet', () => {
   beforeEach(() => mockSetNestedHorizontalGestureActive.mockClear());
+
+  it('donut seçimi ve seçimi kaldırma sırasında panel yüksekliğini korur', async () => {
+    const screen = await render(
+      <VendorAnalyticsSheet {...base} visible vendor={vendors[0]} items={items}
+        loading={false} onClose={jest.fn()} onSuspendForItem={jest.fn()} onSelectItem={jest.fn()} />,
+    );
+    const initialHeight = StyleSheet.flatten(screen.getByTestId('mock-bottom-sheet').props.style).height;
+    expect(initialHeight).toBeGreaterThan(0);
+    expect(screen.getByTestId('vendor-analytics-sheet-scroll')).toHaveStyle({ flex: 1 });
+    await fireEvent.press(screen.getByTestId('mock-vendor-donut-select'));
+    expect(within(screen.getByTestId('vendor-item-page-0')).queryByText('Ürün C')).toBeNull();
+    expect(screen.getByTestId('mock-bottom-sheet')).toHaveStyle({ height: initialHeight });
+    await fireEvent.press(screen.getByTestId('mock-vendor-donut-select'));
+    expect(within(screen.getByTestId('vendor-item-page-0')).getByText('Ürün C')).toBeTruthy();
+    expect(screen.getByTestId('mock-bottom-sheet')).toHaveStyle({ height: initialHeight });
+  });
 
   it('ürünleri varsayılan olarak alım sayısına göre beşerli sayfalara böler', async () => {
     const screen = await render(

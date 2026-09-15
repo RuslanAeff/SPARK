@@ -40,8 +40,6 @@ describe('flat settings primitives', () => {
         title="Similar products"
         description="Review saved product matches"
         icon="tag-multiple-outline"
-        iconColor="#00FF88"
-        iconBackgroundColor="#003322"
         onPress={onPress}
       />,
     );
@@ -50,5 +48,43 @@ describe('flat settings primitives', () => {
     expect(screen.getByText('Review saved product matches')).toBeTruthy();
     fireEvent.press(screen.getByTestId('flat-navigation-row'));
     expect(onPress).toHaveBeenCalledTimes(1);
+  });
+
+  // Alt sayfalarda bölüm başlıkları renkli ikon karesi taşıyor; kapılar da taşırsa
+  // ekran ayırt edilemeyen bir simge dizisine dönüşüyor.
+  it('varsayılan kapı satırı renkli ikon zemini taşımaz', async () => {
+    const screen = await render(
+      <SettingsNavigationRow
+        testID="plain-row"
+        title="Recurring payments"
+        icon="calendar-sync-outline"
+        onPress={() => {}}
+      />,
+    );
+
+    const style = StyleSheet.flatten(
+      screen.getByTestId('plain-row-icon').props.style,
+    );
+    expect(style.backgroundColor).toBeUndefined();
+    expect(style.borderRadius).toBeUndefined();
+  });
+
+  it('accent tonu ayarlar kök menüsü için renkli kareyi korur', async () => {
+    const screen = await render(
+      <SettingsNavigationRow
+        testID="accent-row"
+        title="Budget & planning"
+        icon="wallet-outline"
+        tone="accent"
+        iconColor="#00FF88"
+        iconBackgroundColor="#003322"
+        onPress={() => {}}
+      />,
+    );
+
+    const style = StyleSheet.flatten(
+      screen.getByTestId('accent-row-icon').props.style,
+    );
+    expect(style.backgroundColor).toBe('#003322');
   });
 });

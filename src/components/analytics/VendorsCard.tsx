@@ -63,7 +63,7 @@ function VendorsCard({
 
       <View
         testID="vendor-pager-viewport"
-        onLayout={event => setPageWidth(Math.round(event.nativeEvent.layout.width))}
+        onLayout={event => setPageWidth(event.nativeEvent.layout.width)}
         style={styles.vendorPagerViewport}
       >
         <ScrollView
@@ -96,7 +96,7 @@ function VendorsCard({
               style={[
                 styles.vendorPage,
                 pages.length > 1 && styles.vendorPageFixed,
-                pageWidth > 0 && { width: pageWidth },
+                { width: pageWidth },
               ]}
             >
               {page.map((vendor, rowIndex) => {
@@ -116,6 +116,7 @@ function VendorsCard({
                     accessibilityLabel={`${vendor.vendor_name}. ${t('vendor_analysis_title')}`}
                     style={({ pressed }) => [
                       styles.vendorRow,
+                      styles.vendorPagerRow,
                       isLastVisibleRow && styles.vendorRowLast,
                       pressed && styles.vendorRowPressed,
                     ]}
@@ -128,9 +129,9 @@ function VendorsCard({
                         </View>
                       )}
                     </View>
-                    <View style={styles.vendorInfo}>
+                    <View style={[styles.vendorInfo, styles.vendorPagerInfo]}>
                       <View style={styles.vendorNameRow}>
-                        <Text style={styles.vendorName} numberOfLines={1}>{vendor.vendor_name}</Text>
+                        <Text style={styles.vendorName} numberOfLines={1} ellipsizeMode="tail">{vendor.vendor_name}</Text>
                         {delta !== null && delta !== 0 && (
                           <MaterialCommunityIcons
                             name={delta > 0 ? 'arrow-up' : 'arrow-down'}
@@ -151,11 +152,13 @@ function VendorsCard({
                         />
                       </View>
                     </View>
-                    <View style={styles.vendorAmountCol}>
-                      <Text style={styles.vendorAmount}>{formatCurrency(vendor.total, currency)}</Text>
+                    <View style={[styles.vendorAmountCol, styles.vendorPagerAmountCol]}>
+                      <Text style={styles.vendorAmount} numberOfLines={1} adjustsFontSizeToFit>{formatCurrency(vendor.total, currency)}</Text>
                       <CountUpText value={vendor.percentage} suffix="%" style={styles.vendorPercent} />
                     </View>
-                    <MaterialCommunityIcons name="chevron-right" size={18} color={Colors.textMuted} />
+                    <View testID={`vendor-chevron-${vendor.vendor_id}`} style={styles.vendorChevron} pointerEvents="none">
+                      <MaterialCommunityIcons name="chevron-right" size={18} color={Colors.textMuted} />
+                    </View>
                   </Pressable>
                 );
               })}

@@ -468,6 +468,16 @@ dönüştürülmez.
 
 ## Bağımlılık ve değişiklik sınırları
 
+Kategori bazında harcama değişimi, `ExpenseDao.getCategoryChangeRows` ile
+expenses başlıklarından alınır; fiş kalemlerine join edilerek tutar çoğaltılmaz.
+Ana kategoriye LEFT JOIN kategorisiz harcamaları korur. İki dönem ekranın seri
+yenileme kuyruğunda okunur; tarih anahtarı eski sonucun yeni seçimi ezmesini
+engeller. `spendingChange.ts` tutarları minor-unit ile toplar ve iki dönemin kategori
+birleşimini kurar. Kart tam kategori listesini dört satırlık yatay sayfalarda
+sunar; eski yardımcı özet alanı görüntülenmez. Şema,
+yedekleme biçimi ve finansal olay türleri değişmez. Yıllık kart kendi açık tarih
+aralığını kullanır; diğer yıllık analizlerin tüm geçmiş sorgusunu değiştirmez.
+
 - Ekranlar hook ve component'leri birleştirebilir; domain hesapları saf yardımcı fonksiyonlara çıkarılmalıdır.
 - Component'ler veritabanı şeması veya migration kararlarının sahibi olmamalıdır.
 - DAO'lar mutasyon girdilerini doğrular ve SQL'in sahibidir; çağıranlar SQL parçalarını tekrar etmemelidir.

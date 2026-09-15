@@ -10,6 +10,7 @@ import {
   Platform,
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
 import * as Haptics from 'expo-haptics';
 import { Colors } from '../theme/colors';
 import { useAppTheme, useThemeRevision } from '../theme/themeStore';
@@ -88,21 +89,23 @@ export function SettingsInfoIconButton({ onPress, accessibilityLabel }: IconProp
         onPress();
       }}
       style={({ pressed }) => [styles.circle, pressed && styles.circlePressed]}
-      hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel}
     >
-      {/*
-        Yeşil donut (border) + kart rengi iç. Ortada metin “i” değil, MDI
-        `information` (dolu varyant — outline’tan daha kalın çizgi hissi).
-        Hafif scale ile okunaklılık artırıldı.
-      */}
-      <MaterialCommunityIcons
-        name="information"
-        size={15}
-        color={Colors.primary}
-        style={styles.infoGlyph}
-      />
+      <View style={StyleSheet.absoluteFill} pointerEvents="none" accessible={false}>
+        <Svg width="100%" height="100%">
+          <Defs>
+            <LinearGradient id="info-button-glass" x1="0" y1="0" x2="0.3" y2="1">
+              <Stop offset="0" stopColor={Colors.textPrimary} stopOpacity={0.09} />
+              <Stop offset="0.5" stopColor={Colors.textPrimary} stopOpacity={0.025} />
+              <Stop offset="1" stopColor={Colors.textPrimary} stopOpacity={0.045} />
+            </LinearGradient>
+          </Defs>
+          <Rect width="100%" height="100%" fill="url(#info-button-glass)" />
+        </Svg>
+      </View>
+      <MaterialCommunityIcons name="information-variant" size={18} color={Colors.textSecondary} />
     </Pressable>
   );
 }
@@ -110,31 +113,19 @@ export function SettingsInfoIconButton({ onPress, accessibilityLabel }: IconProp
 const getIconStyles = () =>
   StyleSheet.create({
     circle: {
-      width: 22,
-      height: 22,
-      borderRadius: 11,
+      width: 28,
+      height: 28,
+      flexShrink: 0,
+      borderRadius: 14,
       alignItems: 'center',
       justifyContent: 'center',
-      backgroundColor: Colors.cardSurface,
-      borderWidth: 2,
-      borderColor: Colors.primary,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: Colors.textSecondary + '30',
       overflow: 'hidden',
-      ...Platform.select({
-        ios: {
-          shadowColor: '#000',
-          shadowOffset: { width: 0, height: 1 },
-          shadowOpacity: 0.1,
-          shadowRadius: 2,
-        },
-        android: { elevation: 2 },
-      }),
-    },
-    infoGlyph: {
-      // Vektörde çizgi kalınlığını doğrudan artıramıyoruz; dolu ikon + hafif büyütme
-      transform: [{ scale: 1.12 }],
     },
     circlePressed: {
-      opacity: 0.86,
+      backgroundColor: Colors.primaryGlow,
+      borderColor: Colors.glassBorder,
     },
   });
 

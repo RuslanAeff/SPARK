@@ -316,6 +316,7 @@ export const CategoryColors: Record<string, string> = {
   'Sağlık': '#33FF85',
   'Medikal Ürün & Cihaz': '#1B9650',
   'Eğitim': '#00FFFF',
+  'Finans': '#3E6B8C',
   'Diğer': '#A0A0B0',
 };
 

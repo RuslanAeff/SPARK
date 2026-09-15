@@ -432,28 +432,29 @@ export default function SettingsBudgetScreen() {
                   thumbColor={goalFocusOn && goalFeatureOn ? Colors.primary : Colors.textMuted}
                 />
               </View>
+              <View style={styles.goalPreferenceDivider} />
+              {/* Hedefin asıl düzenlendiği yerin kapısı, anahtarlarıyla aynı bölümde
+                  durur: /goal-settings hem birikim hedefini hem kategori limitlerini
+                  barındırıyor, eski "kategori limitleri" adı hedefi gizliyordu. */}
+              <SettingsNavigationRow
+                testID="manage-category-limits"
+                title={t('goal_limits_entry')}
+                icon="gauge"
+                last
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  router.push('/goal-settings');
+                }}
+              />
             </SettingsSection>
           </Animated.View>
 
-          <Animated.View entering={FadeInDown.delay(210).duration(400)}>
-            <SettingsNavigationRow
-              testID="manage-category-limits"
-              title={t('goal_settings_limits_section')}
-              icon="gauge"
-              iconColor={Colors.primary}
-              iconBackgroundColor={Colors.primary + '22'}
-              onPress={() => router.push('/goal-settings')}
-            />
-          </Animated.View>
-
-          {/* Recurring payments link */}
+          {/* Komşu sayfalar: bu ekranın konusu değil, yalnız gidilecek yerler. */}
           <Animated.View entering={FadeInDown.delay(240).duration(400)}>
             <SettingsNavigationRow
               testID="manage-recurring-payments"
               title={t('subscriptions_title')}
               icon="calendar-sync-outline"
-              iconColor={Colors.chartBlue}
-              iconBackgroundColor={Colors.chartBlue + '22'}
               onPress={() => {
                 Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                 router.push('/subscriptions');
@@ -461,14 +462,11 @@ export default function SettingsBudgetScreen() {
             />
           </Animated.View>
 
-          {/* Categories link */}
           <Animated.View entering={FadeInDown.delay(280).duration(400)}>
             <SettingsNavigationRow
               testID="manage-categories"
               title={t('category_management')}
               icon="shape-outline"
-              iconColor={Colors.chartPurple}
-              iconBackgroundColor={Colors.chartPurple + '22'}
               last
               onPress={() => {
                 Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);

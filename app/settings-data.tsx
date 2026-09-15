@@ -575,8 +575,6 @@ export default function SettingsDataScreen() {
               title={t('product_match_entry_title')}
               description={t('product_match_entry_hint')}
               icon="tag-multiple-outline"
-              iconColor={Colors.primary}
-              iconBackgroundColor={Colors.primarySoft}
               onPress={() => {
                 Haptics.selectionAsync();
                 router.push('/product-matching');

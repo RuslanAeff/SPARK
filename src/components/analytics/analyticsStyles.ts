@@ -439,7 +439,8 @@ export const getAnalyticsStyles = () => StyleSheet.create({
     overflow: 'hidden',
   },
   vendorPage: {
-    width: '100%',
+    flexShrink: 0,
+    overflow: 'hidden',
   },
   vendorPageFixed: {
     minHeight: 345,
@@ -454,6 +455,29 @@ export const getAnalyticsStyles = () => StyleSheet.create({
   },
   vendorRowLast: {
     borderBottomWidth: 0,
+  },
+  vendorPagerRow: {
+    width: '100%',
+    paddingRight: 18 + Spacing.md,
+  },
+  vendorPagerInfo: {
+    // İçeriğin doğal genişliği tutarı veya sağ kenardaki oku itemez.
+    width: 0,
+    flexShrink: 1,
+    overflow: 'hidden',
+  },
+  vendorPagerAmountCol: {
+    maxWidth: '45%',
+    minWidth: 0,
+  },
+  vendorChevron: {
+    position: 'absolute',
+    right: 0,
+    top: 0,
+    bottom: 0,
+    width: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   vendorRowPressed: {
     opacity: 0.72,
@@ -489,6 +513,7 @@ export const getAnalyticsStyles = () => StyleSheet.create({
   },
   vendorInfo: {
     flex: 1,
+    minWidth: 0,
     gap: Spacing.xs,
   },
   vendorNameRow: {
@@ -498,6 +523,8 @@ export const getAnalyticsStyles = () => StyleSheet.create({
   },
   vendorName: {
     ...Typography.bodyLarge,
+    flexShrink: 1,
+    minWidth: 0,
     fontFamily: FontFamily.medium,
     color: Colors.textPrimary,
   },
@@ -512,6 +539,7 @@ export const getAnalyticsStyles = () => StyleSheet.create({
     borderRadius: 2,
   },
   vendorAmountCol: {
+    flexShrink: 0,
     alignItems: 'flex-end',
   },
   vendorAmount: {
@@ -969,6 +997,12 @@ export const getAnalyticsStyles = () => StyleSheet.create({
     gap: 6,
     minHeight: 88,
   },
+  priceTileTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 4,
+  },
   priceTileBadge: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -977,11 +1011,36 @@ export const getAnalyticsStyles = () => StyleSheet.create({
     paddingVertical: 3,
     borderRadius: BorderRadius.round,
     alignSelf: 'flex-start',
+    // Uzun yüzde ("+157.9%") dar kutuda alım sayısını dışarı itmesin.
+    flexShrink: 1,
   },
   priceTilePct: {
     ...Typography.labelMedium,
     fontFamily: FontFamily.extraBold,
     fontSize: 12,
+  },
+  priceTileCount: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 1,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: BorderRadius.round,
+    // Kutu yüzeyinden bir ton ayrışır; iki temada da görünür, hiçbirinde bağırmaz.
+    backgroundColor: Colors.surfaceLight,
+  },
+  priceTileCountMark: {
+    ...Typography.labelSmall,
+    fontFamily: FontFamily.medium,
+    color: Colors.textMuted,
+    fontSize: 10,
+  },
+  priceTileCountValue: {
+    ...Typography.labelSmall,
+    fontFamily: FontFamily.semiBold,
+    color: Colors.textSecondary,
+    fontSize: 11,
+    fontVariant: ['tabular-nums'],
   },
   priceTileName: {
     ...Typography.bodyMedium,

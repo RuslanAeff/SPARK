@@ -113,6 +113,110 @@ alanları tamamlanmadan akademik sonuç iddiasında kullanılmamalıdır.
 | `SPK-ANA-009` | Analiz sayfası harcamanın ARTTIĞINI söylüyor ama nedenini söyleyemiyordu: kullanıcı fiyat artışıyla kendi alışkanlık değişimini ayırt edemiyordu. Ayrıca kart klasöründe hiçbir yerden çağrılmayan iki kart dosyası duruyordu | Harcama değişimi Laspeyres fiyat endeksiyle iki bileşene ayrılır: fiyat etkisi `Σp₁q₀ − Σp₀q₀`, sepet etkisi `Σp₁q₁ − Σp₁q₀`; toplamları tam olarak dönem farkına eşittir, böylece kartta gösterilen üç sayı her zaman birbirini tutar. Sepet yalnız iki dönemde de alınmış kanonik ürünlerden kurulur; ölçü birimi anahtarın parçasıdır. Birim fiyatta ortalama değil medyan kullanılır, tek kampanyalı satır dönemi temsil edemez. Pencereler `resolveComparableAnalyticsRanges` ile eş tamamlanmış günlere kısılır; yarım dönem tam dönemle kıyaslanmaz. Sepetin temsil oranı kartta açıkça yazılır; payda dönemin TÜM harcaması değil kalemli harcamasıdır ve metin bunu söyler. Oran %50'nin altındaysa not uyarı tonuna geçer. Fiyat etkisi, satırda indirim verisi varsa ikiye bölünür: etiket (indirim öncesi) fiyat etkisi `Σ(l₁−l₀)q₀` ve indirim derinliği etkisi `Σ[(p₁−l₁)−(p₀−l₀)]q₀`; toplamları tam olarak ödenen fiyat etkisini verir, böylece "raf fiyatı arttı ama kampanyayla az ödedin" ayrımı yapılabilir. Etiket fiyatı ödenenden düşük gelirse veri düzeltilir, negatif indirim üretilmez. Kapsam açıklaması kartta tek satıra indirildi ("8 ürün · %34"); "kalem", "kalemsiz işlem" gibi terimleri açan uzun metin `DonutCard` ile aynı desendeki (i) simgesi/`SettingsInfoHintModal` arkasına taşındı — kullanıcı bu cümlenin anlaşılmadığını ve kartı çirkinleştirdiğini bildirdi. İndirim verisi olmayan satırlarda etiket = ödenen kabul edilir ve kart iki satıra iner. Ayrışma önce oran şeridiyle görsel olarak, sonra sayıyla verilir; manşet ile satırların aynı yüzdeyi tekrarlamaması için toplam ayrı kapanış satırındadır. Kart varsayılan aktif listeye eklenir, mevcut kullanıcıya migration ile görünür. Çağrılmayan `analytics/BudgetCard.tsx` ve `analytics/TimeOfDayCard.tsx` ile bağlı tip, stil ve dört dildeki 16 anahtar kaldırılır | Mevcut çalışma ağacı; `src/utils/personalInflation.ts`, `src/db/expenseDao.ts` (`getInflationBasketRows`), `src/components/analytics/{PersonalInflationCard,analyticsStyles,shared}.tsx`, `app/(tabs)/analytics.tsx`, dört dil kaynak/çıktıları | `AI-2026-09-05-PERSONAL-INFLATION-CARD-001`: `npm run typecheck` exit 0; `personalInflation` 11/11 ve kart 4/4 test; locale parity 12/12; tam Jest 120/120 suite ve 990/990 test geçti | Android'de gerçek fiş verisiyle: sepetin kurulup kurulmadığı, kapsam oranının makul çıkması, ölçü birimi karışık ürünlerin ayrı sepetlenmesi, dört dilde yüzde biçimi ve boş durumların doğru ayrışması bekleniyor | `E0` | Jest saf hesabı ve kart durumlarını doğrular; gerçek SQLite üzerinde kanonik ürün eşleşmesinin kapsama oranı, Gemini'nin ürettiği ürün adlarının tutarlılığı ve endeksin gerçek alışveriş geçmişinde anlamlı çıkması ancak cihaz verisiyle görülebilir. Endeks yalnız FİŞ SATIRI olan harcamaları kapsar; kalemsiz işlemler sepete girmez |
 | `SPK-DATA-001` | Kullanıcının biriken verisini temizlemesinin hiçbir yolu yoktu: yanlış/deneme kayıtlarıyla dolmuş bir defterden çıkış ancak uygulamayı silip yeniden kurmakla mümkündü, bu da tercihleri ve API anahtarını da götürüyordu | Sıfırlamanın kapsamı DAR ve yazılı bir sözleşmedir: kullanıcının girdiği finansal veri (işlem, kalem, satıcı, bütçe, borç, ödeme, ek gelir, ödeme planı, abonelik tespiti, kategori limiti, birikim hedefi, kanonik ürün/alias ve kullanıcının eklediği kategoriler) silinir; `settings` tablosu KORUNUR (dil, tema, para birimi, döngü günü, kart düzeni ve tamamlanmış migration bayrakları oradadır), sistem kategori ağacı ve SecureStore'daki Gemini anahtarı durur. Silme tek transaction'dır ve çocuk tablolar ebeveynden önce boşaltılır. Native alarm defteri (`notif_android_reminder_schedule_v1`) BİLİNÇLİ olarak silinmez — silinseydi OS'a yazılmış alarmlar öksüz kalıp bir daha iptal edilemezdi; doğru sıra veriyi silip bildirim senkronunu tetiklemek, istenen durum boşaldığı için uzlaştırıcı alarmları iptal eder. Bildirim feed'i ve kural durumu temizlenir (silinmiş borcun uyarısı listede kalmasın), susturma tercihi korunur. Arayüz kapısı üç katmanlıdır: gerçek sayımlarla ne gideceği, ne kalacağı ve onayın BASILI TUTULARAK verilmesi (1,4 sn, görünür ilerleme dolgusu). İlk tasarımda onay kelimesi yazdırılıyordu; kullanıcı bunu gereksiz sürtünme ve yetişkin kullanıcıya güvensizlik olarak nitelediği için değiştirildi — basılı tutma kazara tetiklenmeye karşı aynı korumayı verir, klavye açtırmaz ve imla istemez. Aynı gerekçeyle "Tehlikeli Bölge" başlığı kaldırıldı: bölüm eylemin kendi adını taşır, uyarı levhası bilgi vermeden ton düşürüyordu | Mevcut çalışma ağacı; `src/services/dataReset.ts`, `src/components/{DataResetModal,DataResetSection}.tsx`, `app/settings-data.tsx`, `src/components/BackupSection.tsx`, dört dil kaynak/çıktıları | `AI-2026-09-06-DATA-RESET-001`: `npm run typecheck` exit 0; sıfırlama servisi 6/6, onay penceresi 7/7 test; tam Jest 122/122 suite ve 1011/1011 test geçti | Android'de gerçek SQLite üzerinde: sıfırlama sonrası Dashboard/Analiz/İşlemler ekranlarının boş duruma dönmesi, sistem kategorilerinin ve dil/tema tercihinin korunması, planlanmış borç alarmlarının OS tepsisinden gerçekten kalkması, reboot sonrası geri gelmemesi ve yedekten geri yüklemenin sıfırlamadan sonra sorunsuz çalışması bekleniyor | `E0` | Jest `expo-sqlite` sürücüsünü mock'lar: DELETE ifadelerinin sırası ve kapsamı doğrulanır, gerçek FK cascade davranışı ve transaction'ın cihazda atomik kalması doğrulanmaz. Alarm iptali senkron uzlaştırıcıya devredilmiştir; senkron başarısız olursa alarmlar bir sonraki açılışa kadar OS'ta kalabilir. Silme geri alınamaz; tek koruma yedek almaktır |
 
+### SPK-UX-VENDOR-OVERFLOW-001 — 2026-09-15
+
+- Gereksinim: Uzun satıcı adında sağ ayrıntı oku komşu yatay sayfaya taşmamalı.
+- Karar: `DESIGN_BRIEF.md` Satıcılar / Mağazalar sözleşmesi; ölçülen genişlikte
+  sayfa, sağ kenara sabit ve yeri ayrılmış ok, sınırlı ad/tutar alanı.
+- Kod: `src/components/analytics/VendorsCard.tsx` ve `analyticsStyles.ts`.
+- Test: `src/components/analytics/__tests__/VendorsCard.test.tsx`; sentetik uzun ad,
+  iki kesirli viewport genişliği, ok ankrajı, tam ada erişim ve satır dokunuşu.
+- Sonuç/AI kaydı: `AI-2026-09-15-VENDOR-OVERFLOW-001`.
+- Kanıt sınırı: Mevcut çalışma ağacı; commit/CI artefaktı yok. Görsel çözüm iddiası
+  `E0`, cihaz kabulü bekleniyor. Önceki düzeltmenin yetersizliği kullanıcı tarafından
+  bildirildi; yeni uygulama için insan kabulü verilmedi. Otomatik test sonucu
+  native taşma/gesture kanıtı olarak değerlendirilmez.
+
+### SPK-UX-ITEM-PERIOD-001 — 2026-09-15
+
+- Gereksinim: Ürün alımlarını zamana göre inceleyebilmek.
+- Karar: `DESIGN_BRIEF.md` ürün tarih filtresi; tüm zamanlar/30/90/365 yerel gün,
+  ortak filtreli özet-grafik-kıyas-geçmiş ve ilk sayfaya dönüş.
+  Kullanıcı geri bildirimiyle görünüm ortak zeminde kompakt, tek satırlık yatay
+  şeride dönüştürüldü; metin boyutu ve en az 44 dp dokunma hedefi korunur.
+  Takip isteğiyle seçili yüzey `GlassSelectionIndicator.tsx` içinde ölçülen
+  seçenekler arasında kayan, hareket azaltma tercihine uyan cam kapsül oldu.
+  Animasyonun native modal içindeki akıcılığı ve donma kontrolü cihazda bekleniyor.
+- Kod: `src/utils/itemHistoryPeriod.ts`, `src/components/ItemAnalyticsModal.tsx`.
+- Test: `src/utils/__tests__/itemHistoryPeriod.test.ts`,
+  `src/components/__tests__/ItemAnalyticsModal.test.tsx`.
+- Sonuç: `AI-2026-09-15-ITEM-PERIOD-001`; mevcut çalışma ağacında uygulandı.
+  Cihaz ve insan kabulü yok; görsel/gesture iddiası `E0`. Otomatik kontroller
+  finansal/tarih hesapları ve React davranışını kapsar; yayın kanıtı değildir.
+
+### SPK-UX-CHART-SHEET-POLISH-001 — 2026-09-15
+
+- Gereksinim: Yakınlaştırma düğmelerini ortalamak ve hafif cam görünümü vermek;
+  analiz ayrıntı panellerinin ince üst çizgisini kaldırmak.
+- Karar/kod: `DESIGN_BRIEF.md`; `BarChart.tsx` orta sütun yerleşimi ve cam
+  düğmeler; `ItemAnalyticsModal.tsx`, `analytics/VendorAnalyticsSheet.tsx`,
+  `StreakDetailsSheet.tsx` üst kenarlıklarının kaldırılması (`src/components/`).
+- Doğrulama: Mevcut BarChart, ItemAnalyticsModal, VendorsCard ve StreakCard
+  testleri dahil tam paket; sonuç `AI-2026-09-15-CHART-SHEET-POLISH-001` kaydında.
+- Sınır: Yerel çalışma ağacı; görsel iddia `E0`, fiziksel cihaz ve insan kabulü
+  bekleniyor. Otomatik testler native üst kenar ve optik hizalama kanıtı değildir.
+
+### SPK-UX-VENDOR-SHEET-HEIGHT-001 — 2026-09-15
+
+- Gereksinim: Donut seçimi satıcı panelinin yüksekliğini azaltmamalı.
+- Karar: `DESIGN_BRIEF.md`; pencereye bağlı sabit yükseklik, esnek iç kaydırma.
+- Kod: `src/components/analytics/VendorAnalyticsSheet.tsx`.
+- Test: `src/components/analytics/__tests__/VendorsCard.test.tsx`; seçim ve seçim
+  kaldırmada filtre ile panel yükseklik sözleşmesi birlikte kontrol edilir.
+- Sonuç: `AI-2026-09-15-VENDOR-SHEET-HEIGHT-001`; mevcut çalışma ağacı.
+  Görsel iddia `E0`; fiziksel cihaz ve insan kabulü bekleniyor.
+
+### SPK-UX-INFLATION-COPY-001 — 2026-09-15
+
+- Gereksinim: Kişisel enflasyon yardımını dört dilde kısa ve anlaşılır sunmak.
+- Karar: Parametresiz kısa açıklama; karşılaştırılan ürünler ve kapsam sınırı.
+- Kod: `src/i18n/translations.ts`, EN sözlüğü, AZ/RU kaynak haritaları ve
+  üretilen locale çıktıları; hesaplama değişmedi.
+- Kanıt: `AI-2026-09-15-INFLATION-COPY-001`; locale parity ve mevcut
+  PersonalInflationCard testleri dahil tam paket. Kullanıcı dil kabulü bekleniyor;
+  mevcut çalışma ağacı, okunabilirlik iddiası için `E0`.
+
+### SPK-UX-INFO-BUTTON-GLASS-001 — 2026-09-15
+
+- Gereksinim: Ortak bilgi düğmesinde sade cam tasarımı.
+- Karar/kod: `DESIGN_BRIEF.md`, `src/components/SettingsInfoHint.tsx`;
+  nötr cam disk, yalın simge, basış vurgusu ve 44 dp genişletilmiş dokunma alanı.
+- Kanıt: `AI-2026-09-15-INFO-BUTTON-GLASS-001`; mevcut çalışma ağacı.
+  Otomatik kontroller görsel kalite kanıtı değildir; cihaz ve insan kabulü
+  bekleniyor, görsel iddia `E0`.
+
+### SPK-UX-BACKUP-REDESIGN-001 — 2026-09-15
+
+- Gereksinim: Sade yedekleme düzeni; gereksiz Özel düğmesinin kaldırılması.
+- Karar: `DESIGN_BRIEF.md`; tarih + export tek grup, restore ayrı satır,
+  doğrudan tarih düzenleme ve iptalde seçili kısayolun korunması.
+- Kod/test: `src/components/BackupSection.tsx`,
+  `src/components/__tests__/BackupSection.test.tsx`, dört dil kaynakları.
+- Sonuç: `AI-2026-09-15-BACKUP-REDESIGN-001`; yerel çalışma ağacı.
+  Görsel iddia `E0`; cihaz ve insan kabulü yok. Otomatik test gerçek dosya
+  seçici ve paylaşım ekranının kanıtı değildir.
+
+### SPK-UX-SPENDING-CHANGE-001 — 2026-09-15
+
+- Sayfa göstergesi görsel revizyonu: Kullanıcı büyük rakam/dairenin küçültülmesini
+  istedi. 12 dp rakam, 26 dp minimum hafif cam yüzey ve 44 dp minimum dokunma
+  alanı uygulandı; cihazdaki optik kabul bekleniyor.
+
+- Takip revizyonu: Kullanıcının kart yüksekliği geri bildirimiyle dikey
+  genişletme kaldırıldı; dört kategorilik yatay sayfalar ve numaralı geçiş
+  eklendi. Son sayfa yüksekliği ve sayfalar arasında çubuk ölçeği korunur.
+  Güncel kart testi sayfalama/seçim/sıfırlamayı kapsar; native gesture kabulü bekleniyor.
+
+- Gereksinim: Harcama değişiminin kategori kaynaklarını açıklayan yeni kart.
+- Karar: `DESIGN_BRIEF.md`; karşılaştırılabilir günler, net fark ve kategori
+  katkıları; kalanların toplamını koruyan kısaltma ve genişletme.
+- Kod: `SpendingChangeCard.tsx`, `spendingChange.ts`, `ExpenseDao.getCategoryChangeRows`,
+  analiz ekranının kart listesi ve seri yenileme akışı.
+- Test: `src/utils/__tests__/spendingChange.test.ts`,
+  `src/components/analytics/__tests__/SpendingChangeCard.test.tsx`.
+- Sonuç: `AI-2026-09-15-SPENDING-CHANGE-001`; yerel çalışma ağacı. Görsel iddia
+  `E0`; cihaz ve kullanıcı kabulü bekleniyor. Diğer öneri kartları kapsam dışı.
+
 ## 6. Yeni izlenebilirlik kaydı şablonu
 
 Her yeni özellik, hata düzeltmesi veya araştırma için aşağıdaki blok kopyalanır.

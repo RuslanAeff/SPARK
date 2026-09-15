@@ -36,6 +36,7 @@ import {
   type BackupMeta,
   type BackupReminderInterval,
 } from '../services/backupMeta';
+import { createSusevarStyles } from '../theme/susevar';
 import { intlLocaleForLanguage } from '../i18n/languageOptions';
 
 function ymd(d: Date): string {
@@ -126,7 +127,14 @@ export default function BackupSection() {
     }
   }
 
-  function applyPreset(p: PresetId) {
+  function formatRangeDate(value: string): string {
+    const [year, month, day] = value.split('-').map(Number);
+    return new Intl.DateTimeFormat(intlLocaleForLanguage(language), {
+      day: 'numeric', month: 'short', year: 'numeric',
+    }).format(new Date(year, month - 1, day));
+  }
+
+  function applyPreset(p: Exclude<PresetId, 'custom'>) {
     setPreset(p);
     Haptics.selectionAsync();
     switch (p) {
@@ -145,8 +153,6 @@ export default function BackupSection() {
       case 'this_year':
         setStartDate(startOfYear());
         setEndDate(ymd(new Date()));
-        break;
-      case 'custom':
         break;
     }
   }
@@ -265,12 +271,11 @@ export default function BackupSection() {
     }
   }
 
-  const presets: { id: PresetId; label: string; icon: string }[] = [
-    { id: 'this_month', label: t('backup_preset_this_month'), icon: 'calendar-month' },
-    { id: 'last_month', label: t('backup_preset_last_month'), icon: 'calendar-arrow-left' },
-    { id: 'last_3_months', label: t('backup_preset_last_3'), icon: 'calendar-range' },
-    { id: 'this_year', label: t('backup_preset_this_year'), icon: 'calendar-star' },
-    { id: 'custom', label: t('backup_preset_custom'), icon: 'calendar-edit' },
+  const presets: { id: Exclude<PresetId, 'custom'>; label: string }[] = [
+    { id: 'this_month', label: t('backup_preset_this_month') },
+    { id: 'last_month', label: t('backup_preset_last_month') },
+    { id: 'last_3_months', label: t('backup_preset_last_3') },
+    { id: 'this_year', label: t('backup_preset_this_year') },
   ];
 
   return (
@@ -318,90 +323,109 @@ export default function BackupSection() {
         </View>
       )}
 
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.presetsRow}
+      <View style={styles.exportCard}>
+        <Text style={styles.groupTitle}>{t('backup_range_title')}</Text>
+        <ScrollView
+          horizontal
+          style={styles.presetsViewport}
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.presetsRow}
+        >
+          {presets.map(p => {
+            const active = preset === p.id;
+            return (
+              <Pressable
+                key={p.id}
+                testID={`backup-preset-${p.id}`}
+                accessibilityRole="button"
+                accessibilityState={{ selected: active, disabled: exporting || importing }}
+                disabled={exporting || importing}
+                onPress={() => applyPreset(p.id)}
+                style={({ pressed }) => [styles.presetChip, active && styles.presetChipActive, pressed && styles.pressed]}
+              >
+                <Text style={[styles.presetChipText, active && styles.presetChipTextActive]}>
+                  {p.label}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </ScrollView>
+
+        <View style={styles.rangeRow}>
+          <Pressable
+            testID="backup-start-date"
+            accessibilityRole="button"
+            accessibilityLabel={`${t('backup_start_date')}: ${startDate}`}
+            disabled={exporting || importing}
+            onPress={() => setStartPickerOpen(true)}
+            style={({ pressed }) => [styles.dateBtn, pressed && styles.pressed]}
+          >
+            <View style={{ flex: 1 }}>
+              <Text style={styles.dateLabel}>{t('backup_start_date')}</Text>
+              <Text style={styles.dateValue} numberOfLines={1} adjustsFontSizeToFit>{formatRangeDate(startDate)}</Text>
+            </View>
+          </Pressable>
+          <View style={styles.rangeDivider} />
+          <Pressable
+            testID="backup-end-date"
+            accessibilityRole="button"
+            accessibilityLabel={`${t('backup_end_date')}: ${endDate}`}
+            disabled={exporting || importing}
+            onPress={() => setEndPickerOpen(true)}
+            style={({ pressed }) => [styles.dateBtn, pressed && styles.pressed]}
+          >
+            <View style={{ flex: 1 }}>
+              <Text style={styles.dateLabel}>{t('backup_end_date')}</Text>
+              <Text style={styles.dateValue} numberOfLines={1} adjustsFontSizeToFit>{formatRangeDate(endDate)}</Text>
+            </View>
+          </Pressable>
+        </View>
+
+        <View style={styles.actionsRow}>
+          <Pressable
+            testID="backup-export"
+            accessibilityRole="button"
+            accessibilityState={{ disabled: exporting || importing, busy: exporting }}
+            onPress={requestExport}
+            disabled={exporting || importing}
+            style={[styles.actionBtn, styles.exportBtn, (exporting || importing) && styles.btnDisabled]}
+          >
+            {exporting ? (
+              <ActivityIndicator color={Colors.onPrimary} />
+            ) : (
+              <>
+                <MaterialCommunityIcons name="tray-arrow-up" size={18} color={Colors.onPrimary} />
+                <Text style={[styles.actionText, { color: Colors.onPrimary }]}>
+                  {t('backup_export_btn')}
+                </Text>
+              </>
+            )}
+          </Pressable>
+        </View>
+      </View>
+      <Pressable
+        testID="backup-import"
+        accessibilityRole="button"
+        accessibilityState={{ disabled: exporting || importing, busy: importing }}
+        onPress={() => setImportConfirm(true)}
+        disabled={exporting || importing}
+        style={[styles.importBtn, (exporting || importing) && styles.btnDisabled]}
       >
-        {presets.map(p => {
-          const active = preset === p.id;
-          return (
-            <Pressable
-              key={p.id}
-              onPress={() => applyPreset(p.id)}
-              style={[styles.presetChip, active && styles.presetChipActive]}
-            >
-              <MaterialCommunityIcons
-                name={p.icon as any}
-                size={14}
-                color={active ? Colors.primary : Colors.textSecondary}
-              />
-              <Text style={[styles.presetChipText, active && styles.presetChipTextActive]}>
-                {p.label}
-              </Text>
-            </Pressable>
-          );
-        })}
-      </ScrollView>
-
-      <View style={styles.rangeRow}>
-        <Pressable
-          onPress={() => { setPreset('custom'); setStartPickerOpen(true); }}
-          style={styles.dateBtn}
-        >
-          <MaterialCommunityIcons name="calendar-start" size={18} color={Colors.primary} />
-          <View style={{ flex: 1 }}>
-            <Text style={styles.dateLabel}>{t('backup_start_date')}</Text>
-            <Text style={styles.dateValue}>{startDate}</Text>
-          </View>
-        </Pressable>
-        <MaterialCommunityIcons name="arrow-right" size={18} color={Colors.textMuted} />
-        <Pressable
-          onPress={() => { setPreset('custom'); setEndPickerOpen(true); }}
-          style={styles.dateBtn}
-        >
-          <MaterialCommunityIcons name="calendar-end" size={18} color={Colors.primary} />
-          <View style={{ flex: 1 }}>
-            <Text style={styles.dateLabel}>{t('backup_end_date')}</Text>
-            <Text style={styles.dateValue}>{endDate}</Text>
-          </View>
-        </Pressable>
-      </View>
-
-      <View style={styles.actionsRow}>
-        <Pressable
-          onPress={requestExport}
-          disabled={exporting || importing}
-          style={[styles.actionBtn, styles.exportBtn, (exporting || importing) && styles.btnDisabled]}
-        >
-          {exporting ? (
-            <ActivityIndicator color={Colors.onPrimary} />
-          ) : (
-            <>
-              <MaterialCommunityIcons name="tray-arrow-up" size={18} color={Colors.onPrimary} />
-              <Text style={[styles.actionText, { color: Colors.onPrimary }]}>
-                {t('backup_export_btn')}
-              </Text>
-            </>
-          )}
-        </Pressable>
-        <Pressable
-          onPress={() => setImportConfirm(true)}
-          disabled={exporting || importing}
-          style={[styles.actionBtn, styles.importBtn, (exporting || importing) && styles.btnDisabled]}
-        >
-          {importing ? (
-            <ActivityIndicator color={Colors.primary} />
-          ) : (
-            <>
-              <MaterialCommunityIcons name="tray-arrow-down" size={18} color={Colors.primary} />
-              <Text style={[styles.actionText, { color: Colors.primary }]}>
-                {t('backup_import_btn')}
-              </Text>
-            </>
-          )}
-        </Pressable>
-      </View>
+        {importing ? (
+          <ActivityIndicator color={Colors.primary} />
+        ) : (
+          <>
+            <View style={styles.restoreIcon}>
+              <MaterialCommunityIcons name="tray-arrow-down" size={20} color={Colors.textSecondary} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.restoreTitle}>{t('backup_import_btn')}</Text>
+              <Text style={styles.restoreHint}>{t('backup_restore_hint')}</Text>
+            </View>
+            <MaterialCommunityIcons name="chevron-right" size={18} color={Colors.textMuted} />
+          </>
+        )}
+      </Pressable>
 
       {/* Yedek hatırlatıcı seçimi (off / weekly / monthly) */}
       <View style={styles.reminderRow}>
@@ -415,6 +439,8 @@ export default function BackupSection() {
             return (
               <Pressable
                 key={opt}
+                accessibilityRole="radio"
+                accessibilityState={{ checked: active }}
                 onPress={() => handleReminderChange(opt)}
                 style={[styles.reminderChip, active && styles.reminderChipActive]}
               >
@@ -443,13 +469,13 @@ export default function BackupSection() {
         visible={startPickerOpen}
         onClose={() => setStartPickerOpen(false)}
         initialDate={startDate}
-        onSelectDate={(d) => setStartDate(d)}
+        onSelectDate={(d) => { setStartDate(d); setPreset('custom'); }}
       />
       <CustomDatePicker
         visible={endPickerOpen}
         onClose={() => setEndPickerOpen(false)}
         initialDate={endDate}
-        onSelectDate={(d) => setEndDate(d)}
+        onSelectDate={(d) => { setEndDate(d); setPreset('custom'); }}
       />
 
       <ConfirmModal
@@ -480,8 +506,9 @@ export default function BackupSection() {
   );
 }
 
-const getStyles = () =>
-  StyleSheet.create({
+const getStyles = () => {
+  const primary = createSusevarStyles(Colors);
+  return StyleSheet.create({
     sectionHeader: {
       flexDirection: 'row',
       alignItems: 'center',
@@ -502,26 +529,31 @@ const getStyles = () =>
       flex: 1,
       flexShrink: 1,
     },
+    exportCard: {
+      backgroundColor: Colors.surface,
+      borderRadius: BorderRadius.xl,
+      padding: Spacing.md,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: Colors.divider,
+    },
+    groupTitle: { ...Typography.labelMedium, color: Colors.textSecondary, marginBottom: Spacing.sm },
+    presetsViewport: { flexGrow: 0 },
     presetsRow: {
       flexDirection: 'row',
       gap: Spacing.xs,
       paddingVertical: Spacing.xs,
-      paddingRight: Spacing.md,
+      paddingRight: Spacing.xs,
     },
     presetChip: {
       flexDirection: 'row',
       alignItems: 'center',
       gap: 6,
       paddingHorizontal: Spacing.md,
-      paddingVertical: Spacing.xs,
+      minHeight: 44,
       borderRadius: BorderRadius.round,
-      backgroundColor: Colors.surfaceLight,
-      borderWidth: 1,
-      borderColor: Colors.cardBorder,
     },
     presetChipActive: {
       backgroundColor: Colors.primary + '1C',
-      borderColor: Colors.primary,
     },
     presetChipText: {
       ...Typography.labelSmall,
@@ -535,9 +567,12 @@ const getStyles = () =>
     rangeRow: {
       flexDirection: 'row',
       alignItems: 'center',
-      gap: Spacing.sm,
-      marginTop: Spacing.md,
+      marginTop: Spacing.sm,
+      backgroundColor: Colors.surfaceLight,
+      borderRadius: BorderRadius.lg,
+      overflow: 'hidden',
     },
+    rangeDivider: { width: StyleSheet.hairlineWidth, height: 32, backgroundColor: Colors.border },
     dateBtn: {
       flex: 1,
       flexDirection: 'row',
@@ -547,14 +582,12 @@ const getStyles = () =>
       borderRadius: BorderRadius.md,
       paddingHorizontal: Spacing.md,
       paddingVertical: Spacing.sm,
-      borderWidth: 1,
-      borderColor: Colors.cardBorder,
+      minHeight: 64,
     },
     dateLabel: {
       ...Typography.labelSmall,
       color: Colors.textMuted,
-      textTransform: 'uppercase',
-      letterSpacing: 0.5,
+      marginBottom: Spacing.xs,
     },
     dateValue: {
       ...Typography.bodyMedium,
@@ -575,18 +608,20 @@ const getStyles = () =>
       paddingVertical: Spacing.md,
       borderRadius: BorderRadius.lg,
     },
-    exportBtn: {
-      backgroundColor: Colors.primaryAction,
-    },
+    exportBtn: primary.button,
+    actionText: { ...primary.text, flexShrink: 1, textAlign: 'center' },
     importBtn: {
-      backgroundColor: Colors.primary + '18',
-      borderWidth: 1,
-      borderColor: Colors.primary,
+      flexDirection: 'row', alignItems: 'center', gap: Spacing.md,
+      marginTop: Spacing.md, paddingVertical: Spacing.md,
+      minHeight: 64,
     },
-    actionText: {
-      ...Typography.labelLarge,
-      fontFamily: FontFamily.bold,
+    restoreIcon: {
+      width: 40, height: 40, borderRadius: 20,
+      backgroundColor: Colors.surfaceLight, alignItems: 'center', justifyContent: 'center',
     },
+    restoreTitle: { ...Typography.bodyMedium, color: Colors.textPrimary, fontFamily: FontFamily.semiBold },
+    restoreHint: { ...Typography.labelSmall, color: Colors.textSecondary, marginTop: Spacing.xs },
+    pressed: { opacity: 0.75 },
     btnDisabled: {
       opacity: 0.55,
     },
@@ -644,6 +679,9 @@ const getStyles = () =>
       fontFamily: FontFamily.semiBold,
     },
     reminderChips: {
+      padding: 3,
+      borderRadius: BorderRadius.round,
+      backgroundColor: Colors.surfaceLight,
       flexDirection: 'row',
       gap: Spacing.xs,
     },
@@ -651,15 +689,13 @@ const getStyles = () =>
       flex: 1,
       paddingVertical: Spacing.sm,
       paddingHorizontal: Spacing.sm,
-      borderRadius: BorderRadius.md,
-      backgroundColor: Colors.surfaceLight,
-      borderWidth: 1,
-      borderColor: Colors.cardBorder,
+      borderRadius: BorderRadius.round,
+      minHeight: 44,
+      justifyContent: 'center',
       alignItems: 'center',
     },
     reminderChipActive: {
       backgroundColor: Colors.primary + '1C',
-      borderColor: Colors.primary,
     },
     reminderChipText: {
       ...Typography.labelSmall,
@@ -671,3 +707,4 @@ const getStyles = () =>
       fontFamily: FontFamily.bold,
     },
   });
+};

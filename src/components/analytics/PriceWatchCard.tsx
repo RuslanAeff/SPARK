@@ -135,26 +135,41 @@ function PriceWatchCard({ styles, t, currency, priceChanges, onSelectItem }: Pri
                 }}
                 style={({ pressed }) => [styles.priceTileInner, pressed && { opacity: 0.88 }]}
               >
-                <View
-                  style={[
-                    styles.priceTileBadge,
-                    { backgroundColor: isUp ? Colors.danger + '18' : Colors.success + '18' },
-                  ]}
-                >
-                  <MaterialCommunityIcons
-                    name={isUp ? 'arrow-up' : 'arrow-down'}
-                    size={12}
-                    color={isUp ? Colors.danger : Colors.success}
-                  />
-                  <Text
+                <View style={styles.priceTileTop}>
+                  <View
                     style={[
-                      styles.priceTilePct,
-                      { color: isUp ? Colors.danger : Colors.success },
+                      styles.priceTileBadge,
+                      { backgroundColor: isUp ? Colors.danger + '18' : Colors.success + '18' },
                     ]}
                   >
-                    {isUp ? '+' : ''}
-                    {pc.changePct}%
-                  </Text>
+                    <MaterialCommunityIcons
+                      name={isUp ? 'arrow-up' : 'arrow-down'}
+                      size={12}
+                      color={isUp ? Colors.danger : Colors.success}
+                    />
+                    <Text
+                      style={[
+                        styles.priceTilePct,
+                        { color: isUp ? Colors.danger : Colors.success },
+                      ]}
+                    >
+                      {isUp ? '+' : ''}
+                      {pc.changePct}%
+                    </Text>
+                  </View>
+                  {/* Yüzde kaç gözleme dayanıyor: iki alımlık bir sıçrama ile uzun
+                      seriyi ayırt etmeyi sağlar. Yüzde rozetinin nötr eşi — aynı
+                      form, renk yok; hiyerarşi bozulmadan satır dengelenir. */}
+                  <View
+                    accessible
+                    accessibilityLabel={t('price_watch_purchase_count', {
+                      count: String(pc.purchaseCount),
+                    })}
+                    style={styles.priceTileCount}
+                  >
+                    <Text style={styles.priceTileCountMark}>×</Text>
+                    <Text style={styles.priceTileCountValue}>{pc.purchaseCount}</Text>
+                  </View>
                 </View>
                 <Text style={styles.priceTileName} numberOfLines={2}>
                   {displayName}
