@@ -1,0 +1,15 @@
+Execution date: 2026-09-19 (Europe/Warsaw)
+New thesis verification, not evidence of a historical test run.
+Native APIs mocked.
+
+> spark-finance@3.3.0 test
+> node scripts/run-jest.cjs --ci --coverage=false --runInBand secureKeyStore SettingsAiScreen
+
+PASS src/components/__tests__/SettingsAiScreen.test.tsx
+PASS src/services/__tests__/secureKeyStore.test.ts
+
+Test Suites: 2 passed, 2 total
+Tests:       6 passed, 6 total
+Snapshots:   0 total
+Time:        0.504 s, estimated 1 s
+Ran all test suites matching /secureKeyStore|SettingsAiScreen/i.

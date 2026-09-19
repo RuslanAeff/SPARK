@@ -26,6 +26,7 @@ Bir kararı değiştirirken eski ADR sessizce yeniden yazılmaz. Yeni ADR oluşt
 | [ADR-008](ADR-008-immutable-budget-periods.md) | Accepted · prospective | Tarihsel bütçe dönemleri ve başlangıç günü değişiklikleri | Yeni gelir gününün yalnız yeni dönemi etkilemesini, geçmiş aralıkların değişmemesini sağlar. |
 | [ADR-009](ADR-009-receipt-item-measurement-units.md) | Accepted · prospective | Fiş kalemi ölçüsü, kanonik birim fiyat ve fiyat geçmişi | Gramajlı ürünü adet gibi göstermeyi ve uyumsuz ölçülerin aynı fiyat serisinde birleşmesini engeller. |
 | [ADR-010](ADR-010-canonical-product-identity.md) | Accepted · prospective | Kanonik ürün, alias öğrenimi, AI önerisi ve kullanıcı merge/split sınırı | Yazım farklarının fiyat geçmişini bölmesini azaltırken farklı ölçü, paket ve varyantların sessizce birleşmesini engeller. |
+| [ADR-012](ADR-012-ai-transfer-service-and-market-scope.md) | Accepted · prospective | Desteklenen Gemini katmanı, global pazar kapsamı ve aktarım metinlerinin içeriği | Ücretsiz katmanda kişisel finansal verinin insan incelemesine açık olduğunu dört dilde açıkça yazar; kararı kullanıcıya devreden belirsiz ifadeyi engeller. |
 
 ## ADR ekleme kontrol listesi
 
@@ -34,3 +35,6 @@ Bir kararı değiştirirken eski ADR sessizce yeniden yazılmaz. Yeni ADR oluşt
 3. Özgün karar sonradan kayda geçiriliyorsa `retrospective` yaz; bilinmeyen tarih veya commit üretme.
 4. Kaynak kod, test ve ilgili rehber yollarını kanıt olarak ekle.
 5. Uygulama davranışını değiştiren ADR ile kod/test değişikliklerini aynı çalışma kapsamında doğrula.
+
+- [ADR-011 — Yerel veri güvenlik sınırları](ADR-011-local-data-security-boundaries.md): uygulandı; native doğrulama ve ürün kabulü açık.
+- [ADR-012 — AI aktarımında hizmet katmanı ve pazar kapsamı](ADR-012-ai-transfer-service-and-market-scope.md): ücretsiz katman serbest, pazar global; canlı metin ve Play beyanı açık.

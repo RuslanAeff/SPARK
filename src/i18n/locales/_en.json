@@ -353,7 +353,7 @@
   "api_key_empty": "API key cannot be empty.",
   "api_key_saved": "Gemini API connection established",
   "api_key_ready": "Receipt parsing AI is ready.",
-  "api_key_help": "No key yet? You can create one for free in Google AI Studio.",
+  "api_key_help": "You can create a key in Google AI Studio. Receipts may contain personal or sensitive data. On the free tier Google may use what you send, including human review, to improve its services; it does not on a paid tier. A paid key is recommended for sensitive receipts.",
   "api_key_get": "Get a key in Google AI Studio",
   "theme_title": "Theme Appearance",
   "theme_auto": "Automatic",
@@ -936,5 +936,9 @@
   "spending_change_unchanged": "No category differences in this range.",
   "spending_change_all": "Show all categories",
   "spending_change_less": "Show less",
-  "spending_change_info": "Increases and decreases by category add up to your total spending change. The same number of days is compared in both periods, excluding today. The yearly view compares this year with last year."
+  "spending_change_info": "Increases and decreases by category add up to your total spending change. The same number of days is compared in both periods, excluding today. The yearly view compares this year with last year.",
+  "ai_transfer_title": "Send data to Google Gemini",
+  "ai_transfer_receipt": "The receipt photo, including its vendor, products, date, amounts and any personal information, will be sent to Google Gemini to extract receipt details. You can cancel and enter the expense manually. On the free Gemini tier Google may use this content, including human review, to improve its services; it does not on a paid tier. The data is transferred to Google servers abroad.",
+  "ai_transfer_products": "The names, brands, variants, package descriptions and measurement units of the two selected products will be sent to Google Gemini for comparison advice. Amounts, vendors and price history are not sent. You can cancel and continue matching locally. On the free Gemini tier Google may use this content, including human review, to improve its services. The data is transferred to servers abroad.",
+  "ai_transfer_send": "Send"
 }

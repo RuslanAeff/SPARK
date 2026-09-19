@@ -1,3 +1,5 @@
+import { removeReceiptCopy } from '../../src/services/temporaryFiles';
+import { confirmAiTransfer } from '../../src/utils/confirmAiTransfer';
 // S.P.A.R.K. — Receipt Scanner Screen
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import {
@@ -44,11 +46,13 @@ type ScanState = 'idle' | 'processing' | 'result' | 'error' | 'no_key';
 const CAMERA_RESULT_TIMEOUT_MS = 120_000;
 const SCAN_TOTAL_TIMEOUT_MS = 90_000;
 
-function waitForPickerResult<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
+function waitForPickerResult<T>(promise: Promise<T>, timeoutMs: number, onLate?: (value: T) => void): Promise<T> {
   return new Promise<T>((resolve, reject) => {
-    const timer = setTimeout(() => reject(new Error('CAMERA_RESULT_TIMEOUT')), timeoutMs);
+    let expired = false;
+    const timer = setTimeout(() => { expired = true; reject(new Error('CAMERA_RESULT_TIMEOUT')); }, timeoutMs);
     promise.then(
       (value) => {
+        if (expired) onLate?.(value);
         clearTimeout(timer);
         resolve(value);
       },
@@ -133,6 +137,11 @@ export default function ScannerScreen() {
   const [errorMsg, setErrorMsg] = useState('');
   const [sourceBusy, setSourceBusy] = useState(false);
   const [resultBusy, setResultBusy] = useState(false);
+  const receiptCopyRef = useRef<string | null>(null);
+  const replaceReceiptCopy = (uri: string | null) => {
+    if (receiptCopyRef.current !== uri) void removeReceiptCopy(receiptCopyRef.current);
+    receiptCopyRef.current = uri;
+  };
   const timersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
   const sourceBusyRef = useRef(false);
   const resultBusyRef = useRef(false);
@@ -144,6 +153,7 @@ export default function ScannerScreen() {
 
   useEffect(() => {
     return () => {
+      replaceReceiptCopy(null);
       mountedRef.current = false;
       scanIdRef.current += 1;
       timersRef.current.forEach(clearTimeout);
@@ -157,8 +167,9 @@ export default function ScannerScreen() {
   ) => {
     const isCurrent = () => mountedRef.current && scanIdRef.current === scanId;
     const hasKey = await hasApiKey();
-    if (!isCurrent()) return;
+    if (!isCurrent()) { await removeReceiptCopy(asset.uri); return; }
     if (!hasKey) {
+      await removeReceiptCopy(asset.uri);
       setScanSessionError(null);
       setErrorMsg(t('no_api_key_msg'));
       setState('no_key');
@@ -178,11 +189,16 @@ export default function ScannerScreen() {
     setScanSessionError(null);
 
     try {
+      if (!await confirmAiTransfer(t, 'receipt', controller.signal) || !isCurrent()) {
+        if (isCurrent()) { setState('idle'); replaceReceiptCopy(null); setImageUri(null); }
+        return;
+      }
       const base64 = await compressImageToBase64(asset.uri, {
         width: asset.width,
         height: asset.height,
         signal: controller.signal,
       });
+      if (!isCurrent() || controller.signal.aborted) return;
       const parsed = await parseReceipt(base64, language, controller.signal);
       if (!isCurrent() || controller.signal.aborted) return;
       setResult(parsed);
@@ -203,6 +219,9 @@ export default function ScannerScreen() {
       setState('error');
     } finally {
       clearTimeout(totalTimeout);
+      await removeReceiptCopy(asset.uri);
+      if (receiptCopyRef.current === asset.uri) receiptCopyRef.current = null;
+      if (isCurrent()) setImageUri(null);
       if (abortRef.current === controller) abortRef.current = null;
     }
   }, [language, t]);
@@ -226,6 +245,7 @@ export default function ScannerScreen() {
         pickerResult = await waitForPickerResult(
           ImagePicker.launchCameraAsync({ quality: 1, base64: false }),
           CAMERA_RESULT_TIMEOUT_MS,
+          late => { for (const image of late.assets ?? []) void removeReceiptCopy(image.uri); },
         );
       } else {
         const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -244,7 +264,10 @@ export default function ScannerScreen() {
         scanIdRef.current !== scanId
         || pickerResult.canceled
         || !pickerResult.assets?.[0]?.uri
-      ) return;
+      ) {
+        for (const image of pickerResult.assets ?? []) void removeReceiptCopy(image.uri);
+        return;
+      }
       asset = pickerResult.assets[0];
     } catch (error) {
       if (scanIdRef.current !== scanId) return;
@@ -266,6 +289,7 @@ export default function ScannerScreen() {
     if (asset && scanIdRef.current === scanId) {
       timersRef.current.forEach(clearTimeout);
       timersRef.current = [];
+      replaceReceiptCopy(asset.uri);
       setImageUri(asset.uri);
       await processImage(asset, scanId);
     }
@@ -285,7 +309,12 @@ export default function ScannerScreen() {
       recoveringPendingRef.current = true;
       try {
         const pending = await ImagePicker.getPendingResultAsync();
-        if (!active || !mountedRef.current || !pending) return;
+        if (!active || !mountedRef.current || !pending) {
+          if (pending && 'assets' in pending) {
+            for (const image of pending.assets ?? []) void removeReceiptCopy(image.uri);
+          }
+          return;
+        }
         if ('code' in pending) {
           const message = t('camera_result_recovery_failed');
           setScanSessionError(message);
@@ -297,6 +326,7 @@ export default function ScannerScreen() {
         const scanId = scanIdRef.current + 1;
         scanIdRef.current = scanId;
         const recoveredAsset = pending.assets[0];
+        replaceReceiptCopy(recoveredAsset.uri);
         setImageUri(recoveredAsset.uri);
         await processImage(recoveredAsset, scanId);
       } catch {
@@ -331,6 +361,7 @@ export default function ScannerScreen() {
     setState('idle');
     setResult(null);
     setErrorMsg('');
+    replaceReceiptCopy(null);
     setImageUri(null);
   }
 
@@ -349,7 +380,8 @@ export default function ScannerScreen() {
       SparkToast.show(t('receipt_parsed'), 'success', `${receiptToSave.vendor_name} • ${receiptToSave.items?.length || 0}`);
       setState('idle');
       setResult(null);
-      setImageUri(null);
+      replaceReceiptCopy(null);
+    setImageUri(null);
     } catch (e) {
       SparkToast.show(t('error_saving_data'), 'error');
     } finally {
@@ -374,7 +406,8 @@ export default function ScannerScreen() {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       setState('idle');
       setResult(null);
-      setImageUri(null);
+      replaceReceiptCopy(null);
+    setImageUri(null);
       router.push(`/add-expense?id=${expenseId}`);
     } catch (e) {
       SparkToast.show(t('error_saving_data'), 'error');

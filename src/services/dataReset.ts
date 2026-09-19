@@ -1,3 +1,4 @@
+import { purgeBackupCopies } from './temporaryFiles';
 // S.P.A.R.K. — Tüm finansal verilerin sıfırlanması
 //
 // Geri alınamaz tek yıkıcı işlem burada tanımlıdır. Kapsam BİLİNÇLİ olarak
@@ -127,4 +128,5 @@ export async function resetAllUserData(): Promise<void> {
       await db.runAsync('DELETE FROM settings WHERE key = ?', [key]);
     }
   });
+  await purgeBackupCopies(true);
 }

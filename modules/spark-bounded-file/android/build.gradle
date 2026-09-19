@@ -1,0 +1,8 @@
+plugins {
+  id 'com.android.library'
+  id 'expo-module-gradle-plugin'
+}
+
+group = 'expo.modules.sparkboundedfile'
+version = '1.0.0'
+android { namespace 'expo.modules.sparkboundedfile' }

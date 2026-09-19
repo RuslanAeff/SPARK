@@ -1078,7 +1078,7 @@
   "budget_deleted": "Büdcə hədəfi silindi",
   "budget_conflict_badge": "Toqquşur",
   "budget_history_select": "{period} dövrünü redaktə et",
-  "api_key_help": "Açarınız yoxdur? Google AI Studio vasitəsilə pulsuz yarada bilərsiniz.",
+  "api_key_help": "Google AI Studio-da açar yarada bilərsiniz. Qəbzdə şəxsi və ya həssas məlumat ola bilər. Ödənişsiz səviyyədə Google göndərdiyinizi, insan baxışı da daxil olmaqla, xidmətlərini təkmilləşdirmək üçün istifadə edə bilər; ödənişli səviyyədə etmir. Həssas qəbzlər üçün ödənişli açar tövsiyə olunur.",
   "api_key_get": "Google AI Studio-da açar al",
   "card_personal_inflation": "Şəxsi inflyasiya",
   "inflation_card_title": "ŞƏXSİ İNFLYASİYA",
@@ -1147,5 +1147,9 @@
   "spending_change_unchanged": "Bu aralıqda kateqoriyalar üzrə fərq yoxdur.",
   "spending_change_all": "Bütün kateqoriyaları göstər",
   "spending_change_less": "Daha az göstər",
-  "spending_change_info": "Kateqoriyalar üzrə artım və azalmalar ümumi xərc fərqini təşkil edir. Bu gün istisna olmaqla, hər iki dövrün eyni sayda günü müqayisə edilir. İllik görünüş bu ili keçən illə müqayisə edir."
+  "spending_change_info": "Kateqoriyalar üzrə artım və azalmalar ümumi xərc fərqini təşkil edir. Bu gün istisna olmaqla, hər iki dövrün eyni sayda günü müqayisə edilir. İllik görünüş bu ili keçən illə müqayisə edir.",
+  "ai_transfer_title": "Google Gemini-yə məlumat göndərilməsi",
+  "ai_transfer_receipt": "Qəbzin şəkli, üzərindəki satıcı, məhsullar, tarix, məbləğlər və şəxsi məlumatlarla birlikdə qəbzi təhlil etmək üçün Google Gemini-yə göndəriləcək. Ləğv edib xərci əl ilə daxil edə bilərsiniz. Ödənişsiz Gemini səviyyəsində Google bu məzmunu, insan baxışı da daxil olmaqla, xidmətlərini təkmilləşdirmək üçün istifadə edə bilər; ödənişli səviyyədə etmir. Məlumat Google-un xaricdəki serverlərinə ötürülür.",
+  "ai_transfer_products": "Seçilmiş iki məhsulun adı, markası, variantı, qablaşdırma təsviri və ölçü vahidi müqayisə tövsiyəsi üçün Google Gemini-yə göndəriləcək. Məbləğ, satıcı və qiymət tarixçəsi göndərilmir. Ləğv edib yerli uyğunlaşdırmaya davam edə bilərsiniz. Ödənişsiz Gemini səviyyəsində Google bu məzmunu, insan baxışı da daxil olmaqla, xidmətlərini təkmilləşdirmək üçün istifadə edə bilər. Məlumat xaricdəki serverlərə ötürülür.",
+  "ai_transfer_send": "Göndər"
 }

@@ -1,0 +1,16 @@
+{
+  "platforms": [
+    "apple",
+    "android"
+  ],
+  "apple": {
+    "modules": [
+      "SparkBoundedFileModule"
+    ]
+  },
+  "android": {
+    "modules": [
+      "expo.modules.sparkboundedfile.SparkBoundedFileModule"
+    ]
+  }
+}

@@ -1,0 +1,7 @@
+{
+  "ai_transfer_title": "Google Gemini-yə məlumat göndərilməsi",
+  "ai_transfer_receipt": "Qəbzin şəkli, üzərindəki satıcı, məhsullar, tarix, məbləğlər və şəxsi məlumatlarla birlikdə qəbzi təhlil etmək üçün Google Gemini-yə göndəriləcək. Ləğv edib xərci əl ilə daxil edə bilərsiniz. Ödənişsiz Gemini səviyyəsində Google bu məzmunu, insan baxışı da daxil olmaqla, xidmətlərini təkmilləşdirmək üçün istifadə edə bilər; ödənişli səviyyədə etmir. Məlumat Google-un xaricdəki serverlərinə ötürülür.",
+  "ai_transfer_products": "Seçilmiş iki məhsulun adı, markası, variantı, qablaşdırma təsviri və ölçü vahidi müqayisə tövsiyəsi üçün Google Gemini-yə göndəriləcək. Məbləğ, satıcı və qiymət tarixçəsi göndərilmir. Ləğv edib yerli uyğunlaşdırmaya davam edə bilərsiniz. Ödənişsiz Gemini səviyyəsində Google bu məzmunu, insan baxışı da daxil olmaqla, xidmətlərini təkmilləşdirmək üçün istifadə edə bilər. Məlumat xaricdəki serverlərə ötürülür.",
+  "ai_transfer_send": "Göndər",
+  "api_key_help": "Google AI Studio-da açar yarada bilərsiniz. Qəbzdə şəxsi və ya həssas məlumat ola bilər. Ödənişsiz səviyyədə Google göndərdiyinizi, insan baxışı da daxil olmaqla, xidmətlərini təkmilləşdirmək üçün istifadə edə bilər; ödənişli səviyyədə etmir. Həssas qəbzlər üçün ödənişli açar tövsiyə olunur."
+}

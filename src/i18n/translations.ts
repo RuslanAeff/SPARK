@@ -2,6 +2,11 @@ export type Language = 'tr' | 'en' | 'az' | 'ru';
 
 export const translations = {
   tr: {
+    ai_transfer_title: "Google Gemini’ye veri aktarımı",
+    ai_transfer_receipt: "Fiş fotoğrafı, üzerindeki satıcı, ürün, tarih, tutar ve kişisel bilgilerle birlikte fişi ayrıştırmak için Google Gemini’ye gönderilecek. İptal edip manuel kayıt kullanabilirsiniz. Ücretsiz Gemini katmanında Google bu içeriği insan incelemesi dahil hizmetlerini geliştirmek için kullanabilir; ücretli katmanda kullanmaz. Veriler Google’ın yurt dışındaki sunucularına aktarılır.",
+    ai_transfer_products: "Seçili iki ürünün adı, markası, varyantı, paket tanımı ve ölçü birimi karşılaştırma önerisi için Google Gemini’ye gönderilecek. Tutar, satıcı ve fiyat geçmişi gönderilmez. İptal edip yerel eşleştirmeye devam edebilirsiniz. Ücretsiz Gemini katmanında Google bu içeriği insan incelemesi dahil hizmetlerini geliştirmek için kullanabilir. Veriler yurt dışındaki sunuculara aktarılır.",
+    ai_transfer_send: "Gönder",
+
     // General
     cancel: 'İptal',
     save: 'Kaydet',
@@ -465,7 +470,7 @@ export const translations = {
     api_key_empty: 'API anahtarı boş olamaz.',
     api_key_saved: 'Gemini API bağlantısı kuruldu',
     api_key_ready: 'Fiş tarama yapay zekası hazır.',
-    api_key_help: 'Anahtarınız yok mu? Google AI Studio üzerinden ücretsiz oluşturabilirsiniz.',
+    api_key_help: "Google AI Studio’dan anahtar oluşturabilirsiniz. Fişte kişisel veya hassas veri olabilir. Ücretsiz katmanda Google gönderilen içeriği insan incelemesi dahil hizmetlerini geliştirmek için kullanabilir; ücretli katmanda kullanmaz. Hassas fişler için ücretli anahtar önerilir.",
     api_key_get: 'Google AI Studio\u2019da anahtar al',
     theme_title: 'Tema Görünümü',
     theme_auto: 'Otomatik',
@@ -1203,6 +1208,11 @@ export const translations = {
     month_short_09: 'Eyl', month_short_10: 'Eki', month_short_11: 'Kas', month_short_12: 'Ara',
   },
   en: {
+    ai_transfer_title: "Send data to Google Gemini",
+    ai_transfer_receipt: "The receipt photo, including its vendor, products, date, amounts and any personal information, will be sent to Google Gemini to extract receipt details. You can cancel and enter the expense manually. On the free Gemini tier Google may use this content, including human review, to improve its services; it does not on a paid tier. The data is transferred to Google servers abroad.",
+    ai_transfer_products: "The names, brands, variants, package descriptions and measurement units of the two selected products will be sent to Google Gemini for comparison advice. Amounts, vendors and price history are not sent. You can cancel and continue matching locally. On the free Gemini tier Google may use this content, including human review, to improve its services. The data is transferred to servers abroad.",
+    ai_transfer_send: "Send",
+
     // General
     cancel: 'Cancel',
     save: 'Save',
@@ -1665,7 +1675,7 @@ export const translations = {
     api_key_empty: 'API key cannot be empty.',
     api_key_saved: 'Gemini API connection established',
     api_key_ready: 'Receipt parsing AI is ready.',
-    api_key_help: 'No key yet? You can create one for free in Google AI Studio.',
+    api_key_help: "You can create a key in Google AI Studio. Receipts may contain personal or sensitive data. On the free tier Google may use what you send, including human review, to improve its services; it does not on a paid tier. A paid key is recommended for sensitive receipts.",
     api_key_get: 'Get a key in Google AI Studio',
     theme_title: 'Theme Appearance',
     theme_auto: 'Automatic',

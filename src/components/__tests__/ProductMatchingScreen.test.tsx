@@ -1,3 +1,4 @@
+jest.mock('../../utils/confirmAiTransfer', () => ({ confirmAiTransfer: jest.fn().mockResolvedValue(true) }));
 import React from 'react';
 import { fireEvent, render, waitFor } from '@testing-library/react-native';
 
@@ -220,6 +221,16 @@ describe('ProductMatchingScreen', () => {
 
     await waitFor(() => expect(ProductIdentityDao.splitAlias).toHaveBeenCalledWith(11));
     expect(ProductIdentityDao.getAliases).toHaveBeenCalledWith(1);
+  });
+
+  it('does not send selected products after declining transfer', async () => {
+    const { confirmAiTransfer } = require('../../utils/confirmAiTransfer');
+    confirmAiTransfer.mockResolvedValueOnce(false);
+    const screen = await render(<ProductMatchingScreen />);
+    await fireEvent.press(screen.getByTestId('product-review-pair-1-2'));
+    await fireEvent.press(screen.getByTestId('product-ai-button'));
+    await waitFor(() => expect(confirmAiTransfer).toHaveBeenCalled());
+    expect(suggestProductMatch).not.toHaveBeenCalled();
   });
 
   it('renames only the preferred display name and keeps AI output advisory', async () => {

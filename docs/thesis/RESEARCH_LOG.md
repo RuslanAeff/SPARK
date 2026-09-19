@@ -1,0 +1,154 @@
+# Thesis research and decision log
+
+Record opened: **2026-09-19**, Europe/Warsaw. Researcher: student/developer. This is a living research record, not an independently verified account of every historical development event.
+
+## Current position
+
+**Stage:** proposal-method revision, before dataset selection and formal episode coding.
+
+**Completed:** submitted proposal read; supervisor feedback mapped to four decisions; continuity records created; draft operational rules written; one real SPARK episode worked through provisionally; current regression evidence captured for that example; cross-project handoff procedure, portable prompts and writing/figure roadmap prepared; initial read-only remote inventory of SynCinema and AutoSRT recorded; SPARK's own evidence surveyed and indexed, with its record boundary dated from commit metadata (U05).
+
+**Student information:** currently studying for an MSc in Computer Science at VIZJA University; bachelor's degree in Ecology from Baku State University; a 7–8-month full-stack development training programme at Code Academy in Baku, explicitly confirmed as education; no professional employment as a software developer; prior hobby HTML/CSS websites, some C# exposure and limited backend experience. These are self-reports, not a skills assessment or independently verified qualifications.
+
+**Planning information:** approximate submission target July 2027; exact institutional deadline and weekly availability are not yet confirmed. The named supervisor is Marcin Kacprowicz. His availability or agreement to review coded episodes has not been established.
+
+**Decision now made:** TD-004 — use “student developer” and explain prior experience. Applied to the title, aim, research question, participant profile and generalisation limit in [the English working proposal](PROPOSAL_WORKING_DRAFT.md). This is not approval of the complete revised methodology or final DOCX.
+
+**Waiting for decisions/facts:** the proposed episode count was explained; no 12- or 14-episode target has been explicitly accepted. The student now prioritises understanding the writing process, sparse historical records and continuity across AI sessions. Weekly research time, project-entry dates, experience chronology and applicable thesis-formatting requirements remain to be established. Bachelor's subject, Code Academy programme type and both secondary repository URLs have been supplied; do not ask them again.
+
+**Next action:** use the initial inventory to check selected candidate episodes against before/after code and surviving original records; inspect historical/local evidence where accessible. Reuse SynCinema's existing technical ledger. Establish a local evidence log in AutoSRT only after checking for existing equivalents. Keep global decisions in this hub and exchange dated project packets. Then agree feasible scope and the pilot/classification procedure with the student, update the English proposal and prepare a supervisor response for review. Nothing is to be sent automatically.
+
+**SPARK evidence state (U05, 2026-09-19):** the primary case's local records are now indexed in [EVIDENCE_INDEX.md](EVIDENCE_INDEX.md) with a dated project log in [PROJECT_LOG.md](PROJECT_LOG.md). Process evidence begins 2026-08-01 while development begins 2026-03-14; no original AI transcripts and no completed device-verification record exist in the repository. Five candidate leads are recorded; none is selected.
+
+**Continuity/access state:** the hub is currently SPARK / `docs/thesis/`. Its detailed [coordination procedure](COORDINATION.md), [portable prompts](HANDOFF_PROMPT.md), [project packet template](PROJECT_HANDOFF_TEMPLATE.md) and [writing roadmap](THESIS_ROADMAP.md) are prepared locally. Secondary repositories have not been modified or cloned. No commit/push or automatic synchronization was performed.
+
+## Source register
+
+| ID | Source | Date and status |
+|---|---|---|
+| SRC-001 | `Refined Thesis Proposal.docx`; [text extract](sources/received-proposal.txt) | Provided/read 2026-09-19. Submission date unknown. Original DOCX unchanged. |
+| SRC-002 | [Supervisor feedback](sources/supervisor-feedback.md), supplied by the student in chat | Recorded 2026-09-19. Original message date and full email headers unavailable. |
+| SRC-003 | Student's current instructions in this session | 2026-09-19. Requests a continuing log, plain Turkish explanations, student decisions before application, English thesis. |
+| SRC-004 | Existing SPARK [traceability](../evidence/TRACEABILITY.md), [AI log](../evidence/AI_COLLABORATION_LOG.md) and security records | Inspected 2026-09-19. These contain AI-assisted/retrospective accounts; statements are not automatically independent proof. |
+| SRC-005 | [Pilot evidence manifest](pilot/evidence-manifest.json) and [test output](pilot/verification-2026-09-19.txt) | Current code/test snapshot and new test execution on 2026-09-19; not a historical test result. |
+| SRC-006 | Student's answers about education, prior programming and planning in this session | 2026-09-19. Self-report, summarized above and in updates U01 and U03; not independent credential/skill verification. |
+| SRC-007 | Student's explanation of delayed log creation, writing/figure uncertainty and requested cross-AI continuity | 2026-09-19. Record scarcity is a concern to investigate, not an audited count of missing history. |
+| SRC-008 | Student-supplied SynCinema/AutoSRT URLs; [initial remote inventory](REPOSITORY_AUDIT_2026-09-19.md) and [metadata](sources/repository-inventory-2026-09-19.json) | Read-only observations on 2026-09-19; selected source contents and file listings, not a complete history audit or runtime test. |
+| SRC-009 | SPARK Git history (61 commits, `f72cdc8` 2026-03-14 → `25ef86c` 2026-09-15) and the file-creation dates of the process-evidence documents | Enumerated 2026-09-19. Commit metadata is contemporaneous per commit; commit messages summarise intent unevenly. |
+| SRC-010 | Handoff brief pasted by the student, described as prepared by a Codex session | Received 2026-09-19. **The received text carries no date of its own**; its content matches [HANDOFF_PROMPT.md](HANDOFF_PROMPT.md) (prepared 2026-09-19). Treat its preparation date as asserted by that hub file, not by the brief. |
+
+SRC-001 SHA-256: `8261f27cf5a3e64332709d909c4bd4b3c21bb07cee149d382ca0fea423155ab0`.
+The text extract preserves content for handover; its formatting and pagination are not a reproduction of the DOCX.
+
+## Decision register
+
+`PROPOSED` means an option is ready to discuss. `ACCEPTED` requires a dated student decision and its scope. `APPLIED` means the selected change is in an identified artifact. `SUPERVISOR-ACCEPTED` requires separate supervisor evidence. `SUPERSEDED` preserves an earlier decision with a link to its replacement.
+
+| ID | Topic | Current position | Status / authority |
+|---|---|---|---|
+| TD-001 | Communication and thesis language | Plain Turkish discussion; English thesis and research records | ACCEPTED and APPLIED, student instruction, 2026-09-19 |
+| TD-002 | Continuing research record | Dated decisions, session history, evidence limits and next action; no invented approval/history | ACCEPTED and APPLIED, student instruction, 2026-09-19 |
+| TD-003 | Bias safeguards | Worked pilot, rules frozen before main coding, source-linked justifications, disagreement history; human check if available | PROPOSED by AI, 2026-09-19 |
+| TD-004 | Meaning of novice | Use student developer; explain prior programming exposure, no professional software-development employment, and entry chronology | ACCEPTED by student 2026-09-19, APPLIED to English working proposal; supervisor acceptance pending |
+| TD-005 | Manageable scope | Initial target 12 episodes: 8 SPARK, 2 SynCinema, 2 AutoSRT; evidence audit and capacity may justify fewer | PROPOSED by AI, 2026-09-19; not a supervisor requirement |
+| TD-006 | Classification thresholds | Draft codebook separates documented error, uncertain attribution, prompt ambiguity, changed requirement, correction scope and AI-output rework | PROPOSED by AI, 2026-09-19 |
+
+## Open questions and decision gates
+
+- **Q-01 — Experience:** education and training type answered by SRC-006, including the Ecology bachelor's degree and Code Academy training programme. Map the dates of prior experience to the start of each project. Self-report remains labelled as such.
+- **Q-02 — Feasibility:** approximate July 2027 target supplied; exact deadline and realistic weekly research time remain open. Project start order, observation period and evidence cutoff also need confirmation before sampling.
+- **Q-03 — Review:** can the supervisor or another competent person examine a small source packet and apply the draft rules? No reviewer or schedule is assumed.
+- **Q-04 — Comparative evidence:** both repository URLs supplied; initial remote file inventory completed, SynCinema ledger excerpts/CI and AutoSRT README inspected. Historical revisions, original AI transcripts and local/unpushed records still need checking; final episode suitability remains provisional.
+- **Q-05 — Formal revision:** four decisions need student agreement; supervisor acceptance is a later, separate event.
+- **Q-06 — Writing requirements:** obtain the applicable thesis template, citation/figure requirements and AI-assistance disclosure rules from actual university/supervisor material before final formatting. No institutional rule has been invented.
+
+## Session history
+
+### TS-2026-09-19-01 — Understanding supervisor feedback and establishing continuity
+
+- **Input:** SRC-001, SRC-002, SRC-003 and selected SPARK sources.
+- **Human contribution:** supplied the previous proposal and supervisor response; requested accessible explanations and a persistent decision record. No personal experience profile or new methodological choice has yet been supplied.
+- **AI contribution:** compared the draft with the four requests; proposed a smaller sample and explicit coding rules; created the research log and a provisional worked example. Suggested rules are not empirical findings or accepted decisions.
+- **Changes:** created this folder, source extracts, a methods draft, one pilot and its scoped evidence packet. The submitted DOCX and application code were not edited.
+- **Verification:** `npm test -- --ci --coverage=false --runInBand secureKeyStore SettingsAiScreen` passed: 2 suites / 6 tests. This verifies mocked service/UI behaviours in the recorded current state, not actual device storage or the historical developer's skill level.
+- **Critical point:** an observable software defect does not establish that AI authored it. The pilot therefore leaves the origin of the original defect unresolved. Missing provenance is not coded as “no error.”
+- **Important limitation:** the researcher developed all three applications; adding a log makes decisions inspectable but does not remove researcher bias. Current source files include uncommitted work, recorded separately from base commit `25ef86cb0bfa8f9030d5d51bf5e0426cd7aafd30`.
+- **Stopping point:** a draft decision package is ready for discussion. Main dataset coding has not started; no sample size, novice definition or codebook version has been approved.
+- **Next session:** read any student replies, address Q-01–03, and decide TD-003–006 before rewriting proposal sections 2–3, 6–8, 10 and 12. Record the actual session date rather than assuming work resumed the next day.
+- **Supervisor communication:** none sent. **Student acceptance of methodological recommendations:** pending. **Supervisor acceptance:** pending.
+
+### TS-2026-09-19-01/U01 — Student background and planning clarification
+
+- **Source:** SRC-006, student answers received during the same session.
+- **Established by self-report:** current Computer Science master's study at VIZJA; bachelor's institution Baku State University; 7–8 months of full-stack-related Code Academy experience; previous hobby projects, basic HTML/CSS sites and some C# work; weaker backend capability; willingness to research unfamiliar tasks; no professional employment as a software developer. The student reports that conversational AI now enables them to build features by explaining intended behaviour.
+- **Unresolved interpretation:** “full stack developer” in the Code Academy description is not treated as professional employment, because the student explicitly reports never having worked as a developer. Whether this was a course/programme is being clarified. The bachelor's subject and the chronology relative to the three projects are not inferred.
+- **Schedule:** approximately July 2027, not a verified exact submission date. No hours-per-week assumption is made.
+- **Supervisor:** Marcin Kacprowicz, VIZJA University, as reported by the student. Naming the supervisor does not establish consent to act as a second coder.
+- **AI recommendation:** replace the broad novice framing with a precise student-developer profile. The current MSc and prior programming experience contradict an unqualified “no programming background” description, which must not be introduced.
+- **Questions now presented:** select student-developer versus narrowly defined novice terminology; select a provisional 12 or 14 episode target; clarify bachelor's subject, Code Academy programme type and weekly availability.
+- **Decision status:** no response to these new choices yet. TD-004 remains PROPOSED; TD-005 remains PROPOSED. No revised formal proposal or supervisor message has been issued.
+- **Resume point:** continue from the new answers, not from the earlier assumption that all profile information is missing.
+
+### TS-2026-09-19-01/U02 — Participant terminology accepted and applied
+
+- **Human decision:** selected “Öğrenci geliştirici; önceki deneyimi açıkla” in the terminology question on 2026-09-19.
+- **Scope of acceptance:** replace the unqualified novice framing with student-developer terminology and a factual background explanation. This does not approve a sample size, classification rules or independent-review arrangement.
+- **Application:** created [PROPOSAL_WORKING_DRAFT.md](PROPOSAL_WORKING_DRAFT.md) from the preserved submission text; updated title, aim, main question, expected contribution and generalisation limit; added a self-report-based researcher profile. Remaining method/scope text is explicitly marked as the received wording awaiting revision.
+- **Original preserved:** no change to the submitted DOCX or its archived text extract. A final revised Word document and supervisor response have not yet been issued.
+- **Current next action:** await the scope and remaining profile/time answers, then settle TD-003, TD-005 and TD-006. Do not reopen TD-004 unless the student changes the decision.
+
+### TS-2026-09-19-01/U03 — Education clarified; scope explanation requested
+
+- **Human clarification:** the bachelor's subject was Ecology; the 7–8 months at Code Academy were a training programme. These facts refine SRC-006 and are applied to the English working proposal and methods draft.
+- **Unanswered fact:** weekly thesis hours were not supplied. No workload or availability estimate is inferred from the education answer.
+- **Human response on scope:** requested a simpler, more detailed explanation of the proposed 12 episodes. This does not accept or reject TD-005; both scope options remain proposals.
+- **AI response plan:** explain that one episode follows a bounded problem or feature through requests, attempts, correction and verification; distinguish it from one commit, message or bug alone. Explain that 8 SPARK + 2 SynCinema + 2 AutoSRT is a proposed allocation for detailed comparison, not a required number from the supervisor or an instruction to create new bugs/features.
+- **Evidence boundary:** a receipt-total scenario used for teaching is hypothetical, not a new finding or selected research episode. The existing SEC-02 pilot remains provisional and has no device validation.
+- **Changes:** researcher profile and current handover state updated. TD-004 remains accepted/applied; TD-003, TD-005 and TD-006 remain proposed. The original DOCX and application code remain unchanged in this thesis task.
+- **Stopping point / next action:** the student needs the scope explanation before choosing a target. Continue with concrete examples and evidence availability; do not treat the request for explanation as permission to finalise the sample.
+
+### TS-2026-09-19-01/U04 — Cross-AI continuity, writing support and secondary-case inventory
+
+- **Human request:** make the record detailed enough for another AI/session; explain how the thesis will be written, whether it will include images, and how work across three projects should stay coordinated. The student reports that AI logs/docs were introduced after some earlier development and is uncertain about the quantity of surviving records. This is not consent to fabricate history or approval of the proposed sample count.
+- **Human sources supplied:** the GitHub repositories for SynCinema and AutoSRT. Local locations and private conversation archives were not supplied.
+- **AI work:** prepared `COORDINATION.md`, `HANDOFF_PROMPT.md`, `PROJECT_HANDOFF_TEMPLATE.md` and `THESIS_ROADMAP.md`; added a short thesis-start/checkpoint pointer to `AGENTS.md`, which the existing `CLAUDE.md` adapter already references. Recommended one central thesis record with separate project evidence and one active hub editor. This procedure is available in SPARK, not deployed in the other projects.
+- **Evidence work:** read-only remote inventory captured in `REPOSITORY_AUDIT_2026-09-19.md` and source metadata. SynCinema has an existing planning ledger, sub-plans, test files and a CI workflow; selected ledger entries and the workflow were inspected. AutoSRT's inspected eight-file tree and README provide source/context, while process evidence remains unresolved. These observations do not establish AI authorship, historical test success, a complete dataset or current runtime correctness.
+- **Access handling:** some web pages could not be retrieved; the restricted shell could not resolve GitHub. An approved read-only network request obtained API metadata/source blobs. No credentials, application execution or remote mutation was involved.
+- **Method boundary:** retrospective accounts stay labelled; newly run checks use their actual dates. Smaller sampling or adding future prospectively recorded episodes remains a proposal to discuss after the evidence audit. No fixed image count, thesis page count or academic-success guarantee is asserted.
+- **Validation completed:** `git diff --check` passed. Checked 11 thesis Markdown files and 38 local links, code-fence balance, personal-home-path exclusion, both repository inventories, inspected-blob/tree consistency and the AGENTS/CLAUDE entry pointers; no errors. The three downloaded document blobs matched their Git blob hashes. No new application tests were run or claimed; the earlier pilot test result remains dated separately.
+- **Unchanged decisions:** TD-004 accepted/applied; TD-003, TD-005 and TD-006 still proposed. No supervisor approval or reviewer availability inferred.
+- **Current stopping point:** continuity tools and an initial source inventory are ready; no secondary local setup, clone, commit/push, external packet import or supervisor communication occurred. The hub is not automatically available to a fresh clone.
+- **Next concrete action:** follow the versioned source leads, collect any surviving original conversations, and prepare a small evidence-backed candidate set before deciding the scope. Use the portable prompt if a separate AI/session performs the local project audit; import its result through the central record rather than allowing competing global decision registers.
+
+### TS-2026-09-19-01/U05 — SPARK evidence survey and the 2026-08-01 record boundary
+
+- **Input:** SRC-009 and SRC-010, plus the existing SPARK evidence documents already registered as SRC-004.
+- **Human request:** survey the evidence that actually exists before any further method work; do not fabricate conversations, dates, test results or human decisions; reuse SynCinema's existing ledger rather than creating a competing one; establish the local project log and evidence index; change no application code. The student interrupted to ask what the pasted brief required, then authorised continuation on 2026-09-19.
+- **Handoff date recorded:** the received brief is undated in itself; the matching hub file is dated 2026-09-19. Recorded in SRC-010 and in the project log rather than assumed.
+- **AI work:** created [PROJECT_LOG.md](PROJECT_LOG.md) and [EVIDENCE_INDEX.md](EVIDENCE_INDEX.md). No existing evidence document, ADR, test or application file was modified.
+- **Evidence established from sources:** all process-evidence documents enter the repository in one commit, `a3e1299` (2026-08-01), while development starts 2026-03-14 — leaving 29 commits with code evidence only and 32 inside the documented period. The earliest AI session identifier is `AI-2026-08-01-DOCS-001`. 66 distinct session identifiers exist, but the log's index (51) and detail section (58) disagree. `AI_COLLABORATION_LOG.md` states it is not a transcript, and no original AI conversation archive was found in this repository. `TRACEABILITY.md` defines `E3` but contains no completed `E3` row; 22 index rows are explicitly device-acceptance-pending.
+- **Interpretation limit:** the boundary dates when records entered version control. It does not prove that nothing was recorded elsewhere before then, that any historical test ran, or that any defect was AI-authored. "Not located in this search" is not "never existed."
+- **Checks:** read-only Git and filesystem inspection. **No test, typecheck or build was run in this session**; the 2026-09-19 pilot run belongs to the earlier session and keeps its own date.
+- **Decision status:** unchanged. TD-004 ACCEPTED/APPLIED; TD-003, TD-005, TD-006 PROPOSED. Leads SPK-L01…L05 are candidates only and imply no sample size.
+- **Stopping point:** SPARK's evidence landscape is mapped and dated; secondary repositories remain uninspected in this session, uncommitted, unpushed and unshared.
+- **Next action:** ask the student whether AI conversation archives survive outside this repository for 2026-03 → 2026-07. That answer determines whether any pre-August episode can support more than code-evolution claims. Responsible: student, then the hub session.
+- **Supervisor communication:** none. **Student acceptance:** survey and the two local files authorised 2026-09-19; no methodological decision accepted.
+
+## New session template
+
+Copy this block when work actually occurs; do not pre-fill future dates.
+
+```text
+Session ID / recorded date / timezone:
+Event dates (if different, or unknown):
+Starting point and source versions:
+Human request / decisions and their source:
+AI suggestions (not yet human decisions):
+Work done / changed artifacts:
+Evidence checked / commands / results:
+Disagreements, uncertainty and alternative explanations:
+Decision status changes (including superseded decisions):
+Current stopping point:
+Next action and responsible person:
+Student acceptance / supervisor feedback / external sharing:
+```

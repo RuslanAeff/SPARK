@@ -122,7 +122,7 @@ Kullanıcı tutar, tarih, satıcı, kategori ve isteğe bağlı not girer. Kayı
 ### 5.2 Fişten işlem oluşturma
 
 1. Kullanıcı kamera veya galeriden görsel seçer.
-2. Görsel ağ aktarımı öncesinde küçültülür ve sıkıştırılır.
+2. Google Gemini’ye gönderilecek fiş verisi ve amaç görünür açıklanır; kullanıcı Gönder’i seçerse görsel küçültülür ve sıkıştırılır. İptalde ağ isteği yapılmaz; manuel kayıt kullanılabilir.
 3. Gemini yapılandırılmış fiş verisi ve opsiyonel, yalnız açıklayıcı ürün kimliği metadatası önerir.
 4. Yanıt doğrulanır, temizlenir ve satırlar birleştirilir.
 5. Kullanıcı önizlemeyi kabul eder veya düzenlemeye geçer.

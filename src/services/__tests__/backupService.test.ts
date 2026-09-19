@@ -1,3 +1,4 @@
+jest.mock('../boundedBackupReader', () => ({ readBoundedBackup: jest.fn() }));
 jest.mock('../../db/database', () => ({ getDatabase: jest.fn() }));
 jest.mock('expo-file-system', () => ({
   File: jest.fn(),
@@ -1037,4 +1038,60 @@ describe('importBackupPayload v4 product identity', () => {
     expect(fake.state.expenses).toHaveLength(1);
     expect(fake.state.items[0].canonical_product_id).toBe(fake.state.products[0].id);
   });
+});
+
+ describe('untrusted backup images', () => {
+  it.each([1, 2, 3, 4])('strips all image schemes in v%s without mutating input', version => {
+    for (const scheme of ['http', 'https', 'file', 'content']) {
+      const payload = makeV3Payload();
+      payload.version = version;
+      payload.data.canonical_products = [];
+      payload.data.product_aliases = [];
+      payload.data.vendors[0].logo_uri = `${scheme}:///synthetic.png`;
+      payload.data.expenses[0].receipt_uri = `${scheme}:///synthetic.png`;
+      const result = validateAndNormalizeBackupPayload(payload);
+      expect(result.data.vendors[0].logo_uri).toBeNull();
+      expect(result.data.expenses[0].receipt_uri).toBeNull();
+      expect(payload.data.vendors[0].logo_uri).not.toBeNull();
+    }
+  });
+});
+
+describe('provider size metadata is not a read boundary', () => {
+  it.each([1, undefined, -1])('uses the bounded reader for metadata %s and does not copy or mutate DB on overflow', async size => {
+    const { readBoundedBackup } = require('../boundedBackupReader');
+    readBoundedBackup.mockRejectedValueOnce(new Error('INVALID_FORMAT'));
+    documentPickerMock.mockResolvedValueOnce({ canceled: false, assets: [{ uri: 'content://synthetic/large', name: 'large.json', size, lastModified: 0 }] });
+    getDatabaseMock.mockClear();
+    await expect(pickAndParseBackupFile()).rejects.toThrow('INVALID_FORMAT');
+    expect(documentPickerMock).toHaveBeenLastCalledWith(expect.objectContaining({ copyToCacheDirectory: false }));
+    expect(getDatabaseMock).not.toHaveBeenCalled();
+  });
+});
+
+it('preserves an existing local vendor logo while stripping restored images', async () => {
+  const fake = createFakeDatabase();
+  getDatabaseMock.mockResolvedValue(fake.db as any);
+  await importBackupPayload(makeV3Payload());
+  fake.state.vendors[0].logo_uri = 'file:///local/picker-logo.png';
+  const payload = makeV3Payload();
+  payload.data.vendors[0].logo_uri = 'https://example.invalid/tracking.png';
+  await importBackupPayload(payload);
+  expect(fake.state.vendors[0].logo_uri).toBe('file:///local/picker-logo.png');
+});
+
+it.each([1, 2, 3, 4])('never writes imported image URIs into the database for v%s', async version => {
+  for (const scheme of ['http', 'https', 'file', 'content']) {
+    const fake = createFakeDatabase();
+    getDatabaseMock.mockResolvedValue(fake.db as any);
+    const payload = makeV3Payload();
+    payload.version = version;
+    payload.data.canonical_products = [];
+    payload.data.product_aliases = [];
+    payload.data.vendors[0].logo_uri = `${scheme}:///synthetic.png`;
+    payload.data.expenses[0].receipt_uri = `${scheme}:///synthetic.png`;
+    await importBackupPayload(payload);
+    expect(fake.state.vendors[0].logo_uri).toBeNull();
+    expect(fake.state.expenses[0].receipt_uri).toBeNull();
+  }
 });

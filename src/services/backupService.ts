@@ -1,3 +1,5 @@
+import { purgeBackupCopies, retainActiveExport, releaseActiveExport } from './temporaryFiles';
+import { readBoundedBackup } from './boundedBackupReader';
 // S.P.A.R.K. — Export / Import (backup) service
 // Tarih aralığı bazlı yedek alma ve geri yükleme. Tüm işlemler tek
 // SQLite transaction içinde atomik yürütülür; kısmi import riski yoktur.
@@ -689,6 +691,8 @@ export function validateAndNormalizeBackupPayload(input: unknown): NormalizedBac
     ...(root as unknown as BackupPayload),
     data: {
       ...(data as unknown as BackupPayload['data']),
+      vendors: (data.vendors as ExportedVendor[]).map(v => ({ ...v, logo_uri: null })),
+      expenses: (data.expenses as ExportedExpense[]).map(e => ({ ...e, receipt_uri: null })),
       dismissed_subscriptions:
         (data.dismissed_subscriptions as ExportedDismissedSubscription[] | undefined) ?? [],
       debts: root.version >= 3 ? data.debts as ExportedDebt[] : [],
@@ -1091,17 +1095,19 @@ export async function buildBackupPayload(range: BackupDateRange): Promise<Backup
  *  • iOS: `Sharing.shareAsync` çağrılır — iOS paylaş ekranında "Files'a Kaydet"
  *    seçeneği her zaman yerleşik olarak bulunur.
  *
- * Her durumda JSON, uygulama önbelleğine de yazılır; bu kopya çağıran taraf
- * için referans (paylaşım, hata ayıklama, önizleme) amacıyla kullanılır.
+ * Başarılı SAF kaydı veya iptal/hata sonrası cache kopyası temizlenir.
+ * Paylaşılan kopya alıcı için tutulur; 24 saatten sonra açılış/export temizliğine girer.
+ * ExportResult.fileUri geçici bir adrestir; kalıcı dosya garantisi vermez.
  */
 export async function exportBackupToFile(range: BackupDateRange): Promise<ExportResult> {
+  await purgeBackupCopies();
   const payload = await buildBackupPayload(range);
   const json = JSON.stringify(payload, null, 2);
 
   const fileName = `spark-backup_${payload.range.start}_${payload.range.end}.json`;
   const fileNameNoExt = fileName.replace(/\.json$/i, '');
 
-  const file = new File(Paths.cache, fileName);
+  const file = new File(Paths.cache, fileNameNoExt + '_' + Date.now() + '-' + Math.random().toString(36).slice(2) + '.json');
   if (file.exists) {
     try {
       file.delete();
@@ -1109,65 +1115,76 @@ export async function exportBackupToFile(range: BackupDateRange): Promise<Export
       /* aynı dosya üzerine yazacağız */
     }
   }
-  file.create({ overwrite: true });
-  file.write(json);
+  retainActiveExport(file.uri);
+  let shared = false;
+  try {
+    file.create({ overwrite: true });
+    file.write(json);
 
-  const itemCount = payload.data.expenses.reduce((n, e) => n + e.items.length, 0);
-  const debtCount = payload.data.debts?.length ?? 0;
-  const debtPaymentCount = payload.data.debt_payments?.length ?? 0;
-  const incomeCount = payload.data.extra_incomes?.length ?? 0;
-  const reminderCount = payload.data.recurring_payment_reminders?.length ?? 0;
-  const canonicalProductCount = payload.data.canonical_products?.length ?? 0;
-  const productAliasCount = payload.data.product_aliases?.length ?? 0;
+    const itemCount = payload.data.expenses.reduce((n, e) => n + e.items.length, 0);
+    const debtCount = payload.data.debts?.length ?? 0;
+    const debtPaymentCount = payload.data.debt_payments?.length ?? 0;
+    const incomeCount = payload.data.extra_incomes?.length ?? 0;
+    const reminderCount = payload.data.recurring_payment_reminders?.length ?? 0;
+    const canonicalProductCount = payload.data.canonical_products?.length ?? 0;
+    const productAliasCount = payload.data.product_aliases?.length ?? 0;
 
-  const result: ExportResult = {
-    fileUri: file.uri,
-    fileName,
-    expenseCount: payload.data.expenses.length,
-    itemCount,
-    debtCount,
-    debtPaymentCount,
-    incomeCount,
-    reminderCount,
-    canonicalProductCount,
-    productAliasCount,
-    recordCount: payload.data.expenses.length + debtCount + debtPaymentCount
-      + incomeCount + reminderCount + canonicalProductCount + productAliasCount,
-    sizeBytes: file.size ?? json.length,
-    destination: 'cancelled',
-  };
+    const result: ExportResult = {
+      fileUri: file.uri,
+      fileName,
+      expenseCount: payload.data.expenses.length,
+      itemCount,
+      debtCount,
+      debtPaymentCount,
+      incomeCount,
+      reminderCount,
+      canonicalProductCount,
+      productAliasCount,
+      recordCount: payload.data.expenses.length + debtCount + debtPaymentCount
+        + incomeCount + reminderCount + canonicalProductCount + productAliasCount,
+      sizeBytes: file.size ?? json.length,
+      destination: 'cancelled',
+    };
 
-  // Android — SAF ile doğrudan klasöre yaz. Kullanıcı iptal ederse paylaşıma düş.
-  if (Platform.OS === 'android') {
-    try {
-      const SAF = FileSystemLegacy.StorageAccessFramework;
-      const perm = await SAF.requestDirectoryPermissionsAsync();
-      if (perm.granted) {
-        const savedUri = await SAF.createFileAsync(
-          perm.directoryUri,
-          fileNameNoExt,
-          'application/json',
-        );
-        await SAF.writeAsStringAsync(savedUri, json);
-        result.savedUri = savedUri;
-        result.destination = 'saved';
-        return result;
+    // Android — SAF ile doğrudan klasöre yaz. Kullanıcı iptal ederse paylaşıma düş.
+    if (Platform.OS === 'android') {
+      try {
+        const SAF = FileSystemLegacy.StorageAccessFramework;
+        const perm = await SAF.requestDirectoryPermissionsAsync();
+        if (perm.granted) {
+          const savedUri = await SAF.createFileAsync(
+            perm.directoryUri,
+            fileNameNoExt,
+            'application/json',
+          );
+          await SAF.writeAsStringAsync(savedUri, json);
+          result.savedUri = savedUri;
+          result.destination = 'saved';
+          return result;
+        }
+      } catch (e) {
+        if (__DEV__) console.warn('SAF save failed, falling back to share', e);
       }
-    } catch (e) {
-      if (__DEV__) console.warn('SAF save failed, falling back to share', e);
+    }
+
+    if (await Sharing.isAvailableAsync()) {
+      // Once handoff starts, even a late error cannot prove that no recipient is reading.
+      shared = true;
+      await Sharing.shareAsync(file.uri, {
+        mimeType: 'application/json',
+        dialogTitle: 'S.P.A.R.K. backup',
+        UTI: 'public.json',
+      });
+      result.destination = 'shared';
+    }
+
+    return result;
+  } finally {
+    releaseActiveExport(file.uri);
+    if (!shared) {
+      try { if (file.exists) file.delete(); } catch { /* next startup sweep */ }
     }
   }
-
-  if (await Sharing.isAvailableAsync()) {
-    await Sharing.shareAsync(file.uri, {
-      mimeType: 'application/json',
-      dialogTitle: 'S.P.A.R.K. backup',
-      UTI: 'public.json',
-    });
-    result.destination = 'shared';
-  }
-
-  return result;
 }
 
 export interface ParsedBackup {
@@ -1179,18 +1196,15 @@ export interface ParsedBackup {
 export async function pickAndParseBackupFile(): Promise<ParsedBackup | null> {
   const res = await DocumentPicker.getDocumentAsync({
     type: ['application/json', 'application/*', '*/*'],
-    copyToCacheDirectory: true,
+    copyToCacheDirectory: false,
     multiple: false,
   });
   if (res.canceled || !res.assets?.[0]) return null;
   const asset = res.assets[0];
-  const file = new File(asset.uri);
-  const declaredSize = typeof asset.size === 'number' ? asset.size : file.size;
-  if (typeof declaredSize === 'number' && declaredSize > MAX_BACKUP_FILE_BYTES) {
+  if (typeof asset.size === 'number' && asset.size > MAX_BACKUP_FILE_BYTES) {
     throw new Error('INVALID_FORMAT');
   }
-  const raw = await file.text();
-  if (raw.length > MAX_BACKUP_FILE_BYTES) throw new Error('INVALID_FORMAT');
+  const raw = await readBoundedBackup(asset.uri);
 
   let parsed: unknown;
   try {

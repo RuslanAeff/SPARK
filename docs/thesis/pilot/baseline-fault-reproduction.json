@@ -1,0 +1,8 @@
+{
+  "executedOn": "2026-09-19",
+  "baselineCommit": "25ef86cb0bfa8f9030d5d51bf5e0426cd7aafd30",
+  "baselineSourceSha256": "544c9e885baa355719916e9ea7db1970675b298bd15c742bc12b08b7c35f78bd",
+  "method": "Actual baseline TypeScript transpiled into isolated VM; synthetic SecureStore.deleteItemAsync rejects; real DB, keys and network not used.",
+  "observedOutcome": "fulfilled_despite_native_failure",
+  "limitation": "Service-level fault injection only; not a historical run, device test or AI-authorship proof."
+}

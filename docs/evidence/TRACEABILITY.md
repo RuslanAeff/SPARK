@@ -217,6 +217,27 @@ alanları tamamlanmadan akademik sonuç iddiasında kullanılmamalıdır.
 - Sonuç: `AI-2026-09-15-SPENDING-CHANGE-001`; yerel çalışma ağacı. Görsel iddia
   `E0`; cihaz ve kullanıcı kabulü bekleniyor. Diğer öneri kartları kapsam dışı.
 
+### `SPK-SEC-2026-09-16-001` — Play öncesi güvenlik incelemesi
+
+- Gereksinim: Yayından önce güvenlik/gizlilik sorunlarını kanıt ve önem derecesiyle
+  bulmak; başka AI'ya düzeltme ve doğrulama yollarını bırakmak.
+- İnsan kapsamı: İnceleme ve rapor; ürün düzeltmesi veya yayın kararı verilmedi.
+- Temel: `25ef86c`, başlangıç temiz; 15–16 Eylül 2026, Europe/Warsaw.
+- Karar/kanıt: [Güvenlik raporu](SECURITY_REVIEW_2026-09-16.md), SEC-01–09 ve
+  REL-01. Dış veri URI'si, anahtar silme, native backup kapsamı, açıklama tutarlılığı,
+  bağımlılık değerlendirmesi ve kaynak sınırları ayrı kayıtlandı.
+- Kod: `backupService.ts`, `secureKeyStore.ts`, `imageCompressor.ts`, scanner ve
+  product-matching akışları, Android bildirim planlama, Expo/EAS config ve kurulu SDK.
+- Otomatik: Typecheck exit 0; 127 suite/1.036 test geçti; npm audit 32 paket
+  uyarısı. [Sentetik parser probe'u](security/2026-09-16/backup-probes.cjs) ve
+  [hata enjeksiyonu](security/2026-09-16/remote-probes.cjs) gerçek modül mantığını
+  taklit native bağımlılıklarla çalıştırır; cihaz kanıtı değildir.
+- Sonuç: Rapor tamamlandı; bulgular düzeltilmedi. Yayın onayı verilmedi.
+- Cihaz/insan kabulü: Bekleniyor. Final AAB/manifest, yedekleme ve ağ davranışı
+  kaynak denetiminden çıkarılarak kesin başarılı sayılmadı.
+- AI kaydı: `AI-2026-09-16-SECURITY-REVIEW-001`; gerçek secret/kişisel finans verisi
+  kullanılmadı. Bu kayıt ürün değişikliği veya geçmiş bir yayına güvenlik onayı değildir.
+
 ## 6. Yeni izlenebilirlik kaydı şablonu
 
 Her yeni özellik, hata düzeltmesi veya araştırma için aşağıdaki blok kopyalanır.
@@ -297,3 +318,17 @@ Geçmiş commitlerden sonradan oluşturulan kayıtlar şu riskleri açıkça ta�
 
 Bu nedenle retrospektif satırlar `E0` veya `E1` ile başlatılır; tarihli CI, cihaz ve
 insan kabul kanıtı bulunmadıkça daha yüksek düzeye çıkarılmaz.
+
+## 16 Eylül 2026 — güvenlik düzeltmesi (prospective)
+
+| Gereksinim | Karar | Kod | Otomatik kanıt | Sonuç sınırı |
+|---|---|---|---|---|
+| SEC-01/02 dış kaynak ve silme bütünlüğü | ADR-011 | backupService, localImageUri, secureKeyStore, settings-ai | backupService, localImageUri, secureKeyStore, SettingsAiScreen | Kod/test tamam; cihaz kabulü yok |
+| SEC-03/09/REL-01 native veri sınırı | ADR-011 | withPrivateBackup/XML, app.json, eas.json | privateBackup, androidNotificationsSetup, izole prebuild | Release AAB/merged manifest ve cihaz açık |
+| SEC-04 kullanıcı kontrollü AI aktarımı | ADR-012: ücretsiz katman serbest, pazar global | confirmAiTransfer, scanner, product-matching, dört dil, privacy-policy | Onay/red ekran ve helper testleri, localeParity; karar sonrası metinlerle typecheck + 135 suite/1.083 test | Canlı site, Play Data safety, hukuki inceleme ve cihaz kaydı açık |
+| SEC-05 bağımlılık borcu | Uyumlu SDK 55 yamaları; risk kabulü verilmedi | package.json/lockfile | Audit 32→15 orta, Expo check, tam Jest | Kalan advisory ve release doğrulaması açık |
+| SEC-06/07/08 bounded dosya/yaşam süresi/JSON | ADR-011 | spark-bounded-file, temporaryFiles, imageCompressor, inputValidation | Servis regresyonları, Foundation probe, parser/remote probe | Native sağlayıcı, cache ve cihaz kabulü yok |
+
+[Bulgu başına sonuçlar ve komutlar](SECURITY_REMEDIATION_2026-09-16.md).
+Otomatik kanıt: 135 suite / 1.083 test ve typecheck geçti. Cihaz kanıtı: yok.
+İnsan kabulü: yok. Bu kayıt bulguları kapatmaz; tarihsel inceleme sonuçlarını silmez.

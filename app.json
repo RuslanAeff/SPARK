@@ -14,7 +14,8 @@
     },
     "android": {
       "blockedPermissions": [
-        "android.permission.RECORD_AUDIO"
+        "android.permission.RECORD_AUDIO",
+        "android.permission.SYSTEM_ALERT_WINDOW"
       ],
       "adaptiveIcon": {
         "backgroundColor": "#050505",
@@ -71,9 +72,16 @@
           "photosPermission": "S.P.A.R.K. logo ve fiş yüklemek için galerinize erişmek istiyor."
         }
       ],
-      "expo-secure-store",
+      [
+        "expo-secure-store",
+        {
+          "configureAndroidBackup": false
+        }
+      ],
       "expo-notifications",
-      "expo-sharing"
+      "expo-sharing",
+      "./plugins/withPrivateBackup",
+      "expo-asset"
     ],
     "extra": {
       "router": {},

@@ -104,7 +104,7 @@ Android sistem bildirimi değişikliklerinin APK smoke testi en az şu senaryola
 
 ## Güvenlik modeli
 
-SPARK hassas kişisel finans verisini yerel olarak saklar. Tek kasıtlı uzak veri yolu, Gemini üzerinden isteğe bağlı fiş analizidir. Güvenlik kararları her sınırda gizli anahtarları, finansal kayıtları, fiş görsellerini ve import edilen veriyi korumalıdır.
+SPARK hassas kişisel finans verisini yerel olarak saklar. Kullanıcı tarafından başlatılan Gemini akışları, fiş görseli analizi ve seçilen iki ürünün sınırlı kimlik metniyle karşılaştırılmasıdır. Ayrıca kullanıcının dışarı paylaştığı yedekler ile native SDK ve işletim sistemi saklama/yedekleme davranışları ayrı veri sınırları olarak incelenmelidir. Güvenlik kararları her sınırda gizli anahtarları, finansal kayıtları, fiş görsellerini ve import edilen veriyi korumalıdır.
 
 ### Gizli bilgiler
 
@@ -124,7 +124,7 @@ Aşağıdakilerin tümünü güvenilmez kabul edin:
 - Dosya ve görsel URI'ları
 - Eski uygulama sürümlerinden kalan kalıcı ayarlar
 
-`src/utils/inputValidation.ts` içindeki merkezi sanitizer'ları kullanın. `__proto__`, `constructor` ve `prototype` gibi tehlikeli nesne anahtarları dış nesne ağaçlarından özyinelemeli çıkarılmalıdır. Koleksiyon boyutlarını ve metin uzunluklarını render veya kalıcılık öncesinde sınırlandırın.
+`src/utils/inputValidation.ts` içindeki merkezi sanitizer'ları kullanın. `__proto__`, `constructor` ve `prototype` gibi tehlikeli nesne anahtarları dış nesne ağaçlarından iteratif çıkarılmalıdır; derinlik 64, toplam düğüm 250.000 ile sınırlıdır. Koleksiyon boyutlarını ve metin uzunluklarını render veya kalıcılık öncesinde sınırlandırın.
 
 ### Loglama ve hata bildirimi
 
@@ -288,3 +288,30 @@ Performans çalışması doğruluğu ve görsel sürekliliği korumalıdır.
 ## Bu belgenin bakımı
 
 Güvenlik sınırları, kalite kapıları, native doğrulama gereksinimleri veya güvenilirlik politikaları değiştiğinde bu belge güncellenmelidir. Kapanmış sorun envanterleri ve tarihli denetim anlatıları buraya eklenmek yerine history veya decision kayıtlarında bulunmalıdır. Kesin sayılar ve patch sürümleri CI ile çalıştırılabilir yapılandırmanın sahipliğinde kalır.
+
+## 16 Eylül güvenlik düzeltmelerinin kalıcı sınırları
+
+- Yedek v1–v4 görsel dosyası taşımaz. Restore, dış `logo_uri` ve `receipt_uri`
+  değerlerini temizler; mevcut yerel satıcı logosu korunur. Görsel sunucularına
+  istek açmamak için satıcı render noktaları yalnız yerel picker URI şemalarını kabul eder.
+- SecureStore okuma/migration/yazma/silme aynı işlem kuyruğundadır. Silme legacy
+  SQLite kaydını da kaldırır; herhangi bir silme hatasında UI başarı bildiremez.
+- Backup picker cache kopyası oluşturmaz. `SparkBoundedFile` yerel modülü en çok
+  25 MB UTF-8 veriyi bayt sayarak okur, sınırı aşınca ve hatada kaynağı kapatır.
+  Bu modül için yeni development/release build gerekir. Expo Go veya modülsüz
+  build sınırsız JS okumaya geri dönmez; import kontrollü hata verir.
+- Kamera/galeri kopyaları yalnız ilgili taramanın sahip olduğu kesin URI ile
+  temizlenir. Geç manipulator/picker çıktısı da temizlenir. Eski sahipsiz picker
+  dosyalarıyla aynı dizindeki kullanıcı logoları topluca silinmez.
+- Başarılı SAF kaydı ve paylaşılmayan export cache kopyası işlem sonunda silinir.
+  Paylaşım başlatılan kopya, alıcı okuması için 24 saat tutulur; bu süre dolduktan
+  sonraki uygulama açılışı veya export temizliğinde silinir. Aktif export korunur;
+  veri sıfırlama, aktif olmayan yedek kopyalarını da temizler. Silme hatalarında
+  cache eviction son çaredir; kesin silinme cihaz kanıtı olmadan iddia edilmez.
+- Android backup XML/plugin, SecureStore ve planlanmış bildirim SharedPreferences
+  deposunu legacy/cloud/device-transfer yollarından dışlar. Prebuild çıktısı
+  merged release manifest veya gerçek backup/restore kanıtı değildir.
+- Gemini aktarımı öncesi dört dilde alıcı/veri/amaç açıklaması ve yeni olumlu
+  eylem gerekir. Onay, desteklenen pazar/hizmet koşulu kararının yerini tutmaz.
+
+Güncel bulgu durumları: [düzeltme kaydı](evidence/SECURITY_REMEDIATION_2026-09-16.md).

@@ -61,3 +61,12 @@ describe('imageCompressor', () => {
     await expect(pending).rejects.toMatchObject({ name: 'AbortError' });
   });
 });
+
+it('cleans late native output after timeout', async () => {
+  let complete!: (value: { uri: string }) => void;
+  mockManipulateAsync.mockReturnValue(new Promise(resolve => { complete = resolve; }));
+  await expect(compressImageToBase64('file:///original.jpg', { timeoutMs: 1 })).rejects.toThrow('IMAGE_PROCESSING_TIMEOUT');
+  complete({ uri: 'file:///late.jpg' });
+  await new Promise(resolve => setTimeout(resolve, 0));
+  expect(mockDeleteAsync).toHaveBeenCalledWith('file:///late.jpg', { idempotent: true });
+});

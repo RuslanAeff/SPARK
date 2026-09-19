@@ -144,3 +144,20 @@ describe('proto-pollution koruması', () => {
     expect(obj.nested.ok).toBe(2);
   });
 });
+
+ describe('bounded JSON sanitization', () => {
+  it('rejects deeply nested arrays and objects with a controlled error', () => {
+    const { stripDangerousKeys } = require('../inputValidation');
+    const deep = JSON.parse('{"x":'.repeat(20000) + 'null' + '}'.repeat(20000));
+    expect(() => stripDangerousKeys(deep)).toThrow('INVALID_FORMAT');
+    const arrays = JSON.parse('['.repeat(100) + '0' + ']'.repeat(100));
+    expect(() => stripDangerousKeys(arrays)).toThrow('INVALID_FORMAT');
+  });
+  it('rejects excessive nodes and removes prototype keys in nested arrays', () => {
+    const { stripDangerousKeys, MAX_JSON_NODES } = require('../inputValidation');
+    expect(() => stripDangerousKeys({ x: Array(MAX_JSON_NODES).fill(0) })).toThrow('INVALID_FORMAT');
+    const value = JSON.parse('{"x":[[{"__proto__":{"polluted":true},"ok":1}]]}');
+    expect(stripDangerousKeys(value)).toEqual({ x: [[{ ok: 1 }]] });
+    expect(({} as any).polluted).toBeUndefined();
+  });
+});

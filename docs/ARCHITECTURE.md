@@ -492,3 +492,23 @@ aralığını kullanır; diğer yıllık analizlerin tüm geçmiş sorgusunu de�
 ## Bu belgenin bakımı
 
 Bu belge yalnız kalıcı sınırlar, veri semantiği, açılış sırası veya özellikler arası akışlar değiştiğinde güncellenmelidir. Özellik geçmişi, kapanmış hata envanterleri, kesin paket sürümleri ve güncel test sayıları başka yerde tutulmalı veya çalıştırılabilir kaynaklardan türetilmelidir.
+
+## Güvenlik sınırları — 16 Eylül 2026
+
+Yedek okuma JS belleğine sınırsız içerik taşımadan önce
+`modules/spark-bounded-file` içindeki Android InputStream / Apple FileHandle
+sınırından geçer. Kaynak native modül yerel Expo autolinking ile bağlanır;
+`copyToCacheDirectory:false` kullanılır. JSON için iteratif derinlik/düğüm
+sınırı, şema doğrulaması ve görsel URI temizliği, restore transaction'ından önce
+uygulanır. Backup biçimi v4 kalır; fotoğraf dosyalarının taşınmadığı sözleşme korunur.
+
+Gizli anahtar işlemleri `secureKeyStore` kuyruğunda sıralanır. UI yalnız başarılı
+legacy+SecureStore silme tamamlandığında anahtar durumunu kaldırır. Kamera ve ürün
+karşılaştırma ekranlarında aktarım onayı her isteğin ön koşuludur; bu kontrol
+finansal kayıt kabulünden ayrı kullanıcı eylemidir.
+
+Android yedekleme sınırını `plugins/withPrivateBackup.js` ve uygulamaya ait XML'ler
+belirler. Geçici dosya sahipliği ve paylaşım sonrası saklama sözleşmesi
+`temporaryFiles.ts` içindedir. Native güvenlik doğrulaması tamamlanmamıştır;
+[ADR-011](decisions/ADR-011-local-data-security-boundaries.md) ve
+[düzeltme kanıtı](evidence/SECURITY_REMEDIATION_2026-09-16.md) bu sınırı kaydeder.

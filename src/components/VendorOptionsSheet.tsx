@@ -1,3 +1,4 @@
+import { isLocalImageUri } from '../utils/localImageUri';
 // S.P.A.R.K. — Satıcı Seçenekleri Sheet
 // Bir satıcı için: logo değiştir, varsayılan kategori belirle, satıcıyı sil.
 // Settings → Satıcı Yönetimi'nde tile'a dokunulduğunda açılır.
@@ -124,8 +125,8 @@ export default function VendorOptionsSheet({
     >
       {/* Header — satıcı kimliği */}
       <View style={styles.header}>
-        <View style={[styles.avatar, !activeVendor.logo_uri && { backgroundColor: Colors.primary + '33' }]}>
-          {activeVendor.logo_uri ? (
+        <View style={[styles.avatar, !isLocalImageUri(activeVendor.logo_uri) && { backgroundColor: Colors.primary + '33' }]}>
+          {isLocalImageUri(activeVendor.logo_uri) ? (
             <Image source={{ uri: activeVendor.logo_uri }} style={styles.avatarImg} />
           ) : (
             <Text style={styles.avatarInitial}>

@@ -1,3 +1,4 @@
+import { isLocalImageUri } from '../src/utils/localImageUri';
 // S.P.A.R.K. — Settings: Data & backup (vendors, export, restore)
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import {
@@ -412,7 +413,7 @@ export default function SettingsDataScreen() {
                     >
                       {filteredVendors.map((v) => {
                         const tileColor = getVendorTileColor(v.name);
-                        const hasLogo = !!v.logo_uri;
+                        const hasLogo = isLocalImageUri(v.logo_uri);
                         const hasDefaultCategory = v.default_category_id != null;
                         const selected = selectedVendorIds.has(v.id);
                         return (

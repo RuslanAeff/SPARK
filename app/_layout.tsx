@@ -1,3 +1,4 @@
+import { purgeBackupCopies } from '../src/services/temporaryFiles';
 import 'react-native-gesture-handler';
 import React, { useEffect, useRef, useState } from 'react';
 import { Stack, usePathname, useRouter } from 'expo-router';
@@ -407,6 +408,7 @@ function RootLayoutContent() {
 }
 
 export default function RootLayout() {
+  useEffect(() => { void purgeBackupCopies(); }, []);
   return (
     <GestureHandlerRootView style={bootStyles.root}>
       <ErrorBoundary>

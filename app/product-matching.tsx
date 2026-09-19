@@ -1,3 +1,4 @@
+import { confirmAiTransfer } from '../src/utils/confirmAiTransfer';
 // S.P.A.R.K. — Kalıcı ürün kimliklerini kullanıcı denetiminde düzenleme
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -429,6 +430,7 @@ export default function ProductMatchingScreen() {
     setSuggesting(true);
     setSuggestion(null);
     try {
+      if (!await confirmAiTransfer(t, 'products', controller.signal)) return;
       const suggestProductMatch = (
         GeminiService as typeof GeminiService & { suggestProductMatch?: SuggestProductMatch }
       ).suggestProductMatch;

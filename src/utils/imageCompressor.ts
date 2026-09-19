@@ -79,7 +79,13 @@ export async function compressImageToBase64(
   options: CompressImageOptions = {},
 ): Promise<string> {
   const timeoutMs = options.timeoutMs ?? IMAGE_PROCESSING_TIMEOUT_MS;
+  if (options.signal?.aborted) throw abortError();
   let temporaryUri: string | null = null;
+  let finished = false;
+  const removeTemporary = async (target: string) => {
+    if (target === uri) return;
+    try { await FileSystem.deleteAsync(target, { idempotent: true }); } catch { /* retry by OS cache eviction */ }
+  };
   try {
     const manipulated = await runControlled(
       ImageManipulator.manipulateAsync(
@@ -89,7 +95,11 @@ export async function compressImageToBase64(
           compress: JPEG_QUALITY,
           format: ImageManipulator.SaveFormat.JPEG,
         },
-      ),
+      ).then(async result => {
+        if (finished) await removeTemporary(result.uri);
+        else temporaryUri = result.uri !== uri ? result.uri : null;
+        return result;
+      }),
       options.signal,
       timeoutMs,
     );
@@ -101,6 +111,7 @@ export async function compressImageToBase64(
       timeoutMs,
     );
   } finally {
+    finished = true;
     if (temporaryUri) {
       try {
         await FileSystem.deleteAsync(temporaryUri, { idempotent: true });

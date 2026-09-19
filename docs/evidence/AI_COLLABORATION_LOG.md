@@ -28,6 +28,7 @@ oturumun amacı, kararları, çıktıları, kanıtları ve sınırlamaları kayd
 
 | Oturum | Tarih | Amaç | İnsan onayı | AI katkısı | Ürün kodu değişti mi? | Kanıt/çıktı | Durum |
 |---|---|---|---|---|---|---|---|
+| `AI-2026-09-16-SECURITY-REVIEW-001` | 2026-09-15–16 | Play öncesi güvenlik incelemesi ve sonraki AI için düzeltme rehberi | Kullanıcı inceleme ve rapor istedi; ürün düzeltmesi/yayın yapılmadı | `analiz`, `inceleme`, `araştırma`, `dokümantasyon` | Hayır | `SECURITY_REVIEW_2026-09-16.md`, sentetik probe'lar ve bağımlılık taraması | Rapor tamamlandı; bulgular açık, cihaz/yayın kabulü yok |
 | `AI-2026-09-15-SPENDING-CHANGE-001` | 2026-09-15 | Harcama değişimini kategori katkılarıyla açıklamak | Kullanıcı bu kartı uygulamayı seçti; diğerleri için karar bekleniyor | `tasarım`, `kod`, `test`, `dokümantasyon` | Evet | Yeni aktif kart ve dönem karşılaştırma hesapları | Otomatik kontroller geçti; cihaz kabulü bekleniyor |
 | `AI-2026-09-15-BACKUP-REDESIGN-001` | 2026-09-15 | Yedekleme bölümünü sadeleştirmek | Kullanıcı tasarım yenilemesi ve Özel düğmesinin kaldırılmasını istedi | `tasarım`, `kod`, `test`, `dokümantasyon` | Evet | Tek export grubu, ayrı restore satırı | Otomatik kontroller geçti; cihaz kabulü bekleniyor |
 | `AI-2026-09-15-INFO-BUTTON-GLASS-001` | 2026-09-15 | Ortak bilgi düğmesini sade cam tasarımına taşımak | Kullanıcı ortak tasarım istedi | `tasarım`, `kod`, `doğrulama`, `dokümantasyon` | Evet | SettingsInfoIconButton | Otomatik kontroller geçti; cihaz kabulü bekleniyor |
@@ -1218,6 +1219,20 @@ oturumun amacı, kararları, çıktıları, kanıtları ve sınırlamaları kayd
 | Nihai insan kabulü | Kullanıcı 2026-09-03 tarihinde ortak planı kabul etti ve kendi kayıtlarına aldı. Uygulama çalışması Aşama 1'deki dört karara bağlandı: hesap türü, hesap açılış tarihi, 30 Eylül 2026 şartının geçerliliği ve kesin Android paket adı |
 | Gizlilik ve yayın sınırı | Depoda secret, API anahtarı veya kişisel finansal veri bulunmadığı ayrıca kontrol edildi; `.env` sürüm kontrolüne girmiyor. Bu kayıt commit, push, build, yayın veya cihaz başarısı iddiası yapmaz |
 
+### `AI-2026-09-16-SECURITY-REVIEW-001`
+
+| Alan | Kayıt |
+|---|---|
+| Tarih ve kapsam | 15–16 Eylül 2026, Europe/Warsaw; başlangıç `main`, `25ef86c`, temiz çalışma ağacı |
+| İnsan kararı | Play Store öncesi güvenlik incelemesi ve bulguları başka bir AI'nın çözebilmesi için ipuçları istedi; devam edilmesini belirtti |
+| AI katkısı | Kod/config/native SDK incelemesi; üç paralel kapsam; resmi Play/Android/Gemini belgeleri; npm audit; dört sentetik kusur doğrulaması; önceliklendirilmiş rapor |
+| Araç/model | Codex; model sürümünü bağımsız doğrulayan kayıt yok; kullanıcının model adı beyanı doğrulama kanıtı sayılmadı |
+| Çıktı | [Güvenlik raporu](SECURITY_REVIEW_2026-09-16.md); [tekrar üretim araçları](security/2026-09-16/backup-probes.cjs); [anahtar/görsel probe'ları](security/2026-09-16/remote-probes.cjs); [bağımlılık özeti](security/2026-09-16/dependency-audit.json) |
+| Otomatik kanıt | Typecheck exit 0; tam Jest 127 suite/1.036 test geçti. npm audit exit 1: 32 paket uyarısı; bu sayı mobil release sömürüsü sayısı değildir. Probe'ların mevcut kusur/güvenli davranış beklentileri raporda ayrıldı |
+| Belge tutarlılığı | QUALITY_AND_SECURITY içindeki yalnız fişin Gemini'ye gittiği eski ifade, kodda mevcut ürün karşılaştırmasını ve diğer veri sınırlarını kapsayacak şekilde düzeltildi |
+| İnsan/AI ayrımı | Düzeltme öncelikleri AI önerisidir; hedef pazar/Gemini hizmet biçimi, risk kabulü ve yayın kararı insan tarafından henüz verilmedi |
+| Sınır | Ürün kodu/config/lockfile değişmedi. Gerçek fiş/anahtar/DB kullanılmadı; gerçek AAB, cihaz yedeği, release ağ kaydı, Play Console ve harici signing secrets denetlenmedi. Commit/push/yayın yok |
+
 ## 5. Yeni kayıt ekleme şablonu
 
 Her anlamlı AI oturumu için aşağıdaki blok kullanılır. Küçük yazım düzeltmeleri tek
@@ -1304,3 +1319,72 @@ Yayın hazırlığı denetiminde kullanılan iki modelli yöntem için
   görüntüsü”, “hata logu” gibi kategori düzeyinde belirtilir.
 - AI servisinin saklama politikası bilinmiyorsa kesin güvence verilmez; bu durum
   sınırlama olarak kaydedilir.
+
+## 16 Eylül 2026 — güvenlik raporunun uygulanması
+
+- **İnsan talebi/kararı:** AGENTS ve raporu oku; güncel kodda doğrula; raporun
+  çalışma sırasıyla düzelt, her bulguda regresyon ve belge güncelle; ürün kararını
+  ayır ve cihazda doğrulanmayanı kapatma.
+- **AI katkısı:** Kaynak ve sentetik probe doğrulaması; URI sınırı, sıralı anahtar
+  silme, Android XML/plugin/AAB, dört dilde aktarım onayı, uyumlu SDK yamaları,
+  yerel bounded okuyucu, sahipli cache temizliği ve iteratif sanitizer önerildi
+  ve uygulandı. Paylaşım için 24 saat sonrası ilk temizlik varsayımı AI teknik
+  tercihidir; cihaz ve insan kabulü verilmiş sayılmadı. Alt ajan kullanılmadı.
+- **Ürün kararı:** Hedef pazar/Gemini hizmet biçimi soruldu; ilk kayıt anında cevap
+  yoktu. Kullanıcı diliyle koşul varsayılmadı. Oturumun devamında insan kararı
+  alındı: ücretsiz katman serbest, pazar global ([ADR-012](../decisions/ADR-012-ai-transfer-service-and-market-scope.md)).
+  AI, ücretsiz katman + global + kişisel finansal veri bileşiminin uyum yükünü
+  belirtti; karar kullanıcınındır ve tam kapsamıyla uygulandı. Metinler kararı
+  kullanıcıya devreden ifadeden, ücretsiz katmanın bedelini açıkça yazan ifadeye
+  çevrildi. AI kapatma veya hukuki uygunluk kabulü yapılmadı.
+- **Otomatik kanıt:** typecheck; 135 suite/1.083 test; iki sentetik probe;
+  Foundation okuyucuda 5 kontrol; Expo uyumluluk kontrolü; izole Android prebuild.
+- **Cihaz/build sınırı:** Java runtime ve adb yok; gerçek release AAB veya cihaz
+  testi yapılmadı. Yerel modül Android/iOS köprü derlemesi doğrulanmadı.
+- **İnsan kabulü ve dış eylem:** Yok. Commit/push/site/Play yayını yapılmadı;
+  gerçek API anahtarı veya kullanıcı finansal verisi kullanılmadı. İlk rapor ve
+  kullanıcının mevcut belge değişiklikleri korundu.
+
+[Somut düzeltme, test ve açık iş kaydı](SECURITY_REMEDIATION_2026-09-16.md).
+
+## 19 September 2026 — thesis-method revision and research continuity
+
+- **Human request:** read the previously submitted proposal and the supervisor's
+  four comments; explain choices in plain Turkish; keep thesis material in
+  English; establish a dated record for the student, supervisor and future AI
+  sessions; reach decisions before applying them to the formal proposal.
+- **AI contribution:** proposal/feedback comparison, draft classification rules,
+  proposed sample reduction and bias checks, an English research log and a
+  provisional worked SEC-02 example with a scoped source/test archive.
+- **Human decisions established:** language and record-keeping requirements.
+  Novice definition, sample size, review arrangements and codebook are still
+  proposed or awaiting facts; no methodological approval is inferred.
+- **New evidence:** a baseline service fault was reproduced synthetically;
+  current secure-key service/UI regressions passed, 2 suites / 6 tests.
+  These checks were run on 2026-09-19 and are not historical/device evidence.
+- **Boundary:** no application code or submitted DOCX was edited, no supervisor
+  message was sent and no independent coding or supervisor acceptance occurred.
+  Personal experience, available research time and reviewer availability were
+  requested from the student. Existing development evidence remains separate
+  from the thesis decision record.
+- **Continuity source:** [thesis workspace](../thesis/README.md) and
+  [dated research log](../thesis/RESEARCH_LOG.md).
+- **Later update in the same session:** the student accepted “student developer”
+  with an explicit account of prior experience (TD-004). The English working
+  proposal now applies this terminology. Self-reported background includes an
+  Ecology bachelor's degree, current Computer Science master's study and a
+  7–8-month Code Academy training programme, with no professional developer
+  employment. The student requested a simpler explanation of the proposed
+  episode count; no sample-size decision, review arrangement or codebook was
+  accepted. Weekly availability remains unknown. See research-log updates
+  U01–U03; the earlier pending status above records the start of the session.
+- **Continuity/writing update:** the student requested cross-project/AI handover
+  and simple guidance on writing and figures, and explained that some logs were
+  created after development. Prepared a central coordination procedure, portable
+  prompts, project handoff template and writing roadmap; added a thesis entry
+  pointer to `AGENTS.md`. Read-only inspection of the supplied SynCinema/AutoSRT
+  repositories found reusable SynCinema planning records and AutoSRT source/README
+  material. Source availability is not runtime or authorship proof. No secondary
+  repository setup, clone, remote write or new application test occurred. See
+  research-log update U04 and its versioned initial inventory; sample size and
+  methodological decisions remain open.

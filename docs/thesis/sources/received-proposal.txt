@@ -1,0 +1,156 @@
+Refined Thesis Proposal — Draft
+Proposed Title
+From Natural-Language Prompts to Functional Software: A Longitudinal Multi-Case Study of AI-Assisted Software Development by a Novice Developer
+1. Background and Research Problem
+Recent generative artificial intelligence tools can assist users with software planning, code generation, debugging, testing, documentation, and interface design through natural-language interaction. These tools may lower the initial barriers to software development for individuals with limited formal programming and software engineering experience.
+However, the successful creation of a working application does not by itself demonstrate that AI-assisted development is reliable, efficient, secure, or maintainable. AI-generated solutions may contain incorrect assumptions, incomplete implementations, security weaknesses, regressions, or claims of success that have not been independently verified. In addition, the apparent autonomy of AI coding tools may conceal the importance of human problem definition, iterative feedback, decision-making, testing, and final acceptance.
+This thesis will investigate the development of three software applications created with substantial assistance from generative AI tools:
+	•	SPARK, a mobile personal finance and receipt-analysis application;
+	•	SynCinema, a web-based multimedia application for synchronized playback and multiple audio outputs;
+	•	AutoSRT, a desktop application for local AI-based transcription and subtitle generation.
+Rather than presenting the applications as separate portfolio projects, the thesis will analyze selected development events from all three projects through a shared evaluation framework. SPARK will serve as the primary longitudinal case because it has the most extensive development history, AI conversation records, Git history, technical documentation, test evidence, architectural decisions, and runtime observations. SynCinema and AutoSRT will serve as secondary comparative cases representing different technologies, platforms, and development constraints.
+2. Research Aim
+The aim of this research is to determine how a developer with limited formal software engineering experience can use generative AI coding assistants to create and iteratively improve functional software applications.
+The study will examine both the capabilities and limitations of AI-assisted development. Particular attention will be paid to the relationship between AI-generated contributions and the human activities required to identify problems, define expected behaviour, evaluate proposed solutions, detect failures, and verify the resulting software.
+3. Main Research Question
+— How and under what conditions can a novice developer use generative AI coding assistants to design, implement, and iteratively improve functional software applications, and what limitations and human oversight requirements emerge during this process?
+4. Sub-questions
+The thesis will address the following sub-questions:
+	•	Which stages of the software development lifecycle were supported by generative AI tools?
+This includes requirements of clarification, technology selection, architectural planning, code generation, debugging, testing, security review, user-interface improvement, and documentation.
+	•	What types of errors, incorrect assumptions, incomplete solutions, or regressions occurred during AI-assisted development?
+	•	At which points was human intervention necessary to correct, reject, refine, or independently verify AI-generated outputs?
+	•	To what extent did the resulting applications reach different levels of implementation and verification, including working prototypes, automatically tested software, runtime-validated features, and accepted or deployed products?
+5. Case Studies
+5.1 SPARK — Primary Longitudinal Case
+SPARK is a mobile personal finance application designed around local data storage, receipt analysis, budgeting, financial visualisation, and optional Gemini-based receipt processing.
+Its development history includes natural-language product ideation, AI-assisted implementation, database and financial-domain decisions, interface design, debugging, security improvements, test development, documentation, and physical-device observations.
+SPARK is particularly suitable as the primary case because the available evidence includes:
+	•	Early product-definition conversations;
+	•	AI coding and debugging sessions;
+	•	Git commits and code changes;
+	•	Test and type-check results;
+	•	Quality and security documentation;
+	•	Architectural decision records;
+	•	Development history and traceability records;
+	•	Screenshots and runtime observations;
+	•	Examples in which automated tests passed but problems remained visible on a physical device.
+5.2 SynCinema — Secondary Comparative Case
+SynCinema is a web application for multimedia playback, subtitle support, project persistence, audio-device management, and synchronized multiple-audio-output workflows.
+It represents a different technical environment involving React, TypeScript, browser media APIs, Web Audio, device permissions, web security, responsive interfaces, external services, and deployment.
+Although much of the original AI conversation history is unavailable, its Git history, documentation, continuous integration records, deployed interface, and development phases can be used to reconstruct parts of its technical evolution. Claims concerning the precise division of work between the developer and AI will be limited to what the surviving evidence supports.
+5.3 AutoSRT — Secondary Comparative Case
+AutoSRT is a Python-based desktop application for producing subtitles locally with Faster-Whisper.
+Its development began with a practical problem: an existing online transcription service imposed a restrictive free-use limit. AI assistance was initially used to identify a local alternative, configure Python and GPU dependencies, generate an early transcription script, and troubleshoot installation and runtime problems. The solution was later developed into a graphical desktop application supporting model selection, source-language configuration, processing profiles, subtitle controls, multiple output formats, logging, and file management.
+AutoSRT therefore provides a smaller but well-documented example of progression from problem definition to script development and subsequent productisation.
+6. Research Method
+The research will use a longitudinal embedded multi-case study design.
+The unit of analysis will not be the entire application or every individual commit. Instead, the study will examine selected development episodes. A development episode is a bounded event in which a requirement, defect, design problem, security concern, or technical limitation was addressed with AI assistance.
+Examples include:
+	•	Initial product and requirement definition;
+	•	Implementation of a new feature;
+	•	Diagnosis and correction of a software defect;
+	•	Interface or usability improvement;
+	•	Architectural or data-model decision;
+	•	Security or privacy improvement;
+	•	Performance optimisation;
+	•	Testing and documentation work;
+	•	A failed solution that required substantial rework.
+The planned dataset will include approximately:
+	•	10–15 episodes from SPARK;
+	•	5–8 episodes from SynCinema;
+	•	5–8 episodes from AutoSRT.
+The final number may be adjusted according to evidence quality and comparability.
+7. Common Evaluation Framework
+Each selected development episode will be examined using the same categories:
+	•	Initial problem or requirement;
+	•	Human-provided prompt or instruction;
+	•	Role performed by the AI tool;
+	•	Human decisions and interventions;
+	•	Number and nature of iterations;
+	•	Observed AI errors or limitations;
+	•	Files, components, or architectural layers affected;
+	•	Implementation evidence, such as Git commits or code differences;
+	•	Automated verification, such as type-checking, unit tests, linting, or continuous integration;
+	•	Runtime verification in a browser, emulator, desktop environment, or physical device;
+	•	Final human acceptance or rejection;
+	•	Remaining risks and evidence limitations.
+AI contributions will be categorised into activities such as research, planning, architecture, code generation, debugging, testing, review, and documentation.
+Human contributions will include problem identification, requirement definition, design selection, correction of AI assumptions, manual testing, acceptance decisions, and rejection or revision of proposed outputs.
+8. Quantitative and Qualitative Analysis
+The study will combine descriptive quantitative measures with qualitative analysis.
+Possible quantitative measures include:
+	•	Number of analysed development episodes;
+	•	Distribution of feature, defect, interface, security, and architecture tasks;
+	•	Number of solutions accepted on the first attempt;
+	•	Number of episodes requiring minor or substantial rework;
+	•	Number of rejected or corrected AI outputs;
+	•	Number of episodes supported by automated tests;
+	•	Number of episodes supported by CI results;
+	•	Number of episodes validated in an actual runtime environment;
+	•	Number of later regressions or reopened problems;
+	•	Distribution of AI and human roles across the development lifecycle.
+Historical duration data will only be used where reliable timestamps are available. Missing task-duration information will not be retrospectively invented.
+Qualitative analysis will examine recurring patterns such as:
+	•	AI confidence despite incomplete verification;
+	•	Dependence on human problem recognition;
+	•	Context loss between development sessions;
+	•	The difference between syntactic correctness and correct runtime behaviour;
+	•	The role of iterative prompting;
+	•	The transition from informal “vibe coding” to more structured software engineering practices;
+	•	The relationship between project complexity and verification effort.
+9. Data Sources
+The study will use the following evidence:
+	•	AI conversation transcripts;
+	•	Screenshots of conversations and application behaviour;
+	•	Git commit history and code differences;
+	•	README files and technical documentation;
+	•	Architectural and security records;
+	•	Test results and type-check outputs;
+	•	Continuous integration records;
+	•	Build and deployment evidence;
+	•	Browser, desktop, emulator, and physical-device observations;
+	•	Researcher/developer notes and retrospective explanations.
+The sources will not be treated as equally strong evidence. An AI statement that a problem was solved will be considered a claim, not proof. A code commit can show that a change was implemented, while a test result may support a specific behavioural claim. Runtime and physical-device observations will be required for behaviours that automated tests cannot demonstrate, such as mobile flicker, gesture handling, native permissions, or visual continuity.
+10. Evidence Classification
+Evidence may be classified at the following levels:
+	•	E0 — Narrative or retrospective evidence: conversation, note, or later reconstruction;
+	•	E1 — Implementation evidence: commit, code, or code difference;
+	•	E2 — Automated verification evidence: test, type-check, lint, or CI result linked to the implementation;
+	•	E3 — Runtime or target-device evidence: identified build, environment, scenario, and observed result;
+	•	E4 — Human acceptance or release evidence: explicit acceptance or deployed/released version.
+The level will be assigned according to whether the evidence supports the specific claim. For example, a successful TypeScript check cannot prove that a mobile visual flicker was removed.
+11. Expected Contribution
+The thesis is expected to contribute an evidence-based account of AI-assisted software development from the perspective of a developer with limited initial formal experience.
+Its intended contribution is not to claim that AI can replace professional software engineers or that any individual can automatically produce commercially successful software. Instead, it will identify:
+	•	The development tasks for which AI assistance was most useful;
+	•	The tasks in which AI outputs were most likely to require correction;
+	•	The types of human judgement that remained necessary;
+	•	The verification methods required before an AI-assisted result could be considered reliable;
+	•	The conditions under which natural-language development enabled functional software creation;
+	•	The limitations of generalising from one developer and three projects.
+12. Limitations
+The study has several limitations:
+	•	All three applications were developed by the same individual;
+	•	The research is based on a small number of purposively selected cases;
+	•	Some older Antigravity and Cursor conversation histories are no longer available;
+	•	Several development events must be reconstructed retrospectively from Git history and documentation;
+	•	Historical task duration was not consistently recorded;
+	•	The AI tools and model versions changed during the development period;
+	•	The completeness of evidence differs between the three projects;
+	•	The research does not directly evaluate commercial success, profitability, or market adoption;
+	•	Results cannot automatically be generalised to all novice developers.
+These limitations will be explicitly documented rather than hidden or replaced by unsupported assumptions.
+13. Provisional Theoretical Chapter Scope
+The theoretical chapter will review academic literature concerning:
+	•	Traditional software development lifecycle models;
+	•	Generative AI in software engineering;
+	•	AI coding assistants and natural-language programming;
+	•	Prompt engineering and context management;
+	•	Human–AI collaboration and human oversight;
+	•	Hallucinations and reliability risks;
+	•	Verification and testing of AI-generated code;
+	•	Software security and maintainability;
+	•	End-user programming and novice developers;
+	•	The democratisation of software development;
+	•	Existing empirical studies of AI-assisted programming.

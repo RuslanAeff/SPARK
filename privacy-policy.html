@@ -131,31 +131,33 @@
         <li>Google Gemini API anahtarınız (yalnızca cihazınızın güvenli depolama alanında — OS Keychain)</li>
       </ul>
       <div class="highlight">
-        Tüm bu veriler <strong>yalnızca cihazınızda</strong> saklanır. Geliştirici, bu verileri hiçbir şekilde göremez veya erişemez.
+        Bu kayıtların ana deposu cihazınızdadır. İsteğe bağlı AI işlemleri ve dışa aktardığınız yedekler aşağıda açıklanan aktarımları içerir. Geliştirici, bu verileri hiçbir şekilde göremez veya erişemez.
       </div>
     </div>
 
     <div class="section">
       <h2>Sunucuya Gönderilen Veriler</h2>
-      <p>Uygulama, arka uç sunucusu veya bulut depolama alanı <strong>kullanmaz</strong>. Verilerin cihazınızdan çıktığı yalnızca iki durum vardır ve her ikisi de sizin açık bir dokunuşunuzla başlar; hiçbiri arka planda kendiliğinden çalışmaz:</p>
+      <p>Uygulama, arka uç sunucusu veya bulut depolama alanı <strong>kullanmaz</strong>. İsteğe bağlı AI işlemleri Google Gemini’ye veri gönderir. Ayrıca kendi seçtiğiniz yedek paylaşım hedefi verilerinizi alabilir:</p>
       <div class="highlight">
-        <strong>1 · Fiş tarama:</strong> Fiş tarama butonuna bastığınızda, fişin fotoğrafı Google'ın Gemini yapay zekâ servisine işlenmek üzere gönderilir.
+        <strong>1 · Fiş tarama:</strong> Aktarım açıklamasını okuyup Gönder’i seçtiğinizde, fişin fotoğrafı Google'ın Gemini yapay zekâ servisine işlenmek üzere gönderilir.
       </div>
       <div class="highlight">
-        <strong>2 · Yapay zekâ ürün eşleştirme önerisi:</strong> Ürün eşleştirme ekranında yapay zekâ önerisi düğmesine bastığınızda, karşılaştırdığınız iki ürünün <em>yalnızca kimlik bilgileri</em> metin olarak aynı servise gönderilir: ürün adı, marka, ürün ailesi, varyant, paket tanımı ve ölçü birimi. Tutar, fiyat geçmişi, satıcı, tarih veya başka bir finansal veri gönderilmez. Dönen yanıt yalnızca tavsiye niteliğindedir; sizin onayınız olmadan hiçbir kaydı değiştirmez.
+        <strong>2 · Yapay zekâ ürün eşleştirme önerisi:</strong> Ürün eşleştirme ekranındaki aktarım açıklamasını onayladığınızda, karşılaştırdığınız iki ürünün <em>yalnızca kimlik bilgileri</em> metin olarak aynı servise gönderilir: ürün adı, marka, varyant, paket tanımı ve ölçü birimi. Tutar, fiyat geçmişi, satıcı, tarih veya başka bir finansal veri gönderilmez. Dönen yanıt yalnızca tavsiye niteliğindedir; sizin onayınız olmadan hiçbir kaydı değiştirmez.
       </div>
       <p>Her iki işlemde de <em>sizin</em> Gemini API anahtarınız kullanılır. Veriler geliştiricinin sunucusundan geçmez; doğrudan cihazınızdan Google'a iletilir. Google'ın veri işleme kuralları için bkz: <a href="https://policies.google.com/privacy" target="_blank">Google Gizlilik Politikası</a>.</p>
-      <p>Bu iki özelliği kullanmadığınızda hiçbir veri internet üzerinden iletilmez.</p>
+      <p>AI aktarımını reddedebilir; manuel kayıt ve yerel ürün eşleştirmesini kullanabilirsiniz. Her aktarım ayrı onay ister; onaydan önce hiçbir veri gönderilmez.</p>
+      <p>Uygulama hem ücretsiz hem ücretli Gemini anahtarını destekler. <strong>Ücretsiz katmanda Google, gönderdiğiniz içeriği — fiş fotoğrafları ile üzerindeki kişisel ve finansal bilgiler dahil — hizmetlerini geliştirmek için kullanabilir ve bu içerik insanlar tarafından incelenebilir.</strong> Ücretli katmanda Google içeriği bu şekilde kullanmadığını belirtir. Hassas fişler için ücretli anahtar önerilir. Bkz. <a href="https://ai.google.dev/gemini-api/terms">Gemini hizmet koşulları</a>.</p>
+      <p>Uygulama dünya genelinde sunulur. AI aktarımları ülkenizden çıkar ve Google’ın yurt dışındaki, ABD dahil olabilen sunucularında işlenir. Her aktarım için verdiğiniz onay bu işlemenin hukuki dayanağıdır; onaylamazsanız AI amacıyla cihazınızdan veri çıkmaz.</p>
     </div>
 
     <div class="section">
       <h2>Üçüncü Taraf Paylaşımı</h2>
-      <p>Verileriniz hiçbir reklam ağı, analitik servisi veya başka üçüncü tarafla paylaşılmaz. Uygulamada reklam veya kullanıcı izleme kodu <strong>bulunmaz</strong>.</p>
+      <p>Verileriniz reklam ağlarına veya analitik servislerine gönderilmez. İsteğe bağlı AI aktarımının alıcısı Google Gemini’dir; yedek paylaşımının alıcısını siz seçersiniz. Uygulamada reklam veya kullanıcı izleme kodu <strong>bulunmaz</strong>.</p>
     </div>
 
     <div class="section">
       <h2>Veri Saklama ve Silme</h2>
-      <p>Tüm veriler cihazınızdaki yerel SQLite veritabanında saklanır. Uygulamayı cihazınızdan sildiğinizde tüm veriler kalıcı olarak silinir. Yedekleme özelliğini kullandıysanız, yedek dosyaları istediğiniz zaman cihazınızdan silebilirsiniz.</p>
+      <p>Finansal kayıtlar yerel SQLite veritabanında, API anahtarı güvenli depoda saklanır. Uygulamayı kaldırmak dışarı aktardığınız yedekleri veya Google’a iletilmiş verileri silmez. Yedekleme özelliğini kullandıysanız, yedek dosyaları istediğiniz zaman cihazınızdan silebilirsiniz.</p>
       <p>Yedek dosyası cihazınızda oluşturulur ve dilerseniz sistemin paylaşma menüsüyle dışarı aktarabilirsiniz. Yedeği e-posta, bulut depolama veya başka bir uygulamaya gönderdiğinizde o dosya artık bu politikanın değil, gönderdiğiniz servisin kurallarına tabi olur. Yedek; harcama, fiş kalemi, borç, plan ve ürün verilerinizi içerir. Gemini API anahtarınızı <strong>içermez</strong>.</p>
     </div>
 
@@ -167,7 +169,7 @@
     <div class="section">
       <h2>Bildirimler</h2>
       <p>Bütçe uyarıları ile borç ve ödeme hatırlatmaları, siz uygulamayı açmadan da zamanında görünebilmesi için önceden Android'in bildirim sistemine planlanır. Bu nedenle bildirimin başlığı ve metni — örneğin bir ödemenin adı ve tutarı — uygulamanın veritabanı dışında, işletim sisteminin kendi bildirim deposunda da bulunabilir.</p>
-      <p>Bu içerik cihazınızdan dışarı gönderilmez. Finansal ayrıntıların kilit ekranında görünmemesi için uygulamanın bildirim kanalları <strong>gizli içerik</strong> olarak ayarlanmıştır; ayrıntı yalnız telefonun kilidi açıldığında görünür. Bildirimleri tür bazında uygulama içinden, tamamen ise sistem ayarlarından kapatabilirsiniz.</p>
+      <p>Uygulama bu bildirim içeriğini bir sunucuya göndermez. İşletim sistemi yedekleme ve cihaz aktarımı ayrı mekanizmalardır; uygulamanın Android yedek kuralları planlanmış bildirim deposunu dışlayacak şekilde yapılandırılmıştır. Finansal ayrıntıların kilit ekranında görünmemesi için uygulamanın bildirim kanalları <strong>gizli içerik</strong> olarak ayarlanmıştır; ayrıntı yalnız telefonun kilidi açıldığında görünür. Bildirimleri tür bazında uygulama içinden, tamamen ise sistem ayarlarından kapatabilirsiniz.</p>
     </div>
 
     <div class="section">
@@ -220,31 +222,33 @@
         <li>Your Google Gemini API key (stored only in your device's secure storage — OS Keychain)</li>
       </ul>
       <div class="highlight">
-        All data is stored <strong>exclusively on your device</strong>. The developer cannot view or access this data in any way.
+        The primary storage for these records is your device. Optional AI operations and exported backups involve the transfers described below. The developer cannot view or access this data in any way.
       </div>
     </div>
 
     <div class="section">
       <h2>Data Sent Over the Internet</h2>
-      <p>The app does <strong>not</strong> use any back-end server or cloud storage. There are only two situations in which data leaves your device, and both begin with an explicit tap from you — neither runs automatically in the background:</p>
+      <p>The app does <strong>not</strong> use any back-end server or cloud storage. Optional AI operations send data to Google Gemini. A backup destination you select can also receive your data:</p>
       <div class="highlight">
-        <strong>1 · Receipt scanning:</strong> When you tap the receipt scan button, the photo of your receipt is sent to Google's Gemini AI service for processing.
+        <strong>1 · Receipt scanning:</strong> When you read the transfer notice and choose Send, the photo of your receipt is sent to Google's Gemini AI service for processing.
       </div>
       <div class="highlight">
-        <strong>2 · AI product matching advice:</strong> When you tap the AI suggestion button on the product matching screen, <em>only the identity details</em> of the two products you are comparing are sent as text to the same service: product name, brand, product family, variant, package descriptor and measurement unit. No amount, price history, vendor, date or other financial data is sent. The response is advisory only; it never changes any record without your confirmation.
+        <strong>2 · AI product matching advice:</strong> When you confirm the transfer notice on the product matching screen, <em>only the identity details</em> of the two products you are comparing are sent as text to the same service: product name, brand, variant, package descriptor and measurement unit. No amount, price history, vendor, date or other financial data is sent. The response is advisory only; it never changes any record without your confirmation.
       </div>
       <p>Both operations use <em>your own</em> Gemini API key. The data does not pass through the developer's servers — it is transmitted directly from your device to Google. For Google's data handling rules, see: <a href="https://policies.google.com/privacy" target="_blank">Google Privacy Policy</a>.</p>
-      <p>When you do not use these two features, no data is transmitted over the internet.</p>
+      <p>You can decline AI transfer and use manual entry and local product matching. Every transfer needs a fresh confirmation; nothing is sent beforehand.</p>
+      <p>The app supports both free and paid Gemini keys. <strong>On the free tier Google may use what you send — including receipt photos and their personal and financial details — to improve its services, and this content may be reviewed by humans.</strong> On a paid tier Google states it does not use the content this way. A paid key is recommended for sensitive receipts. See the <a href="https://ai.google.dev/gemini-api/terms">Gemini service terms</a>.</p>
+      <p>The app is offered worldwide. AI transfers leave your country and are processed on Google servers abroad, which may include the United States. Your confirmation of each transfer is the legal basis for it; if you do not confirm, no data leaves your device for AI purposes.</p>
     </div>
 
     <div class="section">
       <h2>Third-Party Sharing</h2>
-      <p>Your data is never shared with any advertising network, analytics service, or other third party. The app contains <strong>no</strong> advertising or user-tracking code.</p>
+      <p>Your data is not sent to advertising networks or analytics services. Google Gemini receives optional AI transfers; you select the recipient of backup sharing. The app contains <strong>no</strong> advertising or user-tracking code.</p>
     </div>
 
     <div class="section">
       <h2>Data Retention and Deletion</h2>
-      <p>All data is stored in a local SQLite database on your device. Uninstalling the app permanently deletes all data. If you have used the backup feature, backup files can be deleted from your device at any time.</p>
+      <p>Financial records are stored in local SQLite and the API key in secure storage. Uninstalling the app does not delete exported backups or data already sent to Google. If you have used the backup feature, backup files can be deleted from your device at any time.</p>
       <p>A backup file is created on your device and you may export it through the system share sheet. Once you send a backup to email, cloud storage or another app, that file is governed by the rules of the destination service rather than this policy. A backup contains your expense, receipt item, debt, plan and product data. It does <strong>not</strong> contain your Gemini API key.</p>
     </div>
 
@@ -256,7 +260,7 @@
     <div class="section">
       <h2>Notifications</h2>
       <p>Budget alerts along with debt and payment reminders are scheduled with Android's notification system in advance, so that they can appear on time without you opening the app. As a result, a notification's title and text — for example the name and amount of a payment — may also exist in the operating system's own notification store, outside the app's database.</p>
-      <p>This content is never sent off your device. To keep financial details off your lock screen, the app's notification channels are configured as <strong>private content</strong>; details are visible only after the phone is unlocked. You can turn notifications off by type inside the app, or entirely from system settings.</p>
+      <p>The app does not send this notification content to a server. System backup and device transfer are separate mechanisms; the app’s Android backup rules are configured to exclude its scheduled notification store. To keep financial details off your lock screen, the app's notification channels are configured as <strong>private content</strong>; details are visible only after the phone is unlocked. You can turn notifications off by type inside the app, or entirely from system settings.</p>
     </div>
 
     <div class="section">

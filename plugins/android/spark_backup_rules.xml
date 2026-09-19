@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<full-backup-content>
+    <include domain="sharedpref" path="."/>
+    <exclude domain="sharedpref" path="SecureStore"/>
+    <exclude domain="sharedpref" path="SecureStore.xml"/>
+    <exclude domain="sharedpref" path="expo.modules.notifications.SharedPreferencesNotificationsStore.xml"/>
+</full-backup-content>

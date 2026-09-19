@@ -110,20 +110,26 @@ export function hasDangerousKeys(obj: unknown): boolean {
 }
 
 /** Tehlikeli anahtarları nesne ve alt nesnelerden temizler (in-place). */
+export const MAX_JSON_DEPTH = 64;
+export const MAX_JSON_NODES = 250_000;
+
 export function stripDangerousKeys<T extends Record<string, unknown>>(obj: T): T {
-  for (const key of Object.keys(obj)) {
-    if (DANGEROUS_KEYS.has(key)) {
-      delete obj[key];
-      continue;
-    }
-    const val = obj[key];
-    if (val && typeof val === 'object' && !Array.isArray(val)) {
-      stripDangerousKeys(val as Record<string, unknown>);
-    } else if (Array.isArray(val)) {
-      for (const item of val) {
-        if (item && typeof item === 'object') {
-          stripDangerousKeys(item as Record<string, unknown>);
-        }
+  const stack: Array<{ value: Record<string, unknown>; depth: number }> = [{ value: obj, depth: 0 }];
+  const seen = new WeakSet<object>();
+  let nodes = 1;
+  while (stack.length) {
+    const { value, depth } = stack.pop()!;
+    if (depth > MAX_JSON_DEPTH || seen.has(value)) throw new Error('INVALID_FORMAT');
+    seen.add(value);
+    for (const key of Object.keys(value)) {
+      if (++nodes > MAX_JSON_NODES) throw new Error('INVALID_FORMAT');
+      if (DANGEROUS_KEYS.has(key)) {
+        delete value[key];
+        continue;
+      }
+      const child = value[key];
+      if (child && typeof child === 'object') {
+        stack.push({ value: child as Record<string, unknown>, depth: depth + 1 });
       }
     }
   }

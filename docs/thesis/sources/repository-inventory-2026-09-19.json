@@ -1,0 +1,540 @@
+{
+  "observedOn": "2026-09-19",
+  "timezone": "Europe/Warsaw",
+  "scope": "Read-only remote tree and selected document inventory; no full history audit, clone, runtime test or repository mutation.",
+  "projects": [
+    {
+      "project": "SynCinema",
+      "repository": "https://github.com/RuslanAeff/SynCinema",
+      "observedBranch": "main",
+      "observedRef": "710ea56cbf080b3260520b0497b7c0cde43120ab",
+      "treeApiObjectSha": "710ea56cbf080b3260520b0497b7c0cde43120ab",
+      "treeListingTruncated": false,
+      "treeListingApi": "https://api.github.com/repos/RuslanAeff/SynCinema/git/trees/710ea56cbf080b3260520b0497b7c0cde43120ab?recursive=1",
+      "files": [
+        {
+          "path": ".github/workflows/ci.yml",
+          "gitBlobSha": "c6a631dd30c69bba41aff49841d0d4e3d6a120a5"
+        },
+        {
+          "path": ".gitignore",
+          "gitBlobSha": "7ec3060f1d153a9ec40f5a31d69f0f720a0e54e9"
+        },
+        {
+          "path": "LICENSE",
+          "gitBlobSha": "58f36f55b0e71887980222ab1dfbeabf935aa0c7"
+        },
+        {
+          "path": "Planner-docs/Autopsy.md",
+          "gitBlobSha": "bac37d2b03edc84655f794560684dcacc264d952"
+        },
+        {
+          "path": "Planner-docs/Faz-1-Plans/Faz1.1-typecheck-in-build.md",
+          "gitBlobSha": "06fb9bbf1e05738b31ac3d358ca7cfd1fcd62798"
+        },
+        {
+          "path": "Planner-docs/Faz-1-Plans/Faz1.2-eslint-configuration.md",
+          "gitBlobSha": "de2b7da289ce005b210a4facbb4ed03960083516"
+        },
+        {
+          "path": "Planner-docs/Faz-1-Plans/Faz1.3-minimal-ci-workflow.md",
+          "gitBlobSha": "71afb399522b9fc87f079648c3b3ff041468c198"
+        },
+        {
+          "path": "Planner-docs/Faz-1-Plans/Faz1.4-dead-weight-removal.md",
+          "gitBlobSha": "b1f0d720fa1393eac7393eb4d80c24c21909b076"
+        },
+        {
+          "path": "Planner-docs/Faz-2-Plans/Faz2.1-proxy-referer-exact-match.md",
+          "gitBlobSha": "bbafb02189bb502fdc40f1280ca421a4d278a6aa"
+        },
+        {
+          "path": "Planner-docs/Faz-2-Plans/Faz2.2-server-side-admin-lockout.md",
+          "gitBlobSha": "7190ea56345aa8ed0df2fbdea69e5420cbcb0f11"
+        },
+        {
+          "path": "Planner-docs/Faz-2-Plans/Faz2.3-supabase-rpc-versioning.md",
+          "gitBlobSha": "d3995a2ad4879e3d9fd489683553fc89cd817bf0"
+        },
+        {
+          "path": "Planner-docs/Faz-2-Plans/Faz2.4-microphone-permission-gesture-gate.md",
+          "gitBlobSha": "b3742661179c41e532f119ca89f9b15d70c2ad2c"
+        },
+        {
+          "path": "Planner-docs/Faz-2-Plans/Faz2.5-sync-import-shape-validation.md",
+          "gitBlobSha": "5a97ecc6525e6823f050c76699fb8a79eb6f3911"
+        },
+        {
+          "path": "Planner-docs/Faz-3-Plans/Faz3.1-readme-correction.md",
+          "gitBlobSha": "dbbb366ca7ce63ba6b9c1361549b9c66bff5d6b1"
+        },
+        {
+          "path": "Planner-docs/Faz-3-Plans/Faz3.2-whitepaper-correction.md",
+          "gitBlobSha": "7b6cf23274bd82b571434593125862e9aacc0765"
+        },
+        {
+          "path": "Planner-docs/Faz-3-Plans/Faz3.3-csp-dropbox-reconciliation.md",
+          "gitBlobSha": "afe23543f165729dca785d7c4e5102f20a4ef8cc"
+        },
+        {
+          "path": "Planner-docs/Faz-4-Plans/Faz4.1-test-runner-bootstrap.md",
+          "gitBlobSha": "8899ca536041fbad4317c7bfd596a7f13878143b"
+        },
+        {
+          "path": "Planner-docs/Faz-4-Plans/Faz4.2-fingerprint-time-tests.md",
+          "gitBlobSha": "326e762cd56cf572ab690ea1bbdef207e947d0f8"
+        },
+        {
+          "path": "Planner-docs/Faz-4-Plans/Faz4.3-srt-parsing-eq-preset-tests.md",
+          "gitBlobSha": "141d52bc8339111a7736d90fc1b7cf3dbd368060"
+        },
+        {
+          "path": "Planner-docs/Faz-4-Plans/Faz4.4-drift-compressor-regression-tests.md",
+          "gitBlobSha": "31b72f81669652f4273011065d3fa38352f5fdcd"
+        },
+        {
+          "path": "Planner-docs/Faz-5-Plans/Faz5.1-state-architecture-evidence-review.md",
+          "gitBlobSha": "bb7ccb588164c9765d34f07c32c8ac091a0822ec"
+        },
+        {
+          "path": "Planner-docs/Faz-6-Plans/Faz6.1-error-reporting-decision.md",
+          "gitBlobSha": "49c6848b0ba84bdf7cfba4ad23ea5c88bd16577d"
+        },
+        {
+          "path": "Planner-docs/Faz-6-Plans/Faz6.2-proxy-observability.md",
+          "gitBlobSha": "0d389ac9e304b3d23b14627d127e87b14d9a76e6"
+        },
+        {
+          "path": "Planner-docs/Faz-6-Plans/Faz6.3-backup-retention-policy.md",
+          "gitBlobSha": "9eeca27d99f2fdd996f0ff383c13f2e7e0629b6e"
+        },
+        {
+          "path": "Planner-docs/Faz-7-Plans/Faz7.1-commercialization-gate-deferred.md",
+          "gitBlobSha": "7eda5b395d688f14f136be15e596b0736195d085"
+        },
+        {
+          "path": "Planner-docs/Main-Planing.md",
+          "gitBlobSha": "1ca29f1e02d37fabcf2d8b6c27a2e7cbda574172"
+        },
+        {
+          "path": "Planner-docs/Planing-Ledger.md",
+          "gitBlobSha": "46091c3d8afe813cc66be80f4f7f28b9d8f0d321"
+        },
+        {
+          "path": "Planner-docs/Project-Ontology.md",
+          "gitBlobSha": "302d8dd8434cda3558638b75703bacb2218dc87e"
+        },
+        {
+          "path": "Planner-docs/Sub-Planing-Audit.md",
+          "gitBlobSha": "ca9800086736035fc9d2259d4c3d3b7c103f6eef"
+        },
+        {
+          "path": "Planner-docs/Sub-Planing-Index.md",
+          "gitBlobSha": "54e29bea840e34d8e9e56f05f5ba1b62ec6fe481"
+        },
+        {
+          "path": "README.md",
+          "gitBlobSha": "d0423f5f039f7360904366efd5397121385d9090"
+        },
+        {
+          "path": "api/proxy.ts",
+          "gitBlobSha": "e87818d9528fa6fb517a57bf2a9694f92041c03e"
+        },
+        {
+          "path": "assets/README.md",
+          "gitBlobSha": "ec79b28d3f9130bd7b971edaf8f00785e9c44663"
+        },
+        {
+          "path": "detached.html",
+          "gitBlobSha": "d7534682371e40bb05dd8b7729a2e11d4e32b164"
+        },
+        {
+          "path": "docs/WHITEPAPER.md",
+          "gitBlobSha": "1df895e2b019129aeeb5414dc1425d4a202c2797"
+        },
+        {
+          "path": "docs/WHITEPAPER_TR.md",
+          "gitBlobSha": "9816bab62b0fe604e5531e72b5a8367fe66702db"
+        },
+        {
+          "path": "eslint.config.js",
+          "gitBlobSha": "3211bca7165301fa2a4ec0948a0524c8297f939e"
+        },
+        {
+          "path": "index.html",
+          "gitBlobSha": "ac0b95a32e359446c442a2ed6401a0d2fbdfac2f"
+        },
+        {
+          "path": "metadata.json",
+          "gitBlobSha": "8bd13d0dff7732b1595524c98dad17804b59c7cc"
+        },
+        {
+          "path": "package-lock.json",
+          "gitBlobSha": "293c35e1a83b9aec7a51f8bc331ae3dd532144d0"
+        },
+        {
+          "path": "package.json",
+          "gitBlobSha": "fe6e95811e8600a27af0aaa1ce12b0bba7f3863d"
+        },
+        {
+          "path": "postcss.config.js",
+          "gitBlobSha": "2e7af2b7f1a6f391da1631d93968a9d487ba977d"
+        },
+        {
+          "path": "src/App.tsx",
+          "gitBlobSha": "b6da80cbef724973e26d2861320a821ef419ff98"
+        },
+        {
+          "path": "src/components/AdminPanel.tsx",
+          "gitBlobSha": "3dbe409f55a75293c9369e3439acf9a2c33c2d62"
+        },
+        {
+          "path": "src/components/AudioGraphManager.tsx",
+          "gitBlobSha": "2601aa61ad6f3cf62f8caeb6d03e8dead9bf6af9"
+        },
+        {
+          "path": "src/components/AudioTrackRow.tsx",
+          "gitBlobSha": "a3a5ddd6b6362d1d75b97fc02a8b87aa1a31e679"
+        },
+        {
+          "path": "src/components/Button.tsx",
+          "gitBlobSha": "c4f03d7ae788329657f4425d1d6630286ce1b09a"
+        },
+        {
+          "path": "src/components/ErrorBoundary.tsx",
+          "gitBlobSha": "b3a80fbc1bf509d4e47ed28a6e15aac48df26557"
+        },
+        {
+          "path": "src/components/HelpPanel.tsx",
+          "gitBlobSha": "5ef21773d5a793c87c688db6edfa6bf9b335f362"
+        },
+        {
+          "path": "src/components/LanguageSelector.tsx",
+          "gitBlobSha": "decf2701f761c3fafc878356f522f2c3bedc9333"
+        },
+        {
+          "path": "src/components/Logo.tsx",
+          "gitBlobSha": "848d7d00a558df891b6fb5b3b02319d5bdec7ad5"
+        },
+        {
+          "path": "src/components/OnboardingTour.tsx",
+          "gitBlobSha": "8f7ebe77778bca2c1af79063202a547a5d10d5ed"
+        },
+        {
+          "path": "src/components/Sidebar.tsx",
+          "gitBlobSha": "0cb1ba815573bc9bbfd2112c38cb81542226aa9c"
+        },
+        {
+          "path": "src/components/Snowfall.tsx",
+          "gitBlobSha": "531e31b31b926b6401f9d926ab770bd9881b3aeb"
+        },
+        {
+          "path": "src/components/StatisticsPanel.tsx",
+          "gitBlobSha": "09aba9d0d4882539576492572ab2652c05a7c037"
+        },
+        {
+          "path": "src/components/SubtitleOverlay.tsx",
+          "gitBlobSha": "5abc695d0c5cb9c45c1ab038effc6c7240b33fef"
+        },
+        {
+          "path": "src/components/Toast.tsx",
+          "gitBlobSha": "828295e181fad1c50d9c82ae49311000eefacf86"
+        },
+        {
+          "path": "src/components/UrlLoaderModal.tsx",
+          "gitBlobSha": "285457e282f602a61517a4ea8d1db0c78833173e"
+        },
+        {
+          "path": "src/components/VideoPlayer.tsx",
+          "gitBlobSha": "3d4cb3036fa2a52f378725308a9e7b2f8429300d"
+        },
+        {
+          "path": "src/components/WelcomeScreen.tsx",
+          "gitBlobSha": "c06bea4a326f3bda7d6b0ca87fa5c8eeef8e705a"
+        },
+        {
+          "path": "src/components/YouTubePlayer.tsx",
+          "gitBlobSha": "01c9181685f5459842dbbeac3bc758f779926ff2"
+        },
+        {
+          "path": "src/components/sidebar/AudioSection.tsx",
+          "gitBlobSha": "21ec2347e490568b6f76e6315df2a28782427ade"
+        },
+        {
+          "path": "src/components/sidebar/MarkerSection.tsx",
+          "gitBlobSha": "823d381c4de33c6cf51e2bb6aabb2a84b801315e"
+        },
+        {
+          "path": "src/components/sidebar/MasterVolume.tsx",
+          "gitBlobSha": "7b7549a0c2979b2c0db07d56769bb7cea526eea0"
+        },
+        {
+          "path": "src/components/sidebar/SidebarHeader.tsx",
+          "gitBlobSha": "f0e99d6e9c39570585325bb8bd82fd81d335288a"
+        },
+        {
+          "path": "src/components/sidebar/SubtitleSettings.tsx",
+          "gitBlobSha": "30e496541012fcfe665db855c0e4cdf4f69e0bc0"
+        },
+        {
+          "path": "src/components/sidebar/VideoSettings.tsx",
+          "gitBlobSha": "d7248692648e598618aed2809c5f517ff5cc770f"
+        },
+        {
+          "path": "src/constants/eqPresets.test.ts",
+          "gitBlobSha": "3ab098d567c12ee470c6b7d6008379691476b160"
+        },
+        {
+          "path": "src/constants/eqPresets.ts",
+          "gitBlobSha": "cfca55692a9384721a9d30b9994f5ba6e1f59145"
+        },
+        {
+          "path": "src/context/I18nContext.tsx",
+          "gitBlobSha": "ab65fbee240cc1744a291731778faa3e1451ad0f"
+        },
+        {
+          "path": "src/detached.tsx",
+          "gitBlobSha": "5d531d7becc02ce753af6f4009d41f455e14aba6"
+        },
+        {
+          "path": "src/hooks/useAnalytics.ts",
+          "gitBlobSha": "ab83deca6d2caa43b73407a7e4be22130f40ae75"
+        },
+        {
+          "path": "src/hooks/useAudioTracks.ts",
+          "gitBlobSha": "f9091250d4cbe68214d510abcb09293303993b05"
+        },
+        {
+          "path": "src/hooks/useCloudSync.ts",
+          "gitBlobSha": "7c9ccb13febd5a5092a221a6f2cb231c10d20a12"
+        },
+        {
+          "path": "src/hooks/useTheme.ts",
+          "gitBlobSha": "33f56eb162553b35050702c5bb2e05116a8c6c02"
+        },
+        {
+          "path": "src/hooks/useVideoPlayer.ts",
+          "gitBlobSha": "8259088ca437f7cc9dd1f8c38574f9aa0aa79974"
+        },
+        {
+          "path": "src/i18n/az.ts",
+          "gitBlobSha": "717be065772f87b2606e840576322da4a249c91b"
+        },
+        {
+          "path": "src/i18n/en.ts",
+          "gitBlobSha": "a3f8fed60904a479d88bc5908b6e8e40e86b2f4c"
+        },
+        {
+          "path": "src/i18n/index.ts",
+          "gitBlobSha": "a87ef689eed18f610b1e7a5ca0511677de3631ac"
+        },
+        {
+          "path": "src/i18n/ru.ts",
+          "gitBlobSha": "7c87b03607fad91208e73dbf1733a9bc6b55ae5e"
+        },
+        {
+          "path": "src/i18n/tr.ts",
+          "gitBlobSha": "70110dc60a9ab97cd15580fbbaa644336fc26d33"
+        },
+        {
+          "path": "src/i18n/types.ts",
+          "gitBlobSha": "77e08aa499caece5a3a1f914c6a97a461cd7075b"
+        },
+        {
+          "path": "src/index.css",
+          "gitBlobSha": "2196ed0f3258754c1633fafb60407ff9d391bb49"
+        },
+        {
+          "path": "src/lib/sentry.test.ts",
+          "gitBlobSha": "69fddb9d07c5b0a7e2238ad893cb9cd6431d822a"
+        },
+        {
+          "path": "src/lib/sentry.ts",
+          "gitBlobSha": "52fc28b8cd37edf6f8abfcf84e393c1423afb544"
+        },
+        {
+          "path": "src/lib/supabase.ts",
+          "gitBlobSha": "b0d9147aebc856136caf358cf4fb6f280f7565b3"
+        },
+        {
+          "path": "src/main.tsx",
+          "gitBlobSha": "7be64cc213403863ce4985eb7d9d31adbece502b"
+        },
+        {
+          "path": "src/types.ts",
+          "gitBlobSha": "d972ea6e8726bf0a86913109b83a99df1e8cc7a7"
+        },
+        {
+          "path": "src/types/dom-extensions.d.ts",
+          "gitBlobSha": "fa4038c559c5b460d2411ad11edc4bcf600fbc00"
+        },
+        {
+          "path": "src/types/youtube.d.ts",
+          "gitBlobSha": "c3fded671321860907ba7112bc1f7dbbb8cea272"
+        },
+        {
+          "path": "src/utils/compressorBypass.test.ts",
+          "gitBlobSha": "cb455b6fb719fbf680b4a231a383629eaf87cc28"
+        },
+        {
+          "path": "src/utils/compressorBypass.ts",
+          "gitBlobSha": "cf25a5bf5858ef4cc2205e743460ede3a867bc45"
+        },
+        {
+          "path": "src/utils/driftCorrection.test.ts",
+          "gitBlobSha": "274348feb5006ac4671c345df423c15c4e4bc776"
+        },
+        {
+          "path": "src/utils/driftCorrection.ts",
+          "gitBlobSha": "137afcc3c62f289dfe17b6b1526f075322681ce7"
+        },
+        {
+          "path": "src/utils/fileFingerprint.test.ts",
+          "gitBlobSha": "e2db887208ef398d702ceffc6e8fceb232da3a47"
+        },
+        {
+          "path": "src/utils/fileFingerprint.ts",
+          "gitBlobSha": "b28dd7456e132a6d6d1910a8274e8bba8afd2733"
+        },
+        {
+          "path": "src/utils/formatTime.test.ts",
+          "gitBlobSha": "418692eeb8bbb09bf2a52d246af9a9050d436a65"
+        },
+        {
+          "path": "src/utils/formatTime.ts",
+          "gitBlobSha": "5e01e8be8525c866a71bb33c533bdba63bf6b312"
+        },
+        {
+          "path": "src/utils/getDeviceIcon.tsx",
+          "gitBlobSha": "c1a239c9c6c0fa63474a151c29d592e6ffe4fe47"
+        },
+        {
+          "path": "src/utils/srtParser.test.ts",
+          "gitBlobSha": "2a26b77de4bfd5616d0134e641a010c883d8222f"
+        },
+        {
+          "path": "src/utils/srtParser.ts",
+          "gitBlobSha": "5b9cb2cbe690389b1e7bafc37d20153958ca5725"
+        },
+        {
+          "path": "src/utils/syncImportValidation.ts",
+          "gitBlobSha": "906a0063cef6859819d510c7419d9fca1fd2b580"
+        },
+        {
+          "path": "src/utils/youtubeQuality.test.ts",
+          "gitBlobSha": "49fa79191dfcbde3e6a04ab514a91f7f95473f37"
+        },
+        {
+          "path": "src/utils/youtubeQuality.ts",
+          "gitBlobSha": "fae8a9ea7987da04d056a07cd1a2e957e57415ec"
+        },
+        {
+          "path": "supabase/README.md",
+          "gitBlobSha": "351b18346376eceeb962d07c372d84f46bfcd7fc"
+        },
+        {
+          "path": "supabase/migrations/0000_baseline_asis.sql",
+          "gitBlobSha": "84da6f45639fc5575afbc19441bb8488f29ffc80"
+        },
+        {
+          "path": "supabase/migrations/0001_admin_lockout_serverside.sql",
+          "gitBlobSha": "2418dde1cb6d32624681a59a4134e27ff6197683"
+        },
+        {
+          "path": "supabase/migrations/0002_admin_lockout_integration_applied.sql",
+          "gitBlobSha": "1187dd07ec1c9d6f64594b6167a388f66f697146"
+        },
+        {
+          "path": "tailwind.config.js",
+          "gitBlobSha": "9ba5ddd18c828684fd2a12b9f7d89c00198bd5fa"
+        },
+        {
+          "path": "tsconfig.json",
+          "gitBlobSha": "68df2c98ae723e377d484b01e26083bd8f140ff9"
+        },
+        {
+          "path": "vercel.json",
+          "gitBlobSha": "16ec6e18f5c5441a90c40eef6476177e3e67b90a"
+        },
+        {
+          "path": "vite.config.ts",
+          "gitBlobSha": "fc700b535e56147d5b57cd0ae45fbd1574af0069"
+        }
+      ],
+      "contentInspections": [
+        {
+          "path": "Planner-docs/Planing-Ledger.md",
+          "gitBlobSha": "46091c3d8afe813cc66be80f4f7f28b9d8f0d321",
+          "sha256": "be3e169bd3ea5a7b5561c527831aa146e35f379acef933e82229910060777a2d",
+          "readScope": "Selected initial entries only; complete file not reviewed",
+          "sourceUrl": "https://github.com/RuslanAeff/SynCinema/blob/710ea56cbf080b3260520b0497b7c0cde43120ab/Planner-docs/Planing-Ledger.md",
+          "blobHashVerified": true,
+          "rawContentsArchivedInHub": false
+        },
+        {
+          "path": ".github/workflows/ci.yml",
+          "gitBlobSha": "c6a631dd30c69bba41aff49841d0d4e3d6a120a5",
+          "sha256": "8d131ade27bc5075adc6a0e4fa30a545d823d00045696151d0f912cd78dd041b",
+          "readScope": "Complete contents read",
+          "sourceUrl": "https://github.com/RuslanAeff/SynCinema/blob/710ea56cbf080b3260520b0497b7c0cde43120ab/.github/workflows/ci.yml",
+          "blobHashVerified": true,
+          "rawContentsArchivedInHub": false
+        }
+      ]
+    },
+    {
+      "project": "AutoSRT",
+      "repository": "https://github.com/RuslanAeff/AutoSRT",
+      "observedBranch": "main",
+      "observedRef": "1739d828bce50af0eeec18cce441121b75da221b",
+      "treeApiObjectSha": "1739d828bce50af0eeec18cce441121b75da221b",
+      "treeListingTruncated": false,
+      "treeListingApi": "https://api.github.com/repos/RuslanAeff/AutoSRT/git/trees/1739d828bce50af0eeec18cce441121b75da221b?recursive=1",
+      "files": [
+        {
+          "path": ".gitignore",
+          "gitBlobSha": "0ee14d064f23c92ef076f19c2707496e568d7279"
+        },
+        {
+          "path": "AutoSRT.vbs",
+          "gitBlobSha": "01293dc70866ce2fbbf0da4ecf3636aacb063607"
+        },
+        {
+          "path": "LICENSE",
+          "gitBlobSha": "9b6dbc6a958e3c5647b1082a1e91b7a17a0da5cb"
+        },
+        {
+          "path": "README.md",
+          "gitBlobSha": "54790ea38323475601027b013cff44d3b733a582"
+        },
+        {
+          "path": "icon.ico",
+          "gitBlobSha": "ef6a98d6eb7207dcbfc94f6f98b75cde1aa44b4a"
+        },
+        {
+          "path": "icon.png",
+          "gitBlobSha": "061486934c70ee912fe1cb4e2c80c415947aace2"
+        },
+        {
+          "path": "main.py",
+          "gitBlobSha": "cc8cff9a95a45fc87d039ff9118ab6d5f1bc642f"
+        },
+        {
+          "path": "requirements.txt",
+          "gitBlobSha": "abd547ace1947c016501160690640cf42d923166"
+        }
+      ],
+      "contentInspections": [
+        {
+          "path": "README.md",
+          "gitBlobSha": "54790ea38323475601027b013cff44d3b733a582",
+          "sha256": "7d0ca5fd75437eb351245a5579bb46b18104963f1ca80c75ee48501ca97d4c24",
+          "readScope": "Complete contents read",
+          "sourceUrl": "https://github.com/RuslanAeff/AutoSRT/blob/1739d828bce50af0eeec18cce441121b75da221b/README.md",
+          "blobHashVerified": true,
+          "rawContentsArchivedInHub": false
+        }
+      ]
+    }
+  ]
+}

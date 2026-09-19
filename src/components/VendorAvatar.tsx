@@ -1,3 +1,4 @@
+import { isLocalImageUri } from '../utils/localImageUri';
 // S.P.A.R.K. — Vendor Avatar Component
 import React, { useMemo } from 'react';
 import { View, Image, StyleSheet, Text } from 'react-native';
@@ -23,7 +24,7 @@ export default function VendorAvatar({
   const scheme = useAppTheme();
   const themeRevision = useThemeRevision();
   const styles = useMemo(() => getStyles(), [scheme, themeRevision]);
-  if (logoUri) {
+  if (isLocalImageUri(logoUri)) {
     return (
       <View style={[styles.container, { width: size, height: size, borderRadius: size / 2 }]}>
         <Image

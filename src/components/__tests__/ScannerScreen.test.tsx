@@ -1,3 +1,4 @@
+jest.mock('../../utils/confirmAiTransfer', () => ({ confirmAiTransfer: jest.fn().mockResolvedValue(true) }));
 import React from 'react';
 import { act, fireEvent, render, waitFor } from '@testing-library/react-native';
 import { Platform, StyleSheet } from 'react-native';
@@ -236,6 +237,21 @@ describe('Scanner runtime theme', () => {
       expect(screen.getByText('tc:Market')).toBeTruthy();
     },
   );
+
+  it.each(['camera', 'gallery'])('does not process or send when %s transfer is declined', async source => {
+    const { confirmAiTransfer } = require('../../utils/confirmAiTransfer');
+    confirmAiTransfer.mockResolvedValueOnce(false);
+    mockRequestCameraPermissionsAsync.mockResolvedValue({ granted: true });
+    mockRequestMediaLibraryPermissionsAsync.mockResolvedValue({ granted: true });
+    const result = { canceled: false, assets: [{ uri: 'file:///synthetic.jpg', width: 10, height: 10 }] };
+    mockLaunchCameraAsync.mockResolvedValue(result);
+    mockLaunchImageLibraryAsync.mockResolvedValue(result);
+    const screen = await render(<ScannerScreen />);
+    await fireEvent.press(screen.getByTestId(`scanner-${source}-action`));
+    await waitFor(() => expect(confirmAiTransfer).toHaveBeenCalled());
+    expect(mockCompressImageToBase64).not.toHaveBeenCalled();
+    expect(mockParseReceipt).not.toHaveBeenCalled();
+  });
 
   it('shows a localized safe error instead of accepting an invalid AI result', async () => {
     mockRequestCameraPermissionsAsync.mockResolvedValue({ granted: true });

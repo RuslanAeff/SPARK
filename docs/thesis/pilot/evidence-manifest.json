@@ -1,0 +1,61 @@
+{
+  "capturedOn": "2026-09-19",
+  "timezone": "Europe/Warsaw",
+  "baseCommit": "25ef86cb0bfa8f9030d5d51bf5e0426cd7aafd30",
+  "workingTree": "dirty; current snapshots are not the contents of baseCommit",
+  "node": "v24.18.0",
+  "npm": "11.16.0",
+  "proposalFileName": "Refined Thesis Proposal.docx",
+  "proposalSha256": "8261f27cf5a3e64332709d909c4bd4b3c21bb07cee149d382ca0fea423155ab0",
+  "baseline": {
+    "commit": "25ef86cb0bfa8f9030d5d51bf5e0426cd7aafd30",
+    "source": "src/services/secureKeyStore.ts",
+    "snapshot": "snapshot/baseline-secureKeyStore.ts.txt",
+    "sha256": "544c9e885baa355719916e9ea7db1970675b298bd15c742bc12b08b7c35f78bd"
+  },
+  "currentSources": [
+    {
+      "source": "src/services/secureKeyStore.ts",
+      "snapshot": "snapshot/current-secureKeyStore.ts.txt",
+      "sha256": "7446bb2f98e35922124fe19b8dd1e826bd67043ea3096888505e6185701a46a8"
+    },
+    {
+      "source": "app/settings-ai.tsx",
+      "snapshot": "snapshot/current-settings-ai.tsx.txt",
+      "sha256": "0a954b88424cd85fe7bdab598c0e4e6e55dc8ec83f0639dc55c7a9d7b15aeb4a"
+    },
+    {
+      "source": "src/services/__tests__/secureKeyStore.test.ts",
+      "snapshot": "snapshot/current-secureKeyStore.test.ts.txt",
+      "sha256": "18e24eb916c45faba33f743caff0853456f4995d2016bdfb907465484175ee06"
+    },
+    {
+      "source": "src/components/__tests__/SettingsAiScreen.test.tsx",
+      "snapshot": "snapshot/current-SettingsAiScreen.test.tsx.txt",
+      "sha256": "4661f9cd8190415ea8a4ef94b2b77dc587f698881aabc52ab3f18692d0ad6df5"
+    }
+  ],
+  "contextHashes": [
+    {
+      "source": "package.json",
+      "sha256": "b0ee12bd0fb859256a559586c697a173f20aa4a5f28b76237770e2f797196174"
+    },
+    {
+      "source": "package-lock.json",
+      "sha256": "7643bda558e6aec549b3cb6c6beed225d3cb53024cf5e6ee6c39c506cc9530ca"
+    },
+    {
+      "source": "scripts/run-jest.cjs",
+      "sha256": "4fe6e54012953a0152bd707ef5dc06aea2134f05b92d6647ec4b2d151438f4f9"
+    }
+  ],
+  "test": {
+    "command": "npm test -- --ci --coverage=false --runInBand secureKeyStore SettingsAiScreen",
+    "exitCode": 0,
+    "suitesPassed": 2,
+    "testsPassed": 6,
+    "artifact": "verification-2026-09-19.txt",
+    "sha256": "23d5cd635fde8886adcd996a2462e29837c55ed7299659f9ee2071d7d62855f1"
+  },
+  "limitation": "Scoped source and result archive, not a complete reproducible repository/environment image. No original AI-authorship transcript, device proof or independent human coding is included."
+}

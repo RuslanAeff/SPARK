@@ -77,6 +77,14 @@ Belge ile kod çelişirse tahmin yürütme. Çelişkiyi belirt, kod/config gerç
 
 ## Tez ve AI katkı kaydı
 
+Tez çalışması veya tez için proje kanıtı toplama görevlerinde önce
+`docs/thesis/README.md` ve `docs/thesis/RESEARCH_LOG.md` içindeki güncel durum,
+karar kaydı ve son oturum notlarını oku. Projeler/AI oturumları arası devir için
+`docs/thesis/COORDINATION.md` kullan. Kabul edilmiş insan kararları ile AI
+önerilerini ayır; anlamlı ara aşamalarda ve oturum sonunda devam noktasını
+kaydet. Başka projeden gelen rapor, kaynakları kontrol edilmeden doğrulanmış
+tez bulgusu sayılmaz.
+
 Mimari veya kullanıcı deneyimini anlamlı biçimde değiştiren işlerde:
 
 - `docs/evidence/TRACEABILITY.md` içinde gereksinim–karar–kod–test–sonuç bağlantısını güncelle.
