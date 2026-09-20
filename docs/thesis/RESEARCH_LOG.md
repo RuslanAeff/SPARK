@@ -4,7 +4,7 @@ Record opened: **2026-09-19**, Europe/Warsaw. Researcher: student/developer. Thi
 
 ## Current position
 
-**Stage:** proposal-method revision, before dataset selection and formal episode coding.
+**Stage:** full-thesis writing has begun in a single Word manuscript; method refinement and evidence auditing continue before formal episode coding.
 
 **Completed:** submitted proposal read; supervisor feedback mapped to four decisions; continuity records created; draft operational rules written; one real SPARK episode worked through provisionally; current regression evidence captured for that example; cross-project handoff procedure, portable prompts and writing/figure roadmap prepared; initial read-only remote inventory of SynCinema and AutoSRT recorded; SPARK's own evidence surveyed and indexed, with its record boundary dated from commit metadata (U05).
 
@@ -12,30 +12,38 @@ Record opened: **2026-09-19**, Europe/Warsaw. Researcher: student/developer. Thi
 
 **Planning information:** approximate submission target July 2027; exact institutional deadline and weekly availability are not yet confirmed. The named supervisor is Marcin Kacprowicz. His availability or agreement to review coded episodes has not been established.
 
-**Decision now made:** TD-004 — use “student developer” and explain prior experience. Applied to the title, aim, research question, participant profile and generalisation limit in [the English working proposal](PROPOSAL_WORKING_DRAFT.md). This is not approval of the complete revised methodology or final DOCX.
+**Decision now made:** TD-004 — use “student developer” and explain prior experience. Applied to the title, aim, research question, participant profile and generalisation limit in [the English working proposal](research/PROPOSAL_WORKING_DRAFT.md). This is not approval of the complete revised methodology or final DOCX.
 
 **Waiting for decisions/facts:** the proposed episode count was explained; no 12- or 14-episode target has been explicitly accepted. The student now prioritises understanding the writing process, sparse historical records and continuity across AI sessions. Weekly research time, project-entry dates, experience chronology and applicable thesis-formatting requirements remain to be established. Bachelor's subject, Code Academy programme type and both secondary repository URLs have been supplied; do not ask them again.
 
-**Next action:** use the initial inventory to check selected candidate episodes against before/after code and surviving original records; inspect historical/local evidence where accessible. Reuse SynCinema's existing technical ledger. Establish a local evidence log in AutoSRT only after checking for existing equivalents. Keep global decisions in this hub and exchange dated project packets. Then agree feasible scope and the pilot/classification procedure with the student, update the English proposal and prepare a supervisor response for review. Nothing is to be sent automatically.
+**Next action:** read the current [THESIS.docx](THESIS.docx), review Chapter 1's argument with the student, then expand the literature chapter using verified sources. Continue checking episode leads and surviving conversations to settle the method; writing need not wait for a final episode count. The proposal remains supporting material. Use the same manuscript and this log rather than adding parallel writing files. Nothing is to be sent automatically.
 
-**SPARK evidence state (U05, 2026-09-19):** the primary case's local records are now indexed in [EVIDENCE_INDEX.md](EVIDENCE_INDEX.md) with a dated project log in [PROJECT_LOG.md](PROJECT_LOG.md). Process evidence begins 2026-08-01 while development begins 2026-03-14; no original AI transcripts and no completed device-verification record exist in the repository. Five candidate leads are recorded; none is selected.
+**SPARK evidence state:** the primary case's local records are indexed in [EVIDENCE_INDEX.md](research/EVIDENCE_INDEX.md) with a dated project log in [PROJECT_LOG.md](research/PROJECT_LOG.md). The earliest recorded repository commit is dated 2026-03-14; the selected structured process documents were first committed on 2026-08-01. These are repository-history boundaries, not proof of when all development or note-taking began. U05 did not locate original AI transcripts or a completed device-verification record in its repository search. Five candidate leads are recorded; none is selected.
 
-**Continuity/access state:** the hub is currently SPARK / `docs/thesis/`. Its detailed [coordination procedure](COORDINATION.md), [portable prompts](HANDOFF_PROMPT.md), [project packet template](PROJECT_HANDOFF_TEMPLATE.md) and [writing roadmap](THESIS_ROADMAP.md) are prepared locally. Secondary repositories have not been modified or cloned. No commit/push or automatic synchronization was performed.
+**Continuity/access state:** the hub is SPARK / `docs/thesis/`: `THESIS.docx` for writing, this log for decisions, and `research/` for supporting records. At the start of 2026-09-20, local `main` and its locally stored `origin/main` both pointed to `7af72b3`; the existing thesis records are in that commit. No live remote query was made to independently confirm remote state. Today's reorganisation and manuscript are new uncommitted work. Secondary repositories were not modified or cloned in this session.
+
+**Peer material and schedule:** the student supplied another student's thesis and a forwarded email to Serkan. The email mentions 60–80 pages overall, 15–20 for Chapter 1, TNR 12, 1.5 spacing, 2.5 cm margins and APA. These are not established as binding instructions for this thesis. The student clarified on 2026-09-20 that the email's old date related to an earlier proposal stage and the present work concerns the whole thesis. Do not assign a new 30 September deadline from that email or transfer its topic approval to this student.
 
 ## Source register
 
 | ID | Source | Date and status |
 |---|---|---|
-| SRC-001 | `Refined Thesis Proposal.docx`; [text extract](sources/received-proposal.txt) | Provided/read 2026-09-19. Submission date unknown. Original DOCX unchanged. |
-| SRC-002 | [Supervisor feedback](sources/supervisor-feedback.md), supplied by the student in chat | Recorded 2026-09-19. Original message date and full email headers unavailable. |
+| SRC-001 | `Refined Thesis Proposal.docx`; [text extract](research/sources/received-proposal.txt) | Provided/read 2026-09-19. Submission date unknown. Original DOCX unchanged. |
+| SRC-002 | [Supervisor feedback](research/sources/supervisor-feedback.md), supplied by the student in chat | Recorded 2026-09-19. Original message date and full email headers unavailable. |
 | SRC-003 | Student's current instructions in this session | 2026-09-19. Requests a continuing log, plain Turkish explanations, student decisions before application, English thesis. |
 | SRC-004 | Existing SPARK [traceability](../evidence/TRACEABILITY.md), [AI log](../evidence/AI_COLLABORATION_LOG.md) and security records | Inspected 2026-09-19. These contain AI-assisted/retrospective accounts; statements are not automatically independent proof. |
-| SRC-005 | [Pilot evidence manifest](pilot/evidence-manifest.json) and [test output](pilot/verification-2026-09-19.txt) | Current code/test snapshot and new test execution on 2026-09-19; not a historical test result. |
+| SRC-005 | [Pilot evidence manifest](research/pilot/evidence-manifest.json) and [test output](research/pilot/verification-2026-09-19.txt) | Current code/test snapshot and new test execution on 2026-09-19; not a historical test result. |
 | SRC-006 | Student's answers about education, prior programming and planning in this session | 2026-09-19. Self-report, summarized above and in updates U01 and U03; not independent credential/skill verification. |
 | SRC-007 | Student's explanation of delayed log creation, writing/figure uncertainty and requested cross-AI continuity | 2026-09-19. Record scarcity is a concern to investigate, not an audited count of missing history. |
-| SRC-008 | Student-supplied SynCinema/AutoSRT URLs; [initial remote inventory](REPOSITORY_AUDIT_2026-09-19.md) and [metadata](sources/repository-inventory-2026-09-19.json) | Read-only observations on 2026-09-19; selected source contents and file listings, not a complete history audit or runtime test. |
+| SRC-008 | Student-supplied SynCinema/AutoSRT URLs; [initial remote inventory](research/REPOSITORY_AUDIT_2026-09-19.md) and [metadata](research/sources/repository-inventory-2026-09-19.json) | Read-only observations on 2026-09-19; selected source contents and file listings, not a complete history audit or runtime test. |
 | SRC-009 | SPARK Git history (61 commits, `f72cdc8` 2026-03-14 → `25ef86c` 2026-09-15) and the file-creation dates of the process-evidence documents | Enumerated 2026-09-19. Commit metadata is contemporaneous per commit; commit messages summarise intent unevenly. |
-| SRC-010 | Handoff brief pasted by the student, described as prepared by a Codex session | Received 2026-09-19. **The received text carries no date of its own**; its content matches [HANDOFF_PROMPT.md](HANDOFF_PROMPT.md) (prepared 2026-09-19). Treat its preparation date as asserted by that hub file, not by the brief. |
+| SRC-010 | Handoff brief pasted by the student, described as prepared by a Codex session | Received 2026-09-19. **The received text carries no date of its own**; its content matches [HANDOFF_PROMPT.md](research/HANDOFF_PROMPT.md) (prepared 2026-09-19). Treat its preparation date as asserted by that hub file, not by the brief. |
+| SRC-011 | Forwarded teacher email to Serkan, pasted by the student | Received 2026-09-20; original date/sender not established. Topic approval and timing are for that correspondence, not this thesis. Student subsequently clarified the old timing is not the present task deadline. Formatting is provisional reference material only. |
+| SRC-012 | `ONAT_GENCER_THESIS.docx`, supplied peer example | Inspected 2026-09-20 through native text extraction and package structure. Original untouched and not copied into the repository. Structure/formatting example, not an official template, verified research source or evidence of acceptance. |
+| SRC-013 | Student-supplied screenshot of the thesis folder and request to reduce fragmentation | Received 2026-09-20. Supports the need for a single writing entry point; no application/runtime claim. |
+| SRC-014 | Barke et al. (2023), Vaithilingam et al. (2022), Runeson & Höst (2009) | Primary author PDFs/publisher text consulted 2026-09-20 for the initial manuscript. Three starting sources, not a completed literature review. DOIs appear in the manuscript. |
+
+SRC-012 SHA-256: `220e6a67e37a2a8bd61af7c37dec785f031addba28548a65e1522962866d6a6e`.
 
 SRC-001 SHA-256: `8261f27cf5a3e64332709d909c4bd4b3c21bb07cee149d382ca0fea423155ab0`.
 The text extract preserves content for handover; its formatting and pagination are not a reproduction of the DOCX.
@@ -52,6 +60,8 @@ The text extract preserves content for handover; its formatting and pagination a
 | TD-004 | Meaning of novice | Use student developer; explain prior programming exposure, no professional software-development employment, and entry chronology | ACCEPTED by student 2026-09-19, APPLIED to English working proposal; supervisor acceptance pending |
 | TD-005 | Manageable scope | Initial target 12 episodes: 8 SPARK, 2 SynCinema, 2 AutoSRT; evidence audit and capacity may justify fewer | PROPOSED by AI, 2026-09-19; not a supervisor requirement |
 | TD-006 | Classification thresholds | Draft codebook separates documented error, uncertain attribution, prompt ambiguity, changed requirement, correction scope and AI-output rework | PROPOSED by AI, 2026-09-19 |
+| TD-007 | Single writing entry point | One English `THESIS.docx`; this dated log; existing supporting records under `research/` | APPLIED 2026-09-20 in response to the student's request to simplify scattered files; no content/method approval implied |
+| TD-008 | Current work scope and old email date | Work on the whole thesis; do not treat the forwarded old September deadline as a current deadline | Student clarification 2026-09-20; APPLIED to the writing plan |
 
 ## Open questions and decision gates
 
@@ -60,7 +70,7 @@ The text extract preserves content for handover; its formatting and pagination a
 - **Q-03 — Review:** can the supervisor or another competent person examine a small source packet and apply the draft rules? No reviewer or schedule is assumed.
 - **Q-04 — Comparative evidence:** both repository URLs supplied; initial remote file inventory completed, SynCinema ledger excerpts/CI and AutoSRT README inspected. Historical revisions, original AI transcripts and local/unpushed records still need checking; final episode suitability remains provisional.
 - **Q-05 — Formal revision:** four decisions need student agreement; supervisor acceptance is a later, separate event.
-- **Q-06 — Writing requirements:** obtain the applicable thesis template, citation/figure requirements and AI-assistance disclosure rules from actual university/supervisor material before final formatting. No institutional rule has been invented.
+- **Q-06 — Writing requirements:** peer email/example now supplied as reference material. Confirm the applicable template and any required chapter lengths/disclosure rules before final submission formatting; no current institutional rule or deadline is inferred from the peer material.
 
 ## Session history
 
@@ -93,7 +103,7 @@ The text extract preserves content for handover; its formatting and pagination a
 
 - **Human decision:** selected “Öğrenci geliştirici; önceki deneyimi açıkla” in the terminology question on 2026-09-19.
 - **Scope of acceptance:** replace the unqualified novice framing with student-developer terminology and a factual background explanation. This does not approve a sample size, classification rules or independent-review arrangement.
-- **Application:** created [PROPOSAL_WORKING_DRAFT.md](PROPOSAL_WORKING_DRAFT.md) from the preserved submission text; updated title, aim, main question, expected contribution and generalisation limit; added a self-report-based researcher profile. Remaining method/scope text is explicitly marked as the received wording awaiting revision.
+- **Application:** created [PROPOSAL_WORKING_DRAFT.md](research/PROPOSAL_WORKING_DRAFT.md) from the preserved submission text; updated title, aim, main question, expected contribution and generalisation limit; added a self-report-based researcher profile. Remaining method/scope text is explicitly marked as the received wording awaiting revision.
 - **Original preserved:** no change to the submitted DOCX or its archived text extract. A final revised Word document and supervisor response have not yet been issued.
 - **Current next action:** await the scope and remaining profile/time answers, then settle TD-003, TD-005 and TD-006. Do not reopen TD-004 unless the student changes the decision.
 
@@ -125,7 +135,7 @@ The text extract preserves content for handover; its formatting and pagination a
 - **Input:** SRC-009 and SRC-010, plus the existing SPARK evidence documents already registered as SRC-004.
 - **Human request:** survey the evidence that actually exists before any further method work; do not fabricate conversations, dates, test results or human decisions; reuse SynCinema's existing ledger rather than creating a competing one; establish the local project log and evidence index; change no application code. The student interrupted to ask what the pasted brief required, then authorised continuation on 2026-09-19.
 - **Handoff date recorded:** the received brief is undated in itself; the matching hub file is dated 2026-09-19. Recorded in SRC-010 and in the project log rather than assumed.
-- **AI work:** created [PROJECT_LOG.md](PROJECT_LOG.md) and [EVIDENCE_INDEX.md](EVIDENCE_INDEX.md). No existing evidence document, ADR, test or application file was modified.
+- **AI work:** created [PROJECT_LOG.md](research/PROJECT_LOG.md) and [EVIDENCE_INDEX.md](research/EVIDENCE_INDEX.md). No existing evidence document, ADR, test or application file was modified.
 - **Evidence established from sources:** all process-evidence documents enter the repository in one commit, `a3e1299` (2026-08-01), while development starts 2026-03-14 — leaving 29 commits with code evidence only and 32 inside the documented period. The earliest AI session identifier is `AI-2026-08-01-DOCS-001`. 66 distinct session identifiers exist, but the log's index (51) and detail section (58) disagree. `AI_COLLABORATION_LOG.md` states it is not a transcript, and no original AI conversation archive was found in this repository. `TRACEABILITY.md` defines `E3` but contains no completed `E3` row; 22 index rows are explicitly device-acceptance-pending.
 - **Interpretation limit:** the boundary dates when records entered version control. It does not prove that nothing was recorded elsewhere before then, that any historical test ran, or that any defect was AI-authored. "Not located in this search" is not "never existed."
 - **Checks:** read-only Git and filesystem inspection. **No test, typecheck or build was run in this session**; the 2026-09-19 pilot run belongs to the earlier session and keeps its own date.
@@ -133,6 +143,20 @@ The text extract preserves content for handover; its formatting and pagination a
 - **Stopping point:** SPARK's evidence landscape is mapped and dated; secondary repositories remain uninspected in this session, uncommitted, unpushed and unshared.
 - **Next action:** ask the student whether AI conversation archives survive outside this repository for 2026-03 → 2026-07. That answer determines whether any pre-August episode can support more than code-evolution claims. Responsible: student, then the hub session.
 - **Supervisor communication:** none. **Student acceptance:** survey and the two local files authorised 2026-09-19; no methodological decision accepted.
+
+### TS-2026-09-20-01 — One manuscript, simplified workspace and peer-example review
+
+- **Human request:** inspect the additions made in another AI session, reduce the burden of scattered files, and use a peer thesis and forwarded teacher email to help move into thesis writing.
+- **Human clarification:** the quoted old deadline concerned an earlier proposal stage; current work is on the entire thesis. This does not approve the proposed episode count, codebook or claim that this student's topic has received the approval quoted in the other student's email.
+- **Review of prior additions:** read the SPARK project log and evidence index. Rechecked the earliest recorded commit and the August entry of the selected structured documents against Git history. Clarified that entry into version control does not prove the beginning of all development or all documentation. Other U05 counts and absence claims retain their original search scope; this session did not independently repeat every count.
+- **Peer thesis:** inspected the introduction, contents, chapter structure and document package. The stored contents lists Introduction on page 6 and Literature Review on page 7, so this example does not demonstrate the forwarded email's 15–20-page Chapter 1 suggestion. Package settings are A4 with approximately 2.5 cm margins and 35 drawing elements. Cached page metadata is not a fresh rendered page count. The example's prose, results, personal identifiers and declarations were not reused in the new thesis.
+- **Reorganisation:** retained root `README.md` and `RESEARCH_LOG.md`; moved nine supporting Markdown files plus `pilot/` and `sources/` into `research/`. Updated relative links and startup pointers. No evidence archive was deleted. The original proposal remains available as supporting material rather than a competing manuscript.
+- **Writing:** created the single `THESIS.docx`, with initial English introduction prose, preliminary literature/method/context material, clearly marked writing plans for later chapters, and three verified starting references. No empirical results, final sample count or reviewer agreement was invented. The manuscript remains a draft for student review.
+- **Formatting:** narrative-proposal structure with an academic override: A4, Times New Roman 12 pt body/heading text, black headings, 1.5 spacing, 2.5 cm margins, hanging author–date references and a simple centred title block. This is a provisional working choice based on the supplied references, not supervisor confirmation.
+- **Document tooling:** authored OOXML with built-in modules in the managed Node REPL and packaged with the native ZIP tool; no system Node/Python document builder or project dependency installation used. Native text extraction checks readability. LibreOffice/soffice is unavailable, including the standard macOS application path, so page-image rendering/visual QA cannot be completed; do not claim the render gate passed or a final page count.
+- **Validation completed:** `git diff --check`, ZIP integrity and XML well-formedness checks passed. Native Word-text extraction recovered all seven chapter headings and the three DOI references. Checked 13 Markdown files and 43 local links with no errors; ten moved non-Markdown source/pilot files exactly matched their committed Git blob hashes. A4 geometry, 2.5 cm margins, TNR styles and 1.5 spacing were checked structurally. Extracted manuscript length is approximately 2,656 words including cover/draft notes, not a rendered page count. No peer identifiers or internal tool citation tokens were found in the manuscript. Application tests were not required or run. Visual page QA remains unavailable.
+- **Current stopping point:** the student can write in one Word file and use one decision log. The manuscript needs review and further literature/evidence work; it is not a finished 60–80-page thesis or a submission-ready chapter.
+- **Next concrete action:** review the introduction's argument with the student, develop the literature review and settle the research-method decisions using actual candidate evidence. Read the current Word file before every edit to preserve any manual student changes. No commit, push, supervisor message or other publication occurred in this session.
 
 ## New session template
 

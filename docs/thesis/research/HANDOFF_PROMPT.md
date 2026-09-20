@@ -1,6 +1,6 @@
 # Portable prompt for a new project/AI session
 
-Prepared 2026-09-19. This is a portable starting brief, not a continuously synchronized copy of the central decision register. Read the latest hub files when accessible; if they conflict with this dated brief, preserve the discrepancy and check the dated student decisions. Do not treat this prompt itself as proof that any project setup or evidence audit was completed.
+Prepared 2026-09-19; paths and manuscript entry point updated 2026-09-20. This is a portable starting brief, not a continuously synchronized copy of the central decision register. Read the latest hub files when accessible; if they conflict with this dated brief, preserve the discrepancy and check the dated student decisions. Do not treat this prompt itself as proof that any project setup or evidence audit was completed.
 
 The student can paste the following prompt in a session opened in SynCinema or AutoSRT. If the hub is unavailable, provide its README, research log, method draft and relevant template as files/text. A path alone does not provide access.
 
@@ -24,13 +24,13 @@ The student supplied https://github.com/RuslanAeff/SynCinema and https://github.
 
 STARTUP
 1. Identify which repository is open. Read its applicable AGENTS.md/CLAUDE.md or other project instructions, inspect git status, and preserve unrelated edits.
-2. The current central thesis hub is the SPARK repository's docs/thesis directory. If accessible, read README.md, RESEARCH_LOG.md (current state, decision register and latest updates), COORDINATION.md, METHOD_DECISIONS_DRAFT.md and PROJECT_HANDOFF_TEMPLATE.md. Report what you actually read. Do not guess a personal filesystem path or claim access you do not have.
+2. The central hub is SPARK's docs/thesis directory. Read README.md and RESEARCH_LOG.md first. Supporting files are now research/COORDINATION.md, research/METHOD_DECISIONS_DRAFT.md and research/PROJECT_HANDOFF_TEMPLATE.md. THESIS.docx is the single manuscript; read its current contents before any writing edit. Report what you actually read. Do not guess a personal filesystem path or claim access you do not have.
 3. If the hub is unavailable, record that limit and use this dated brief provisionally. You may inventory local evidence; do not make global thesis decisions from an unverified copy.
 
 YOUR BOUNDED TASK
 Inspect existing source history, documentation, tests and preserved AI records in this project. Establish what evidence actually exists before proposing an episode count. Suggest a small number of useful candidates if sources support them; there is no minimum quota. An episode follows one bounded problem/feature through attempts and verification; it is not one commit or one message.
 
-Create or extend docs/thesis/PROJECT_LOG.md and docs/thesis/EVIDENCE_INDEX.md, reusing existing equivalents where appropriate. Record actual observation dates separately from original event dates. Identify retrospective accounts. Include source references, current status, missing evidence and the next action. Do not alter application code as part of this evidence-inventory task. A relevant safe check may be run when useful, but do not repair or rewrite historical evidence.
+Create or extend docs/thesis/research/PROJECT_LOG.md and docs/thesis/research/EVIDENCE_INDEX.md, reusing existing equivalents where appropriate. Record actual observation dates separately from original event dates. Identify retrospective accounts. Include source references, current status, missing evidence and the next action. Do not alter application code as part of this evidence-inventory task. A relevant safe check may be run when useful, but do not repair or rewrite historical evidence.
 
 Do not edit the central thesis decision register while another session is maintaining it. Produce a dated project handoff packet using the template. The central session will inspect and import it; creating the packet does not mean it was imported or independently verified. Use project/relative paths, commit IDs and source hashes where useful, rather than embedding personal absolute paths in research records.
 
@@ -52,5 +52,5 @@ At each meaningful milestone and before stopping, update the local log with sour
 For a new session **in the central SPARK workspace**, the shorter instruction is sufficient:
 
 ```text
-Continue my thesis work. Read AGENTS.md, docs/thesis/README.md and RESEARCH_LOG.md first, then COORDINATION.md and the files needed for the recorded next action. Tell me briefly what is accepted, what is still proposed and where we stopped. Explain in simple Turkish; write research material in English. Verify evidence before making claims. Update the dated log at each meaningful checkpoint and before stopping. Preserve unresolved decisions and existing changes.
+Continue my thesis work. Read AGENTS.md, docs/thesis/README.md and docs/thesis/RESEARCH_LOG.md first. THESIS.docx is the single manuscript; read its actual current contents before editing. Supporting records are under docs/thesis/research/. Tell me briefly what is accepted, what is still proposed and where we stopped. Explain in simple Turkish; write in English. The forwarded peer email's old September deadline is not a current deadline for this task. Verify evidence, preserve student edits and update the dated log before stopping.
 ```

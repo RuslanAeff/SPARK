@@ -1,6 +1,6 @@
 # SPARK local project log
 
-Opened: **2026-09-19**, Europe/Warsaw. This is the SPARK-specific project record required by [COORDINATION.md](COORDINATION.md). Global thesis decisions, approvals and the current stopping point remain in [RESEARCH_LOG.md](RESEARCH_LOG.md); this file does not duplicate the decision register.
+Opened: **2026-09-19**, Europe/Warsaw. This is the SPARK-specific project record required by [COORDINATION.md](COORDINATION.md). Global thesis decisions, approvals and the current stopping point remain in [RESEARCH_LOG.md](../RESEARCH_LOG.md); this file does not duplicate the decision register.
 
 SPARK is simultaneously the primary case and the current hub. The two roles are kept separate here: entries below describe **evidence work inside this repository**, not thesis-level method decisions.
 

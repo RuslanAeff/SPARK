@@ -16,7 +16,7 @@ The existing security records date the investigation/remediation to 2026-09-16. 
 - **P2:** [New fault reproduction](baseline-fault-reproduction.json): executed against the actual baseline source, with a synthetic native deletion failure.
 - **P3:** Current service/UI and test snapshots, identified and hashed in [evidence-manifest.json](evidence-manifest.json). They are uncommitted working-tree content, not files asserted to belong to the baseline commit.
 - **P4:** [New regression output](verification-2026-09-19.txt): 2 suites / 6 tests, executed on 2026-09-19.
-- **P5:** Existing [security finding SEC-02](../../evidence/SECURITY_REVIEW_2026-09-16.md) and [remediation record](../../evidence/SECURITY_REMEDIATION_2026-09-16.md). These support reconstruction but are not independent authorship evidence.
+- **P5:** Existing [security finding SEC-02](../../../evidence/SECURITY_REVIEW_2026-09-16.md) and [remediation record](../../../evidence/SECURITY_REMEDIATION_2026-09-16.md). These support reconstruction but are not independent authorship evidence.
 
 ## The twelve-field record
 

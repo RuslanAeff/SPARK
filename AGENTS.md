@@ -80,10 +80,15 @@ Belge ile kod çelişirse tahmin yürütme. Çelişkiyi belirt, kod/config gerç
 Tez çalışması veya tez için proje kanıtı toplama görevlerinde önce
 `docs/thesis/README.md` ve `docs/thesis/RESEARCH_LOG.md` içindeki güncel durum,
 karar kaydı ve son oturum notlarını oku. Projeler/AI oturumları arası devir için
-`docs/thesis/COORDINATION.md` kullan. Kabul edilmiş insan kararları ile AI
+`docs/thesis/research/COORDINATION.md` kullan. Kabul edilmiş insan kararları ile AI
 önerilerini ayır; anlamlı ara aşamalarda ve oturum sonunda devam noktasını
 kaydet. Başka projeden gelen rapor, kaynakları kontrol edilmeden doğrulanmış
 tez bulgusu sayılmaz.
+
+Tezin tek ana metni `docs/thesis/THESIS.docx` dosyasıdır; düzenlemeden önce
+güncel içeriğini oku ve öğrencinin Word değişikliklerini koru. Yöntem taslakları,
+kanıtlar ve devir belgeleri `docs/thesis/research/` altındadır. Yeni bir paralel
+tez taslağı veya üst dizinde ek plan dosyası oluşturarak yazımı bölme.
 
 Mimari veya kullanıcı deneyimini anlamlı biçimde değiştiren işlerde:
 

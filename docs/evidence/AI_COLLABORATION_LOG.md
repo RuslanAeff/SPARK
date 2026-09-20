@@ -1388,3 +1388,24 @@ Yayın hazırlığı denetiminde kullanılan iki modelli yöntem için
   repository setup, clone, remote write or new application test occurred. See
   research-log update U04 and its versioned initial inventory; sample size and
   methodological decisions remain open.
+
+## 20 September 2026 — single thesis manuscript and simpler writing workspace
+
+- **Human request:** inspect the added project records, reduce the scattered-file
+  burden and consider a peer thesis and forwarded teacher email. The student
+  clarified that the old email date is not a current deadline and that the work
+  now concerns the entire thesis.
+- **AI contribution:** reviewed the prior survey and rechecked its Git-history
+  boundary; moved supporting records under `docs/thesis/research/`, updated links
+  and entry instructions, and created one English `THESIS.docx` with initial
+  prose and explicitly unfinished later sections. Three primary academic sources
+  support the initial literature paragraphs. No empirical results were invented.
+- **Authority boundary:** the peer's topic approval is not this student's approval.
+  Formatting is provisional. Sample size, operational rules and review remain
+  undecided; the existing student-developer terminology is retained.
+- **Verification limit:** document structure/text and local links are checked;
+  LibreOffice is unavailable, so no rendered page QA or final page count is
+  claimed. No application code, tests or runtime behaviour changed.
+- **Continuity:** the current manuscript and dated research log are the everyday
+  entry points. Existing evidence and the original supplied Word documents are
+  preserved. No commit, push or supervisor communication occurred in this session.

@@ -1,8 +1,10 @@
 # SPARK evidence index
 
-Opened: **2026-09-19**, Europe/Warsaw. Scope: the SPARK repository only. This is the local project evidence index described in [COORDINATION.md](COORDINATION.md); global thesis decisions stay in [RESEARCH_LOG.md](RESEARCH_LOG.md) and are not restated here.
+Opened: **2026-09-19**, Europe/Warsaw. Scope: the SPARK repository only. This is the local project evidence index described in [COORDINATION.md](COORDINATION.md); global thesis decisions stay in [RESEARCH_LOG.md](../RESEARCH_LOG.md) and are not restated here.
 
 Observation base: commit `25ef86cb0bfa8f9030d5d51bf5e0426cd7aafd30` plus 58 uncommitted working-tree paths (modified and untracked) present on 2026-09-19. Uncommitted material is evidence of the current state, not of the state at any historical commit.
+
+**2026-09-20 interpretation update:** the dates below describe the inspected Git history. The selected structured process documents were first committed on 2026-08-01; this is not the beginning of all documentation, since older product records exist. The first recorded commit is not proof of the first day of development. The original counts below remain tied to the 2026-09-19 observation base. Current records are included in the later commit `7af72b3`, and this file now lives under `research/`.
 
 **What this index is not.** It is not a selected thesis dataset, not a claim that any listed source is accurate, and not evidence that a historical test, device check or human acceptance occurred. Entries record what exists and where, with the limit of each source.
 
@@ -20,7 +22,7 @@ Observation base: commit `25ef86cb0bfa8f9030d5d51bf5e0426cd7aafd30` plus 58 unco
 | Security review and remediation | `docs/evidence/SECURITY_REVIEW_2026-09-16.md`, `SECURITY_REMEDIATION_2026-09-16.md`, `docs/evidence/security/2026-09-16/` | 2026-09-16 (file content dates; untracked) | Contains executed probe scripts and dependency-audit JSON — the most machine-checkable artifacts in the repository. |
 | Automated tests | 134 `*.test.ts(x)` files under `src/` and `app/` | mixed | File presence shows a test exists now. It does not show the test ran, or passed, at any past commit. |
 | CI configuration | `.github/workflows/ci.yml` | — | Configuration only. No Actions run log has been retrieved into this repository. |
-| Thesis pilot artifacts | `docs/thesis/pilot/` | 2026-09-19 | New checks executed on 2026-09-19, dated as new evidence. |
+| Thesis pilot artifacts | `docs/thesis/research/pilot/` | 2026-09-19 | New checks executed on 2026-09-19, dated as new evidence. |
 
 ## 2. The evidence boundary of 2026-08-01
 
@@ -30,7 +32,7 @@ This is the single most important structural fact for the thesis and it is direc
 - Every process-evidence document — `AGENTS.md`, `docs/evidence/AI_COLLABORATION_LOG.md`, `docs/evidence/TRACEABILITY.md`, `docs/decisions/README.md`, `docs/history/ENGINEERING_HISTORY_2026.md` — enters the repository in the **same commit, `a3e1299`, dated 2026-08-01**.
 - The earliest AI session record is `AI-2026-08-01-DOCS-001`; no session record carries a date before 2026-08-01.
 
-Consequence: **29 commits (2026-03-14 → 2026-07-20) have code evidence but no contemporaneous process evidence**, and **32 commits (2026-08-01 → 2026-09-15) fall inside the documented period**. For the earlier period the repository supports code-evolution observations only. It does not support claims about prompts, AI authorship, iteration counts or acceptance, and reconstructing them from memory would be a retrospective narrative (E0), not evidence.
+Consequence: **29 commits (2026-03-14 → 2026-07-20) predate the selected structured process records**, and **32 commits (2026-08-01 → 2026-09-15) fall on or after their entry into version control**. Earlier code and product records can support their specific observable claims. Original prompts, attribution, iteration counts and acceptance require additional evidence; they must not be inferred from the absence or presence of a structured log. Recollection is retrospective evidence (E0), not a contemporaneous transcript or independently verified event sequence.
 
 This boundary matches the student's report that logs were introduced after some development had happened. The report is now corroborated by commit dates; the extent of any *non-repository* records (chat archives on the student's machine or in a vendor account) has not been checked and is not claimed here to be empty.
 

@@ -1,6 +1,6 @@
 # Thesis continuity across projects and AI sessions
 
-Prepared: 2026-09-19, Europe/Warsaw. Version: 0.1.
+Prepared: 2026-09-19; reorganised 2026-09-20, Europe/Warsaw. Version: 0.2.
 
 This is a prepared working procedure responding to the student's request for continuity. It has been installed in the SPARK thesis workspace only. It does not establish that SynCinema or AutoSRT have been inspected or configured, that repositories are synchronized, or that the student/supervisor approved the proposed research methodology.
 
@@ -13,12 +13,13 @@ Each application retains its own source code, technical documentation, tests and
 | Information | Owner / canonical location |
 |---|---|
 | Thesis decisions, approvals, current stopping point | Hub: `RESEARCH_LOG.md` |
-| Draft thesis method | Hub: `METHOD_DECISIONS_DRAFT.md` |
-| English proposal | Hub: `PROPOSAL_WORKING_DRAFT.md` |
-| Writing sequence and figure guidance | Hub: `THESIS_ROADMAP.md` |
+| Single English thesis manuscript | Hub: `THESIS.docx`; read current Word content before editing |
+| Draft thesis method | Hub: `research/METHOD_DECISIONS_DRAFT.md` |
+| Supporting English proposal | Hub: `research/PROPOSAL_WORKING_DRAFT.md`; not a parallel thesis |
+| Writing sequence and figure guidance | Hub: `research/THESIS_ROADMAP.md` |
 | Project implementation and historical changes | Each project's code and Git history |
-| Project observations, evidence gaps and continuation | Each project's `docs/thesis/PROJECT_LOG.md`, or existing equivalent linked without duplication |
-| Candidate episodes and sources | Each project's `docs/thesis/EVIDENCE_INDEX.md`, or existing equivalent |
+| Project observations, evidence gaps and continuation | Each project's `docs/thesis/research/PROJECT_LOG.md`, or existing equivalent linked without duplication |
+| Candidate episodes and sources | Each project's `docs/thesis/research/EVIDENCE_INDEX.md`, or existing equivalent |
 | Transfer from a project session to the hub | A dated packet based on `PROJECT_HANDOFF_TEMPLATE.md` |
 
 The student remains the decision-maker. “Coordinator” below means the AI or person currently maintaining the hub; it is a session role, not a permanent model identity.
@@ -27,7 +28,7 @@ The student remains the decision-maker. “Coordinator” below means the AI or 
 
 | Project | Role | Inspected in this thesis work? | State |
 |---|---|---|---|
-| SPARK | Primary longitudinal case; current hub | Repository-wide survey of record availability, plus selected sources | Provisional SEC-02 pilot captured; local `PROJECT_LOG.md` and `EVIDENCE_INDEX.md` opened 2026-09-19, recording the 2026-08-01 process-record boundary. Still not a complete per-episode evidence audit. Hub files are local working-tree material; publication/remote synchronization has not occurred in this task. |
+| SPARK | Primary longitudinal case; current hub | Repository-wide survey of record availability, plus selected sources | Provisional SEC-02 pilot and dated local evidence survey captured; not a complete per-episode audit. Earlier records are now in commit `7af72b3`; 2026-09-20 reorganisation/manuscript are uncommitted. Local tracking state was checked, not live remote state. |
 | SynCinema | Proposed secondary comparative case | Initial remote inventory and selected ledger entries only | User supplied GitHub reference; an existing planning ledger can be reused. No local setup or project-agent packet imported. |
 | AutoSRT | Proposed secondary comparative case | Initial remote inventory and README only | User supplied GitHub reference; deeper process evidence remains to be investigated. No local setup or project-agent packet imported. |
 
@@ -82,7 +83,7 @@ No external project packets have been received as of 2026-09-19.
 
 A local file is available to a session that can access that filesystem. It is not automatically available in a fresh Git clone. Only material included in an appropriate repository revision and transferred to that clone will be present there. Uncommitted thesis files need a deliberate transfer or version-control step before relying on another checkout.
 
-This task has not committed, pushed, cloned, uploaded or published research material. Before a future transfer, identify exactly which files/revision the next session should use and follow the user's authorization and repository rules. A repository transfer also does not transfer an assistant's unrecorded chat context.
+The 2026-09-19 preparation task did not commit or push. At the next session's start, the earlier records were present in `7af72b3`, with local `main` and the stored `origin/main` reference aligned. The new 2026-09-20 changes are uncommitted. Before a future transfer, identify the exact files/revision and follow the user's authorization and repository rules. A repository transfer does not transfer unrecorded chat context.
 
 For tool-neutral continuity, keep the detailed record in ordinary Markdown, put a short pointer in each tool's applicable project instructions, and explicitly ask the next session to read it. In SPARK, `CLAUDE.md` already points to `AGENTS.md`; the latter now points thesis work to this workspace. No equivalent setup is claimed for the other projects.
 

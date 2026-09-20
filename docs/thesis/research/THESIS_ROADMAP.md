@@ -2,6 +2,8 @@
 
 Prepared: 2026-09-19. Working guidance, not a university-approved structure or accepted revised research design. Approximate student-reported deadline: July 2027. Weekly availability, exact submission date and institutional formatting requirements remain unknown.
 
+**Writing update, 2026-09-20:** the single manuscript is [THESIS.docx](../THESIS.docx). The student clarified that the forwarded peer email's old September date is not a current deadline and that work concerns the complete thesis. A peer document and email supply provisional formatting references only. This roadmap is supporting guidance; maintain the actual chapter text in the current Word file rather than another draft.
+
 ## What the thesis is trying to explain
 
 The study asks how one student developer used AI assistance across three applications, what the human contributed, what difficulties arose, and how claims of success were checked. The contribution need not be a flawless application or proof that AI replaces developers. It should be a transparent, evidence-supported account of the process and its limits.
