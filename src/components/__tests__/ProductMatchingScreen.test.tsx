@@ -258,22 +258,28 @@ describe('ProductMatchingScreen', () => {
   });
 
   it('groups all products by activity and combines unit and history filters', async () => {
-    const screen = await render(<ProductMatchingScreen />);
-    await fireEvent.press(screen.getByTestId('product-view-all'));
+    jest.useFakeTimers();
+    jest.setSystemTime(new Date(2026, 7, 23, 12));
+    try {
+      const screen = await render(<ProductMatchingScreen />);
+      await fireEvent.press(screen.getByTestId('product-view-all'));
 
-    await waitFor(() => expect(screen.getByText('product_match_time_recent_30')).toBeTruthy());
-    expect(screen.getByText('product_match_time_no_history')).toBeTruthy();
+      await waitFor(() => expect(screen.getByText('product_match_time_recent_30')).toBeTruthy());
+      expect(screen.getByText('product_match_time_no_history')).toBeTruthy();
 
-    await fireEvent.press(screen.getByTestId('product-filter-button'));
-    await fireEvent.press(screen.getByTestId('product-unit-filter-piece'));
-    await fireEvent.press(screen.getByTestId('product-date-filter-none'));
-    await fireEvent.press(screen.getByTestId('product-filter-close'));
+      await fireEvent.press(screen.getByTestId('product-filter-button'));
+      await fireEvent.press(screen.getByTestId('product-unit-filter-piece'));
+      await fireEvent.press(screen.getByTestId('product-date-filter-none'));
+      await fireEvent.press(screen.getByTestId('product-filter-close'));
 
-    await waitFor(() => expect(screen.getByTestId('product-select-4')).toBeTruthy());
-    expect(screen.queryByTestId('product-select-1')).toBeNull();
-    expect(screen.queryByTestId('product-select-3')).toBeNull();
+      await waitFor(() => expect(screen.getByTestId('product-select-4')).toBeTruthy());
+      expect(screen.queryByTestId('product-select-1')).toBeNull();
+      expect(screen.queryByTestId('product-select-3')).toBeNull();
 
-    await fireEvent.press(screen.getByTestId('product-clear-filters'));
-    await waitFor(() => expect(screen.getByTestId('product-select-1')).toBeTruthy());
+      await fireEvent.press(screen.getByTestId('product-clear-filters'));
+      await waitFor(() => expect(screen.getByTestId('product-select-1')).toBeTruthy());
+    } finally {
+      jest.useRealTimers();
+    }
   });
 });
