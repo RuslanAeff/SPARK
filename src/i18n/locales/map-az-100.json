@@ -1,0 +1,13 @@
+{
+  "scan_retry": "Yenidən cəhd edin",
+  "ai_error_key_rejected": "Google API açarını rədd etdi. Açar etibarsız ola bilər və ya layihədə Gemini API söndürülüb. Açarı Tənzimləmələrdə yoxlayın.",
+  "ai_error_quota": "Gemini istifadə kvotası bitib. Bir az gözləyib yenidən cəhd edin və ya çeki əl ilə əlavə edin.",
+  "ai_error_quota_wait": "Gemini istifadə kvotası bitib. Təxminən {seconds} san. sonra yenidən cəhd edin və ya çeki əl ilə əlavə edin.",
+  "ai_error_model_unavailable": "Google-un təqdim etdiyi modellərdən heç biri bu sorğunu qəbul etmədi. Google modellərini dəyişmiş ola bilər; çeki əl ilə əlavə edə bilərsiniz.",
+  "ai_error_busy": "Google-un süni intellekt serverləri hazırda yüklənib. Bir neçə dəqiqədən sonra yenidən cəhd edin.",
+  "ai_error_network": "Google ilə əlaqə qurulmadı. İnternet bağlantısını yoxlayıb yenidən cəhd edin.",
+  "ai_error_timeout": "Süni intellekt vaxtında cavab vermədi. Yenidən cəhd edin.",
+  "ai_error_truncated": "Süni intellektin cavabı yarımçıq kəsildi. Çeki yaxından, daha aydın şəkillə yenidən çəkin.",
+  "ai_error_invalid_response": "Süni intellekt istifadəyə yararlı cavab vermədi. Yenidən cəhd edin.",
+  "ai_error_quota_daily": "Gemini-nin gündəlik pulsuz kvotası bitib. Yenilənmə vaxtı (yerli vaxtla): {time}. O vaxta qədər çeki əl ilə əlavə edə bilərsiniz."
+}

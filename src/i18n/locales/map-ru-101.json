@@ -1,0 +1,6 @@
+{
+  "scan_recovery_settings": "Проверьте настройки ИИ",
+  "scan_recovery_label": "СКАНИРОВАНИЕ ЧЕКА",
+  "scan_recovery_title": "Не удалось завершить сканирование",
+  "scan_recovery_hint": "Вы можете продолжить, добавив чек вручную."
+}
