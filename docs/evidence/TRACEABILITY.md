@@ -1,5 +1,15 @@
 # SPARK Akademik İzlenebilirlik Kaydı
 
+## 24 Eylül 2026 — Fiş tarama kurtarma ekranı
+
+- **İstek:** Kullanıcı, kota hatası ekran görüntüsü üzerinden daha profesyonel bir tasarım istedi.
+- **Uygulama:** `src/components/ScanRecoveryCard.tsx` ve `app/(tabs)/scanner.tsx`; nötr kart, açıklayıcı başlık, tam genişlikte birincil/ikincil eylemler, canlı tema ve palet desteği. Anahtarsız durumda da manuel kayıt sunulur. API hata eşlemesi ve istek politikası değiştirilmedi.
+- **Çeviri:** TR/EN kaynakları ve `map-{az,ru}-101.json`; locale çıktıları üretim scriptleriyle güncellendi.
+- **Kanıt:** `ScannerScreen.test.tsx` kaynak seçimine dönüşte ikinci API isteği olmamasını, anahtarsız manuel girişi, hata metninin ve tema/palet geçişlerinin korunmasını denetler. Mevcut kota ve reddedilmiş anahtar yönlendirme testleri geçer.
+- **Sonuç:** `npm run typecheck` başarılı; tam Jest 141 suite / 1.134 test başarılı. Bu sonuç cihazdaki görsel kaliteyi kanıtlamaz.
+- **Açık kabul:** Android'de açık/koyu tema, büyük yazı, dar ekran, dört dil ve TalkBack; gerçek kota/anahtar hatasında düğme yönlendirmeleri. Cihaz görsel doğrulaması ve kullanıcı kabulü henüz yapılmadı.
+
+
 ## 1. Amaç ve kapsam
 
 Bu belge, SPARK'ın geliştirme sürecinde bir gereksinimin hangi karara, kod
@@ -332,3 +342,75 @@ insan kabul kanıtı bulunmadıkça daha yüksek düzeye çıkarılmaz.
 [Bulgu başına sonuçlar ve komutlar](SECURITY_REMEDIATION_2026-09-16.md).
 Otomatik kanıt: 135 suite / 1.083 test ve typecheck geçti. Cihaz kanıtı: yok.
 İnsan kabulü: yok. Bu kayıt bulguları kapatmaz; tarihsel inceleme sonuçlarını silmez.
+
+## 21 Eylül 2026 — Ana Kategoriler açılma geçişi
+
+| Gereksinim | Karar | Kod | Otomatik kanıt | Sonuç sınırı |
+|---|---|---|---|---|
+| SPK-ANIM-CATEGORY-001: kategoriye dokunulduğunda daha sakin ve bütünlüklü açılış | DESIGN_BRIEF: ölçülen yükseklik, tek içerik fade'i, kısa renk/ok geçişi; sistem hareket azaltma tercihi | `src/components/analytics/CategoriesCard.tsx` | `CategoriesCard.test.tsx`: 2/2; typecheck geçti; tam Jest 136 suite / 1.085 test | Mock testler fiziksel hareketi kanıtlamaz; cihaz ve insan görsel kabulü bekleniyor |
+
+AI/insan katkısı: `AI-2026-09-21-CATEGORY-DISCLOSURE-001`.
+Cihazda kontrol: hızlı aç/kapat ve kategoriler arası geçiş; farklı satır sayıları;
+büyük yazı ve yön değişimi; açık/koyu tema; hareket azaltma; TalkBack. Kart ve
+altındaki kartlarda sıçrama/kırpılma, scroll konumu kaybı veya kapanışta eski
+satırların erişilebilir kalması olmamalı. APK/AAB üretilmedi.
+
+## 22 Eylül 2026 — bütçe devri (dönem kalanının aktarılması)
+
+| Gereksinim | Karar | Kod | Otomatik kanıt | Sonuç sınırı |
+|---|---|---|---|---|
+| `SPK-DOM-005`: kapanan dönemden artan para sonraki dönemde kullanılabilmeli; geçmiş dönemin sonucu bozulmamalı ve bu para gelir sayılmamalı | [ADR-013](../decisions/ADR-013-budget-rollover.md): devir ayrı finansal olaydır; kaynak dönem çifti başına tek kayıt, kullanıcı onaylı ve toplamı değiştiren yazma, bitişik/aynı para birimi/açık hedef dönem koşulu, sessiz düzeltme yerine gözden geçirme uyarısı, devre bağlı dönem kilidi, yedek v5 | `src/db/schema.ts`, `src/db/budgetRolloverDao.ts`, `src/db/budgetDao.ts`, `src/utils/debtMath.ts`, `src/utils/rolloverBackup.ts`, `src/hooks/useBudget.ts`, `src/components/{BudgetRolloverSection,BudgetCard,BudgetHistoryCard,BackupSection}.tsx`, `app/settings-budget.tsx`, `src/services/{backupService,dataReset,reminderScheduler}.ts`, `src/notifications/buildNotifications.ts`, dört dil | Odaklı 10 suite / 104 test; `budgetRolloverDao` 8 ve `budgetRolloverBackup` 4 senaryosu gerçek bellek-içi SQLite üzerinde; `BudgetRolloverSection` 6/6; `npm run typecheck` exit 0; tam Jest 139 suite / 1.103 test; `git diff --check` temiz | Testler gerçek Expo SQLite migration'ını, cihazda klavye/ekran okuyucu davranışını, yedeğin gerçek dosya sisteminde geri yüklenmesini ve kullanıcının "aynı parayı iki kez aktarma" uyarısını doğru anladığını kanıtlamaz |
+
+Kanıt türü ayrımı: bu satır yalnız otomatik test kanıtıdır. Cihaz doğrulaması ve
+kullanıcı kabulü **yapılmamıştır**; `E0` düzeyindedir.
+
+Cihazda kontrol edilecekler: gerçek bir cihaz veritabanında `budget_rollovers`
+tablosunun mevcut kuruluma eklenmesi; aktarım, kısmi aktarım ve geri alma
+sonrasında Dashboard bütçe kartı, bütçe geçmişi şeridi ve bildirim eşiklerinin
+aynı etkin bütçeyi göstermesi; devre bağlı dönemi silme/tarih değiştirme
+denemesinde kilit mesajının görünmesi; v5 yedeğin dışa aktarılıp başka kuruluma
+geri yüklenmesi ve aynı dosyanın ikinci kez yüklenmesinde devrin çoğalmaması;
+açık/koyu tema, büyük yazı ve TalkBack ile aktarım kartının okunabilirliği.
+
+## 24 Eylül 2026 — Gemini model değişikliğine uyum ve tarama hata deneyimi
+
+| Gereksinim | Karar | Kod | Otomatik kanıt | Sonuç sınırı |
+|---|---|---|---|---|
+| `SPK-AI-008`: Google model kuşaklarını veya parametre adlarını değiştirdiğinde fiş tarama ve ürün eşleştirme çalışmaya devam etmeli; başarısız olduğunda kullanıcı nedeni ve yapılacak işi görmeli | Model kimliği sabitlenmez; sürüm okuyan sıralama ve kapatılmış 1.x/2.0 elemesi; düşünme ayarı modele göre seçilir (3+ `thinkingLevel`, 2.5 `thinkingBudget: 0`), parametreye yönelik 400'de aynı model daha güvenli ayarla ve en son parametresiz denenir; çalışan model oturumda hatırlanır; tipli hata kodları dört dilde mesaja ve birincil eyleme çevrilir; tarama hatasında manuel kayıt her zaman açık | `src/services/{geminiService,geminiModelSelection,geminiErrors}.ts`, `src/utils/aiErrorPresentation.ts`, `app/(tabs)/scanner.tsx`, `app/product-matching.tsx`, dört dil (`map-{az,ru}-100.json`) | Odaklı 7 suite / 87 test (model seçimi 8, hata eşlemesi 4, servis ağ davranışı 10 yeni senaryo, tarama ekranı 3 yeni senaryo); `npm run typecheck` exit 0; tam Jest 141 suite / 1.128 test; `git diff --check` temiz | Ağ testleri Google yanıtlarını taklit eder. Gerçek Gemini 3.x modellerinin `thinkingLevel: minimal` değerini kabul ettiği, gerçek hata gövdelerinin testteki kalıplarla eşleştiği ve cihazda taramanın başarıyla döndüğü **doğrulanmadı** |
+
+Kanıt türü ayrımı: yalnız otomatik test kanıtıdır. Kök neden (Gemini 3.x'in
+`thinkingBudget: 0` değerini 400 ile reddetmesi) Google belgeleri ve üçüncü taraf
+hata raporlarına dayanan bir teşhistir; kullanıcının cihazındaki gerçek hata
+gövdesi bu oturumda görülmedi. `E0` düzeyindedir.
+
+Cihazda kontrol edilecekler: Metro açıkken kısa ve uzun fiş taraması ve
+`[GEMINI] Success: <model>` satırı; ikinci taramanın tek istekle dönmesi; ürün
+eşleştirme önerisi; bilerek bozulmuş anahtarla Ayarlar düğmesinin çıkması; uçak
+modunda bağlantı mesajı; hata ekranında Manuel ekle ve Tekrar dene düğmelerinin
+açık/koyu tema, büyük yazı ve TalkBack ile okunabilirliği.
+
+**Ek — 24 Eylül 2026, cihaz logu sonrası.** Kullanıcının Metro logu ilk
+teşhisin yarısını doğruladı, yarısını düzeltti: kendini onaran deneme çalıştı
+(`thinkingLevel: minimal` 3.8/3.7 Flash'ta 400 aldı, sıradaki ayara geçildi), fakat
+asıl engel Google tarafında flash havuzunun "yüksek talep" 503'üydü; üç aday da
+aynı ailedendi ve her biri iki kez beklenerek denendiği için üçüncü taramada 429
+kota hatası başladı. Düzeltme: `minimal` kaldırıldı (`low` öncelikli), reddedilen
+ayar oturumda hatırlanıyor, adaylar flash + flash-lite havuzlarına yayılıyor,
+aynı modelde bekleme yok ve yalnız hepsi yoğunsa tek gecikmeli son deneme var,
+kotası dolan model dinlendiriliyor. Otomatik kanıt: odaklı Gemini testleri 53/53,
+tam Jest 141 suite / 1.132 test, typecheck ve `git diff --check` temiz. Cihazda
+başarılı tarama **henüz görülmedi**; flash-lite'ın bu anahtarla erişilebilir ve
+yoğun olmadığı varsayımı cihazda doğrulanmalıdır.
+
+**Ek 2 — 24 Eylül 2026, kota ayrımı.** İkinci cihaz logunda 3.8 Flash ve 3.5
+Flash-Lite 503, 3.7 Flash 429 ("You exceeded your current quota") döndü; havuz
+çeşitlendirmesi ve tek istek davranışı beklendiği gibi çalıştı. Kullanıcının
+isteğiyle 429 artık dakikalık/günlük olarak ayrılıyor: günlük kotası dolan model
+Pasifik gece yarısına kadar hiç denenmiyor, hepsi günlükse istek atılmadan yerel
+saatle yenilenme saati gösteriliyor, yalnız bir model günlük kotadayken diğerleri
+yoğunsa yoğunluk bildiriliyor. Kod: `src/services/{geminiQuota,geminiErrors,geminiService}.ts`,
+`src/utils/aiErrorPresentation.ts`, dört dil. Otomatik kanıt: kota ayrıştırma ve
+yaz saati geçişli sıfırlama zamanı testleri, logdaki senaryonun servis testi; tam
+Jest 142 suite / 1.146 test, typecheck ve `git diff --check` temiz. Gerçek 429
+gövdesinin `quotaId` alanı cihaz logunda kesildiği için görülmedi; ayrım Google'ın
+belgelenmiş biçimine ve metin yedeğine dayanıyor. Cihazda doğrulanmadı.

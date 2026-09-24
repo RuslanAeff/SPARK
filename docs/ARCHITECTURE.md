@@ -161,6 +161,7 @@ oluşturmasına dayanmaz.
 | `canonical_products` | Ölçü birimine bağlı, taşınabilir UID'li ürün kimliği ve kullanıcıya dönük kanonik ad/metaveri. Yerel eşleşme anahtarı kullanıcı etiketi değildir. |
 | `product_aliases` | Normalize edilmiş fiş etiketini aynı ölçüdeki kanonik ürüne bağlayan deterministik, AI veya kullanıcı kaynaklı öğrenilmiş eşleşme. Alias+ölçü çifti tektir. |
 | `budgets` | Takvim ayı olmak zorunda olmayan bütçe döngüsü anahtarıyla ilişkili planlanan tutar. |
+| `budget_rollovers` | Kapanmış bir dönemin kalanından bitişik sonraki döneme kullanıcı onayıyla aktarılan tutar. Harcama veya ek gelir değildir; kaynak dönem çifti başına tektir ve minor birimde saklanır (ADR-013). |
 | `savings_goal` | Tek aktif birikim hedefi ve mevcut katkı tutarı. |
 | `category_limits` | Döngü başına kategori harcama limitleri. |
 | `subscriptions` | Yerel harcama geçmişinden çıkarılan tekrarlayan satıcı ödeme tahminleri ve kullanıcının gizleme durumu; kullanıcı taahhüdü değildir. |
@@ -234,16 +235,22 @@ eylem tek merkez `Pressable` üzerinde kalır.
 
 Günlük hedef yalnız seçili aralık aktif bütçenin kanonik aylık döngüsüyle tam eşleştiğinde sağlanır. Bu durumda hedef, sabit `effectiveBudget / totalDays` planıdır ve yalnız açık hedef aralığındaki tamamlanmış, harcama bulunan günlerle karşılaştırılır. Yıllık, geçmiş veya özel aralıklarda aynı bütçe hedefi geriye dönük olarak uydurulmaz.
 
-### Borç ve ek gelir
+### Borç, ek gelir ve devir
 
 Borç tüketim değil, nakit akışı düzeltmesidir. [`src/utils/debtMath.ts`](../src/utils/debtMath.ts) içindeki ortak hesap şu formülü tanımlar:
 
 ```text
-etkin bütçe = planlanan bütçe + alınan borç - geri ödeme + ek gelir
+etkin bütçe = planlanan bütçe + alınan borç - geri ödeme + ek gelir + devreden
 kalan       = etkin bütçe - gerçek harcama
 ```
 
 Borç alma, borç tarihinin bulunduğu döngüyü; geri ödeme, ödeme tarihinin bulunduğu döngüyü etkiler. Ek gelir yalnız kendi döngüsünü etkiler. Açık borç toplamı ayrı ve döngüden bağımsız bir bakiyedir.
+
+Devreden tutar (ADR-013) önceki dönemin kalanından gelir ve yalnız hedef döngünün
+etkin bütçesini artırır; gelir toplamı değildir. Kaynak dönemin planı, harcaması
+ve kalanı devirden sonra da değişmeden okunur. Bu bileşen `useBudget`, bütçe
+geçmişi şeridi, bildirim eşikleri ve Android hatırlatıcı planlayıcısında aynı
+ortak hesaptan gelir; ekranların farklı payda kullanması engellenir.
 
 Borç vadesi bütçe matematiğine katılmaz. `due_date`, yalnız kullanıcının ödeme
 taahhüdünü ve hatırlatma zamanını tanımlar; `debts.date` nakit-akışı tarihini
@@ -303,6 +310,53 @@ servisin sorumluluğudur. Teknik olarak başarılı fakat geçersiz fiş şemas�
 model kayda ilerlemez; sınırlı sıradaki modele geçilir. Boş kalem, eksik satıcı,
 geçersiz tarih, anlamsız satır veya indirime dayanmayan sıfır sonuç finansal kayıt
 olamaz. Gerçek sıfır fiş brüt satır ve tam indirim kanıtı gerektirir.
+
+#### Gemini model uyumluluğu
+
+Model kimliği kodda sabitlenmez. Servis Google'ın model listesini çalışma anında
+okur ve [`geminiModelSelection.ts`](../src/services/geminiModelSelection.ts)
+içindeki saf kurallarla sıralar: stabil tam flash (en yeni sürüm önce), flash-lite,
+pro, preview/experimental, en son Gemini dışı modeller. Kapatılmış 1.x ve 2.0
+kuşağı (2.0 ailesi 1 Haziran 2026'da kapandı) liste API'si döndürse bile elenir.
+Tek istekte en çok üç aday denenir ve adaylar farklı kapasite havuzlarına yayılır:
+en iyi flash'tan hemen sonra en iyi flash-lite gelir. Google "yüksek talep" 503'ünü
+bir ailenin paylaşılan havuzu dolunca verir; 24 Eylül 2026 cihaz logunda 3.8, 3.7
+ve 3.6 flash aynı anda 503 döndü. Aynı modelde bekleyip yeniden denenmez; model
+kısa süre dinlendirilir ve sıradaki havuza geçilir. Bütün adaylar yalnız yoğunsa
+3 sn sonra en iyi adaya tek bir son deneme yapılır. 429 yanıtındaki
+`QuotaFailure.violations[].quotaId` ile dakikalık ve günlük sınır ayrılır
+([`geminiQuota.ts`](../src/services/geminiQuota.ts)). Dakikalık kotası dolan model
+Google'ın bildirdiği süre kadar, günlük kotası dolan model Google'ın gün
+dönümüne (Pasifik gece yarısı, yaz saati dahil; Intl'e güvenmeden hesaplanır)
+kadar dinlendirilir. Google günlük sınırda da kısa bir `retryDelay` gönderdiği
+için ona bakılmaz. Bütün modeller kotadaysa istek atılmadan en erken açılış
+bildirilir: dakikalık bir model varsa kalan saniye, hepsi günlükse yerel saatle
+yenilenme saati. Bir model gün boyu kapalıyken diğerleri yalnız yoğunsa kullanıcıya
+"yarın" denmez, yoğunluk bildirilir. Böylece art arda denemeler kotayı daha çok
+tüketmez.
+Oturumda çalıştığı kanıtlanan model ve kabul ettiği ayar sonraki istekte öne
+alınır.
+
+Düşünme ayarı çağıran taraftan değil, modele göre bu katmandan seçilir. Gemini 3+
+`thinkingBudget`'ı kaldırdı ve düşünmenin kapatılmasına izin vermez; açık
+`thinkingBudget: 0` 400 döner. Bu nedenle 3+ için `thinkingLevel: low`, 2.5 için
+`thinkingBudget: 0`, diğerleri için parametresiz istek gönderilir. `minimal`
+kullanılmaz: 3.7/3.8 Flash onu 400 ile reddeder. Düşünme parametresine yönelik 400
+modeli uyumsuz saymaz: aynı model parametresiz denenir ve reddedilen ayar oturum
+boyunca hatırlanır. Model yalnız bu da başarısız olursa kısa süre atlanır. Düşünme token'ları çıktı sınırından düştüğü için ürün
+eşleştirme yanıt sınırı 2048'dir.
+
+Servis kullanıcıya dönük metin üretmez; [`GeminiServiceError`](../src/services/geminiErrors.ts)
+ile tipli kod fırlatır (`AI_KEY_REJECTED`, `AI_QUOTA` + bekleme süresi,
+`AI_QUOTA_DAILY` + yenilenme anı, `AI_MODEL_UNAVAILABLE`, `AI_SERVER_BUSY`,
+`AI_NETWORK`, `AI_TIMEOUT`,
+`AI_RESPONSE_TRUNCATED`, `AI_INVALID_RESPONSE`, `RECEIPT_INVALID_RESULT`). Modeller
+farklı nedenlerle başarısız olursa en eyleme dönük olan seçilir; anahtar reddi ve
+ağa hiç ulaşılamaması diğer modelleri denemeden bildirilir.
+[`aiErrorPresentation.ts`](../src/utils/aiErrorPresentation.ts) kodu dört dilde
+mesaja ve birincil eyleme çevirir: anahtar sorunlarında Ayarlar, diğerlerinde
+tekrar deneme; tarama ekranında manuel kayıt her hata durumunda açıktır. Anahtar
+kaydedilince veya silinince model önbelleği ve oturum tercihleri sıfırlanır.
 
 Modelin `localized_name` alanı tarama anındaki seçili dile aittir ve mevcut
 `turkish_name` kalıcı alanına geriye uyumlu biçimde yazılır; ham `name` korunur.
@@ -367,7 +421,14 @@ SQLite ID'si yerine taşınabilir kanonik ürün UID'siyle taşır. v1-v3 import
 desteği korunur ve bu sürümler ürün kimliği koleksiyonlarını boş kabul eder.
 v4 doğrulaması alias tekilliği, ölçü uyumu ve referans bütünlüğünü transaction
 başlamadan denetler; tekrar import mevcut UID/aliası yeniden kullanır ve çakışan
-payload'ı kısmi yazı bırakmadan reddeder. Kalıcı bir varlık veya
+payload'ı kısmi yazı bırakmadan reddeder. Backup v5 `budget_rollovers`
+kayıtlarını taşır; export aralığı, bir devre katılan dönemlerin tamamını
+kapsayacak biçimde genişletilir, çünkü kaynak dönem dışarıda kalırsa restore
+edilen devrin dayanağı bilinemez. v5 doğrulaması bitişiklik, para birimi eşliği,
+kaynak tekilliği ve her iki dönemin payload'daki tek bütçe satırıyla birebir
+eşleşmesini transaction başlamadan denetler; aynı kaynaktan farklı tutarlı ikinci
+bir kayıt tüm importu reddeder, böylece aynı para iki kez alacak yazılmaz.
+v1–v4 import desteği korunur ve bu sürümler devir koleksiyonunu boş kabul eder. Kalıcı bir varlık veya
 alan eklemek; şema başlatma, DAO, export oluşturma, import uyumluluğu ve yedek
 format sürümünün birlikte incelenmesini gerektirir.
 

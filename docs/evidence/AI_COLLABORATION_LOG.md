@@ -1,5 +1,14 @@
 # SPARK Yapay Zekâ İşbirliği Kaydı
 
+## 24 Eylül 2026 — Fiş tarama hata ekranının yeniden tasarımı
+
+- **İnsan kararı:** Kullanıcı mevcut ekran görüntüsünü verip daha profesyonel ve elit bir tasarım istedi.
+- **AI uygulama tercihi:** Büyük kırmızı hata sunumu yerine nötr, ince çerçeveli kart; bağlam etiketi, açıklayıcı başlık ve korunmuş hata nedeni. Şüşevar ana CTA ve çerçeveli manuel giriş alt alta düzenlendi. Aynı bileşen anahtarsız durumu da kapsar ve manuel giriş sağlar.
+- **Sınır:** Önceden mevcut çalışma ağacı değişiklikleri korundu. Bu oturum Gemini servis politikasını, bütçe devrini veya tez metnini değiştirmedi. Otomatik tekrar deneme eklenmedi.
+- **Doğrulama:** Typecheck ve tam Jest (141 suite / 1.134 test) başarılı. Yeni regresyonlar tema/palet güncellemesi, tekrar denemenin kaynak seçimine dönmesi ve anahtarsız manuel giriş içindir. Dört dil çıktıları yeniden üretildi.
+- **Devam noktası:** Android üzerinde dar ekran/büyük yazı, TalkBack ve açık/koyu tema görsel kontrolü; kullanıcı tasarım kabulü açık. Cihazda görüldü veya gerçek Gemini kota sorunu çözüldü iddiası yok. Commit/push yapılmadı.
+
+
 ## 1. Amaç
 
 Bu günlük, SPARK geliştirilirken yapay zekânın hangi görevlerde ve hangi yetki
@@ -1409,3 +1418,123 @@ Yayın hazırlığı denetiminde kullanılan iki modelli yöntem için
 - **Continuity:** the current manuscript and dated research log are the everyday
   entry points. Existing evidence and the original supplied Word documents are
   preserved. No commit, push or supervisor communication occurred in this session.
+
+## 21 September 2026 — category breakdown disclosure motion
+
+- **ID:** AI-2026-09-21-CATEGORY-DISCLOSURE-001.
+- **Human request:** replace the unpolished opening animation of Main Categories
+  in Spending Analysis with a more refined interaction. No visual acceptance yet.
+- **AI implementation:** replaced stacked/staggered slide entrances with one
+  measured-height Reanimated disclosure (280 ms opening, 220 ms closing), a
+  collective content fade, and 180 ms category colour/chevron transitions.
+  Last rows remain mounted for closing; collapsed content immediately stops
+  receiving touches and is excluded from accessibility. Natural-height measurement
+  accommodates changing content, width and text size. Selection remains controlled
+  by the existing screen. No query/financial semantics or native dependencies changed.
+- **Reference:** [Reanimated withTiming](https://docs.swmansion.com/react-native-reanimated/docs/animations/withTiming/)
+  consulted for easing and system reduced-motion configuration.
+- **Verification:** `npm run typecheck` passed; targeted CategoriesCard regression
+  tests 2/2; full `npm test -- --ci --coverage=false` 136 suites / 1,085 tests passed.
+  Initial test harness attempts failed because Expo's Jest mocks lack easing/native
+  worklet support; a scoped immediate-animation mock permits interaction assertions.
+  These tests verify selection, collapse accessibility and arriving query data, not
+  native interpolation, timing, smoothness or reduced-motion rendering.
+- **Pending:** Android/device review of open/close, rapid alternation, different
+  row counts, large text/rotation, light/dark themes, reduced motion and TalkBack.
+  Confirm no clipping, blank flash, unexpected scroll movement or state loss.
+  No APK/AAB build, device observation, user acceptance, commit or push performed.
+
+## 22 Eylül 2026 — bütçe devri özelliği ve iki AI oturumunun devri
+
+- **ID:** `AI-2026-09-22-BUDGET-ROLLOVER-001`.
+- **İnsan katkısı:** Kullanıcı gerçek bir ihtiyacı anlattı — dönem sonunda kalan
+  20 zł'yi sonraki döneme taşımak — ve asıl soruyu kendisi ortaya koydu: para eski
+  bütçeden yok mu olacak, yoksa "kaldı ama aktarıldı" olarak mı görünecek? Yeni
+  dönemdeki fazlalığın nereden geldiğinin belli olmasını istedi. Öneri modelini
+  değerlendirdikten sonra uygulanmasına karar verdi. Commit, push veya yayın
+  istemedi.
+- **AI önerisi (birinci oturum, Codex):** Devrin ek gelir olarak kaydedilmemesi;
+  tutarın hem kaynak hem hedef dönemde görünmesi; kullanıcı onaylı ve kısmi
+  aktarıma izin veren bir akış; aynı paranın iki kez aktarılmaması; geçmiş
+  değişince sessiz düzeltme yerine uyarı. Kullanıcı bu modeli kabul etti.
+- **Birinci oturumun bıraktığı durum:** Şema/DAO, bütçe yazma kilidi, ortak nakit
+  akışı hesabına `carryIn`, aktarım ekranı, Dashboard ve geçmiş şeridi
+  göstergeleri, bildirim/hatırlatıcı paydası, yedek v5 ve dört dil çeviri akışı
+  yazılmıştı. Oturum limiti nedeniyle yarıda kaldı: `npm run typecheck` yeni
+  yedek testindeki eksik `source_id` alanı yüzünden hata veriyordu.
+- **İkinci oturum (bu oturum, Claude Code):** Yarım işi devraldı. Typecheck
+  hatasını giderdi; restore özetinde devir sayımlarını diğer kayıt türleriyle
+  aynı sözleşmeye bağladı; `amount_minor` dönüşümünü ortak `fromMinorUnits`
+  yardımcısına taşıdı; bütçe kaydetme akışındaki hata yolunu tek yardımcıya
+  indirdi; üç test dosyasının sonuna eklenmiş mock'ları ilgili mock bloklarına
+  taşıdı; kapsamı olmayan aktarım ekranı için 6 senaryoluk component testi yazdı;
+  ADR-013 ile mimari, tasarım, kalite ve izlenebilirlik belgelerini güncelledi.
+  Ayrıca birinci oturumun TR/EN metinleri için açtığı ayrı `budgetRolloverTranslations.ts`
+  modülü ADR-005'in "TR ve inline EN `translations.ts` içindedir" değişmezini
+  bozduğu için 22 anahtar dört dil akışının kanonik yerine taşındı, modül
+  kaldırıldı ve üretilmiş AZ/RU dosyaları yeniden derlendi.
+  Birinci oturumun ürün mantığı korundu; değiştirilen yerler yukarıda sayılıdır.
+- **Doğrulama (bu oturumda çalıştırıldı):** `npm run typecheck` exit 0; odaklı
+  10 suite / 104 test; tam `npm test -- --ci --coverage=false` 139 suite /
+  1.103 test; `git diff --check` temiz. i18n üretim akışı (`compilePartial.mjs`
+  + `buildLocales.mjs`) yeniden çalıştırıldı ve üretilmiş AZ/RU dosyalarının
+  birebir aynı çıktıyı verdiği doğrulandı.
+- **Sınırlar:** Birinci oturumun konuşma geçmişi bu oturumda gözlenmedi;
+  yukarıdaki devir anlatısı kullanıcının ilettiği özet ile çalışma ağacındaki
+  gerçek dosya durumuna dayanır. Cihaz doğrulaması, APK/AAB üretimi, gerçek
+  SQLite migration kontrolü, gerçek dosya sisteminde yedek/restore denemesi ve
+  kullanıcı kabulü **yapılmadı**. Commit, push veya yayın yapılmadı.
+
+## 24 Eylül 2026 — Gemini model değişikliği ve tarama hata deneyimi
+
+- **ID:** `AI-2026-09-24-GEMINI-MODEL-COMPAT-001`.
+- **İnsan katkısı:** Kullanıcı fiş taramasında sorun olduğunu düşündüğünü
+  belirtti ve Google'ın eski modelleri kullanımdan kaldırıp kaldırmadığını sordu.
+  İlk planı "en iyi deneyim için" yeniden tasarlamamı istedi, yeniden tasarlanan
+  planı (Faz 1 çekirdek uyumluluk + Faz 2 kullanıcıya neden bildirme) onaylayıp
+  uygulamayı başlattı. Faz 3 (Ayarlar'da bağlantı testi) ayrı karar olarak
+  bırakıldı ve uygulanmadı. Commit, push veya yayın istenmedi.
+- **AI araştırması ve teşhisi:** Google belgelerinden 2.0 kuşağının 1 Haziran
+  2026'da kapandığı, 2.5 kuşağının yeni kullanıcılara kısıtlandığı ve Gemini 3'te
+  `thinkingBudget` yerine `thinkingLevel` geldiği doğrulandı. Kodda model adının
+  sabitlenmediği, ancak her isteğe `thinkingBudget: 0` eklendiği görüldü. Teşhis:
+  kalan Gemini 3.x adaylarının bu parametreyi 400 ile reddetmesi. Bu bir
+  çıkarımdır; kullanıcının cihazındaki hata metni görülmedi.
+- **AI uygulaması:** Saf model seçim modülü (sürüm okuyan sıralama, kapatılmış
+  kuşak elemesi, modele göre düşünme ayarları, ret sınıflandırması); parametre
+  reddinde aynı modelde güvenli ayara inen kendini onaran deneme; oturum içi
+  çalışan model hatırlama; anahtar değişince durum sıfırlama; ürün eşleştirme
+  çıktı sınırını 512'den 2048'e çıkarma; boş yanıtın tüm taramayı düşürmesinin
+  önlenmesi; tipli hata sözleşmesi ve dört dilde ekran mesajları; tarama hata
+  ekranında Ayarlar / Tekrar dene / Manuel ekle eylemleri. Kendi incelememde bozuk
+  yanıt gövdesinin "internet yok" olarak raporlandığını fark edip ayırdım.
+- **Doğrulama (bu oturumda çalıştırıldı):** `npm run typecheck` exit 0; odaklı
+  7 suite / 87 test; tam `npm test -- --ci --coverage=false` 141 suite /
+  1.128 test; `git diff --check` temiz; i18n üretim akışı yeniden çalıştırıldı ve
+  parite testi geçti.
+- **Sınırlar:** Gerçek Google API'sine istek atılmadı; ağ testleri taklittir.
+  Cihaz doğrulaması, APK/AAB üretimi ve kullanıcı kabulü **yapılmadı**. Commit,
+  push veya yayın yapılmadı.
+
+- **Ek — cihaz logu (aynı gün):** Kullanıcı düzeltmeden sonra da taramanın
+  başarısız olduğunu Metro loguyla bildirdi. Log, ilk teşhisin kısmen doğru
+  olduğunu gösterdi (düşünme parametresi reddi gerçekti ve kendini onaran deneme
+  çalıştı), ancak ilk uygulamanın iki kusurunu da ortaya çıkardı: 3.7/3.8 Flash'ın
+  desteklemediği `minimal` her taramada boşa istek harcıyordu ve üç adayın hepsi
+  aynı, o sırada Google tarafında dolu olan flash havuzundan seçiliyordu. Her
+  modelin iki kez beklenerek denenmesi de kotayı hızla tüketip 429'a yol açtı.
+  AI düzeltmesi: `low` öncelikli ayar, reddedilen ayarın hatırlanması, flash +
+  flash-lite havuz çeşitlendirmesi, model içi bekleme yerine havuz değiştirme ve
+  tek gecikmeli son deneme, kota/yoğunluk dinlendirmesi. Otomatik doğrulama: odaklı
+  53/53, tam 141 suite / 1.132 test. Cihazda başarılı tarama henüz görülmedi.
+- **Ek 2 — kota ayrımı (aynı gün):** İkinci cihaz logundan sonra kullanıcı kota
+  mesajının anlamını sordu; AI dakikalık/günlük sınır farkını ve Google'ın günlük
+  sayaç sıfırlamasını açıkladı, ücretli katman maliyetini varsayımlarıyla birlikte
+  tahmin etti ve 429 türünün ayrılmasını önerdi. Kullanıcı "ekle" diyerek onayladı.
+  Uygulama: `quotaId` ile günlük/dakikalık ayrımı, günlük kotada Pasifik gece
+  yarısına kadar model dinlendirme, yerel saatle yenilenme mesajı (dört dil),
+  günlük kotanın geçici yoğunluktan sonra önceliklendirilmesi. Bu sırada depoda
+  bu oturumun yapmadığı eşzamanlı değişiklikler görüldü (`ScanRecoveryCard.tsx`,
+  `map-{az,ru}-101.json`, tarama ekranı ve testi, 16:25–16:26); üzerine yazılmadı,
+  kaynak kontrolünden sonra birlikte derlendi. Doğrulama: tam 142 suite /
+  1.146 test, typecheck ve `git diff --check` temiz. Cihazda doğrulanmadı.

@@ -72,6 +72,7 @@ Temel ihtiyaçlar:
 | Birikim hedefi | Hedef tutarı ve kullanıcının ilerlemesini izler |
 | Borç | Alınan borcu, kalan bakiyeyi ve kısmi/tam ödeme geçmişini harcamadan ayrı tutar |
 | Ek gelir | Geri ödeme yükümlülüğü olmayan dönemsel nakit girişini kaydeder |
+| Bütçe devri | Kapanan dönemin kalanını kullanıcı onayıyla sonraki döneme taşır; parayı iki dönemde de görünür kılar ve gelir saymaz |
 | Abonelikler | Yerel işlem geçmişinden tekrar eden satıcı ödemelerini tahmin eder ve kullanıcı kararını saklar |
 | Ödeme hatırlatıcıları | Borç vadelerini ve kullanıcının açıkça tanımladığı/onayladığı düzenli ödemeleri, tahmini aboneliklerden ayrı bir takvim kaydı olarak tutar |
 | Bildirim merkezi | Bütçe, hedef, kategori, fiş ve sistem uyarılarını kalıcı, filtrelenebilir ve yönetilebilir biçimde gösterir |
@@ -79,6 +80,41 @@ Temel ihtiyaçlar:
 | Ayarlar | Dil, para birimi, açık/koyu görünüm, vurgu paleti, bütçe, veri ve AI tercihlerini yönetir |
 
 ## 5. Kritik kullanıcı akışları
+
+**Fiş tarama başarısızlığı** ince çerçeveli, nötr bir kurtarma kartında gösterilir.
+Küçük fiş/anahtar simgesi ve bağlam etiketi, açıklayıcı başlık ve hata nedeni
+ayrı hiyerarşidedir. Kırmızı genel “Hata” başlığı yerine “Tarama tamamlanamadı”
+kullanılır; anahtar sorununda başlık AI ayarlarını kontrol etmeye yönlendirir.
+Şüşevar ana düğme ile çerçeveli manuel giriş düğmesi tam genişlikte alt alta
+yerleşir. Tekrar deneme mevcut kaynak seçimine döner; kendiliğinden API isteği
+göndermez. API anahtarı yokken de manuel giriş görünür. Kart açık/koyu tema ve
+vurgu paletini izler; metin ve düğmeler sabit yüksekliğe sıkıştırılmaz.
+
+**Bütçe devri** akışı Ayarlar → Bütçe sayfasındadır. Kart önce dönemin
+tablosunu gösterir: planlanan bütçe, önceki dönemden devreden, devir öncesi dönem
+kalanı, sonraki döneme devredilen ve devredilmeden kalan. Böylece "şu kadar
+harcadım" ile "şu kadarını taşıdım" birbirine karışmaz.
+
+Mevcut dönemde, bir önceki dönem bitişik ve aynı para biriminde kayıtlıysa
+aktarım alanı açılır. Öneri, kaynak dönemin henüz devredilmemiş kalanıdır;
+kullanıcı azaltabilir. Kaydetmek devir toplamını değiştirir, üzerine eklemez ve
+kart bunu açıkça yazar; yeni bütçeye bu para zaten elle eklendiyse tekrar
+aktarmama uyarısı görünür. Mevcut bir devir satır olarak listelenir ve onay
+penceresiyle geri alınabilir; geri alma harcamaları silmez, tutarı kaynak dönemde
+yeniden devredilmemiş hâle getirir.
+
+Kaynak dönem sonradan değişirse (unutulmuş harcama eklenir veya bütçe düşürülür)
+uygulama hiçbir tutarı sessizce değiştirmez: hem aktarım kartında hem Dashboard
+bütçe kartında gözden geçirme uyarısı çıkar ve düzeltmeyi kullanıcı yapar.
+Devre bağlı bir dönem silinmeye veya tarihi/para birimi değiştirilmeye
+çalışıldığında ekran, önce ilgili devrin geri alınması gerektiğini söyler.
+
+**Ana Kategoriler** kartında seçilen kategorinin alt kırılımı, kartın ölçülen
+içerik yüksekliğine yumuşakça genişlemesiyle açılır. Satırlar tek tek gecikmeli
+kaymaz; bütün içerik birlikte belirir. Seçim rengi ve yön oku kısa bir geçişle
+değişir; aynı kategoriye tekrar dokunmak paneli kapatır. Kapanışta içerik
+solarken ekran okuyucu için hemen gizlenir. Hareket sistemin azaltılmış hareket
+tercihine uyar; hızlı seçim değişimleri mevcut hareketi yeni hedefe yönlendirir.
 
 **Harcamam neden değişti?** kartı iki karşılaştırılabilir dönemin kategori
 farklarını açıklar. Üstte net tutar farkı, altında mutlak farka göre sıralanan
@@ -156,6 +192,14 @@ sonucu geri kazanılmalıdır. Kaynak seçimi, görüntü hazırlama ve ağ ayr�
 sınırlı bekleme sürelerine sahiptir; Durdur eylemi etkin isteği iptal edip kaynak
 kilidini hemen açar. Görsel en-boy oranı korunarak yalnız gerekirse küçültülür;
 küçük görsel büyütülmez.
+
+Tarama başarısız olduğunda ekran nedeni ve yapılacak işi söyler; tek bir genel
+"tamamlanamadı" mesajına indirgemez. Anahtar reddedildiyse birincil eylem
+Ayarlar'dır; kota dolduysa bekleme süresi gösterilir; Google'a ulaşılamıyorsa,
+sunucu yoğunsa veya yanıt kesildiyse bu ayrı ayrı açıklanır. Her hata durumunda
+fişi manuel ekleme yolu açıktır, böylece kullanıcı AI hizmetine bağlı bir çıkmaza
+girmez. Ürün eşleştirme önerisi başarısız olduğunda aynı neden bildirimin
+açıklamasında gösterilir.
 
 ### 5.3 Bütçe döngüsü
 
