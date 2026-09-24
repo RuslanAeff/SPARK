@@ -26,7 +26,7 @@ describe('resetAllUserData', () => {
       .map(([sql]) => String(sql))
       .filter(sql => sql.startsWith('DELETE FROM'));
     for (const table of [
-      'expenses', 'expense_items', 'vendors', 'budgets', 'debts', 'debt_payments',
+      'budget_rollovers', 'expenses', 'expense_items', 'vendors', 'budgets', 'debts', 'debt_payments',
       'extra_incomes', 'recurring_payment_reminders', 'subscriptions',
       'category_limits', 'savings_goal', 'canonical_products', 'product_aliases',
     ]) {
@@ -43,6 +43,7 @@ describe('resetAllUserData', () => {
     const before = (child: string, parent: string) =>
       order.indexOf(`DELETE FROM ${child}`) < order.indexOf(`DELETE FROM ${parent}`);
     expect(before('debt_payments', 'debts')).toBe(true);
+    expect(before('budget_rollovers', 'budgets')).toBe(true);
     expect(before('expense_items', 'expenses')).toBe(true);
     expect(before('expenses', 'vendors')).toBe(true);
     expect(before('subscriptions', 'vendors')).toBe(true);

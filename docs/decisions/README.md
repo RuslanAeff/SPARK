@@ -27,6 +27,7 @@ Bir kararı değiştirirken eski ADR sessizce yeniden yazılmaz. Yeni ADR oluşt
 | [ADR-009](ADR-009-receipt-item-measurement-units.md) | Accepted · prospective | Fiş kalemi ölçüsü, kanonik birim fiyat ve fiyat geçmişi | Gramajlı ürünü adet gibi göstermeyi ve uyumsuz ölçülerin aynı fiyat serisinde birleşmesini engeller. |
 | [ADR-010](ADR-010-canonical-product-identity.md) | Accepted · prospective | Kanonik ürün, alias öğrenimi, AI önerisi ve kullanıcı merge/split sınırı | Yazım farklarının fiyat geçmişini bölmesini azaltırken farklı ölçü, paket ve varyantların sessizce birleşmesini engeller. |
 | [ADR-012](ADR-012-ai-transfer-service-and-market-scope.md) | Accepted · prospective | Desteklenen Gemini katmanı, global pazar kapsamı ve aktarım metinlerinin içeriği | Ücretsiz katmanda kişisel finansal verinin insan incelemesine açık olduğunu dört dilde açıkça yazar; kararı kullanıcıya devreden belirsiz ifadeyi engeller. |
+| [ADR-013](ADR-013-budget-rollover.md) | Accepted · prospective | Dönem kalanının sonraki döneme devri, devre bağlı dönem kilidi ve yedek v5 | Devredilen parayı ek gelir saymadan iki dönemde de görünür kılar; geçmiş dönemin sonucunu ve aynı paranın iki kez aktarılmamasını korur. |
 
 ## ADR ekleme kontrol listesi
 

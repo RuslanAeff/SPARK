@@ -28,7 +28,9 @@ import {
   ExpenseItem,
   ProductAlias,
   Vendor,
+  BudgetRollover,
 } from '../db/schema';
+import { expandRolloverRange } from '../utils/rolloverBackup';
 import {
   sanitizeAmount,
   sanitizeDate,
@@ -50,7 +52,7 @@ import { sanitizeMeasurementUnit } from '../utils/measurementUnit';
  *
  * Yeni alanlar v1-v3 importunda boş dizilere normalize edilir. Eski uygulamalar
  * v4 dosyasını `UNSUPPORTED_VERSION` ile bilinçli biçimde reddeder. */
-export const BACKUP_FORMAT_VERSION = 4;
+export const BACKUP_FORMAT_VERSION = 5;
 
 const MIN_BACKUP_FORMAT_VERSION = 1;
 const MAX_BACKUP_ROWS_PER_COLLECTION = 100_000;
@@ -219,6 +221,8 @@ export interface BackupPayload {
     /** v4+: v1-v3 uyumluluğu için tipte opsiyonel, v4 doğrulamasında zorunlu. */
     canonical_products?: ExportedCanonicalProduct[];
     product_aliases?: ExportedProductAlias[];
+    /** v5: carryovers with full connected period history included in range. */
+    budget_rollovers?: BudgetRollover[];
   };
 }
 
@@ -271,6 +275,9 @@ export interface ImportSummary {
   productAliasesAdded: number;
   productAliasesSkipped: number;
   itemCanonicalLinksAdded: number;
+  /** v5: bütçe devirleri ayrı bir finansal kayıt türüdür; harcama/gelir sayımına karışmaz. */
+  rolloversAdded: number;
+  rolloversSkipped: number;
 }
 
 /** `YYYY-MM-DD` doğrulaması + başlangıç <= son kuralı. */
@@ -308,6 +315,7 @@ type NormalizedBackupPayload = BackupPayload & {
     dismissed_subscriptions: ExportedDismissedSubscription[];
     canonical_products: ExportedCanonicalProduct[];
     product_aliases: ExportedProductAlias[];
+    budget_rollovers: BudgetRollover[];
   };
 };
 
@@ -686,6 +694,33 @@ export function validateAndNormalizeBackupPayload(input: unknown): NormalizedBac
       || !Array.isArray(data.product_aliases)) invalidFormat();
     validateV4ProductIdentityCollections(data);
   }
+  if (root.version >= 5) {
+    const seen = new Set<string>();
+    const sources = new Set<string>();
+    const budgets = data.budgets as ExportedBudget[];
+    for (const value of asBoundedArray(data.budget_rollovers)) {
+      const r = asRecord(value);
+      if (!normalizeCanonicalUuid(r.uid) || seen.has(String(r.uid))
+        || !isStrictDate(r.source_start) || !isStrictDate(r.source_end)
+        || !isStrictDate(r.target_start) || !isStrictDate(r.target_end)
+        || String(r.source_start) > String(r.source_end) || String(r.source_end) >= String(r.target_start)
+        || String(r.target_start) > String(r.target_end)
+        || typeof r.currency !== 'string' || !/^[A-Z]{3}$/.test(r.currency)
+        || !Number.isSafeInteger(r.amount_minor) || Number(r.amount_minor) <= 0 || Number(r.amount_minor) > 99999999999
+        || !isIsoTimestamp(r.created_at) || !isIsoTimestamp(r.updated_at)
+        || String(r.source_start) < String(range.start) || String(r.target_end) > String(range.end)) invalidFormat();
+      const nextDay = new Date(`${r.source_end}T12:00:00Z`);
+      nextDay.setUTCDate(nextDay.getUTCDate() + 1);
+      if (nextDay.toISOString().slice(0, 10) !== r.target_start) invalidFormat();
+      const key = `${r.source_start}:${r.source_end}`;
+      if (sources.has(key)) invalidFormat();
+      sources.add(key); seen.add(String(r.uid));
+      for (const [start, end] of [[r.source_start, r.source_end], [r.target_start, r.target_end]]) {
+        const overlap = budgets.filter(b => b.period_start && b.period_end && b.period_start <= String(end) && b.period_end >= String(start));
+        if (overlap.length !== 1 || overlap[0].period_start !== start || overlap[0].period_end !== end || overlap[0].currency !== r.currency) invalidFormat();
+      }
+    }
+  }
 
   return {
     ...(root as unknown as BackupPayload),
@@ -707,6 +742,7 @@ export function validateAndNormalizeBackupPayload(input: unknown): NormalizedBac
       product_aliases: root.version >= 4
         ? data.product_aliases as ExportedProductAlias[]
         : [],
+      budget_rollovers: root.version >= 5 ? data.budget_rollovers as BudgetRollover[] : [],
     },
   };
 }
@@ -714,6 +750,10 @@ export function validateAndNormalizeBackupPayload(input: unknown): NormalizedBac
 export async function buildBackupPayload(range: BackupDateRange): Promise<BackupPayload> {
   assertValidRange(range);
   const db = await getDatabase();
+
+  const allRollovers = await db.getAllAsync<BudgetRollover>('SELECT * FROM budget_rollovers ORDER BY source_start, uid');
+  range = expandRolloverRange(range, allRollovers);
+  const rolloversOut = allRollovers.filter(r => r.source_start >= range.start && r.target_end <= range.end);
 
   const expenses = await db.getAllAsync<
     Expense & { vendor_name: string | null; category_name: string | null }
@@ -1079,6 +1119,7 @@ export async function buildBackupPayload(range: BackupDateRange): Promise<Backup
       recurring_payment_reminders: remindersOut,
       canonical_products: canonicalProductsOut,
       product_aliases: productAliasesOut,
+      budget_rollovers: rolloversOut,
     },
   };
 }
@@ -1141,7 +1182,7 @@ export async function exportBackupToFile(range: BackupDateRange): Promise<Export
       canonicalProductCount,
       productAliasCount,
       recordCount: payload.data.expenses.length + debtCount + debtPaymentCount
-        + incomeCount + reminderCount + canonicalProductCount + productAliasCount,
+        + incomeCount + reminderCount + canonicalProductCount + productAliasCount + (payload.data.budget_rollovers?.length ?? 0),
       sizeBytes: file.size ?? json.length,
       destination: 'cancelled',
     };
@@ -1252,6 +1293,8 @@ export async function importBackupPayload(inputPayload: BackupPayload): Promise<
     productAliasesAdded: 0,
     productAliasesSkipped: 0,
     itemCanonicalLinksAdded: 0,
+    rolloversAdded: 0,
+    rolloversSkipped: 0,
   };
 
   await db.withTransactionAsync(async () => {
@@ -2240,6 +2283,26 @@ export async function importBackupPayload(inputPayload: BackupPayload): Promise<
         ]
       );
       summary.budgetsAdded += 1;
+    }
+    // Collision must roll back the entire import: never silently overwrite a
+    // user's transfer or credit the same source a second time.
+    for (const r of payload.data.budget_rollovers) {
+      for (const [start, end] of [[r.source_start, r.source_end], [r.target_start, r.target_end]]) {
+        const matches = await db.getAllAsync<{ period_start: string; period_end: string; currency: string }>(
+          'SELECT period_start, period_end, currency FROM budgets WHERE active = 1 AND period_start <= ? AND period_end >= ?', [end, start]);
+        if (matches.length !== 1 || matches[0].period_start !== start || matches[0].period_end !== end || matches[0].currency !== r.currency) throw new Error('INVALID_FORMAT');
+      }
+      const existing = await db.getFirstAsync<BudgetRollover>('SELECT * FROM budget_rollovers WHERE uid = ? OR (source_start = ? AND source_end = ?)',
+        [r.uid, r.source_start, r.source_end]);
+      if (existing) {
+        if (existing.source_start !== r.source_start || existing.source_end !== r.source_end || existing.target_start !== r.target_start
+          || existing.target_end !== r.target_end || existing.currency !== r.currency || existing.amount_minor !== r.amount_minor) throw new Error('INVALID_FORMAT');
+        summary.rolloversSkipped += 1;
+        continue;
+      }
+      await db.runAsync(`INSERT INTO budget_rollovers (uid, source_start, source_end, target_start, target_end, currency, amount_minor, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`, [r.uid, r.source_start, r.source_end, r.target_start, r.target_end, r.currency, r.amount_minor, r.created_at, r.updated_at]);
+      summary.rolloversAdded += 1;
     }
   });
 

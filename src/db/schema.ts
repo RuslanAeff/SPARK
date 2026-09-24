@@ -32,7 +32,38 @@ export const PRODUCT_IDENTITY_TABLES_SCHEMA_SQL = `
     ON product_aliases(canonical_product_id);
 `;
 
+/** Additive migration: run on every open for both existing and fresh databases. */
+export const BUDGET_ROLLOVERS_SCHEMA_SQL = `
+  CREATE TABLE IF NOT EXISTS budget_rollovers (
+    uid TEXT PRIMARY KEY NOT NULL,
+    source_start TEXT NOT NULL,
+    source_end TEXT NOT NULL,
+    target_start TEXT NOT NULL,
+    target_end TEXT NOT NULL,
+    currency TEXT NOT NULL,
+    amount_minor INTEGER NOT NULL CHECK(amount_minor > 0 AND amount_minor <= 99999999999),
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    CHECK(source_start <= source_end AND source_end < target_start AND target_start <= target_end),
+    UNIQUE(source_start, source_end)
+  );
+  CREATE INDEX IF NOT EXISTS idx_rollovers_target ON budget_rollovers(target_start, target_end);
+`;
+
+export interface BudgetRollover {
+  uid: string;
+  source_start: string;
+  source_end: string;
+  target_start: string;
+  target_end: string;
+  currency: string;
+  amount_minor: number;
+  created_at: string;
+  updated_at: string;
+}
+
 export const CREATE_TABLES_SQL = `
+  ${BUDGET_ROLLOVERS_SCHEMA_SQL}
   CREATE TABLE IF NOT EXISTS categories (
     id          INTEGER PRIMARY KEY AUTOINCREMENT,
     name        TEXT NOT NULL,

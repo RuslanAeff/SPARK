@@ -16,8 +16,12 @@ import {
 } from '../utils/budgetCycle';
 import { getToday } from '../utils/dateUtils';
 import { computeDebtAdjustedBudget } from '../utils/debtMath';
+import { BudgetRolloverDao } from '../db/budgetRolloverDao';
 
 export interface BudgetInfo {
+  carryIn?: number;
+  carryOut?: number;
+  rolloverNeedsReview?: boolean;
   monthlyBudget: number;
   totalSpent: number;
   remaining: number;
@@ -121,6 +125,9 @@ export function useBudget(specificMonth?: string) {
       // düştüğü döngünün harcanabilir tutarını artırır. Kayıt yoksa 0 döner →
       // effectiveBudget eski davranışıyla birebir aynı kalır.
       const extraIncomeIn = await IncomeDao.getTotalByDateRange(cycle.start, cycle.end);
+      const transfers = await BudgetRolloverDao.totals(cycle.start, cycle.end, budgetCurrency);
+      const rolloverNeedsReview = exactBudget && (transfers.incoming > 0 || transfers.outgoing > 0)
+        ? (await BudgetRolloverDao.status(exactBudget)).needsReview : false;
 
       // Döngü içindeki ilerleme: güncel döngüde bugüne göre; geçmiş döngüde tam
       // dolmuş, gelecek döngüde hiç başlamamış kabul edilir.
@@ -139,7 +146,7 @@ export function useBudget(specificMonth?: string) {
       // Bütçe etkisi = nakit akışı: remaining/percentage/isOverBudget
       // effectiveBudget (= plan + borrowedIn − repaidIn) üzerinden hesaplanır.
       const { effectiveBudget, netDebtFlow, remaining, percentage, isOverBudget } =
-        computeDebtAdjustedBudget({ monthlyBudget: budgetAmount, totalSpent, borrowedIn, repaidIn, extraIncomeIn });
+        computeDebtAdjustedBudget({ monthlyBudget: budgetAmount, totalSpent, borrowedIn, repaidIn, extraIncomeIn, carryIn: transfers.incoming });
 
       const dailyAverage = dayOfCycle > 0 ? totalSpent / dayOfCycle : 0;
       const dailyBudget = daysRemaining > 0 ? Math.max(0, remaining) / daysRemaining : 0;
@@ -147,6 +154,9 @@ export function useBudget(specificMonth?: string) {
       if (mounted.current && sequence === refreshSequence.current) {
         setBudget({
           monthlyBudget: budgetAmount,
+          carryIn: transfers.incoming,
+          carryOut: transfers.outgoing,
+          rolloverNeedsReview,
           totalSpent,
           remaining,
           percentage,

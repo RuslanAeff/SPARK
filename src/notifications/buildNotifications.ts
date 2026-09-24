@@ -1,4 +1,5 @@
 import { BudgetDao } from '../db/budgetDao';
+import { BudgetRolloverDao } from '../db/budgetRolloverDao';
 import { ExpenseDao } from '../db/expenseDao';
 import { getDatabase } from '../db/database';
 import { formatCurrency } from '../utils/formatCurrency';
@@ -146,16 +147,19 @@ export async function runNotificationSync(
   // Bütçe dönemi takvim ayı değil, kullanıcının döngü başlangıç gününe göredir.
   // anchor=1'de cycle = takvim ayı → tüm aşağıdaki bölümler eski davranışı korur.
   const anchor = await getCycleStartDay();
-  const cycle = getCurrentCycle(anchor);
+  const currentBudget = await BudgetDao.getContainingDate(todayIso());
+  const cycle = currentBudget?.period_start && currentBudget.period_end
+    ? budgetCycleFromBounds(currentBudget.period_start, currentBudget.period_end, currentBudget.cycle_start_day ?? anchor)
+    : getCurrentCycle(anchor);
   const ym = cycle.key;
   const start = cycle.start;
   const end = cycle.end;
 
   // —— 1) Aylık bütçe %80 / %100 / aşım ——
   if (!muted(mutes, 'budget')) {
-    const row = await BudgetDao.getForMonth(ym);
+    const row = currentBudget;
     const fallback = row ?? (await BudgetDao.getLatestActive());
-    const budgetAmount = fallback ? fallback.monthly_amount : 0;
+    const budgetAmount = await BudgetRolloverDao.effectiveAmount(fallback, start, end);
 
     if (budgetAmount > 0) {
       const spent = await ExpenseDao.getTotalByDateRange(start, end);
@@ -227,9 +231,9 @@ export async function runNotificationSync(
     if (goal && goal.target_amount > 0) {
       const days = daysToDate(goal.target_date);
       if (days > 0 && days <= 90) {
-        const row = await BudgetDao.getForMonth(ym);
+        const row = currentBudget;
         const fallback = row ?? (await BudgetDao.getLatestActive());
-        const budgetAmount = fallback ? fallback.monthly_amount : 0;
+        const budgetAmount = await BudgetRolloverDao.effectiveAmount(fallback, start, end);
         if (budgetAmount > 0) {
           const spent = await ExpenseDao.getTotalByDateRange(start, end);
           const pct = Math.min(100, Math.round((spent / budgetAmount) * 100));
@@ -265,7 +269,7 @@ export async function runNotificationSync(
       nowMs: Date.now(),
       goal: attentionGoal,
       budgetCycle: attentionCycle,
-      budgetAmount: fallbackBudget?.monthly_amount ?? 0,
+      budgetAmount: await BudgetRolloverDao.effectiveAmount(fallbackBudget, attentionCycle.start, attentionCycle.end),
     });
     const currentAttentionIds = new Set(currentAttention.map((item) => item.id));
     feed = feed.filter((item) => {
@@ -515,7 +519,7 @@ export async function runNotificationSync(
           if (totalPrev > 0) {
             const prevBudgetRow =
               (await BudgetDao.getForMonth(prevYm)) ?? (await BudgetDao.getLatestActive());
-            const budgetAmount = prevBudgetRow ? prevBudgetRow.monthly_amount : 0;
+            const budgetAmount = await BudgetRolloverDao.effectiveAmount(prevBudgetRow, ps, pe);
             const pct = budgetAmount > 0
               ? Math.min(999, Math.round((totalPrev / budgetAmount) * 100))
               : 0;

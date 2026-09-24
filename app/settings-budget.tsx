@@ -31,6 +31,7 @@ import type { Budget } from '../src/db/schema';
 import GlassCheckButton from '../src/components/GlassCheckButton';
 import GlassDeleteModal from '../src/components/GlassDeleteModal';
 import BudgetHistoryCard from '../src/components/BudgetHistoryCard';
+import BudgetRolloverSection from '../src/components/BudgetRolloverSection';
 import { SparkToast } from '../src/components/SparkToast';
 import {
   getGoalFeaturePreferences,
@@ -48,6 +49,13 @@ import {
 
 /** Mevcut dönem + önceki 4. Daha eskisi salt-okunur tarihtir. */
 const EDITABLE_PERIOD_COUNT = 5;
+
+/** Kilitli dönem uyarısı kullanıcıya özel; diğer yazma hataları genel mesajda kalır. */
+function budgetWriteErrorKey(error: unknown): string {
+  return error instanceof Error && error.message === 'rollover_period_locked'
+    ? error.message
+    : 'error_saving_data';
+}
 
 export default function SettingsBudgetScreen() {
   const colorScheme = useAppTheme();
@@ -147,38 +155,48 @@ export default function SettingsBudgetScreen() {
     } catch (error) {
       if (__DEV__) console.warn('[budget] delete failed', error);
       setDeleteOpen(false);
-      SparkToast.show(t('error_saving_data'), 'error');
+      SparkToast.show(t(budgetWriteErrorKey(error)), 'error');
     }
   }
 
+  /**
+   * Devir kaydı bulunan bir dönemin tarihleri/para birimi kilitlidir (ADR-013).
+   * DAO bu ihlali yazmadan önce reddeder; ekran sessiz başarısızlık yerine
+   * kullanıcıya ne yapması gerektiğini söyleyen mesajı gösterir.
+   */
   async function handleSaveBudget() {
     const amount = parseFloat(budgetAmount);
     if (isNaN(amount) || amount <= 0) {
       SparkToast.show(t('enter_valid_budget'), 'error');
       return;
     }
-    if (cycleDay !== persistedCycleDay) {
-      await BudgetDao.transitionAndSetBudget({
-        amount,
-        currency,
-        previousStartDay: persistedCycleDay,
-        nextStartDay: cycleDay,
-        effectiveDate: getToday(),
-      });
-      setPersistedCycleDay(cycleDay);
-      setSelectedMonth(getCurrentCycle(cycleDay).key);
-    } else {
-      await BudgetDao.setMonthlyBudget(amount, selectedMonth, currency, cycleDay);
+    try {
+      if (cycleDay !== persistedCycleDay) {
+        await BudgetDao.transitionAndSetBudget({
+          amount,
+          currency,
+          previousStartDay: persistedCycleDay,
+          nextStartDay: cycleDay,
+          effectiveDate: getToday(),
+        });
+        setPersistedCycleDay(cycleDay);
+        setSelectedMonth(getCurrentCycle(cycleDay).key);
+      } else {
+        await BudgetDao.setMonthlyBudget(amount, selectedMonth, currency, cycleDay);
+      }
+      triggerRefresh();
+      await syncNotificationsBestEffort(syncNotifications, 'budget-save');
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      const curLabel = currency === 'TRY' ? 'TL' : currency;
+      SparkToast.show(
+        t('budget_saved', { month: cycleLabel }),
+        'success',
+        t('budget_saved_desc', { amount: amount.toLocaleString(), currency: curLabel }),
+      );
+    } catch (error) {
+      if (__DEV__) console.warn('[budget] save failed', error);
+      SparkToast.show(t(budgetWriteErrorKey(error)), 'error');
     }
-    triggerRefresh();
-    await syncNotificationsBestEffort(syncNotifications, 'budget-save');
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    const curLabel = currency === 'TRY' ? 'TL' : currency;
-    SparkToast.show(
-      t('budget_saved', { month: cycleLabel }),
-      'success',
-      t('budget_saved_desc', { amount: amount.toLocaleString(), currency: curLabel }),
-    );
   }
 
   async function handleGoalFeatureToggle(next: boolean) {
@@ -370,6 +388,8 @@ export default function SettingsBudgetScreen() {
                   <Text style={styles.budgetDeleteText}>{t('budget_delete_action')}</Text>
                 </Pressable>
               )}
+
+              <BudgetRolloverSection budget={selectedBudget} />
 
               <View style={styles.historyDivider}>
                 <MaterialCommunityIcons name="history" size={14} color={Colors.textMuted} />

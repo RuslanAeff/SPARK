@@ -25,6 +25,9 @@ jest.mock('../../db/subscriptionDao', () => ({
 jest.mock('../../services/subscriptionDetector', () => ({
   syncSubscriptions: jest.fn(async () => undefined),
 }));
+jest.mock('../../db/budgetRolloverDao', () => ({ BudgetRolloverDao: {
+  effectiveAmount: jest.fn(async (budget) => budget?.monthly_amount ?? 0),
+} }));
 jest.mock('../../db/budgetDao', () => ({
   BudgetDao: {
     getForMonth: jest.fn(async () => null),

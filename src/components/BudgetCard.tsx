@@ -12,6 +12,7 @@ import { BudgetInfo } from '../hooks/useBudget';
 import AnimatedCard from './AnimatedCard';
 import { useLanguage } from '../i18n/LanguageContext';
 import { useCurrency } from '../context/CurrencyContext';
+import { subtractMoney } from '../utils/moneyMath';
 
 interface BudgetCardProps {
   budget: BudgetInfo;
@@ -71,6 +72,26 @@ function BudgetCard({ budget }: BudgetCardProps) {
           </Text>
         </View>
       </View>
+
+      {(budget.carryIn ?? 0) > 0 && (
+        <View style={styles.debtImpactRow}>
+          <Text style={styles.debtImpactLabel}>{t('rollover_in')}</Text>
+          <Text style={styles.debtImpactValue}>+{formatCurrency(budget.carryIn!, currency)}</Text>
+        </View>
+      )}
+      {(budget.carryOut ?? 0) > 0 && (
+        <>
+          <View style={styles.debtImpactRow}>
+            <Text style={styles.debtImpactLabel}>{t('rollover_out')}</Text>
+            <Text style={styles.debtImpactValue}>{formatCurrency(budget.carryOut!, currency)}</Text>
+          </View>
+          <View style={styles.debtImpactRow}>
+            <Text style={styles.debtImpactLabel}>{t('rollover_unallocated')}</Text>
+            <Text style={styles.debtImpactValue}>{formatCurrency(subtractMoney(budget.remaining, budget.carryOut!), currency)}</Text>
+          </View>
+        </>
+      )}
+      {budget.rolloverNeedsReview && <Text style={[styles.debtImpactLabel, { color: Colors.warning }]}>{t('rollover_review')}</Text>}
 
       {/* Progress bar container */}
       <View style={styles.progressContainer}>

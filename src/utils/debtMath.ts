@@ -19,7 +19,11 @@
 //
 // React / DB importu yok → util ve testler db mock'u olmadan kullanabilir.
 
+import { sumMoney, subtractMoney } from './moneyMath';
+
 export interface DebtCashFlowInput {
+  /** User-confirmed money brought forward; not new income. */
+  carryIn?: number;
   /** Planlanan döngü bütçesi (debt'ten bağımsız). */
   monthlyBudget: number;
   /** Döngüde gerçekleşen toplam harcama (fiş bütün — bölünmez). */
@@ -59,9 +63,9 @@ export function computeDebtAdjustedBudget(input: DebtCashFlowInput): DebtCashFlo
   const repaidIn = Number.isFinite(input.repaidIn) ? input.repaidIn : 0;
   const extraIncomeIn = Number.isFinite(input.extraIncomeIn) ? (input.extraIncomeIn as number) : 0;
 
-  const netDebtFlow = borrowedIn - repaidIn;
-  const effectiveBudget = monthlyBudget + netDebtFlow + extraIncomeIn;
-  const remaining = effectiveBudget - totalSpent;
+  const netDebtFlow = subtractMoney(borrowedIn, repaidIn);
+  const effectiveBudget = sumMoney([monthlyBudget, netDebtFlow, extraIncomeIn, input.carryIn ?? 0]);
+  const remaining = subtractMoney(effectiveBudget, totalSpent);
   const percentage =
     effectiveBudget > 0
       ? Math.min(100, Math.round((totalSpent / effectiveBudget) * 100))

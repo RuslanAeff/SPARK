@@ -45,6 +45,7 @@ export interface UserDataSummary {
  * desteklemeyen/kapalı olan ortamlarda da aynı sonucu verir.
  */
 const WIPE_ORDER: readonly string[] = [
+  'budget_rollovers',
   'debt_payments',
   'debts',
   'expense_items',

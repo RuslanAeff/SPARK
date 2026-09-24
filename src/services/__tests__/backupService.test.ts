@@ -396,13 +396,14 @@ describe('buildBackupPayload v4 relational closure', () => {
       ];
       if (sql === 'SELECT * FROM categories') return [];
       if (sql.includes('FROM budgets WHERE active = 1')) return [];
+      if (sql.includes('FROM budget_rollovers')) return [];
       throw new Error(`Unexpected query: ${sql}`);
     });
     getDatabaseMock.mockResolvedValue({ getAllAsync } as any);
 
     const payload = await buildBackupPayload({ start: '2026-08-01', end: '2026-08-31' });
 
-    expect(payload.version).toBe(4);
+    expect(payload.version).toBe(5);
     expect(payload.data.debts).toHaveLength(1);
     expect(payload.data.debt_payments?.map(payment => payment.source_id)).toEqual([70, 71]);
     expect(payload.data.extra_incomes).toHaveLength(1);

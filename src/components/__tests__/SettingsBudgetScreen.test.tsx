@@ -111,6 +111,7 @@ jest.mock('../GlassCheckButton', () => {
     );
 });
 jest.mock('../BudgetHistoryCard', () => () => null);
+jest.mock('../BudgetRolloverSection', () => () => null);
 jest.mock('../GlassDeleteModal', () => {
   const React = require('react');
   const { Pressable, Text } = require('react-native');

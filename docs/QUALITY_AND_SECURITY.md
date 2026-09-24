@@ -291,7 +291,7 @@ Güvenlik sınırları, kalite kapıları, native doğrulama gereksinimleri veya
 
 ## 16 Eylül güvenlik düzeltmelerinin kalıcı sınırları
 
-- Yedek v1–v4 görsel dosyası taşımaz. Restore, dış `logo_uri` ve `receipt_uri`
+- Yedek v1–v5 görsel dosyası taşımaz. Restore, dış `logo_uri` ve `receipt_uri`
   değerlerini temizler; mevcut yerel satıcı logosu korunur. Görsel sunucularına
   istek açmamak için satıcı render noktaları yalnız yerel picker URI şemalarını kabul eder.
 - SecureStore okuma/migration/yazma/silme aynı işlem kuyruğundadır. Silme legacy

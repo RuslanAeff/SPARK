@@ -1,5 +1,6 @@
 import { DebtDao } from '../db/debtDao';
 import { BudgetDao } from '../db/budgetDao';
+import { BudgetRolloverDao } from '../db/budgetRolloverDao';
 import { GoalDao } from '../db/goalDao';
 import { RecurringPaymentReminderDao } from '../db/recurringPaymentReminderDao';
 import type { NotificationMuteChannel } from '../notifications/types';
@@ -80,7 +81,7 @@ export async function syncAndroidReminderSchedules(
     nowMs,
     goal,
     budgetCycle,
-    budgetAmount: fallbackBudget?.monthly_amount ?? 0,
+    budgetAmount: await BudgetRolloverDao.effectiveAmount(fallbackBudget, budgetCycle.start, budgetCycle.end),
   }).filter((item) => (
     item.kind === 'goal_deadline' ? !mutes.goal : !mutes.budget
   ));

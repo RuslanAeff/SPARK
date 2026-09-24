@@ -9,6 +9,11 @@ import { formatCurrency } from '../utils/formatCurrency';
 import { formatDayMonth, getToday } from '../utils/dateUtils';
 import { BudgetDao } from '../db/budgetDao';
 import { ExpenseDao } from '../db/expenseDao';
+import { BudgetRolloverDao } from '../db/budgetRolloverDao';
+import { DebtDao } from '../db/debtDao';
+import { IncomeDao } from '../db/incomeDao';
+import { computeDebtAdjustedBudget } from '../utils/debtMath';
+import { fromMinorUnits, sumMoney, subtractMoney } from '../utils/moneyMath';
 import { Budget } from '../db/schema';
 import { getCycleStartDay } from '../services/budgetCycleSettings';
 import { findShadowedBudgetIds } from '../utils/budgetPeriodConflicts';
@@ -33,6 +38,8 @@ interface CycleEntry {
   isCurrent: boolean;
   /** Eski sürümden kalan çakışma nedeniyle hesaplamada yetkili olmayan kayıt. */
   isShadowed: boolean;
+  effectiveBudget?: number;
+  carryOut?: number;
 }
 
 interface BudgetHistoryCardProps {
@@ -78,6 +85,7 @@ export default function BudgetHistoryCard({
       const anchorDay = await getCycleStartDay();
       const spendingMonths = await ExpenseDao.getMonthsWithSpending();
       const budgets = await BudgetDao.getAllBudgets();
+      const rollovers = await BudgetRolloverDao.list();
 
       const current = getCurrentCycle(anchorDay);
       const today = getToday();
@@ -105,12 +113,20 @@ export default function BudgetHistoryCard({
         if (representedPeriods.has(periodKey)) continue;
         representedPeriods.add(periodKey);
         const shadowed = shadowedIds.has(budget.id);
+        const carryIn = sumMoney(rollovers.filter(r => r.target_start === cycle.start && r.target_end === cycle.end && r.currency === budget.currency).map(r => fromMinorUnits(r.amount_minor)));
+        const carryOut = sumMoney(rollovers.filter(r => r.source_start === cycle.start && r.source_end === cycle.end && r.currency === budget.currency).map(r => fromMinorUnits(r.amount_minor)));
+        const borrowedIn = await DebtDao.getBorrowedTotalByDateRange(cycle.start, cycle.end);
+        const repaidIn = await DebtDao.getRepaidTotalByDateRange(cycle.start, cycle.end);
+        const extraIncomeIn = await IncomeDao.getTotalByDateRange(cycle.start, cycle.end);
+        const { effectiveBudget } = computeDebtAdjustedBudget({ monthlyBudget: budget.monthly_amount, totalSpent: spent, borrowedIn, repaidIn, extraIncomeIn, carryIn });
         withData.push({
           key,
           renderKey: `budget:${periodKey}:${budget.id}`,
           cycle,
           budget,
           spent,
+          effectiveBudget,
+          carryOut,
           // Gölgelenen kayıt "MEVCUT" sayılmaz; aksi halde aynı gün için iki
           // mevcut rozeti çıkar ve ekranlar birbiriyle çelişir.
           isCurrent: !shadowed && cycle.start <= today && cycle.end >= today,
@@ -196,11 +212,12 @@ export default function BudgetHistoryCard({
             && (isShadowed || !oldestEditableKey || cycle.key >= oldestEditableKey);
           const isSelected = selectedKey === cycle.key;
           const hasBudget = budget !== null;
-          const pct = hasBudget && budget!.monthly_amount > 0
-            ? Math.min((spent / budget!.monthly_amount) * 100, 100)
+          const availableBudget = entry.effectiveBudget ?? budget?.monthly_amount ?? 0;
+          const pct = hasBudget && availableBudget > 0
+            ? Math.min((spent / availableBudget) * 100, 100)
             : 0;
-          const overBudget = hasBudget && spent > budget!.monthly_amount;
-          const remaining = hasBudget ? budget!.monthly_amount - spent : null;
+          const overBudget = hasBudget && spent > availableBudget;
+          const remaining = hasBudget ? subtractMoney(availableBudget, spent) : null;
           const barColor = overBudget ? Colors.danger : pct > 80 ? Colors.warning : Colors.primary;
           // anchor=1 → ay adı; aksi halde döngü tarih aralığı.
           const label = cycle.startDay === 1
@@ -252,6 +269,7 @@ export default function BudgetHistoryCard({
 
               {/* Amounts */}
               <View style={styles.amountArea}>
+                {(entry.carryOut ?? 0) > 0 && <Text style={styles.spentLabel}>{t('rollover_out')}: {formatCurrency(entry.carryOut!, budget!.currency, false)}</Text>}
                 <Text style={styles.spentLabel}>{t('spent_label')}</Text>
                 <Text style={styles.spentAmount}>{formatCurrency(spent, currency, false)}</Text>
                 {hasBudget && (

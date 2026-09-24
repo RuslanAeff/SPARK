@@ -5,6 +5,10 @@ import { DebtDao } from '../../db/debtDao';
 import { ExpenseDao } from '../../db/expenseDao';
 import { IncomeDao } from '../../db/incomeDao';
 import { useBudget } from '../useBudget';
+jest.mock('../../db/budgetRolloverDao', () => ({ BudgetRolloverDao: {
+  totals: jest.fn(async () => ({ incoming: 0, outgoing: 0 })),
+  status: jest.fn(async () => ({ needsReview: false })),
+} }));
 
 jest.mock('../../db/budgetDao', () => ({
   BudgetDao: {

@@ -240,9 +240,9 @@ export default function BackupSection() {
       }
       const s: ImportSummary = res.summary;
       const added = s.expensesAdded + s.debtsAdded + s.debtPaymentsAdded
-        + s.extraIncomesAdded + s.remindersAdded;
+        + s.extraIncomesAdded + s.remindersAdded + s.rolloversAdded;
       const skipped = s.expensesSkipped + s.debtsSkipped + s.debtPaymentsSkipped
-        + s.extraIncomesSkipped + s.remindersSkipped;
+        + s.extraIncomesSkipped + s.remindersSkipped + s.rolloversSkipped;
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       // Restore aktif borç ve ödeme planları ekleyebilir. Kullanıcı uygulamayı
       // hemen kapatsa bile yeni tarihli alarmlar 300 ms refresh debounce'una
@@ -495,7 +495,7 @@ export default function BackupSection() {
         message={t('backup_export_confirm_desc', {
           start: startDate,
           end: endDate,
-        })}
+        }) + '\n\n' + t('rollover_backup_scope')}
         icon="tray-arrow-up"
         confirmLabel={t('backup_export_confirm_btn')}
         cancelLabel={t('cancel')}

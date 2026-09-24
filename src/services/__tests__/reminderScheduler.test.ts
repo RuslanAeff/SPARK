@@ -42,6 +42,9 @@ jest.mock('../../db/goalDao', () => ({
   GoalDao: { get: () => mockGoalGet() },
 }));
 
+jest.mock('../../db/budgetRolloverDao', () => ({ BudgetRolloverDao: {
+  effectiveAmount: jest.fn(async (budget) => budget?.monthly_amount ?? 0),
+} }));
 jest.mock('../../db/budgetDao', () => ({
   BudgetDao: {
     getContainingDate: (date: string) => mockBudgetGetContainingDate(date),

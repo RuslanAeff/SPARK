@@ -74,6 +74,7 @@ export const BudgetDao = {
     const snapshotDay = normalizeCycleStartDay(input.cycleStartDay);
     let insertedId = 0;
     await db.withTransactionAsync(async () => {
+      await assertRolloverPeriodEditable(db, input.periodStart, input.periodEnd, input.currency);
       await db.runAsync(
         `UPDATE budgets SET active = 0
           WHERE active = 1
@@ -105,8 +106,16 @@ export const BudgetDao = {
    */
   async deleteBudget(id: number): Promise<number> {
     const db = await getDatabase();
-    const result = await db.runAsync('DELETE FROM budgets WHERE id = ?', [id]);
-    return Number(result.changes ?? 0);
+    let changes = 0;
+    await db.withTransactionAsync(async () => {
+      const linked = await db.getFirstAsync<{ uid: string }>(`SELECT r.uid FROM budget_rollovers r JOIN budgets b ON b.id = ?
+        WHERE (b.period_start = r.source_start AND b.period_end = r.source_end)
+           OR (b.period_start = r.target_start AND b.period_end = r.target_end) LIMIT 1`, [id]);
+      if (linked?.uid) throw new Error('rollover_period_locked');
+      const result = await db.runAsync('DELETE FROM budgets WHERE id = ?', [id]);
+      changes = Number(result.changes ?? 0);
+    });
+    return changes;
   },
 
   // Set budget for a specific month
@@ -150,6 +159,7 @@ export const BudgetDao = {
     let insertedId = 0;
 
     await db.withTransactionAsync(async () => {
+      await assertRolloverPeriodEditable(db, periodStart, periodEnd, input.currency);
       const current = await db.getFirstAsync<Budget>(
         `SELECT * FROM budgets
          WHERE active = 1 AND period_start <= ? AND period_end >= ?
@@ -199,3 +209,12 @@ export const BudgetDao = {
     );
   },
 };
+
+/** Amount edits keep transfers; moving their dates/currency requires explicit reversal. */
+async function assertRolloverPeriodEditable(db: Awaited<ReturnType<typeof getDatabase>>, start: string, end: string, currency: string) {
+  const linked = await db.getFirstAsync<{ uid: string }>(`SELECT uid FROM budget_rollovers WHERE
+    (source_start <= ? AND source_end >= ? AND NOT (source_start = ? AND source_end = ? AND currency = ?)) OR
+    (target_start <= ? AND target_end >= ? AND NOT (target_start = ? AND target_end = ? AND currency = ?)) LIMIT 1`,
+  [end, start, start, end, currency, end, start, start, end, currency]);
+  if (linked?.uid) throw new Error('rollover_period_locked');
+}
