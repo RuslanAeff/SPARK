@@ -29,7 +29,7 @@ The student remains the decision-maker. “Coordinator” below means the AI or 
 | Project | Role | Inspected in this thesis work? | State |
 |---|---|---|---|
 | SPARK | Primary longitudinal case; current hub | Repository-wide survey of record availability, plus selected sources | Provisional SEC-02 pilot and dated local evidence survey captured; not a complete per-episode audit. Earlier records are now in commit `7af72b3`; 2026-09-20 reorganisation/manuscript are uncommitted. Local tracking state was checked, not live remote state. |
-| SynCinema | Proposed secondary comparative case | Initial remote inventory and selected ledger entries only | User supplied GitHub reference; an existing planning ledger can be reused. No local setup or project-agent packet imported. |
+| SynCinema | Proposed secondary comparative case | Initial remote inventory and selected ledger entries only | User supplied GitHub reference; an existing planning ledger can be reused. Local setup not inspected by the hub. Package v2 received 2026-09-21; underlying claims pending verification. |
 | AutoSRT | Proposed secondary comparative case | Initial remote inventory and README only | User supplied GitHub reference; deeper process evidence remains to be investigated. No local setup or project-agent packet imported. |
 
 See [the initial inventory](REPOSITORY_AUDIT_2026-09-19.md) for versioned observations and their limits. Local paths/unpushed changes remain unknown.
@@ -73,11 +73,11 @@ The portable startup prompt is in [HANDOFF_PROMPT.md](HANDOFF_PROMPT.md). The pa
 
 ### Import register
 
-No external project packets have been received as of 2026-09-19.
+First external package received on 2026-09-21. Source snapshots retain the originating NOT_IMPORTED status; the hub register below records subsequent receipt and check scope.
 
 | Packet ID / revision | Project | Hub version read | Source version | Check status / scope | Imported on / log entry |
 |---|---|---|---|---|---|
-| — | — | — | — | No imports yet | — |
+| `2026-09-20-syncinema-01` / v2 | SynCinema | NOT_ACCESSIBLE in source session | `377a2fbb0fd6ae99da9f7084f1abd9edc9eae04e` | PARTIALLY_CHECKED: retrieved handoff/index and checked internal consistency only; underlying artefacts pending | 2026-09-21 / TS-2026-09-21-01; [manifest](imports/2026-09-21-syncinema-01/manifest.json) |
 
 ## Local files, Git and another computer
 

@@ -1,0 +1,23 @@
+{
+  "received_on": "2026-09-21",
+  "repository": "RuslanAeff/SynCinema",
+  "source_commit": "377a2fbb0fd6ae99da9f7084f1abd9edc9eae04e",
+  "package_id": "2026-09-20-syncinema-01",
+  "version": 2,
+  "status": "PARTIALLY_CHECKED",
+  "scope": "Source documents retrieved and compared internally; underlying code, execution records, CSV exports and transcripts not independently verified.",
+  "files": [
+    {
+      "source": "docs/thesis/research/handoffs/2026-09-20-syncinema-01.md",
+      "url": "https://raw.githubusercontent.com/RuslanAeff/SynCinema/377a2fbb0fd6ae99da9f7084f1abd9edc9eae04e/docs/thesis/research/handoffs/2026-09-20-syncinema-01.md",
+      "local": "HANDOFF_v2.md",
+      "sha256": "1db6cde561b49e096e70c3bc897d20fd91da63d85765c457b9d4413c84602210"
+    },
+    {
+      "source": "docs/thesis/research/EVIDENCE_INDEX.md",
+      "url": "https://raw.githubusercontent.com/RuslanAeff/SynCinema/377a2fbb0fd6ae99da9f7084f1abd9edc9eae04e/docs/thesis/research/EVIDENCE_INDEX.md",
+      "local": "EVIDENCE_INDEX.md",
+      "sha256": "018f1c12f6dd5d626ede55ee6c520837cef897feb3e814ac8b4f5565de6d26c5"
+    }
+  ]
+}
