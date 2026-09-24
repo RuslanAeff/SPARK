@@ -26,6 +26,8 @@ import { useLanguage } from '../../src/i18n/LanguageContext';
 import { useRefreshActions } from '../../src/context/RefreshContext';
 import { useCurrency } from '../../src/context/CurrencyContext';
 import { setScanSessionError } from '../../src/services/scanSession';
+import { presentAiError } from '../../src/utils/aiErrorPresentation';
+import ScanRecoveryCard from '../../src/components/ScanRecoveryCard';
 import {
   effectiveLineDiscount,
   formatReceiptDiscountAmount,
@@ -135,6 +137,8 @@ export default function ScannerScreen() {
   const [imageUri, setImageUri] = useState<string | null>(null);
   const [result, setResult] = useState<ParsedReceipt | null>(null);
   const [errorMsg, setErrorMsg] = useState('');
+  // Hata ekranının birincil eylemi: anahtar sorunlarında doğrudan Ayarlar.
+  const [errorAction, setErrorAction] = useState<'settings' | 'retry'>('retry');
   const [sourceBusy, setSourceBusy] = useState(false);
   const [resultBusy, setResultBusy] = useState(false);
   const receiptCopyRef = useRef<string | null>(null);
@@ -207,15 +211,19 @@ export default function ScannerScreen() {
       if (!isCurrent()) return;
       if (controller.signal.aborted && !timedOut) return;
       const code = error instanceof Error ? error.message : '';
+      // Servis nedeni tipli kodla bildirir (kota, anahtar, model, ağ...). Genel
+      // mesaj yalnız tanınmayan hatalar için kalır; kullanıcı ne yapacağını bilir.
+      const presented = presentAiError(error);
       const message = timedOut
         ? t('scan_timeout_error')
-        : code === 'RECEIPT_INVALID_RESULT'
-          ? t('scan_invalid_result')
-          : code === 'IMAGE_PROCESSING_TIMEOUT'
-            ? t('scan_image_processing_timeout')
+        : code === 'IMAGE_PROCESSING_TIMEOUT'
+          ? t('scan_image_processing_timeout')
+          : presented
+            ? t(presented.messageKey, presented.params)
             : t('scan_failed_generic');
       setScanSessionError(message);
       setErrorMsg(message);
+      setErrorAction(!timedOut && presented ? presented.action : 'retry');
       setState('error');
     } finally {
       clearTimeout(totalTimeout);
@@ -279,6 +287,7 @@ export default function ScannerScreen() {
           : t('gallery_open_failed');
       setScanSessionError(message);
       setErrorMsg(message);
+      setErrorAction('retry');
       setState('error');
     } finally {
       if (scanIdRef.current === scanId) {
@@ -319,6 +328,7 @@ export default function ScannerScreen() {
           const message = t('camera_result_recovery_failed');
           setScanSessionError(message);
           setErrorMsg(message);
+          setErrorAction('retry');
           setState('error');
           return;
         }
@@ -334,6 +344,7 @@ export default function ScannerScreen() {
           const message = t('camera_result_recovery_failed');
           setScanSessionError(message);
           setErrorMsg(message);
+          setErrorAction('retry');
           setState('error');
         }
       } finally {
@@ -509,47 +520,18 @@ export default function ScannerScreen() {
           </View>
         )}
 
-        {state === 'no_key' && (
-          <View style={styles.errorContent}>
-            <Ionicons name="key-outline" size={44} color={theme.secondary} />
-            <Text style={styles.errorTitle}>{t('no_api_key_title')}</Text>
-            <Text style={styles.errorMessage}>{errorMsg}</Text>
-            <View style={styles.actionRow}>
-              <Pressable
-                onPress={() => { setState('idle'); setImageUri(null); }}
-                style={[styles.actionButton, { backgroundColor: theme.surfaceLight }]}
-                accessibilityRole="button"
-                accessibilityLabel={t('cancel')}
-              >
-                <Text style={styles.actionText}>{t('cancel')}</Text>
-              </Pressable>
-              <Pressable
-                onPress={() => router.push('/settings-ai')}
-                style={[styles.actionButton, { backgroundColor: theme.primaryAction, flex: 2 }]}
-                accessibilityRole="button"
-                accessibilityLabel={t('tab_settings')}
-              >
-                <Ionicons name="settings-outline" size={20} color={theme.onPrimary} />
-                <Text style={[styles.actionText, { color: theme.onPrimary }]}>{t('tab_settings')}</Text>
-              </Pressable>
-            </View>
-          </View>
-        )}
-
-        {state === 'error' && (
-          <View style={styles.errorContent}>
-            <Ionicons name="alert-circle-outline" size={44} color={theme.danger} />
-            <Text style={styles.errorTitle}>{t('error')}</Text>
-            <Text style={styles.errorMessage}>{errorMsg}</Text>
-            <Pressable
-              onPress={() => { setState('idle'); setImageUri(null); }}
-              style={styles.retryButton}
-              accessibilityRole="button"
-              accessibilityLabel={t('try_again')}
-            >
-              <Text style={styles.retryText}>{t('try_again')}</Text>
-            </Pressable>
-          </View>
+        {(state === 'error' || state === 'no_key') && (
+          <ScanRecoveryCard
+            message={errorMsg}
+            settings={state === 'no_key' || errorAction === 'settings'}
+            onPrimary={() => {
+              const openSettings = state === 'no_key' || errorAction === 'settings';
+              setState('idle');
+              setImageUri(null);
+              if (openSettings) router.push('/settings-ai');
+            }}
+            onManual={() => { setState('idle'); setImageUri(null); router.push('/add-expense'); }}
+          />
         )}
 
         {state === 'result' && result && (() => {
@@ -848,33 +830,6 @@ const getStyles = (theme: typeof DarkTheme, isDark: boolean) => {
   stopButtonPressed: susevarButtonPressed,
   stopButtonRow: susevarButtonRow,
   stopButtonText: susevar.text,
-  // Error
-  errorContent: {
-    alignItems: 'center',
-    paddingTop: 60,
-    gap: Spacing.md,
-  },
-  errorTitle: {
-    ...Typography.headlineSmall,
-    color: theme.danger,
-  },
-  errorMessage: {
-    ...Typography.bodyMedium,
-    color: theme.textSecondary,
-    textAlign: 'center',
-    paddingHorizontal: 20,
-  },
-  retryButton: {
-    paddingHorizontal: Spacing.xxl,
-    paddingVertical: Spacing.md,
-    backgroundColor: theme.surface,
-    borderRadius: BorderRadius.round,
-    marginTop: Spacing.lg,
-  },
-  retryText: {
-    ...Typography.labelLarge,
-    color: theme.primary,
-  },
   // Result
   resultCard: {
     marginTop: Spacing.lg,

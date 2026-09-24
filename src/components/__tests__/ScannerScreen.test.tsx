@@ -19,6 +19,7 @@ const mockParseReceipt = jest.fn();
 const mockHasApiKey = jest.fn();
 const mockProcessReceipt = jest.fn();
 const mockCompressImageToBase64 = jest.fn();
+const mockRouterPush = jest.fn();
 
 function getPressHandler(instance: any): () => any {
   let node = instance;
@@ -35,7 +36,7 @@ function getPressHandler(instance: any): () => any {
 }
 
 jest.mock('expo-router', () => ({
-  useRouter: () => ({ push: jest.fn() }),
+  useRouter: () => ({ push: mockRouterPush }),
 }));
 
 jest.mock('react-native-safe-area-context', () => {
@@ -265,6 +266,90 @@ describe('Scanner runtime theme', () => {
     await fireEvent.press(screen.getByTestId('scanner-camera-action'));
     await waitFor(() => expect(screen.getByText('scan_invalid_result')).toBeTruthy());
     expect(mockProcessReceipt).not.toHaveBeenCalled();
+  });
+
+  it('rejected API key leads straight to AI settings instead of a dead-end retry', async () => {
+    mockRequestCameraPermissionsAsync.mockResolvedValue({ granted: true });
+    mockLaunchCameraAsync.mockResolvedValue({
+      canceled: false,
+      assets: [{ uri: 'file://receipt.jpg', width: 1000, height: 1600, type: 'image' }],
+    });
+    mockParseReceipt.mockRejectedValue(new Error('AI_KEY_REJECTED'));
+    const screen = await render(<ScannerScreen />);
+
+    await fireEvent.press(screen.getByTestId('scanner-camera-action'));
+    await waitFor(() => expect(screen.getByText('ai_error_key_rejected')).toBeTruthy());
+    expect(screen.queryByTestId('scanner-error-retry')).toBeNull();
+
+    await fireEvent.press(screen.getByTestId('scanner-error-settings'));
+    expect(mockRouterPush).toHaveBeenCalledWith('/settings-ai');
+  });
+
+  it('explains an exhausted quota and always offers manual entry', async () => {
+    mockRequestCameraPermissionsAsync.mockResolvedValue({ granted: true });
+    mockLaunchCameraAsync.mockResolvedValue({
+      canceled: false,
+      assets: [{ uri: 'file://receipt.jpg', width: 1000, height: 1600, type: 'image' }],
+    });
+    mockParseReceipt.mockRejectedValue(Object.assign(new Error('AI_QUOTA'), { retryAfterSec: 30 }));
+    const screen = await render(<ScannerScreen />);
+
+    await fireEvent.press(screen.getByTestId('scanner-camera-action'));
+    await waitFor(() => expect(screen.getByText('ai_error_quota_wait')).toBeTruthy());
+    expect(screen.getByTestId('scanner-error-retry')).toBeTruthy();
+
+    await fireEvent.press(screen.getByTestId('scanner-error-manual'));
+    expect(mockRouterPush).toHaveBeenCalledWith('/add-expense');
+    expect(mockProcessReceipt).not.toHaveBeenCalled();
+  });
+
+  it('keeps the generic message for unrecognised failures', async () => {
+    mockRequestCameraPermissionsAsync.mockResolvedValue({ granted: true });
+    mockLaunchCameraAsync.mockResolvedValue({
+      canceled: false,
+      assets: [{ uri: 'file://receipt.jpg', width: 1000, height: 1600, type: 'image' }],
+    });
+    mockParseReceipt.mockRejectedValue(new Error('something unexpected'));
+    const screen = await render(<ScannerScreen />);
+
+    await fireEvent.press(screen.getByTestId('scanner-camera-action'));
+    await waitFor(() => expect(screen.getByText('scan_failed_generic')).toBeTruthy());
+  });
+
+  it('keeps recovery theme-aware and returns retry to source selection without sending again', async () => {
+    mockRequestCameraPermissionsAsync.mockResolvedValue({ granted: true });
+    mockLaunchCameraAsync.mockResolvedValue({ canceled: false, assets: [{ uri: 'file://receipt.jpg', width: 1000, height: 1600 }] });
+    mockParseReceipt.mockRejectedValue(new Error('AI_NETWORK'));
+    const screen = await render(<ScannerScreen />);
+    await fireEvent.press(screen.getByTestId('scanner-camera-action'));
+    await waitFor(() => expect(screen.getByText('scan_recovery_title')).toBeTruthy());
+    expect(screen.getByText('scan_recovery_title').props.accessibilityRole).toBe('header');
+    expect(StyleSheet.flatten(screen.getByTestId('scanner-recovery-card').props.style).backgroundColor).toBe(DarkTheme.cardSurface);
+    mockScheme = 'light';
+    mockAccent = 'purple';
+    await screen.rerender(<ScannerScreen />);
+    const palette = resolveTheme('light', 'purple');
+    expect(StyleSheet.flatten(screen.getByTestId('scanner-recovery-card').props.style).backgroundColor).toBe(palette.cardSurface);
+    expect(StyleSheet.flatten(screen.getByTestId('scanner-error-retry').props.style).backgroundColor).toBe(palette.primaryAction);
+    expect(screen.getByText('ai_error_network')).toBeTruthy();
+    await fireEvent.press(screen.getByTestId('scanner-error-retry'));
+    expect(screen.getByTestId('scanner-camera-action')).toBeTruthy();
+    expect(mockParseReceipt).toHaveBeenCalledTimes(1);
+    expect(mockProcessReceipt).not.toHaveBeenCalled();
+  });
+
+  it('offers manual entry as well as settings when no API key is configured', async () => {
+    mockHasApiKey.mockResolvedValue(false);
+    mockRequestCameraPermissionsAsync.mockResolvedValue({ granted: true });
+    mockLaunchCameraAsync.mockResolvedValue({ canceled: false, assets: [{ uri: 'file://receipt.jpg', width: 1000, height: 1600 }] });
+    const screen = await render(<ScannerScreen />);
+    await fireEvent.press(screen.getByTestId('scanner-camera-action'));
+    await waitFor(() => expect(screen.getByText('no_api_key_msg')).toBeTruthy());
+    expect(screen.getByTestId('scanner-error-settings')).toBeTruthy();
+    expect(screen.queryByTestId('scanner-error-retry')).toBeNull();
+    await fireEvent.press(screen.getByTestId('scanner-error-manual'));
+    expect(mockRouterPush).toHaveBeenCalledWith('/add-expense');
+    expect(mockParseReceipt).not.toHaveBeenCalled();
   });
 
   it('recovers an Android camera result after the Activity is recreated', async () => {
