@@ -15,6 +15,8 @@ import {
   parseReceipt,
   buildReceiptPrompt,
   validateParsedReceipt,
+  resetGeminiModelState,
+  saveApiKey,
 } from '../geminiService';
 import { getSecureApiKey } from '../secureKeyStore';
 
@@ -286,6 +288,7 @@ describe('parseReceipt model kalite fallback', () => {
     jest.clearAllMocks();
     getSecureApiKeyMock.mockResolvedValue('test-api-key');
     (global as typeof globalThis).fetch = fetchMock as typeof fetch;
+    resetGeminiModelState();
   });
 
   afterAll(() => {
@@ -339,6 +342,7 @@ describe('suggestProductMatch', () => {
     jest.clearAllMocks();
     getSecureApiKeyMock.mockResolvedValue('test-api-key');
     (global as typeof globalThis).fetch = fetchMock as typeof fetch;
+    resetGeminiModelState();
   });
 
   afterAll(() => {
@@ -417,7 +421,12 @@ describe('suggestProductMatch', () => {
   });
 
   it('şema dışı veya sınır dışı AI yanıtını kabul etmez', async () => {
-    fetchMock.mockImplementation(async () => ({
+    fetchMock.mockImplementation(async (input: RequestInfo | URL) => String(input).endsWith('/models') ? ({
+      ok: true,
+      json: async () => ({
+        models: [{ name: 'models/gemini-3.8-flash', supportedGenerationMethods: ['generateContent'] }],
+      }),
+    } as Response) : ({
       ok: true,
       json: async () => ({
         candidates: [{
@@ -439,6 +448,280 @@ describe('suggestProductMatch', () => {
       { name: 'Tavuk Baget kg', measurementUnit: 'kg' },
       { name: 'Tavuk Baget', measurementUnit: 'kg' },
     )).rejects.toThrow('INVALID_PRODUCT_MATCH_RESPONSE');
+  });
+});
+
+describe('Gemini model uyumluluğu (Eylül 2026)', () => {
+  const originalFetch = global.fetch;
+  const fetchMock = jest.fn();
+  const RECEIPT = JSON.stringify({
+    vendor_name: 'Market', date: '2026-09-20', currency: 'PLN', total: 5,
+    items: [{ name: 'Chleb', localized_name: 'Ekmek', quantity: 1, unit_price: 5, total_price: 5, category_key: 'market' }],
+  });
+
+  const models = (ids: string[]) => ({
+    ok: true,
+    json: async () => ({ models: ids.map((id) => ({ name: `models/${id}`, supportedGenerationMethods: ['generateContent'] })) }),
+  }) as Response;
+  const answer = (text: string, finishReason = 'STOP') => ({
+    ok: true,
+    json: async () => ({ candidates: [{ finishReason, content: { parts: [{ text }] } }] }),
+  }) as Response;
+  const failure = (status: number, body: string) => ({ ok: false, status, text: async () => body }) as Response;
+
+  /** generateContent çağrılarını model + gönderilen düşünme ayarıyla kaydeder. */
+  function generateCalls() {
+    return fetchMock.mock.calls
+      .filter(([url]) => String(url).includes(':generateContent'))
+      .map(([url, init]) => ({
+        model: /models\/([^:]+):/.exec(String(url))![1],
+        generationConfig: JSON.parse(String((init as RequestInit).body)).generationConfig,
+      }));
+  }
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    getSecureApiKeyMock.mockResolvedValue('test-api-key');
+    (global as typeof globalThis).fetch = fetchMock as typeof fetch;
+    resetGeminiModelState();
+  });
+
+  afterAll(() => {
+    (global as typeof globalThis).fetch = originalFetch;
+  });
+
+  it('kapanmış 2.0 modelini atlar ve Gemini 3 flash’a thinkingBudget yerine thinkingLevel gönderir', async () => {
+    fetchMock.mockImplementation(async (input: RequestInfo | URL) => (String(input).endsWith('/models')
+      ? models(['gemini-2.0-flash', 'gemini-2.5-flash', 'gemini-3.8-flash'])
+      : answer(RECEIPT)));
+
+    const receipt = await parseReceipt('base64', 'tr');
+
+    expect(receipt._modelUsed).toBe('gemini-3.8-flash (v1beta)');
+    expect(generateCalls()).toEqual([{
+      model: 'gemini-3.8-flash',
+      generationConfig: expect.objectContaining({ thinkingConfig: { thinkingLevel: 'low' }, maxOutputTokens: 16384 }),
+    }]);
+  });
+
+  it('cihaz logundaki durum: flash havuzu yoğunken ayrı havuzdaki flash-lite ile tarar', async () => {
+    fetchMock.mockImplementation(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.endsWith('/models')) {
+        return models(['gemini-3.8-flash', 'gemini-3.7-flash', 'gemini-3.6-flash', 'gemini-3.5-flash-lite']);
+      }
+      return url.includes('flash-lite')
+        ? answer(RECEIPT)
+        : failure(503, '{"error":{"code":503,"message":"This model is currently experiencing high demand.","status":"UNAVAILABLE"}}');
+    });
+
+    const receipt = await parseReceipt('base64', 'tr');
+
+    expect(receipt._modelUsed).toBe('gemini-3.5-flash-lite (v1beta)');
+    // Aynı yoğun modelde bekleyip yeniden denemez; ikinci istek ayrı havuza gider.
+    expect(generateCalls().map((call) => call.model)).toEqual(['gemini-3.8-flash', 'gemini-3.5-flash-lite']);
+  });
+
+  it('reddedilen düşünme ayarını başarısız taramadan sonra da hatırlar', async () => {
+    const empty = JSON.stringify({ vendor_name: 'Market', date: '2026-09-20', items: [], total: 0 });
+    fetchMock.mockImplementation(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url.endsWith('/models')) return models(['gemini-3.8-flash', 'gemini-3.5-flash-lite']);
+      const body = JSON.parse(String(init?.body));
+      if (url.includes('3.8-flash:') && body.generationConfig.thinkingConfig) {
+        return failure(400, '{"error":{"message":"Thinking level LOW is not supported for this model."}}');
+      }
+      return answer(empty);
+    });
+
+    await expect(parseReceipt('base64', 'tr')).rejects.toMatchObject({ code: 'RECEIPT_INVALID_RESULT' });
+    fetchMock.mockClear();
+    await expect(parseReceipt('base64', 'tr')).rejects.toMatchObject({ code: 'RECEIPT_INVALID_RESULT' });
+
+    expect(generateCalls().map((call) => [call.model, call.generationConfig.thinkingConfig ?? null])).toEqual([
+      ['gemini-3.8-flash', null],
+      ['gemini-3.5-flash-lite', { thinkingLevel: 'low' }],
+    ]);
+  });
+
+  it('tüm adaylar yoğunsa bekleyip yalnız bir kez son deneme yapar', async () => {
+    fetchMock.mockImplementation(async (input: RequestInfo | URL) => (String(input).endsWith('/models')
+      ? models(['gemini-3.8-flash', 'gemini-3.5-flash-lite'])
+      : failure(503, '{"error":{"code":503,"status":"UNAVAILABLE"}}')));
+
+    jest.useFakeTimers();
+    try {
+      const assertion = expect(parseReceipt('base64', 'tr')).rejects.toMatchObject({ code: 'AI_SERVER_BUSY' });
+      await jest.advanceTimersByTimeAsync(3_000);
+      await assertion;
+    } finally {
+      jest.useRealTimers();
+    }
+    expect(generateCalls().map((call) => call.model)).toEqual([
+      'gemini-3.8-flash', 'gemini-3.5-flash-lite', 'gemini-3.8-flash',
+    ]);
+  });
+
+  it('hiçbir düşünme ayarı kabul edilmezse parametresiz dener', async () => {
+    fetchMock.mockImplementation(async (input: RequestInfo | URL, init?: RequestInit) => {
+      if (String(input).endsWith('/models')) return models(['gemini-3.8-flash']);
+      const body = JSON.parse(String(init?.body));
+      return body.generationConfig.thinkingConfig
+        ? failure(400, '{"error":{"message":"Unknown name \"thinkingConfig\"","status":"INVALID_ARGUMENT"}}')
+        : answer(RECEIPT);
+    });
+
+    await expect(parseReceipt('base64', 'tr')).resolves.toMatchObject({ vendor_name: 'Market' });
+    expect(generateCalls()).toHaveLength(2);
+    expect(generateCalls()[1].generationConfig).not.toHaveProperty('thinkingConfig');
+  });
+
+  it('anahtar reddini başka model denemeden tipli kodla bildirir', async () => {
+    fetchMock.mockImplementation(async () => failure(400,
+      '{"error":{"code":400,"message":"API key not valid.","details":[{"reason":"API_KEY_INVALID"}]}}'));
+
+    await expect(parseReceipt('base64', 'tr')).rejects.toMatchObject({ code: 'AI_KEY_REJECTED' });
+    expect(generateCalls()).toHaveLength(0);
+  });
+
+  it('tüm modellerin kotası doluysa en erken açılan süreyi bildirir', async () => {
+    const quota = (seconds: number) => failure(429, JSON.stringify({ error: {
+      code: 429, details: [{ '@type': 'type.googleapis.com/google.rpc.RetryInfo', retryDelay: `${seconds}s` }],
+    } }));
+    fetchMock.mockImplementation(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.endsWith('/models')) return models(['gemini-3.8-flash', 'gemini-3.6-flash']);
+      return url.includes('3.8') ? quota(40) : quota(12);
+    });
+
+    await expect(parseReceipt('base64', 'tr')).rejects.toMatchObject({ code: 'AI_QUOTA', retryAfterSec: 12 });
+
+    // Hemen tekrar denenirse kota dolu modellere istek atılıp kota daha çok yakılmaz.
+    fetchMock.mockClear();
+    const again = parseReceipt('base64', 'tr');
+    await expect(again).rejects.toMatchObject({ code: 'AI_QUOTA' });
+    await again.catch((error) => expect(error.retryAfterSec).toBeLessThanOrEqual(12));
+    expect(generateCalls()).toHaveLength(0);
+  });
+
+  it('cihaz logundaki durum: yoğunluk + günlük kota birlikteyse yoğunluğu söyler ve kotası biten modeli gün boyu atlar', async () => {
+    const now = Date.UTC(2026, 8, 24, 14, 45);
+    const nowSpy = jest.spyOn(Date, 'now').mockReturnValue(now);
+    try {
+      const dailyQuota = failure(429, JSON.stringify({ error: {
+        code: 429, message: 'You exceeded your current quota, please check your plan and billing details.',
+        details: [
+          { '@type': 'type.googleapis.com/google.rpc.QuotaFailure',
+            violations: [{ quotaId: 'GenerateRequestsPerDayPerProjectPerModel-FreeTier' }] },
+          { '@type': 'type.googleapis.com/google.rpc.RetryInfo', retryDelay: '40s' },
+        ],
+      } }));
+      const busy = failure(503, '{"error":{"code":503,"message":"This model is currently experiencing high demand.","status":"UNAVAILABLE"}}');
+      fetchMock.mockImplementation(async (input: RequestInfo | URL) => {
+        const url = String(input);
+        if (url.endsWith('/models')) return models(['gemini-3.8-flash', 'gemini-3.7-flash', 'gemini-3.5-flash-lite']);
+        return url.includes('3.7-flash') ? dailyQuota : busy;
+      });
+
+      // Birinin kotası gün boyu dolu olsa da diğerleri yalnız geçici yoğun:
+      // kullanıcıya "yarın" denmez.
+      await expect(parseReceipt('base64', 'tr')).rejects.toMatchObject({ code: 'AI_SERVER_BUSY' });
+      expect(generateCalls().map((call) => call.model)).toEqual([
+        'gemini-3.8-flash', 'gemini-3.5-flash-lite', 'gemini-3.7-flash',
+      ]);
+
+      // Yoğunluk dinlenmesi bitince (20 sn sonra) flash yeniden denenir ve açılmışsa
+      // tarama başarılı olur; günlük kotası dolan 3.7 gün boyu hiç denenmez.
+      nowSpy.mockReturnValue(now + 30_000);
+      fetchMock.mockClear();
+      fetchMock.mockImplementation(async (input: RequestInfo | URL) => (String(input).includes('3.7-flash')
+        ? dailyQuota
+        : answer(RECEIPT)));
+      await expect(parseReceipt('base64', 'tr')).resolves.toMatchObject({ _modelUsed: 'gemini-3.8-flash (v1beta)' });
+      expect(generateCalls().map((call) => call.model)).toEqual(['gemini-3.8-flash']);
+    } finally {
+      nowSpy.mockRestore();
+    }
+  });
+
+  it('tüm modellerin günlük kotası dolunca istek atmadan yenilenme anını bildirir', async () => {
+    const now = Date.UTC(2026, 8, 24, 14, 45);
+    const nowSpy = jest.spyOn(Date, 'now').mockReturnValue(now);
+    try {
+      fetchMock.mockImplementation(async (input: RequestInfo | URL) => (String(input).endsWith('/models')
+        ? models(['gemini-3.8-flash', 'gemini-3.5-flash-lite'])
+        : failure(429, JSON.stringify({ error: { code: 429, details: [
+          { '@type': 'type.googleapis.com/google.rpc.QuotaFailure',
+            violations: [{ quotaId: 'GenerateRequestsPerDayPerProjectPerModel-FreeTier' }] },
+          { '@type': 'type.googleapis.com/google.rpc.RetryInfo', retryDelay: '40s' },
+        ] } }))));
+
+      // Google'ın 40 sn'lik retryDelay'i yerine Pasifik gece yarısı: 25 Eylül 07:00 UTC.
+      const expected = { code: 'AI_QUOTA_DAILY', resetsAt: Date.UTC(2026, 8, 25, 7) };
+      await expect(parseReceipt('base64', 'tr')).rejects.toMatchObject(expected);
+
+      fetchMock.mockClear();
+      await expect(parseReceipt('base64', 'tr')).rejects.toMatchObject(expected);
+      expect(generateCalls()).toHaveLength(0);
+    } finally {
+      nowSpy.mockRestore();
+    }
+  });
+
+  it('ağa ulaşılamazsa bunu genel hata yerine AI_NETWORK olarak bildirir', async () => {
+    fetchMock.mockRejectedValue(new TypeError('Network request failed'));
+
+    await expect(parseReceipt('base64', 'tr')).rejects.toMatchObject({ code: 'AI_NETWORK' });
+  });
+
+  it('bir modelin okunamayan yanıt gövdesini ağ hatası saymaz; sıradaki modeli dener', async () => {
+    fetchMock.mockImplementation(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.endsWith('/models')) return models(['gemini-3.8-flash', 'gemini-3.6-flash']);
+      if (url.includes('3.8')) {
+        return { ok: true, json: async () => { throw new SyntaxError('Unexpected token <'); } } as unknown as Response;
+      }
+      return answer(RECEIPT);
+    });
+
+    await expect(parseReceipt('base64', 'tr')).resolves.toMatchObject({ _modelUsed: 'gemini-3.6-flash (v1beta)' });
+  });
+
+  it('çıktı sınırında kesilen yanıtı geçersiz fişten ayırır', async () => {
+    fetchMock.mockImplementation(async (input: RequestInfo | URL) => (String(input).endsWith('/models')
+      ? models(['gemini-3.8-flash'])
+      : answer('{"vendor_name":"Mar', 'MAX_TOKENS')));
+
+    await expect(parseReceipt('base64', 'tr')).rejects.toMatchObject({ code: 'AI_RESPONSE_TRUNCATED' });
+  });
+
+  it('ürün eşleştirme Gemini 3 için düşünme payı bırakan çıktı sınırıyla gönderilir', async () => {
+    fetchMock.mockImplementation(async (input: RequestInfo | URL) => (String(input).endsWith('/models')
+      ? models(['gemini-3.8-flash'])
+      : answer(JSON.stringify({ same_product: false, confidence: 0.4, canonical_name: null, reason: null }))));
+
+    await suggestProductMatch(
+      { name: 'Süt 1L', measurementUnit: 'piece' },
+      { name: 'Süt 2L', measurementUnit: 'piece' },
+    );
+
+    expect(generateCalls()[0].generationConfig).toMatchObject({
+      maxOutputTokens: 2048,
+      thinkingConfig: { thinkingLevel: 'low' },
+    });
+  });
+
+  it('anahtar değişince önceki anahtarın model listesi kullanılmaz', async () => {
+    fetchMock.mockImplementation(async (input: RequestInfo | URL) => (String(input).endsWith('/models')
+      ? models(['gemini-3.8-flash'])
+      : answer(RECEIPT)));
+    await parseReceipt('base64', 'tr');
+    await saveApiKey('new-key');
+    fetchMock.mockClear();
+
+    await parseReceipt('base64', 'tr');
+
+    expect(fetchMock.mock.calls.filter(([url]) => String(url).endsWith('/models'))).toHaveLength(1);
   });
 });
 

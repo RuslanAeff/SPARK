@@ -11,15 +11,29 @@ import { isSupportedYmd, sanitizeText, stripDangerousKeys } from '../utils/input
 import { roundMoney, roundUnitRate, sumMoney } from '../utils/moneyMath';
 import { normalizeMeasurementInput, type MeasurementUnit } from '../utils/measurementUnit';
 import type { Language } from '../i18n/translations';
+import { GeminiServiceError, moreActionable, type GeminiErrorCode } from './geminiErrors';
+import {
+  isKeyRejection,
+  isRetiredModelId,
+  isThinkingConfigRejection,
+  isUnsuitableForReceiptParsing,
+  modelStrToId,
+  pickCandidates,
+  sortModelStrings,
+  thinkingVariantsFor,
+  type ThinkingConfig,
+} from './geminiModelSelection';
+import { classifyQuotaFailure, nextPacificMidnight, parseRetryDelay } from './geminiQuota';
+
+export { GeminiServiceError } from './geminiErrors';
+export type { GeminiErrorCode } from './geminiErrors';
+export { isUnsuitableForReceiptParsing } from './geminiModelSelection';
 import {
   canonicalReceiptCategoryName,
   normalizeReceiptCategoryKey,
   RECEIPT_CATEGORY_KEYS,
   type ReceiptCategoryKey,
 } from '../utils/receiptCategory';
-
-// Preferred model keywords in priority order (for auto-selection)
-const MODEL_PREFERENCES = ['flash', 'pro'];
 
 const FETCH_TIMEOUT_MS = 45_000;
 const MODEL_DISCOVERY_TIMEOUT_MS = 15_000;
@@ -50,6 +64,35 @@ const MAX_MATCH_RESPONSE_CHARS = 8_192;
 // TTL sonunda yeniden denenir (model erişimi sonradan açılabilir).
 const FAILED_MODEL_TTL = 10 * 60 * 1000;
 const _failedModels = new Map<string, number>(); // modelStr → expiry (epoch ms)
+
+// Oturum içinde son başarılı model ve kabul ettiği düşünme ayarı. Sonraki istek
+// doğrudan onunla başlar; ilk taramadan sonra boşa model/parametre denemesi olmaz.
+let _lastGood: { modelStr: string; thinking: ThinkingConfig | null } | null = null;
+
+// Bir modelin reddettiği düşünme ayarları oturum boyunca hatırlanır; tarama
+// başarısız olsa bile sonraki denemede aynı 400 için istek/kota harcanmaz.
+const _rejectedThinking = new Map<string, Set<string>>(); // modelStr → JSON(ayar)
+
+// Geçici olarak dinlendirilen modeller. Dakikalık kota Google'ın bildirdiği süre,
+// günlük kota Google'ın gün dönümü (Pasifik gece yarısı), yoğunluk (503) kısa süre
+// boyunca atlanır. Kullanıcı yeniden denediğinde doğrudan başka bir modele gidilir;
+// kotası dolu modele boşuna istek atılıp kalan kota daha çok yakılmaz.
+type CooldownReason = 'quota' | 'quota-daily' | 'busy';
+const _cooldowns = new Map<string, { until: number; reason: CooldownReason }>();
+const BUSY_COOLDOWN_MS = 20_000;
+const DEFAULT_QUOTA_COOLDOWN_MS = 60_000;
+// Tüm adaylar yoğunsa tek bir gecikmeli son deneme (Google'ın önerdiği backoff).
+const BUSY_RETRY_DELAY_MS = 3_000;
+
+/** Anahtar değişince önceki anahtarın keşif/başarı/başarısızlık bilgisi geçersizdir. */
+export function resetGeminiModelState(): void {
+  _modelCache = null;
+  _modelCachePromise = null;
+  _failedModels.clear();
+  _lastGood = null;
+  _rejectedThinking.clear();
+  _cooldowns.clear();
+}
 
 function fetchWithTimeout(
   url: string,
@@ -112,19 +155,12 @@ async function discoverModels(apiKey: string, signal?: AbortSignal): Promise<str
   return waitForAbort(_modelCachePromise, signal);
 }
 
-// Fiş ayrıştırma METİN (JSON) çıktısı ister. Bazı modeller `generateContent`
-// destekler ama görüntü/ses/video/gömme ÜRETİR (ör. gemini-*-flash-image JSON
-// yerine görüntü döndürür) → aday listesinde olmamalı; yoksa boşa bir kota/429
-// denemesi harcanır ve yanıt ayrıştırması bozulabilir.
-const UNSUITABLE_MODEL_KEYWORDS = ['image', 'imagen', 'tts', 'audio', 'live', 'veo', 'embedding', 'aqa'];
-export function isUnsuitableForReceiptParsing(modelId: string): boolean {
-  const lower = modelId.toLowerCase();
-  return UNSUITABLE_MODEL_KEYWORDS.some((k) => lower.includes(k));
-}
-
 async function _discoverModelsImpl(apiKey: string): Promise<string[]> {
   const versions = ['v1beta', 'v1'];
-  
+  // Hiçbir sürüm liste döndürmezse kullanıcıya nedeni söylenir: anahtar mı,
+  // bağlantı mı, Google mı? Boş liste ile "bilinmeyen hata" arasında kalınmaz.
+  let failure: GeminiErrorCode | null = null;
+
   for (const ver of versions) {
     try {
       const url = `https://generativelanguage.googleapis.com/${ver}/models`;
@@ -132,11 +168,20 @@ async function _discoverModelsImpl(apiKey: string): Promise<string[]> {
       const res = await fetchWithTimeout(url, {
         headers: { 'x-goog-api-key': apiKey },
       }, MODEL_DISCOVERY_TIMEOUT_MS);
-      if (!res.ok) continue;
-      
+      if (!res.ok) {
+        const body = await res.text().catch(() => '');
+        if (__DEV__) console.warn(`[MODEL DISCOVERY] ${ver} → HTTP ${res.status}: ${body.replace(/\s+/g, ' ').slice(0, 120)}`);
+        // ListModels model seçmez: 400/401/403 burada anahtar/proje reddidir.
+        failure = moreActionable(failure,
+          res.status === 400 || res.status === 401 || res.status === 403 ? 'AI_KEY_REJECTED'
+            : isTransientServerError(res.status) || res.status === 429 ? 'AI_SERVER_BUSY'
+              : 'AI_MODEL_UNAVAILABLE');
+        continue;
+      }
+
       const data = await res.json();
       const models: string[] = (data.models || [])
-        .filter((m: any) => 
+        .filter((m: any) =>
           m.supportedGenerationMethods?.includes('generateContent')
         )
         .map((m: any) => ({
@@ -145,41 +190,25 @@ async function _discoverModelsImpl(apiKey: string): Promise<string[]> {
         }))
         .filter((m: any) => m.id && !isUnsuitableForReceiptParsing(m.id))
         .map((m: any) => `${m.ver}:${m.id}`);
-      
+
       if (models.length > 0) {
         if (__DEV__) console.log(`[MODEL DISCOVERY] Found ${models.length} models`);
         _modelCache = { models, expiry: Date.now() + MODEL_CACHE_TTL };
         return models;
       }
+      failure = moreActionable(failure, 'AI_MODEL_UNAVAILABLE');
     } catch (e) {
       if (__DEV__) console.warn(`[MODEL DISCOVERY] ${ver} query failed:`, e);
+      // Keşif isteği ağ hatası veya kendi zaman aşımıyla düştü.
+      if (failure === null) failure = 'AI_NETWORK';
     }
   }
-  return [];
-}
-
-// Pick the best model from discovered list based on preferences
-function pickBestModel(models: string[]): { apiVersion: string; model: string } | null {
-  // Priority: flash models first (cheaper/faster), then pro
-  for (const pref of MODEL_PREFERENCES) {
-    const match = models.find(m => m.split(':')[1].includes(pref));
-    if (match) {
-      const [ver, id] = [match.split(':')[0], match.split(':').slice(1).join(':')];
-      return { apiVersion: ver, model: id };
-    }
-  }
-  // Fallback: just pick the first available model
-  if (models.length > 0) {
-    const [ver, id] = [models[0].split(':')[0], models[0].split(':').slice(1).join(':')];
-    return { apiVersion: ver, model: id };
-  }
-  return null;
+  throw new GeminiServiceError(failure ?? 'AI_MODEL_UNAVAILABLE');
 }
 
 const buildApiUrl = (model: string, apiVersion: string) =>
   `https://generativelanguage.googleapis.com/${apiVersion}/models/${model}:generateContent`;
 
-const MAX_ATTEMPTS_PER_MODEL = 2;
 const MAX_MODELS_PER_OPERATION = 3;
 
 // Dile göre çeviri talimatları. Model sözleşmesi `localized_name` kullanır;
@@ -345,45 +374,8 @@ function delay(ms: number, signal?: AbortSignal): Promise<void> {
   });
 }
 
-// Parse the retryDelay from Gemini's 429 error response (e.g. "43s" -> 43000)
-function parseRetryDelay(errorBody: string): number | null {
-  try {
-    const parsed = JSON.parse(errorBody);
-    const retryInfo = parsed?.error?.details?.find(
-      (d: any) => d['@type']?.includes('RetryInfo')
-    );
-    if (retryInfo?.retryDelay) {
-      const seconds = parseInt(retryInfo.retryDelay.replace('s', ''), 10);
-      if (!isNaN(seconds)) return seconds * 1000;
-    }
-  } catch {}
-  return null;
-}
-
-// Build a user-friendly error message for quota issues
-function buildQuotaErrorMessage(modelName: string, retryDelayMs: number | null): string {
-  const waitSec = retryDelayMs ? Math.ceil(retryDelayMs / 1000) : 60;
-  return (
-    `Gemini AI quota limit reached (${modelName}).\n\n` +
-    `Your free usage quota is currently exhausted. ` +
-    `Please wait approximately ${waitSec} seconds and try again.\n\n` +
-    `Tip: You can upgrade to a paid plan on Google AI Studio ` +
-    `or use a different API key for higher quota.`
-  );
-}
-
 function isTransientServerError(status: number): boolean {
   return status === 500 || status === 502 || status === 503 || status === 504;
-}
-
-/** List API döndürür ama yeni API anahtarlarında generateContent 404 — denemeyi atla (gereksiz hata görünümü) */
-function isDeprecatedListedModelId(modelId: string): boolean {
-  const lower = modelId.toLowerCase();
-  return lower.includes('gemini-2.0-flash-lite');
-}
-
-function modelStrToId(modelStr: string): string {
-  return modelStr.split(':').slice(1).join(':');
 }
 
 /** Metro’da kırmızı ERROR/stack tetiklemez; 404 = normal yedek akış */
@@ -392,131 +384,63 @@ function devLogGeminiHttpFailure(
   apiVersion: string,
   status: number,
   errorBody: string,
-  attempt: number
 ): void {
-  if (!__DEV__ || attempt !== 0) return;
+  if (!__DEV__) return;
   if (status === 404) {
     console.log(
       `[GEMINI] ${model} (${apiVersion}) → 404 (bu model atlanıyor, sıradaki kullanılacak)`
     );
     return;
   }
-  if (status === 429 || isTransientServerError(status)) {
-    return;
-  }
   console.warn(
-    `[GEMINI] ${model} (${apiVersion}) → HTTP ${status}: ${errorBody.replace(/\s+/g, ' ').slice(0, 100)}`
+    `[GEMINI] ${model} (${apiVersion}) → HTTP ${status}: ${errorBody.replace(/\s+/g, ' ').slice(0, 160)}`
   );
 }
 
-// Core fetch-with-retry for a single model + API version combo (429 + geçici sunucu yoğunluğu 502/503/504)
+// Tek model + API sürümüne TEK istek. Yeniden deneme politikası burada değil,
+// generateContentWithFallback içindedir: aynı modelde beklemek yerine önce başka
+// kapasite havuzuna geçilir (bkz. o fonksiyondaki açıklama).
 async function callGeminiModel(
   model: string,
   apiVersion: string,
   apiKey: string,
   requestBody: object,
   signal?: AbortSignal,
-): Promise<{ ok: true; content: string } | { ok: false; status: number; body: string }> {
-  let lastStatus = 0;
-  let lastBody = '';
+): Promise<{ ok: true; content: string; truncated: boolean } | { ok: false; status: number; body: string }> {
+  const response = await fetchWithTimeout(buildApiUrl(model, apiVersion), {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-goog-api-key': apiKey,
+    },
+    body: JSON.stringify(requestBody),
+  }, FETCH_TIMEOUT_MS, signal);
 
-  for (let attempt = 0; attempt < MAX_ATTEMPTS_PER_MODEL; attempt++) {
-    const url = buildApiUrl(model, apiVersion);
-    const response = await fetchWithTimeout(url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-goog-api-key': apiKey,
-      },
-      body: JSON.stringify(requestBody),
-    }, FETCH_TIMEOUT_MS, signal);
-
-    if (response.ok) {
-      const data = await response.json();
-      const parts = data.candidates?.[0]?.content?.parts || [];
-      const finishReason = data.candidates?.[0]?.finishReason as string | undefined;
-      if (finishReason === 'MAX_TOKENS' && __DEV__) {
-        console.warn('[GEMINI] Yanıt MAX_TOKENS ile kesilmiş olabilir; JSON yarım kalabilir.');
-      }
-      // Düşünme parçaları hariç tüm metinleri birleştir (JSON birden fazla parçada gelebilir)
-      const nonThought = parts.filter((p: { text?: string; thought?: boolean }) => p.text && !p.thought);
-      let text = nonThought.map((p: { text: string }) => p.text).join('\n');
-      if (!text) {
-        for (const part of parts) {
-          if ((part as { text?: string }).text) {
-            text = (text ? `${text}\n` : '') + (part as { text: string }).text;
-          }
+  if (response.ok) {
+    const data = await response.json();
+    const parts = data.candidates?.[0]?.content?.parts || [];
+    const finishReason = data.candidates?.[0]?.finishReason as string | undefined;
+    if (finishReason === 'MAX_TOKENS' && __DEV__) {
+      console.warn('[GEMINI] Yanıt MAX_TOKENS ile kesilmiş olabilir; JSON yarım kalabilir.');
+    }
+    // Düşünme parçaları hariç tüm metinleri birleştir (JSON birden fazla parçada gelebilir)
+    const nonThought = parts.filter((p: { text?: string; thought?: boolean }) => p.text && !p.thought);
+    let text = nonThought.map((p: { text: string }) => p.text).join('\n');
+    if (!text) {
+      for (const part of parts) {
+        if ((part as { text?: string }).text) {
+          text = (text ? `${text}\n` : '') + (part as { text: string }).text;
         }
       }
-      if (!text) throw new Error('Gemini API returned an empty response.');
-      return { ok: true, content: text };
     }
-
-    const errorBody = await response.text();
-    lastStatus = response.status;
-    lastBody = errorBody;
-
-    devLogGeminiHttpFailure(model, apiVersion, response.status, errorBody, attempt);
-
-    // Rate limit (429) — AYNI modelde uzun uzun beklemek YERINE hemen dön; üst
-    // katman sıradaki modeli dener (farklı modellerin ayrı RPM/kota havuzu olabilir).
-    // Tüm modeller 429 verirse parseReceipt kullanıcıya "kota dolu, X sn bekle"
-    // mesajını gösterir. Eski 6×(~30-60s) bekleme ücretsiz tier'da taramayı
-    // dakikalarca "işleniyor" durumunda bırakıyordu.
-    if (response.status === 429) {
-      if (__DEV__) console.warn(`Gemini ${model} (${apiVersion}) 429 — sıradaki model deneniyor (model-içi bekleme yok)`);
-      return { ok: false, status: 429, body: errorBody };
-    }
-
-    // Google "high demand" / UNAVAILABLE — kısa backoff ile tekrar dene
-    if (isTransientServerError(response.status)) {
-      const waitMs = Math.min(1500 * Math.pow(2, attempt), 20000);
-      if (__DEV__) {
-        console.warn(
-          `Gemini ${model} (${apiVersion}) busy (${response.status}), retry in ${Math.ceil(waitMs / 1000)}s (attempt ${attempt + 1}/${MAX_ATTEMPTS_PER_MODEL})...`
-        );
-      }
-      if (attempt + 1 >= MAX_ATTEMPTS_PER_MODEL) break;
-      await delay(waitMs, signal);
-      continue;
-    }
-
-    // Kalıcı istemci/sunucu hataları — hemen dön (üst katman başka modele geçebilir)
-    if (response.status === 400 || response.status === 403) {
-      return { ok: false, status: response.status, body: errorBody };
-    }
-
-    // Diğer 4xx/5xx: bu modelde bir deneme daha anlamsızsa dön
-    return { ok: false, status: response.status, body: errorBody };
+    // Boş yanıt (ör. bütçe düşünmede tükendi) tüm işlemi düşürmez; üst katman
+    // bunu geçersiz sonuç sayıp sıradaki modeli dener.
+    return { ok: true, content: text, truncated: finishReason === 'MAX_TOKENS' };
   }
 
-  return { ok: false, status: lastStatus, body: lastBody || 'Max attempts exceeded for this model.' };
-}
-
-function sortModelStrings(list: string[]): string[] {
-  return [...list].sort((a, b) => {
-    const aId = modelStrToId(a);
-    const bId = modelStrToId(b);
-
-    // Stable full models first, lite second, preview/experimental last.
-    const rank = (id: string) =>
-      /preview|exp/i.test(id) ? 2 : (/lite/i.test(id) ? 1 : 0);
-    const aRank = rank(aId);
-    const bRank = rank(bId);
-    if (aRank !== bRank) return aRank - bRank;
-
-    const aPref = MODEL_PREFERENCES.findIndex(p => aId.includes(p));
-    const bPref = MODEL_PREFERENCES.findIndex(p => bId.includes(p));
-    const aScore = aPref === -1 ? 999 : aPref;
-    const bScore = bPref === -1 ? 999 : bPref;
-    if (aScore !== bScore) return aScore - bScore;
-
-    const a25 = aId.includes('2.5') ? 1 : 0;
-    const b25 = bId.includes('2.5') ? 1 : 0;
-    if (a25 !== b25) return a25 - b25;
-
-    return aId.localeCompare(bId);
-  });
+  const errorBody = await response.text();
+  devLogGeminiHttpFailure(model, apiVersion, response.status, errorBody);
+  return { ok: false, status: response.status, body: errorBody };
 }
 
 async function getSortedAvailableModels(
@@ -524,16 +448,6 @@ async function getSortedAvailableModels(
   signal?: AbortSignal,
 ): Promise<string[]> {
   const availableModels = await discoverModels(apiKey, signal);
-  if (availableModels.length === 0) {
-    throw new Error(
-      'Could not retrieve model list from Google AI API.\n\n' +
-      'Possible causes:\n' +
-      '• Your API key is invalid (or has extra spaces)\n' +
-      '• Free Gemini API may be disabled on your project\n' +
-      '• Your internet connection may be restricted\n\n' +
-      'Please get a new key from aistudio.google.com and update it in Settings.'
-    );
-  }
 
   // Recently incompatible models are skipped for both receipt and explicit
   // identity suggestions. If every candidate is skipped, retry the base list so
@@ -546,81 +460,223 @@ async function getSortedAvailableModels(
     _failedModels.delete(model);
     return true;
   };
-  const nonDeprecated = availableModels.filter(
-    model => !isDeprecatedListedModelId(modelStrToId(model)),
-  );
-  const baseList = nonDeprecated.length > 0 ? nonDeprecated : [...availableModels];
-  const usable = baseList.filter(notRecentlyFailed);
-  return sortModelStrings(usable.length > 0 ? usable : baseList)
-    .slice(0, MAX_MODELS_PER_OPERATION);
+  const cooling = (model: string) => {
+    const entry = _cooldowns.get(model);
+    if (!entry) return null;
+    if (now < entry.until) return entry;
+    _cooldowns.delete(model);
+    return null;
+  };
+  const active = availableModels.filter(model => !isRetiredModelId(modelStrToId(model)));
+  const baseList = active.length > 0 ? active : [...availableModels];
+  const compatible = baseList.filter(notRecentlyFailed);
+  const pool = compatible.length > 0 ? compatible : baseList;
+  const ready = pool.filter(model => cooling(model) === null);
+
+  if (ready.length === 0) {
+    // Her model kotada dinleniyorsa istek atmak yalnız kotayı daha çok yakar:
+    // kullanıcıya en erken açılacak an söylenir. Dakikalık kotası dolan bir model
+    // varsa o daha önce açılır; hepsi günlükse Google'ın gün dönümü bildirilir.
+    const entries = pool.map(cooling);
+    if (entries.every(entry => entry?.reason === 'quota' || entry?.reason === 'quota-daily')) {
+      const minute = entries.filter(entry => entry!.reason === 'quota');
+      if (minute.length > 0) {
+        const soonest = Math.min(...minute.map(entry => entry!.until));
+        throw new GeminiServiceError('AI_QUOTA', { retryAfterSec: Math.max(1, Math.ceil((soonest - now) / 1000)) });
+      }
+      throw new GeminiServiceError('AI_QUOTA_DAILY', { resetsAt: Math.min(...entries.map(entry => entry!.until)) });
+    }
+  }
+  const sorted = sortModelStrings(ready.length > 0 ? ready : pool);
+
+  // Oturumda çalıştığı kanıtlanmış model hâlâ listedeyse öne alınır.
+  const sticky = _lastGood?.modelStr;
+  const candidates = pickCandidates(sorted, MAX_MODELS_PER_OPERATION);
+  if (sticky && sorted.includes(sticky)) {
+    const rest = candidates.filter(model => model !== sticky);
+    return [sticky, ...rest].slice(0, MAX_MODELS_PER_OPERATION);
+  }
+  return candidates;
+}
+
+function withThinking(requestBody: GeminiRequestBody, thinking: ThinkingConfig | null): GeminiRequestBody {
+  const { thinkingConfig: _ignored, ...generationConfig } = requestBody.generationConfig;
+  return {
+    ...requestBody,
+    generationConfig: thinking ? { ...generationConfig, thinkingConfig: thinking } : generationConfig,
+  };
+}
+
+/** Çağıranlar düşünme ayarı göndermez; modele uygun ayarı bu katman seçer. */
+interface GeminiRequestBody {
+  contents: unknown[];
+  generationConfig: Record<string, unknown>;
+}
+
+type ModelAttempt =
+  | { ok: true; content: string; truncated: boolean; thinking: ThinkingConfig | null }
+  | { ok: false; status: number; body: string };
+
+/**
+ * Tek modeli, kabul ettiği düşünme ayarını bulana kadar dener. Parametreye
+ * yönelik 400 modeli "uyumsuz" saymaz; bir sonraki güvenli ayara geçilir.
+ */
+async function callModelWithThinkingFallback(
+  modelStr: string,
+  apiKey: string,
+  requestBody: GeminiRequestBody,
+  signal?: AbortSignal,
+): Promise<ModelAttempt> {
+  const apiVersion = modelStr.split(':')[0];
+  const modelId = modelStrToId(modelStr);
+  const rejected = _rejectedThinking.get(modelStr);
+  const allVariants = thinkingVariantsFor(modelId);
+  const variants = allVariants.filter(v => !rejected?.has(JSON.stringify(v)));
+  // Hepsi reddedildiyse (ör. Google kısıtı kaldırdıysa) listeyi baştan dene.
+  if (variants.length === 0) variants.push(...allVariants);
+  // Aynı model daha önce belirli bir ayarla çalıştıysa doğrudan ondan başla.
+  if (_lastGood?.modelStr === modelStr) {
+    const remembered = JSON.stringify(_lastGood.thinking);
+    const index = variants.findIndex(v => JSON.stringify(v) === remembered);
+    if (index > 0) variants.unshift(...variants.splice(index, 1));
+  }
+
+  let last: ModelAttempt = { ok: false, status: 0, body: '' };
+  for (let i = 0; i < variants.length; i++) {
+    const thinking = variants[i];
+    const result = await callGeminiModel(modelId, apiVersion, apiKey, withThinking(requestBody, thinking), signal);
+    if (result.ok) return { ...result, thinking };
+    last = result;
+    if (!isThinkingConfigRejection(result.status, result.body)) break;
+    if (!_rejectedThinking.has(modelStr)) _rejectedThinking.set(modelStr, new Set());
+    _rejectedThinking.get(modelStr)!.add(JSON.stringify(thinking));
+    if (i === variants.length - 1) break;
+    if (__DEV__) {
+      console.log(`[GEMINI] ${modelId} düşünme ayarını reddetti (${JSON.stringify(thinking)}); sıradaki ayar deneniyor`);
+    }
+  }
+  return last;
 }
 
 async function generateContentWithFallback(
   apiKey: string,
-  requestBody: object,
-  signal?: AbortSignal,
-  validateContent?: (content: string) => boolean,
+  requestBody: GeminiRequestBody,
+  signal: AbortSignal | undefined,
+  options: {
+    validateContent?: (content: string) => boolean;
+    /** Model yanıt verdi ama içerik geçersizse kullanıcıya gösterilecek kod. */
+    invalidCode?: GeminiErrorCode;
+  } = {},
 ): Promise<{ content: string; tag: string }> {
   const sortedModels = await getSortedAvailableModels(apiKey, signal);
   if (signal?.aborted) {
     throw createAbortError();
   }
 
-  let lastError = '';
-  for (const modelStr of sortedModels) {
+  let retryAfterSec: number | undefined;
+  let dailyResetsAt: number | undefined;
+
+  // Tek modeli dener; başarıda sonucu, başarısızlıkta nedenini döndürür. Anahtar
+  // reddi ve ağ yokluğu tüm işlemi hemen bitirir (başka model sonucu değiştirmez).
+  const tryModel = async (modelStr: string): Promise<{ content: string; tag: string } | GeminiErrorCode> => {
     const apiVersion = modelStr.split(':')[0];
-    const modelId = modelStr.split(':').slice(1).join(':');
+    const modelId = modelStrToId(modelStr);
     const tag = `${modelId} (${apiVersion})`;
 
     if (__DEV__) console.log(`[GEMINI] Trying model: ${tag}`);
-    const result = await callGeminiModel(modelId, apiVersion, apiKey, requestBody, signal);
-
-    if (result.ok && (!validateContent || validateContent(result.content))) {
-      if (__DEV__) console.log(`[GEMINI] Success: ${tag}`);
-      return { content: result.content, tag };
+    let result: ModelAttempt;
+    try {
+      result = await callModelWithThinkingFallback(modelStr, apiKey, requestBody, signal);
+    } catch (error) {
+      // Kullanıcı iptali veya ekranın toplam süresi: olduğu gibi yukarı.
+      if (signal?.aborted) throw error;
+      if ((error as Error)?.name === 'AbortError') {
+        // Bu modelin istek süresi doldu; bir başkası daha hızlı olabilir.
+        if (__DEV__) console.warn(`[GEMINI] ${tag} zaman aşımı; sıradaki model deneniyor`);
+        return 'AI_TIMEOUT';
+      }
+      // fetch ağa ulaşamazsa TypeError verir: başka model denemek sonucu değiştirmez.
+      if (error instanceof TypeError) throw new GeminiServiceError('AI_NETWORK');
+      // Diğerleri (ör. okunamayan yanıt gövdesi) bu modele özgüdür.
+      if (__DEV__) console.warn(`[GEMINI] ${tag} yanıtı işlenemedi; sıradaki model deneniyor`, error);
+      return 'AI_INVALID_RESPONSE';
     }
 
     if (result.ok) {
-      if (__DEV__) {
-        console.warn(`[GEMINI] ${tag} geçersiz fiş şeması döndürdü; sıradaki model deneniyor.`);
+      const content = result.content.trim();
+      if (content && (!options.validateContent || options.validateContent(content))) {
+        if (__DEV__) console.log(`[GEMINI] Success: ${tag}`);
+        _lastGood = { modelStr, thinking: result.thinking };
+        _cooldowns.delete(modelStr);
+        return { content, tag };
       }
-      lastError = 'RECEIPT_INVALID_RESULT';
-      continue;
+      if (__DEV__) console.warn(`[GEMINI] ${tag} kullanılamaz yanıt döndürdü; sıradaki model deneniyor.`);
+      return result.truncated ? 'AI_RESPONSE_TRUNCATED' : options.invalidCode ?? 'AI_INVALID_RESPONSE';
+    }
+
+    if (_lastGood?.modelStr === modelStr) _lastGood = null;
+
+    if (isKeyRejection(result.status, result.body)) {
+      throw new GeminiServiceError('AI_KEY_REJECTED');
     }
 
     if (result.status === 429) {
+      if (classifyQuotaFailure(result.body) === 'daily') {
+        // Günlük kotada Google'ın kısa retryDelay'i yanıltıcıdır: model gün
+        // dönümüne kadar hiç denenmez.
+        const resetsAt = nextPacificMidnight(Date.now());
+        dailyResetsAt = dailyResetsAt === undefined ? resetsAt : Math.min(dailyResetsAt, resetsAt);
+        _cooldowns.set(modelStr, { until: resetsAt, reason: 'quota-daily' });
+        if (__DEV__) console.warn(`[GEMINI] ${tag} günlük kota doldu; ${new Date(resetsAt).toISOString()} tarihine kadar atlanacak`);
+        return 'AI_QUOTA_DAILY';
+      }
       const retryMs = parseRetryDelay(result.body);
-      if (__DEV__) console.warn(`[GEMINI] ${tag} quota full, trying next model...`);
-      lastError = buildQuotaErrorMessage(modelId, retryMs);
-      continue;
+      if (retryMs !== null) {
+        const seconds = Math.ceil(retryMs / 1000);
+        // Farklı modellerin ayrı kotası olabilir: en erken açılan kota gösterilir.
+        retryAfterSec = retryAfterSec === undefined ? seconds : Math.min(retryAfterSec, seconds);
+      }
+      _cooldowns.set(modelStr, { until: Date.now() + (retryMs ?? DEFAULT_QUOTA_COOLDOWN_MS), reason: 'quota' });
+      if (__DEV__) console.warn(`[GEMINI] ${tag} dakikalık kota doldu, sıradaki model deneniyor`);
+      return 'AI_QUOTA';
     }
 
     if (isTransientServerError(result.status)) {
+      // Aynı modelde beklemek yerine hemen başka havuza geçilir.
+      _cooldowns.set(modelStr, { until: Date.now() + BUSY_COOLDOWN_MS, reason: 'busy' });
       if (__DEV__) console.warn(`[GEMINI] ${tag} server busy (${result.status}), trying next model...`);
-      lastError =
-        'Gemini sunucusu geçici olarak yoğundu (503). Başka model denendi; tüm modeller meşgulse bir süre sonra tekrar deneyin.';
-      continue;
+      return 'AI_SERVER_BUSY';
     }
 
-    if (result.status === 404 || result.status === 403 || result.status === 400) {
-      _failedModels.set(modelStr, Date.now() + FAILED_MODEL_TTL);
-      if (__DEV__) {
-        console.log(`[GEMINI] ${tag} → ${result.status}, sıradaki model deneniyor (kısa süre atlanacak)`);
-      }
-      lastError =
-        result.status === 403
-          ? `Google API ${tag} erişimini reddetti (403) — sıradaki model denendi.`
-          : result.status === 400
-            ? `Model ${tag} isteği reddetti (400) — sıradaki model denendi.`
-            : `Model ${tag} is currently unavailable (404).`;
-      continue;
+    // 400/403/404 ve diğerleri: model bu anahtar veya bu istek için kullanılamaz.
+    _failedModels.set(modelStr, Date.now() + FAILED_MODEL_TTL);
+    if (__DEV__) {
+      console.log(`[GEMINI] ${tag} → ${result.status}, sıradaki model deneniyor (kısa süre atlanacak)`);
     }
-    throw new Error(`Unknown API Error (${result.status}). Please check your internet connection.`);
+    return 'AI_MODEL_UNAVAILABLE';
+  };
+
+  const outcomes: GeminiErrorCode[] = [];
+  for (const modelStr of sortedModels) {
+    const outcome = await tryModel(modelStr);
+    if (typeof outcome !== 'string') return outcome;
+    outcomes.push(outcome);
   }
 
-  throw new Error(
-    lastError || 'All available Gemini models rejected your request. Your quota may be exhausted.'
-  );
+  // Tüm adaylar yalnız "yoğun" dediyse kısa bir beklemeden sonra en iyi adaya
+  // TEK son deneme yapılır. Eskiden her model iki kez denenip bekleniyordu; bu
+  // hem taramayı uzatıyor hem de ücretsiz kotayı hızla tüketiyordu.
+  if (outcomes.length > 0 && !outcomes.some(code => code !== 'AI_SERVER_BUSY')) {
+    if (__DEV__) console.warn(`[GEMINI] Tüm modeller yoğun; ${BUSY_RETRY_DELAY_MS / 1000} sn sonra son deneme`);
+    await delay(BUSY_RETRY_DELAY_MS, signal);
+    const outcome = await tryModel(sortedModels[0]);
+    if (typeof outcome !== 'string') return outcome;
+    outcomes.push(outcome);
+  }
+
+  const code = outcomes.reduce<GeminiErrorCode | null>(moreActionable, null) ?? 'AI_MODEL_UNAVAILABLE';
+  throw new GeminiServiceError(code, code === 'AI_QUOTA' ? { retryAfterSec }
+    : code === 'AI_QUOTA_DAILY' ? { resetsAt: dailyResetsAt } : {});
 }
 
 export async function parseReceipt(
@@ -630,10 +686,10 @@ export async function parseReceipt(
 ): Promise<ParsedReceipt> {
   const apiKey = await getApiKey();
   if (!apiKey) {
-    throw new Error('Gemini API key not configured. Please set it in Settings → API Key.');
+    throw new GeminiServiceError('AI_NO_KEY');
   }
 
-  const requestBody = {
+  const requestBody: GeminiRequestBody = {
     contents: [{
       parts: [
         { text: buildReceiptPrompt(language) },
@@ -650,22 +706,18 @@ export async function parseReceipt(
       topK: 1,
       topP: 0.8,
       responseMimeType: 'application/json',
-      // Uzun fişlerde JSON'un kesilmemesi için yükseltildi. "thinking" modelleri
-      // (gemini-2.5/3-flash) çıktı bütçesinin çoğunu düşünmeye harcayıp JSON'u
-      // MAX_TOKENS ile yarıda kesiyordu → thinkingBudget:0 ile düşünme kapatılır,
-      // tüm bütçe JSON çıkışına kalır. thinkingConfig'i desteklemeyen modeller
-      // 400 dönerse aşağıda atlanır (tarama ölmez).
+      // Uzun fişlerde JSON'un kesilmemesi için yükseltildi. Düşünen modeller
+      // çıktı bütçesini düşünmeye harcayabildiğinden her model için mümkün olan
+      // en az düşünme ayarı generateContentWithFallback içinde seçilir
+      // (bkz. geminiModelSelection.thinkingVariantsFor).
       maxOutputTokens: 16384,
-      thinkingConfig: { thinkingBudget: 0 },
     },
   };
 
-  const generated = await generateContentWithFallback(
-    apiKey,
-    requestBody,
-    signal,
-    (content) => tryJsonToReceipt(content) !== null,
-  );
+  const generated = await generateContentWithFallback(apiKey, requestBody, signal, {
+    validateContent: (content) => tryJsonToReceipt(content) !== null,
+    invalidCode: 'RECEIPT_INVALID_RESULT',
+  });
   const parsed = cleanAndParseResponse(generated.content);
   // Model alanı atlasa bile veri, çağrıyı başlatan seçili dile etiketlenir.
   parsed.translation_language = language;
@@ -1109,16 +1161,17 @@ export async function suggestProductMatch(
 
   const apiKey = await getApiKey();
   if (!apiKey) {
-    throw new Error('Gemini API key not configured. Please set it in Settings → API Key.');
+    throw new GeminiServiceError('AI_NO_KEY');
   }
-  const requestBody = {
+  const requestBody: GeminiRequestBody = {
     contents: [{ parts: [{ text: buildProductMatchPrompt(left, right) }] }],
     generationConfig: {
       temperature: 0,
       topK: 1,
       topP: 0.1,
-      maxOutputTokens: 512,
-      thinkingConfig: { thinkingBudget: 0 },
+      // Gemini 3'te düşünme kapatılamaz ve düşünme token'ları bu sınırdan
+      // düşer; 512 kısa JSON yanıtını bile kesebiliyordu.
+      maxOutputTokens: 2048,
     },
   };
   const generated = await generateContentWithFallback(apiKey, requestBody, signal);
@@ -1127,10 +1180,12 @@ export async function suggestProductMatch(
 
 export async function saveApiKey(key: string): Promise<void> {
   await setSecureApiKey(key);
+  resetGeminiModelState();
 }
 
 export async function deleteApiKey(): Promise<void> {
   await deleteSecureApiKey();
+  resetGeminiModelState();
 }
 
 export async function hasApiKey(): Promise<boolean> {

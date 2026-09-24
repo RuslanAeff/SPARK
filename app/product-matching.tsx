@@ -46,6 +46,7 @@ import {
   type ProductMatchUnitFilter,
 } from '../src/utils/productMatchDiscovery';
 import * as GeminiService from '../src/services/geminiService';
+import { presentAiError } from '../src/utils/aiErrorPresentation';
 
 type ProductMatchViewMode = 'review' | 'all';
 
@@ -462,7 +463,14 @@ export default function ProductMatchingScreen() {
     } catch (error) {
       if (!controller.signal.aborted) {
         if (__DEV__) console.warn('[ProductMatching] AI suggestion failed', error);
-        SparkToast.show(t('product_match_ai_failed'), 'error');
+        // Kota, anahtar veya bağlantı gibi nedenler başlıkta değil açıklamada
+        // söylenir; tanınmayan hatada yalnız genel başlık kalır.
+        const presented = presentAiError(error);
+        SparkToast.show(
+          t('product_match_ai_failed'),
+          'error',
+          presented ? t(presented.messageKey, presented.params) : undefined,
+        );
       }
     } finally {
       if (suggestionAbortRef.current === controller) {
