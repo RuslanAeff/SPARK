@@ -49,12 +49,12 @@ it('warns after a late expense without silently changing the credit; allows expl
   expect(await BudgetRolloverDao.status(target)).toMatchObject({ incoming: 0, periodRemaining: 800, needsReview: false });
 });
 
-it('protects participating periods from deletion, currency and boundary changes; amount edits retain the link', async () => {
+it('protects participating periods from deletion, currency and boundary changes; safe future calendar changes retain the link', async () => {
   await BudgetRolloverDao.save(1, 2, 20);
   await expect(BudgetDao.deleteBudget(1)).rejects.toThrow('rollover_period_locked');
-  await expect(BudgetDao.setMonthlyBudget(900, '2026-08', 'EUR')).rejects.toThrow('rollover_period_locked');
-  await expect(BudgetDao.transitionAndSetBudget({ amount: 800, currency: 'PLN', previousStartDay: 1, nextStartDay: 21, effectiveDate: '2026-09-21' })).rejects.toThrow('rollover_period_locked');
-  await BudgetDao.setMonthlyBudget(990, '2026-08', 'PLN');
+  await expect(BudgetDao.setBudgetForPeriod({ amount: 900, currency: 'EUR', periodStart: '2026-08-01', periodEnd: '2026-08-31', cycleStartDay: 1 })).rejects.toThrow('rollover_period_locked');
+  await BudgetDao.applyCycleStartDayChange(21, '2026-09-21');
+  await BudgetDao.updateBudgetAmount(1, 990);
   expect(await BudgetRolloverDao.status((await BudgetDao.getContainingDate('2026-09-01'))!)).toMatchObject({ incoming: 20, needsReview: true });
 });
 

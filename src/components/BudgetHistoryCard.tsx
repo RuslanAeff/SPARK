@@ -1,6 +1,6 @@
 // S.P.A.R.K. — Budget History Card (Compact Horizontal Design)
-import React, { useEffect, useState, useRef, useCallback, useMemo } from 'react';
-import { View, Text, StyleSheet, ActivityIndicator, ScrollView, Pressable } from 'react-native';
+import React, { useEffect, useState, useRef, useMemo } from 'react';
+import { View, Text, StyleSheet, ActivityIndicator, ScrollView, Pressable, useWindowDimensions } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Colors } from '../theme/colors';
 import { Typography, FontFamily } from '../theme/typography';
@@ -29,6 +29,12 @@ import { useCurrency } from '../context/CurrencyContext';
 import { useRefresh } from '../context/RefreshContext';
 import { useAppTheme, useThemeRevision } from '../theme/themeStore';
 
+export interface BudgetHistorySelection {
+  key: string;
+  cycle: BudgetCycle;
+  budget: Budget | null;
+}
+
 interface CycleEntry {
   key: string;        // YYYY-MM (döngünün başladığı ay)
   renderKey: string;  // Aynı ayda birden fazla geçiş olsa da React kimliği benzersizdir.
@@ -43,17 +49,15 @@ interface CycleEntry {
 }
 
 interface BudgetHistoryCardProps {
-  /** Yukarıdaki navigatörde seçili dönem anahtarı (YYYY-MM). */
-  selectedKey?: string;
-  /** Düzenlenebilir pencerenin en eski dönemi; öncesi salt-okunur tarihtir. */
-  oldestEditableKey?: string;
-  /** Karta dokunulunca navigatörü o döneme taşır. */
-  onSelectPeriod?: (key: string) => void;
+  selectedBudgetId?: number | null;
+  selectedPeriodStart?: string;
+  /** Exact row identity survives multiple transitions that start in one month. */
+  onSelectPeriod?: (selection: BudgetHistorySelection) => void;
 }
 
 export default function BudgetHistoryCard({
-  selectedKey,
-  oldestEditableKey,
+  selectedBudgetId,
+  selectedPeriodStart,
   onSelectPeriod,
 }: BudgetHistoryCardProps = {}) {
   const scheme = useAppTheme();
@@ -63,17 +67,13 @@ export default function BudgetHistoryCard({
   const { currency } = useCurrency();
   const { refreshKey } = useRefresh();
   const [entries, setEntries] = useState<CycleEntry[]>([]);
-  const [anchor, setAnchor] = useState(1);
+  const { fontScale } = useWindowDimensions();
+  const [containerWidth, setContainerWidth] = useState(280);
+  const cardWidth = Math.max(180, Math.min(260 * Math.max(1, fontScale), containerWidth * 0.9));
   const [loading, setLoading] = useState(true);
   const mountedRef = useRef(true);
 
   useEffect(() => () => { mountedRef.current = false; }, []);
-
-  const formatMonth = useCallback((month: string): string => {
-    const [y, m] = month.split('-');
-    const padded = m.padStart(2, '0');
-    return `${t(`month_short_${padded}`)} ${y}`;
-  }, [t]);
 
   useEffect(() => {
     load();
@@ -168,7 +168,6 @@ export default function BudgetHistoryCard({
       withData.sort((a, b) => b.cycle.start.localeCompare(a.cycle.start));
 
       if (mountedRef.current) {
-        setAnchor(anchorDay);
         setEntries(withData);
       }
     } catch (e) {
@@ -195,106 +194,61 @@ export default function BudgetHistoryCard({
   }
 
   return (
-    <View style={styles.container}>
-      <ScrollView 
-        horizontal 
-        showsHorizontalScrollIndicator={false}
+    <View onLayout={event => setContainerWidth(event.nativeEvent.layout.width)}>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
-        snapToInterval={150}
-        decelerationRate="fast"
-      >
+        snapToInterval={cardWidth + Spacing.sm} decelerationRate="fast">
         {entries.map((entry) => {
           const { key, renderKey, cycle, budget, spent, isCurrent, isShadowed } = entry;
-          // Düzenleme penceresi dışındaki dönem salt-okunur tarihtir. Tek istisna:
-          // kuralı ihlal eden çakışma kaydı her zaman seçilip silinebilmelidir,
-          // yoksa erişilemeyen bir satır analizde çift saymaya devam eder.
-          const selectable = Boolean(onSelectPeriod)
-            && (isShadowed || !oldestEditableKey || cycle.key >= oldestEditableKey);
-          const isSelected = selectedKey === cycle.key;
-          const hasBudget = budget !== null;
+          const selectable = Boolean(onSelectPeriod);
+          const isSelected = budget ? selectedBudgetId === budget.id
+            : selectedBudgetId == null && selectedPeriodStart === cycle.start;
           const availableBudget = entry.effectiveBudget ?? budget?.monthly_amount ?? 0;
-          const pct = hasBudget && availableBudget > 0
-            ? Math.min((spent / availableBudget) * 100, 100)
-            : 0;
-          const overBudget = hasBudget && spent > availableBudget;
-          const remaining = hasBudget ? subtractMoney(availableBudget, spent) : null;
-          const barColor = overBudget ? Colors.danger : pct > 80 ? Colors.warning : Colors.primary;
-          // anchor=1 → ay adı; aksi halde döngü tarih aralığı.
-          const label = cycle.startDay === 1
-            ? formatMonth(key)
-            : `${formatDayMonth(cycle.start, t)}–${formatDayMonth(cycle.end, t)}`;
-
+          const pct = budget && availableBudget > 0 ? Math.max(0, Math.min((spent / availableBudget) * 100, 100)) : 0;
+          const remaining = subtractMoney(availableBudget, spent);
+          const overBudget = !!budget && remaining < 0;
+          const barColor = overBudget ? Colors.danger : Colors.primary;
+          const periodCurrency = budget?.currency ?? currency;
+          // Always show exact bounds, including shortened transition periods and years.
+          const label = `${formatDayMonth(cycle.start, t)} ${cycle.start.slice(0, 4)} – ${formatDayMonth(cycle.end, t)} ${cycle.end.slice(0, 4)}`;
           return (
-            <Pressable
-              key={renderKey}
-              testID={`budget-history-card-${cycle.key}`}
-              onPress={selectable ? () => onSelectPeriod?.(cycle.key) : undefined}
-              disabled={!selectable}
-              accessibilityRole={selectable ? 'button' : 'text'}
+            <Pressable key={renderKey} testID={`budget-history-card-${budget ? budget.id : cycle.start}`}
+              onPress={selectable ? () => onSelectPeriod?.({ key, cycle, budget }) : undefined}
+              disabled={!selectable} accessibilityRole={selectable ? 'button' : 'text'}
               accessibilityState={{ selected: isSelected }}
               accessibilityLabel={selectable ? t('budget_history_select', { period: label }) : label}
-              style={({ pressed }) => [
-                styles.card,
-                isCurrent && styles.cardCurrent,
-                isShadowed && styles.cardShadowed,
-                isSelected && styles.cardSelected,
-                pressed && selectable && styles.cardPressed,
-              ]}
-            >
-              {/* Header */}
-              <View style={styles.cardHeader}>
-                {isShadowed ? (
-                  <View style={styles.conflictBadge}>
-                    <MaterialCommunityIcons
-                      name="alert-outline"
-                      size={11}
-                      color={Colors.warning}
-                    />
-                    <Text style={styles.conflictText}>{t('budget_conflict_badge')}</Text>
-                  </View>
-                ) : isCurrent ? (
-                  <View style={styles.currentBadge}>
-                    <View style={styles.currentDot} />
-                    <Text style={styles.currentText}>{t('current_month')}</Text>
-                  </View>
-                ) : (
-                  <Text style={styles.monthLabel}>{label}</Text>
-                )}
-                <MaterialCommunityIcons 
-                  name={overBudget ? "alert-circle" : (pct > 80 ? "alert" : "check-circle")} 
-                  size={14} 
-                  color={barColor} 
-                />
+              style={({ pressed }) => [styles.card, { width: cardWidth },
+                isShadowed && styles.cardShadowed, isSelected && styles.cardSelected,
+                pressed && selectable && styles.cardPressed]}>
+              <View style={styles.header}>
+                <MaterialCommunityIcons name="calendar-range" size={18} color={isSelected ? Colors.primary : Colors.textSecondary} />
+                <Text style={styles.period}>{label}</Text>
+                {isSelected && <MaterialCommunityIcons name="check-circle" size={18} color={Colors.primary} />}
               </View>
-
-              {/* Amounts */}
-              <View style={styles.amountArea}>
-                {(entry.carryOut ?? 0) > 0 && <Text style={styles.spentLabel}>{t('rollover_out')}: {formatCurrency(entry.carryOut!, budget!.currency, false)}</Text>}
-                <Text style={styles.spentLabel}>{t('spent_label')}</Text>
-                <Text style={styles.spentAmount}>{formatCurrency(spent, currency, false)}</Text>
-                {hasBudget && (
-                  <Text style={styles.budgetAmount}>/ {formatCurrency(budget!.monthly_amount, currency, false)}</Text>
-                )}
+              {(isCurrent || isShadowed) && <View style={styles.badge}>
+                <Text style={[styles.badgeText, isShadowed && { color: Colors.warning }]}>
+                  {t(isShadowed ? 'budget_conflict_badge' : 'current_month')}
+                </Text>
+              </View>}
+              <View style={styles.summary}>
+                <Text style={styles.label}>{t(budget ? overBudget ? 'over_budget_exceeded' : 'remaining_label' : 'spent_label')}</Text>
+                <Text style={[styles.amount, overBudget && { color: Colors.danger }]}>
+                  {formatCurrency(budget ? Math.abs(remaining) : spent, periodCurrency)}
+                </Text>
               </View>
-
-              {/* Progress & Remaining */}
-              {hasBudget ? (
-                <View style={styles.footerArea}>
-                  <View style={styles.progressTrack}>
-                    <View style={[styles.progressFill, { width: `${pct}%` as any, backgroundColor: barColor }]} />
-                  </View>
-                  <Text style={[styles.remainingText, { color: barColor }]}>
-                    {overBudget 
-                      ? `+${formatCurrency(Math.abs(remaining!), currency, false)} ${t('over_budget_exceeded')}`
-                      : `${formatCurrency(remaining!, currency, false)} ${t('budget_left')}`}
-                  </Text>
-                </View>
-              ) : (
-                <View style={styles.noBudgetArea}>
-                  <View style={styles.noBudgetTrack} />
-                  <Text style={styles.noBudgetNote}>{t('no_budget_set')}</Text>
-                </View>
-              )}
+              <View style={styles.details}>
+                {budget ? <>
+                  <View style={styles.row}><Text style={styles.label}>{t('rollover_base')}</Text>
+                    <Text style={styles.value}>{formatCurrency(budget.monthly_amount, periodCurrency)}</Text></View>
+                  <View style={styles.row}><Text style={styles.label}>{t('spent_label')}</Text>
+                    <Text style={styles.value}>{formatCurrency(spent, periodCurrency)}</Text></View>
+                  <View style={styles.track}><View style={[styles.fill, { width: `${pct}%`, backgroundColor: barColor }]} /></View>
+                  {(entry.carryOut ?? 0) > 0 && <View style={styles.row}>
+                    <Text style={styles.label}>{t('rollover_out')}</Text>
+                    <Text style={styles.value}>{formatCurrency(entry.carryOut!, periodCurrency)}</Text>
+                  </View>}
+                </> : <Text style={styles.label}>{t('no_budget_set')}</Text>}
+              </View>
             </Pressable>
           );
         })}
@@ -304,146 +258,26 @@ export default function BudgetHistoryCard({
 }
 
 const getStyles = () => StyleSheet.create({
-  loadingContainer: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: Spacing.lg,
-  },
-  emptyContainer: {
-    alignItems: 'center',
-    gap: Spacing.sm,
-    paddingVertical: Spacing.lg,
-  },
-  emptyText: {
-    ...Typography.bodySmall,
-    color: Colors.textMuted,
-  },
-  container: {},
-  scrollContent: {
-    paddingBottom: Spacing.xs,
-  },
-  card: {
-    width: 150,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
-    borderTopWidth: 2,
-    borderTopColor: 'transparent',
-    borderRightWidth: StyleSheet.hairlineWidth,
-    borderRightColor: Colors.divider,
-  },
-  cardCurrent: {
-    borderTopColor: Colors.primary,
-  },
-  // Çakışan eski kayıt: hesaplamada yetkili değil, kullanıcı düzeltebilsin diye
-  // sessiz bir uyarı tonuyla ayrışır.
-  cardShadowed: {
-    borderTopColor: Colors.warning,
-    opacity: 0.82,
-  },
-  cardSelected: {
-    borderColor: Colors.primary,
-    borderWidth: 1,
-  },
-  cardPressed: {
-    opacity: 0.78,
-    transform: [{ scale: 0.985 }],
-  },
-  conflictBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 3,
-  },
-  conflictText: {
-    ...Typography.labelSmall,
-    color: Colors.warning,
-    fontFamily: FontFamily.bold,
-    fontSize: 9,
-    letterSpacing: 0.4,
-    textTransform: 'uppercase',
-  },
-  cardHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: Spacing.sm,
-  },
-  monthLabel: {
-    ...Typography.labelSmall,
-    color: Colors.textSecondary,
-  },
-  currentBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: Colors.primary + '15',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: BorderRadius.round,
-  },
-  currentDot: {
-    width: 4,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: Colors.primary,
-  },
-  currentText: {
-    ...Typography.labelSmall,
-    color: Colors.primary,
-    fontFamily: FontFamily.bold,
-    fontSize: 9,
-    textTransform: 'uppercase',
-  },
-  amountArea: {
-    gap: 2,
-    marginBottom: Spacing.md,
-  },
-  spentLabel: {
-    ...Typography.labelSmall,
-    fontSize: 9,
-    color: Colors.textMuted,
-    textTransform: 'uppercase',
-  },
-  spentAmount: {
-    ...Typography.headlineMedium,
-    fontSize: 18,
-    fontFamily: FontFamily.bold,
-    color: Colors.textPrimary,
-  },
-  budgetAmount: {
-    ...Typography.labelSmall,
-    color: Colors.textMuted,
-    fontFamily: FontFamily.medium,
-  },
-  footerArea: {
-    gap: 6,
-  },
-  progressTrack: {
-    height: 4,
-    backgroundColor: Colors.surfaceLight,
-    borderRadius: 2,
-    overflow: 'hidden',
-  },
-  progressFill: {
-    height: '100%',
-    borderRadius: 2,
-  },
-  remainingText: {
-    ...Typography.labelSmall,
-    fontSize: 10,
-    fontFamily: FontFamily.semiBold,
-  },
-  noBudgetArea: {
-    gap: 6,
-  },
-  noBudgetTrack: {
-    height: 4,
-    backgroundColor: Colors.divider,
-    borderRadius: 2,
-  },
-  noBudgetNote: {
-    ...Typography.labelSmall,
-    fontSize: 10,
-    color: Colors.textMuted,
-    fontStyle: 'italic',
-  },
+  loadingContainer: { alignItems: 'center', justifyContent: 'center', paddingVertical: Spacing.lg },
+  emptyContainer: { alignItems: 'center', gap: Spacing.sm, paddingVertical: Spacing.lg },
+  emptyText: { ...Typography.bodySmall, color: Colors.textSecondary },
+  scrollContent: { gap: Spacing.sm, paddingVertical: Spacing.xs, alignItems: 'stretch' },
+  card: { padding: Spacing.md, borderWidth: 1, borderColor: Colors.borderLight,
+    borderRadius: BorderRadius.lg, backgroundColor: Colors.surface },
+  cardShadowed: { borderColor: Colors.warning },
+  cardSelected: { borderColor: Colors.primary, backgroundColor: Colors.primarySoft },
+  cardPressed: { opacity: 0.75 },
+  header: { flexDirection: 'row', alignItems: 'flex-start', gap: Spacing.sm },
+  period: { ...Typography.labelMedium, color: Colors.textPrimary, fontFamily: FontFamily.semiBold, flex: 1 },
+  badge: { alignSelf: 'flex-start', marginTop: Spacing.sm, borderRadius: BorderRadius.sm,
+    paddingHorizontal: Spacing.sm, paddingVertical: 3, backgroundColor: Colors.surfaceLight },
+  badgeText: { ...Typography.labelSmall, color: Colors.textSecondary },
+  summary: { paddingVertical: Spacing.md, gap: 4 },
+  label: { ...Typography.labelSmall, color: Colors.textSecondary, flexShrink: 1 },
+  amount: { ...Typography.amountSmall, fontSize: 24, color: Colors.textPrimary },
+  details: { marginTop: 'auto', borderTopWidth: 1, borderTopColor: Colors.border, paddingTop: Spacing.sm, gap: Spacing.sm },
+  row: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'baseline', justifyContent: 'space-between', gap: 4 },
+  value: { ...Typography.labelMedium, color: Colors.textPrimary, fontFamily: FontFamily.medium },
+  track: { height: 3, backgroundColor: Colors.border, borderRadius: 2, overflow: 'hidden' },
+  fill: { height: '100%', borderRadius: 2 },
 });

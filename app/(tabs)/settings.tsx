@@ -148,14 +148,16 @@ const getStyles = () => StyleSheet.create({
   },
   header: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: ScreenPadding.horizontal,
     paddingVertical: Spacing.lg,
   },
   title: {
     ...Typography.headlineLarge,
-    color: Colors.textPrimary,
+    fontFamily: FontFamily.extraBold,
+    color: Colors.primary,
+    textAlign: 'center',
   },
   content: {
     paddingHorizontal: ScreenPadding.horizontal,

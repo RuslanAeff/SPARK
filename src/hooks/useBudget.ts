@@ -105,8 +105,9 @@ export function useBudget(specificMonth?: string) {
       // eski satırın tarih sınırları yeni döneme taşınmaz.
       let activeBudget = exactBudget;
       if (!activeBudget) {
-        // Bu döngü için bütçe yoksa en son aktif bütçeyi şablon olarak kullan (daha iyi UX).
-        activeBudget = await BudgetDao.getLatestActive();
+        // Varsayılan plan yalnız geçmişten ileri taşınır; gelecekte kaydedilmiş
+        // bir satır geçmiş dönemin bütçesi gibi geriye uygulanamaz.
+        activeBudget = await BudgetDao.getLatestAtOrBefore(cycle.start);
       }
 
       const budgetAmount = activeBudget ? activeBudget.monthly_amount : 0;

@@ -2,23 +2,23 @@
 import { getDatabase } from './database';
 import { Budget } from './schema';
 import {
-  getCycleForKey,
   getCycleForYmd,
   normalizeCycleStartDay,
 } from '../utils/budgetCycle';
+import { previewBudgetCycleTransition } from '../utils/budgetCycleTransition';
+import { sanitizeAmount, sanitizeDate } from '../utils/inputValidation';
 
 function parseYmd(value: string): [number, number, number] {
   const [year, month, day] = value.split('-').map(Number);
   return [year, month, day];
 }
 
-function previousYmd(value: string): string {
-  const [year, month, day] = parseYmd(value);
-  const utc = new Date(Date.UTC(year, month - 1, day - 1));
-  return `${utc.getUTCFullYear()}-${String(utc.getUTCMonth() + 1).padStart(2, '0')}-${String(utc.getUTCDate()).padStart(2, '0')}`;
-}
-
 export const BudgetDao = {
+  async getById(id: number): Promise<Budget | null> {
+    const db = await getDatabase();
+    return db.getFirstAsync<Budget>('SELECT * FROM budgets WHERE id = ? AND active = 1', [id]);
+  },
+
   // Get active budget for a specific month (format: 'YYYY-MM')
   async getForMonth(month: string): Promise<Budget | null> {
     const db = await getDatabase();
@@ -54,6 +54,16 @@ export const BudgetDao = {
     );
   },
 
+  async getLatestAtOrBefore(date: string): Promise<Budget | null> {
+    const db = await getDatabase();
+    return db.getFirstAsync<Budget>(
+      `SELECT * FROM budgets WHERE active = 1
+       AND COALESCE(period_start, start_date || '-01') <= ?
+       ORDER BY COALESCE(period_start, start_date || '-01') DESC, id DESC LIMIT 1`,
+      [date],
+    );
+  },
+
   /**
    * ADR-008 değişmezinin TEK yazma giriş noktası: hedef dönemle kesişen bütün
    * aktif satırlar aynı transaction içinde pasife çekilir, ardından yeni kayıt
@@ -70,28 +80,35 @@ export const BudgetDao = {
     periodEnd: string;
     cycleStartDay: number;
   }): Promise<number> {
+    const safeAmount = sanitizeAmount(input.amount, -1);
+    const periodStart = sanitizeDate(input.periodStart);
+    const periodEnd = sanitizeDate(input.periodEnd);
+    const safeCurrency = String(input.currency ?? '').trim().toUpperCase();
+    if (safeAmount <= 0 || safeAmount !== input.amount) throw new Error('budget_invalid_amount');
+    if (!periodStart || !periodEnd || periodStart > periodEnd) throw new Error('budget_repair_invalid_dates');
+    if (!/^[A-Z]{3}$/.test(safeCurrency)) throw new Error('budget_invalid_currency');
     const db = await getDatabase();
     const snapshotDay = normalizeCycleStartDay(input.cycleStartDay);
     let insertedId = 0;
     await db.withTransactionAsync(async () => {
-      await assertRolloverPeriodEditable(db, input.periodStart, input.periodEnd, input.currency);
+      await assertRolloverPeriodEditable(db, periodStart, periodEnd, safeCurrency);
       await db.runAsync(
         `UPDATE budgets SET active = 0
           WHERE active = 1
             AND period_start IS NOT NULL AND period_end IS NOT NULL
             AND period_start <= ? AND period_end >= ?`,
-        [input.periodEnd, input.periodStart],
+        [periodEnd, periodStart],
       );
       const result = await db.runAsync(
         `INSERT INTO budgets
           (monthly_amount, currency, start_date, period_start, period_end, cycle_start_day, active)
          VALUES (?, ?, ?, ?, ?, ?, 1)`,
         [
-          input.amount,
-          input.currency,
-          input.periodStart.slice(0, 7),
-          input.periodStart,
-          input.periodEnd,
+          safeAmount,
+          safeCurrency,
+          periodStart.slice(0, 7),
+          periodStart,
+          periodEnd,
           snapshotDay,
         ],
       );
@@ -118,95 +135,148 @@ export const BudgetDao = {
     return changes;
   },
 
-  // Set budget for a specific month
-  async setMonthlyBudget(
-    amount: number,
-    month: string,
-    currency: string = 'PLN',
-    cycleStartDay: number = 1,
-  ): Promise<number> {
-    const previous = await BudgetDao.getForMonth(month);
-    // Dondurulmuş sınırlar korunur: geçmiş bir dönem, bugünkü global döngü
-    // gününe göre yeniden yorumlanmaz (ADR-008).
-    const fallback = getCycleForKey(cycleStartDay, month);
-    return BudgetDao.setBudgetForPeriod({
-      amount,
-      currency,
-      periodStart: previous?.period_start ?? fallback.start,
-      periodEnd: previous?.period_end ?? fallback.end,
-      cycleStartDay: previous?.cycle_start_day ?? cycleStartDay,
-    });
-  },
-
-  /**
-   * Döngü günü değişikliğini bugün yürürlüğe alır: eski açık dönem dün kapanır,
-   * yeni dönem bugün başlar. Geçmiş dönemlerin sınırlarına dokunulmaz.
-   */
-  async transitionAndSetBudget(input: {
-    amount: number;
-    currency: string;
-    previousStartDay: number;
-    nextStartDay: number;
-    effectiveDate: string;
-  }): Promise<number> {
-    const db = await getDatabase();
-    const nextStartDay = normalizeCycleStartDay(input.nextStartDay);
-    const [year, month, day] = parseYmd(input.effectiveDate);
-    const naturalNextCycle = getCycleForYmd(nextStartDay, year, month - 1, day);
-    const periodStart = input.effectiveDate;
-    const periodEnd = naturalNextCycle.end;
-    const monthKey = periodStart.slice(0, 7);
-    let insertedId = 0;
-
-    await db.withTransactionAsync(async () => {
-      await assertRolloverPeriodEditable(db, periodStart, periodEnd, input.currency);
-      const current = await db.getFirstAsync<Budget>(
-        `SELECT * FROM budgets
-         WHERE active = 1 AND period_start <= ? AND period_end >= ?
-         ORDER BY period_start DESC, id DESC LIMIT 1`,
-        [periodStart, periodStart],
-      );
-      if (current?.period_start && current.period_start < periodStart) {
-        // Geçmiş korunur: eski dönem dün kapanır, sınırları silinmez.
-        await db.runAsync('UPDATE budgets SET period_end = ? WHERE id = ?', [
-          previousYmd(periodStart),
-          current.id,
-        ]);
-      } else if (current?.period_start === periodStart) {
-        await db.runAsync('UPDATE budgets SET active = 0 WHERE id = ?', [current.id]);
-      }
-
-      // Kısaltmadan sonra kalan her kesişim de kapatılır. Yalnız `period_start`
-      // birebir eşleşenleri kapatmak yetmiyordu: farklı başlayıp üst üste binen
-      // satırlar aktif kalıp aynı günü iki bütçenin kapsamasına yol açıyordu.
-      await db.runAsync(
-        `UPDATE budgets SET active = 0
-          WHERE active = 1
-            AND period_start IS NOT NULL AND period_end IS NOT NULL
-            AND period_start <= ? AND period_end >= ?`,
-        [periodEnd, periodStart],
-      );
-      const result = await db.runAsync(
-        `INSERT INTO budgets
-          (monthly_amount, currency, start_date, period_start, period_end, cycle_start_day, active)
-         VALUES (?, ?, ?, ?, ?, ?, 1)`,
-        [input.amount, input.currency, monthKey, periodStart, periodEnd, nextStartDay],
-      );
-      insertedId = Number(result.lastInsertRowId);
-      await db.runAsync('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)', [
-        'budget_cycle_start_day',
-        String(nextStartDay),
-      ]);
-    });
-    return insertedId;
-  },
-
   // Get all months that have a budget set (for history view)
   async getAllBudgets(): Promise<Budget[]> {
     const db = await getDatabase();
     return db.getAllAsync<Budget>(
       'SELECT * FROM budgets WHERE active = 1 ORDER BY COALESCE(period_start, start_date) DESC, id DESC'
     );
+  },
+
+  /** Amount-only correction. Exact frozen bounds, currency and rollover links survive. */
+  async updateBudgetAmount(id: number, amount: number): Promise<number> {
+    const safeAmount = sanitizeAmount(amount, -1);
+    if (safeAmount <= 0 || safeAmount !== amount) throw new Error('budget_invalid_amount');
+    const db = await getDatabase();
+    const result = await db.runAsync(
+      'UPDATE budgets SET monthly_amount = ? WHERE id = ? AND active = 1',
+      [safeAmount, id],
+    );
+    if (!result.changes) throw new Error('budget_period_not_found');
+    return Number(result.changes);
+  },
+
+  /**
+   * Explicit historical repair. Unlike normal save, this never deactivates a
+   * neighbouring row: overlap and rollover dependencies must be resolved by
+   * the user first.
+   */
+  async repairBudgetPeriod(id: number, nextStartRaw: string, nextEndRaw: string): Promise<number> {
+    const nextStart = sanitizeDate(nextStartRaw);
+    const nextEnd = sanitizeDate(nextEndRaw);
+    if (!nextStart || !nextEnd || nextStart > nextEnd) throw new Error('budget_repair_invalid_dates');
+    const db = await getDatabase();
+    let changes = 0;
+    await db.withTransactionAsync(async () => {
+      const current = await db.getFirstAsync<Budget>(
+        'SELECT * FROM budgets WHERE id = ? AND active = 1',
+        [id],
+      );
+      if (!current?.period_start || !current.period_end) throw new Error('budget_period_not_found');
+      if (current.period_start === nextStart && current.period_end === nextEnd) return;
+      const linked = await db.getFirstAsync<{ uid: string }>(
+        `SELECT uid FROM budget_rollovers
+         WHERE (source_start = ? AND source_end = ?)
+            OR (target_start = ? AND target_end = ?) LIMIT 1`,
+        [current.period_start, current.period_end, current.period_start, current.period_end],
+      );
+      if (linked?.uid) throw new Error('rollover_period_locked');
+      const overlap = await db.getFirstAsync<{ id: number }>(
+        `SELECT id FROM budgets
+         WHERE active = 1 AND id != ?
+           AND period_start IS NOT NULL AND period_end IS NOT NULL
+           AND period_start <= ? AND period_end >= ? LIMIT 1`,
+        [id, nextEnd, nextStart],
+      );
+      if (overlap?.id) throw new Error('budget_repair_overlap');
+      const result = await db.runAsync(
+        `UPDATE budgets
+         SET start_date = ?, period_start = ?, period_end = ?, cycle_start_day = ?
+         WHERE id = ? AND active = 1`,
+        [nextStart.slice(0, 7), nextStart, nextEnd, Number(nextStart.slice(8, 10)), id],
+      );
+      changes = Number(result.changes ?? 0);
+    });
+    return changes;
+  },
+
+  /**
+   * Changes the recurring anchor after the current period. The current period
+   * is preserved; an explicit short bridge is inserted when the new anchor
+   * does not begin on the following day.
+   */
+  async applyCycleStartDayChange(nextStartDayRaw: number, effectiveDate: string): Promise<{
+    bridgeId: number | null;
+  }> {
+    const effective = sanitizeDate(effectiveDate);
+    if (!effective) throw new Error('budget_repair_invalid_dates');
+    const nextStartDay = normalizeCycleStartDay(nextStartDayRaw);
+    const db = await getDatabase();
+    let bridgeId: number | null = null;
+    await db.withTransactionAsync(async () => {
+      const setting = await db.getFirstAsync<{ value: string }>(
+        'SELECT value FROM settings WHERE key = ?',
+        ['budget_cycle_start_day'],
+      );
+      const previousStartDay = normalizeCycleStartDay(setting?.value ?? 1);
+      if (previousStartDay === nextStartDay) return;
+      const exact = await db.getFirstAsync<Budget>(
+        `SELECT * FROM budgets WHERE active = 1 AND period_start <= ? AND period_end >= ?
+         ORDER BY id DESC LIMIT 1`,
+        [effective, effective],
+      );
+      const fallback = exact ?? await db.getFirstAsync<Budget>(
+        'SELECT * FROM budgets WHERE active = 1 AND period_start <= ? ORDER BY period_start DESC, id DESC LIMIT 1',
+        [effective],
+      );
+      if (!fallback) throw new Error('budget_cycle_requires_budget');
+      const [year, month, day] = parseYmd(effective);
+      const computed = getCycleForYmd(previousStartDay, year, month - 1, day);
+      const currentStart = exact?.period_start ?? computed.start;
+      const currentEnd = exact?.period_end ?? computed.end;
+      const preview = previewBudgetCycleTransition(currentStart!, currentEnd!, nextStartDay);
+
+      // The previous plan may have been inherited without an exact row. Freeze
+      // it now so changing the global anchor cannot reinterpret today's period.
+      if (!exact) {
+        await db.runAsync(
+          `INSERT INTO budgets
+            (monthly_amount, currency, start_date, period_start, period_end, cycle_start_day, active)
+           VALUES (?, ?, ?, ?, ?, ?, 1)`,
+          [fallback.monthly_amount, fallback.currency, computed.start.slice(0, 7),
+            computed.start, computed.end, previousStartDay],
+        );
+      }
+
+      if (preview.bridge) {
+        await assertRolloverPeriodEditable(
+          db,
+          preview.bridge.start,
+          preview.bridge.end,
+          fallback.currency,
+        );
+        const overlap = await db.getFirstAsync<{ id: number }>(
+          `SELECT id FROM budgets WHERE active = 1
+             AND period_start IS NOT NULL AND period_end IS NOT NULL
+             AND period_start <= ? AND period_end >= ? LIMIT 1`,
+          [preview.bridge.end, preview.bridge.start],
+        );
+        if (overlap?.id) throw new Error('budget_cycle_future_conflict');
+        const inserted = await db.runAsync(
+          `INSERT INTO budgets
+            (monthly_amount, currency, start_date, period_start, period_end, cycle_start_day, active)
+           VALUES (?, ?, ?, ?, ?, ?, 1)`,
+          [fallback.monthly_amount, fallback.currency, preview.bridge.start.slice(0, 7),
+            preview.bridge.start, preview.bridge.end, nextStartDay],
+        );
+        bridgeId = Number(inserted.lastInsertRowId);
+      }
+      await db.runAsync('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)', [
+        'budget_cycle_start_day',
+        String(nextStartDay),
+      ]);
+    });
+    return { bridgeId };
   },
 };
 

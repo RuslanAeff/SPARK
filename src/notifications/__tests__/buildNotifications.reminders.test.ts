@@ -33,6 +33,7 @@ jest.mock('../../db/budgetDao', () => ({
     getForMonth: jest.fn(async () => null),
     getContainingDate: jest.fn(async () => null),
     getLatestActive: jest.fn(async () => null),
+    getLatestAtOrBefore: jest.fn(async () => null),
   },
 }));
 jest.mock('../../db/expenseDao', () => ({

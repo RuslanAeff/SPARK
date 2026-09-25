@@ -1,5 +1,14 @@
 # SPARK Yapay Zekâ İşbirliği Kaydı
 
+## 25 Eylül 2026 — Bütçe sistemi incelemesi ve güvenli yeniden düzenleme
+
+- **İnsan kararı:** Ürün sahibi mevcut sistemde geçmiş bütçeyi düzeltmenin zor olduğunu, başlangıç günü değişimlerinin beklenmedik tarihler doğurabildiğini ve uzun aradan sonra sistemin kolay onarılamadığını belirtti. AI'nın önce kodu inceleyip plan çıkarmasını, ardından önerilen planı uygulamasını onayladı.
+- **AI analizi:** Beş dönem sınırı, ay anahtarının exact kimliği kaybetmesi, takvim+tutarın aynı eylem olması, global çıpadan yanlış tarih etiketi, sessiz fallback ve stale load riski koddan çıkarıldı. Cihaz verisinin gerçekten bozuk olduğu iddia edilmedi.
+- **AI uygulaması:** Exact kimlikle amount-only düzenleme; sınırsız kayıtlı geçmiş seçimi; ileri yönlü ve görünür varsayılan plan; ayrı takvim önizlemesi/onayı; mevcut dönemi koruyan bridge hesabı; kontrollü tarih onarımı; salt okunur sağlık taraması; dört dil ve tüketici fallback uzlaştırması.
+- **İnsan/AI sınırı:** “Değiştirene kadar önceki plan devam eder”, mevcut dönemin geriye dönük kısaltılmaması ve onarımın otomatik veri değiştirmemesi AI önerisiydi; kullanıcı bütün planın uygulanmasını açıkça kabul etti. Uygulama gerçek cihaz verisini okumadı ve kullanıcı adına silme/backup/commit/push yapmadı.
+- **Kanıt/sınır:** Locale üretimi/paritesi ve typecheck başarılı; gerçek bellek-içi SQLite testleri dahil tam Jest 146 suite / 1.158 test başarılıdır. Cihaz UX'i, gerçek Expo SQLite yaşam döngüsü ve kullanıcı kabulü açık kalır.
+
+
 ## 24 Eylül 2026 — Fiş tarama hata ekranının yeniden tasarımı
 
 - **İnsan kararı:** Kullanıcı mevcut ekran görüntüsünü verip daha profesyonel ve elit bir tasarım istedi.
@@ -1538,3 +1547,99 @@ Yayın hazırlığı denetiminde kullanılan iki modelli yöntem için
   `map-{az,ru}-101.json`, tarama ekranı ve testi, 16:25–16:26); üzerine yazılmadı,
   kaynak kontrolünden sonra birlikte derlendi. Doğrulama: tam 142 suite /
   1.146 test, typecheck ve `git diff --check` temiz. Cihazda doğrulanmadı.
+
+
+## 25 Eylül 2026 — Bütçe kontrollerinin görsel sadeleştirilmesi
+
+**İnsan kararı:** Devir alanını isteğe bağlı animasyonlu açılışa dönüştürmek;
+“Devri geri al” düğmesini belirginleştirmek; Dashboard devir tutarını ve karanlık
+tema görünürlüğünü düzeltmek; dönem onarımını daha uygun konumlandırmak.
+**AI uygulama tercihi:** Kapalı özet satırı, ölçülen yükseklikli ortak Reanimated
+bileşeni, kapalıyken de inceleme uyarısı, çerçeveli geri alma düğmesi, ilerleme
+çubuğu altında temaya duyarlı devir yüzeyi, tutar eylemleri yanında dönem onarımı.
+Finansal kurallar korunmuştur. Ayrıntılar `TRACEABILITY.md` aynı tarihli kayıttadır.
+**Doğrulama:** TypeScript ve tam Jest (147 suite / 1.161 test) geçti. Gerçek cihaz
+animasyonu, görsel kabul ve erişilebilirlik henüz doğrulanmadı; sonraki oturum
+bu kabul kontrollerinden devam etmeli. Commit/push yapılmadı.
+
+
+## 25 Eylül 2026 — Geçmiş bütçe kartlarının sadeleştirilmesi
+
+**İnsan geri bildirimi:** Kullanıcı önceki kompakt devir, geri alma düğmesi,
+Dashboard devir görünümü ve tarih düzeltme yerleşimini kabul etti. Bu, kullanıcı
+kabulüdür; test cihazı/OS bilgisi verilmediğinden fiziksel cihaz testinin yerine
+geçmez. Yeni talep: geçmiş bütçeleri daha sade, belirgin sınırlı kartlarla sunmak.
+**AI uygulaması:** `BudgetHistoryCard.tsx` içinde tam çerçeve, kartlar arası boşluk,
+seçim simgesi, yıl dahil kesin dönem tarihleri, ana kalan/aşım tutarı ve etiketli
+plan/harcama satırları. Kartlar kullanılabilir genişlik ve yazı ölçeğine uyarlanır.
+Finansal hesaplar ve exact bütçe kimliğiyle seçim korunmuştur.
+**Kanıt:** TypeScript geçti; geçmiş kartı testi seçili kimliği, kısa dönemlerin
+kesin sınırlarını ve tutar etiketlerini kapsar. Fiziksel cihazda yatay kaydırma,
+büyük yazı, dar ekran, tema kontrastı ve yeni tasarımın kullanıcı kabulü açıktır.
+
+**Son doğrulama:** Tam Jest 147 suite / 1.161 test geçti; `git diff --check` temiz.
+
+## 25 Eylül 2026 — Cam göstergenin dikey genişliği
+
+**İnsan kararı:** Sevilen cam efektinin üst ve alt boşlukları biraz azaltılacak,
+ancak ana seçim paneliyle arasında görünür mesafe kalacak.
+**AI uygulaması:** Gösterge yüksekliği `target.height - 6`, dikey konumu `+3`
+olarak ayarlandı; yatay iç pay korunuyor.
+
+## 25 Eylül 2026 — Analiz sekmelerinde glassmorphism seçimi
+
+**İnsan kararı:** Haftalık/aylık/yıllık seçim alanı kayan, vurgu rengini taşıyan
+cam yüzey gibi görünmelidir.
+**AI uygulaması:** Mevcut `GlassSelectionIndicator` ölçüm ve Reanimated hareketi
+ile analiz zaman paneline bağlandı; seçili tab arka planı kaldırıldı.
+
+## 25 Eylül 2026 — Başlıkların görsel ağırlığı
+
+**İnsan kararı:** Önceki merkez hizalamaya ek olarak ana başlıklar daha kalın ve
+aktif vurgu rengiyle gösterilecek.
+**AI uygulaması:** Dört ana sekme başlığı `extraBold` ve tema `primary` rengine
+geçirildi; Dashboard ve içerik hiyerarşisi korunmuştur.
+
+## 25 Eylül 2026 — Ana sekme başlıkları
+
+**İnsan kararı:** Dashboard değişmeden kalacak; diğer dört ana ekranın başlıkları
+aynı büyüklükte ve tam merkezde olacak. Tarayıcı içeriği de dikey merkez çizgisini
+izleyecek.
+**AI uygulaması:** Ortak başlık ölçüsü, merkezlenmiş scanner idle yüzeyi ve
+başlık merkezini bozmayan analytics eylem konumu uygulandı.
+
+## 25 Eylül 2026 — Hedef/limit satırı aralığı
+
+**İnsan kararı:** Hedef ve Limitleri Düzenle satırının altındaki boşluk diğer
+navigasyon satırlarıyla eşitlenecek; önceki değişiklikler kabul edildi.
+**AI uygulaması:** Yalnız goal bölümünün alt padding'i kaldırıldı; satır, tema ve
+diğer tasarım token'ları değişmeden bırakıldı.
+
+## 25 Eylül 2026 — Takvim düğmesi ve ayırıcı çizgiler
+
+**İnsan kararı:** Takvim bilgi düğmesi aylık bütçe düğmesiyle aynı hizada olacak;
+ayırıcı çizgiler daha görünür yapılacak; deprecation uyarısı tekrar araştırılacak.
+**AI uygulaması:** Ortak başlık esnekliği kullanıldı, divider opaklığı yüzde 30
+artırıldı ve runtime kaynaklarında nesne biçimli yönlendirme tarandı.
+**Doğrulama:** Tam otomatik testler geçti. Cihaz logu doğrulaması açık kaldı.
+
+## 25 Eylül 2026 — Takvim bilgisi, kur örnekleri ve runtime uyarıları
+
+**İnsan kararı:** Bütçe takvimi açıklaması ekrandan kaldırılıp sağ üst bilgi
+düğmesine taşınacak; örnek kurlar Türkçe için AZN/TRY, İngilizce için USD/EUR,
+Azerbaycanca için AZN/PLN olacak. Görülen iki uyarı incelenecek.
+**AI uygulaması:** `settings-budget` takvim başlığına bilgi düğmesi ve ayrı modal
+eklendi. Navigasyon parametreleri URL query biçimine taşındı; desteklenmeyen
+Material Community ikon adı düzeltildi. Finansal veri modeli değiştirilmedi.
+**Doğrulama:** Locale üretimi, typecheck ve tam Jest geçti. Cihaz logu ile son
+uyarı yokluğu henüz doğrulanmadı.
+
+## 25 Eylül 2026 — Dönem onarımına takvim seçici
+
+**İnsan kararı:** Klavye girişi kalacak; başlangıç ve bitiş alanlarında takvim
+seçimi olacak. Eski bütçe dönemlerinin kullandığı günler seçilemez ve kullanıcıya
+hangi nedenle kapalı oldukları gösterilecek.
+**AI uygulaması:** Ortak tarih seçiciye pasif tarih aralıkları eklendi. Seçili
+dönemin kendi aralığı düzenlenebilir bırakıldı; diğer aktif bütçeler görsel kilit
+ve erişilebilirlik açıklaması olarak işlendi. DAO'nun kesin çakışma kontrolü
+korundu.

@@ -81,6 +81,29 @@ Temel ihtiyaçlar:
 
 ## 5. Kritik kullanıcı akışları
 
+**Bütçe tutarı ve bütçe takvimi ayrı kararlardır.** Kullanıcı seçili dönemin
+tutarını kaydederken başlangıç gününü yanlışlıkla değiştiremez. Kayıtlı bütün
+geçmiş dönemler, yaşı ne olursa olsun kendi kesin kimliği ve tarihleriyle
+seçilebilir; aynı ayda başlayan iki geçiş dönemi birbirinin yerine açılamaz.
+Tutar düzeltmesi tarihleri, para birimini ve devir bağlantılarını korur.
+
+Bir döneme özel kayıt yoksa önceki plan ileri doğru varsayılan olarak devam
+eder; uygulama bunu gizlemez ve kullanıcıya “önceki plandan devam ediyor” diye
+gösterir. Gelecekte kaydedilmiş bir plan geçmiş döneme geriye uygulanmaz.
+Kullanıcı kaydederse o dönem için kesin bir override oluşur.
+
+Başlangıç günü değişikliği ayrı **Bütçe takvimi** bölümündedir. Kaydetmeden önce
+devam eden dönem, gerekiyorsa kısa geçiş dönemi ve yeni düzende ilk normal dönem
+gösterilir. Devam eden dönem geriye dönük kısaltılmaz. Örneğin 23 Temmuz–22
+Ağustos sürerken yeni başlangıç günü 21 seçilirse bu dönem korunur, 23
+Ağustos–20 Eylül geçiş dönemi olur ve normal 21 Eylül–20 Ekim düzeni başlar.
+
+Yanlış tarihli kayıtlar için normal tutar alanından ayrı, açık onaylı bir dönem
+onarımı vardır. Yeni tarihler başka aktif dönemle çakışamaz; devre bağlı tarih
+önce ilgili devir geri alınmadan değiştirilemez. İsteğe bağlı sağlık kontrolü
+geçersiz tarihleri, çakışmaları ve kaynağı/hedefi eksik devirleri salt okunur
+olarak tarar; sorun bulunması kendiliğinden veri silmez veya tarih değiştirmez.
+
 **Fiş tarama başarısızlığı** ince çerçeveli, nötr bir kurtarma kartında gösterilir.
 Küçük fiş/anahtar simgesi ve bağlam etiketi, açıklayıcı başlık ve hata nedeni
 ayrı hiyerarşidedir. Kırmızı genel “Hata” başlığı yerine “Tarama tamamlanamadı”
@@ -90,8 +113,10 @@ yerleşir. Tekrar deneme mevcut kaynak seçimine döner; kendiliğinden API iste
 göndermez. API anahtarı yokken de manuel giriş görünür. Kart açık/koyu tema ve
 vurgu paletini izler; metin ve düğmeler sabit yüksekliğe sıkıştırılmaz.
 
-**Bütçe devri** akışı Ayarlar → Bütçe sayfasındadır. Kart önce dönemin
-tablosunu gösterir: planlanan bütçe, önceki dönemden devreden, devir öncesi dönem
+**Bütçe devri** akışı Ayarlar → Bütçe sayfasındadır. Bölüm varsayılan olarak
+kompakt, simgeli bir özet satırıdır; dokununca ölçülen içerik yüksekliğiyle
+açılır/kapanır ve sistemin azaltılmış hareket tercihini izler. İnceleme uyarısı
+kapalıyken de görünür. Açılan içerik dönemin tablosunu gösterir: planlanan bütçe, önceki dönemden devreden, devir öncesi dönem
 kalanı, sonraki döneme devredilen ve devredilmeden kalan. Böylece "şu kadar
 harcadım" ile "şu kadarını taşıdım" birbirine karışmaz.
 
@@ -100,7 +125,7 @@ aktarım alanı açılır. Öneri, kaynak dönemin henüz devredilmemiş kalanı
 kullanıcı azaltabilir. Kaydetmek devir toplamını değiştirir, üzerine eklemez ve
 kart bunu açıkça yazar; yeni bütçeye bu para zaten elle eklendiyse tekrar
 aktarmama uyarısı görünür. Mevcut bir devir satır olarak listelenir ve onay
-penceresiyle geri alınabilir; geri alma harcamaları silmez, tutarı kaynak dönemde
+penceresiyle, simgeli ve çerçeveli bir geri alma düğmesinden geri alınabilir; geri alma harcamaları silmez, tutarı kaynak dönemde
 yeniden devredilmemiş hâle getirir.
 
 Kaynak dönem sonradan değişirse (unutulmuş harcama eklenir veya bütçe düşürülür)
@@ -108,6 +133,13 @@ uygulama hiçbir tutarı sessizce değiştirmez: hem aktarım kartında hem Dash
 bütçe kartında gözden geçirme uyarısı çıkar ve düzeltmeyi kullanıcı yapar.
 Devre bağlı bir dönem silinmeye veya tarihi/para birimi değiştirilmeye
 çalışıldığında ekran, önce ilgili devrin geri alınması gerektiğini söyler.
+
+Dashboard devir bilgisi, bütçe ilerleme çubuğunun altında ayrı, yumuşak bir
+yüzeyde gösterilir; açıklama ve tutar esnek yerleşir, tutar açık/koyu tema metin
+rengini izler. Dönem tarihlerini düzeltme alanı seçili dönemin tutar eylemlerinin
+hemen ardından, tarih aralığı yazan kapalı bir kontrol olarak yer alır; ayrıntılar
+aynı ölçülen yükseklik animasyonuyla açılır. Kapalı alanlar dokunma ve ekran
+okuyucu erişiminden çıkarılır.
 
 **Ana Kategoriler** kartında seçilen kategorinin alt kırılımı, kartın ölçülen
 içerik yüksekliğine yumuşakça genişlemesiyle açılır. Satırlar tek tek gecikmeli
@@ -726,6 +758,15 @@ Bu alanlardan biri kapsama alınırsa veri modeli, güvenlik, gizlilik, mimari v
 
 README İngilizce tutulabilir; iç teknik belgelerin kanonik dili Türkçedir. Kod sembolleri, komutlar ve resmi teknoloji adları çevrilmez.
 
+### Ana sekme başlıkları
+
+Dashboard başlığı mevcut ürün düzenini korur. İşlemler, Tarayıcı, Analiz ve
+Ayarlar ekranlarının ana başlıkları aynı `headlineLarge` ölçüsünü ve gerçek yatay
+merkez hizasını kullanır. Tarayıcıda başlığın altındaki belge işareti, tarama
+başlığı ve AI açıklaması aynı dikey merkez çizgisinde durur. Analiz ekranındaki
+sağ eylem düğmesi başlığın gerçek merkezini kaydırmaz; ayrı bir konumlandırılmış
+eylem olarak kalır.
+
 ## 11. Belge bakım kuralı
 
 - Ürün kapsamı veya kullanıcıya görünen davranış değişirse bu belge güncellenir.
@@ -738,3 +779,23 @@ README İngilizce tutulabilir; iç teknik belgelerin kanonik dili Türkçedir. K
 ---
 
 Önceki birleşik tasarım/teknik rehber, profesyonel ayrıştırma öncesindeki haliyle [`docs/history/DESIGN_BRIEF_LEGACY_2026-08-01.md`](docs/history/DESIGN_BRIEF_LEGACY_2026-08-01.md) içinde birebir korunmuştur.
+
+
+### Geçmiş bütçe şeridinin görsel düzeni
+
+Dönemler aralarında boşluk bulunan, bütün kenarları çerçeveli kartlardır.
+Her kartta yıl dahil kesin tarih aralığı, öne çıkan kalan/aşım tutarı ve ayrı
+etiketli planlanan bütçe/harcama satırları bulunur. Bütçesiz dönemde yalnız
+harcama ve bütçenin tanımlı olmadığı bilgisi gösterilir. Mevcut dönem rozeti
+tarihlerin yerine geçmez; seçili dönem renk yanında onay simgesiyle ayrılır.
+Kart genişliği kullanılabilir alan ve yazı ölçeğine uyarlanır; sonraki kartın
+kenarı yatay kaydırmayı keşfetmeye yardımcı olur. Çakışma ve devir bilgisi korunur.
+
+### Dönem onarımında takvim seçimi
+
+Dönem onarımında klavye ile `YYYY-AA-GG` girişi korunur; her iki alanın yanında
+aynı tarih seçiciyi açan takvim düğmesi bulunur. Diğer kayıtlı bütçe dönemlerinin
+kapsadığı günler takvimde pasif, farklı yüzeyli ve açıklamalı görünür; seçilemez.
+Onarım yapılan dönemin kendi mevcut günleri düzenlenebilir kalır. Bu görsel kilit
+veritabanı çakışma kontrolünün yerine geçmez; yalnızca kullanıcıya erken geri
+bildirim verir.

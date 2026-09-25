@@ -145,7 +145,7 @@ describe('Scanner runtime theme', () => {
       StyleSheet.flatten(screen.getByTestId('scanner-screen').props.style).backgroundColor,
     ).toBe(DarkTheme.background);
     expect(StyleSheet.flatten(screen.getByText('scanner_title').props.style).color).toBe(
-      DarkTheme.textPrimary,
+      resolveTheme('dark', mockAccent).primary,
     );
 
     mockScheme = 'light';
@@ -155,7 +155,7 @@ describe('Scanner runtime theme', () => {
       StyleSheet.flatten(screen.getByTestId('scanner-screen').props.style).backgroundColor,
     ).toBe(LightTheme.background);
     expect(StyleSheet.flatten(screen.getByText('scanner_title').props.style).color).toBe(
-      LightTheme.textPrimary,
+      resolveTheme('light', mockAccent).primary,
     );
     expect(mockUseAppTheme).toHaveBeenCalled();
   });

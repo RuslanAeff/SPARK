@@ -16,15 +16,22 @@ export const getAnalyticsStyles = () => StyleSheet.create({
     paddingBottom: 20,
   },
   header: {
+    position: 'relative',
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingVertical: Spacing.lg,
     gap: Spacing.sm,
   },
+  headerTitleBlock: {
+    flex: 1,
+    alignItems: 'center',
+  },
   title: {
     ...Typography.headlineLarge,
-    color: Colors.textPrimary,
+    fontFamily: FontFamily.extraBold,
+    color: Colors.primary,
+    textAlign: 'center',
   },
   dateRange: {
     ...Typography.bodyMedium,
@@ -32,6 +39,7 @@ export const getAnalyticsStyles = () => StyleSheet.create({
     marginTop: 4,
   },
   tabContainer: {
+    position: 'relative',
     flexDirection: 'row',
     backgroundColor: Colors.surface,
     borderRadius: BorderRadius.round,
@@ -50,7 +58,7 @@ export const getAnalyticsStyles = () => StyleSheet.create({
     borderRadius: BorderRadius.round,
   },
   tabActive: {
-    backgroundColor: Colors.primary + '22', // translucent primary
+    // The animated glass surface is rendered by GlassSelectionIndicator.
   },
   tabText: {
     ...Typography.labelMedium,
@@ -89,6 +97,9 @@ export const getAnalyticsStyles = () => StyleSheet.create({
     fontFamily: FontFamily.medium,
   },
   editToggleBtn: {
+    position: 'absolute',
+    right: 0,
+    top: Spacing.lg,
     padding: Spacing.sm,
     backgroundColor: Colors.surfaceLight,
     borderRadius: BorderRadius.round,

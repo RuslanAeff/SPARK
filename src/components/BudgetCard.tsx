@@ -73,26 +73,6 @@ function BudgetCard({ budget }: BudgetCardProps) {
         </View>
       </View>
 
-      {(budget.carryIn ?? 0) > 0 && (
-        <View style={styles.debtImpactRow}>
-          <Text style={styles.debtImpactLabel}>{t('rollover_in')}</Text>
-          <Text style={styles.debtImpactValue}>+{formatCurrency(budget.carryIn!, currency)}</Text>
-        </View>
-      )}
-      {(budget.carryOut ?? 0) > 0 && (
-        <>
-          <View style={styles.debtImpactRow}>
-            <Text style={styles.debtImpactLabel}>{t('rollover_out')}</Text>
-            <Text style={styles.debtImpactValue}>{formatCurrency(budget.carryOut!, currency)}</Text>
-          </View>
-          <View style={styles.debtImpactRow}>
-            <Text style={styles.debtImpactLabel}>{t('rollover_unallocated')}</Text>
-            <Text style={styles.debtImpactValue}>{formatCurrency(subtractMoney(budget.remaining, budget.carryOut!), currency)}</Text>
-          </View>
-        </>
-      )}
-      {budget.rolloverNeedsReview && <Text style={[styles.debtImpactLabel, { color: Colors.warning }]}>{t('rollover_review')}</Text>}
-
       {/* Progress bar container */}
       <View style={styles.progressContainer}>
         <View style={styles.progressBar}>
@@ -104,6 +84,32 @@ function BudgetCard({ budget }: BudgetCardProps) {
           />
         </View>
       </View>
+
+      {((budget.carryIn ?? 0) > 0 || (budget.carryOut ?? 0) > 0 || budget.rolloverNeedsReview) && <View style={styles.rolloverPanel}>
+      {(budget.carryIn ?? 0) > 0 && (
+        <View style={styles.rolloverRow}>
+          <MaterialCommunityIcons name="bank-transfer" size={16} color={Colors.textSecondary} />
+          <Text style={styles.rolloverLabel}>{t('rollover_in')}</Text>
+          <Text style={styles.rolloverValue}>+{formatCurrency(budget.carryIn!, currency)}</Text>
+        </View>
+      )}
+      {(budget.carryOut ?? 0) > 0 && (
+        <>
+          <View style={styles.rolloverRow}>
+          <MaterialCommunityIcons name="bank-transfer" size={16} color={Colors.textSecondary} />
+            <Text style={styles.rolloverLabel}>{t('rollover_out')}</Text>
+            <Text style={styles.rolloverValue}>{formatCurrency(budget.carryOut!, currency)}</Text>
+          </View>
+          <View style={styles.rolloverRow}>
+          <MaterialCommunityIcons name="bank-transfer" size={16} color={Colors.textSecondary} />
+            <Text style={styles.rolloverLabel}>{t('rollover_unallocated')}</Text>
+            <Text style={styles.rolloverValue}>{formatCurrency(subtractMoney(budget.remaining, budget.carryOut!), currency)}</Text>
+          </View>
+        </>
+      )}
+      {budget.rolloverNeedsReview && <Text style={[styles.debtImpactLabel, { color: Colors.warning }]}>{t('rollover_review')}</Text>}
+
+      </View>}
 
       {/* Borç etkisi (nakit-akışı) — bu döngüde borç alındıysa +, ödendiyse −.
           effectiveBudget'in plan bütçesinden neden farklı olduğunu açıklar. */}
@@ -263,7 +269,12 @@ const getStyles = () => StyleSheet.create({
     gap: Spacing.sm,
     marginLeft: 'auto',
   },
+  rolloverPanel: { backgroundColor: Colors.surfaceLight, borderRadius: BorderRadius.md, padding: Spacing.sm, gap: Spacing.sm, marginBottom: Spacing.md },
+  rolloverRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: Spacing.sm },
+  rolloverLabel: { ...Typography.labelSmall, color: Colors.textSecondary, flexGrow: 1, flexShrink: 1, flexBasis: 120 },
+  rolloverValue: { ...Typography.labelMedium, color: Colors.textPrimary, fontFamily: FontFamily.bold, marginLeft: 'auto' },
   debtImpactValue: {
+    color: Colors.textPrimary,
     ...Typography.labelMedium,
     fontFamily: FontFamily.bold,
   },

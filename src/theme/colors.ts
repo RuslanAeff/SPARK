@@ -66,7 +66,7 @@ const DarkNeutralTheme = {
 
   border: '#2A2A2A',
   borderLight: '#3D3D3D',
-  divider: 'rgba(255, 255, 255, 0.08)',
+  divider: 'rgba(255, 255, 255, 0.105)',
   cardBorder: '#505060',
   cardSurface: '#1C1C1E',
   inputBackground: '#252528',
@@ -92,7 +92,7 @@ const LightNeutralTheme = {
 
   border: '#E5E5EA',
   borderLight: '#D1D1D6',
-  divider: 'rgba(0, 0, 0, 0.08)',
+  divider: 'rgba(0, 0, 0, 0.105)',
   cardBorder: '#D1D1D6',
   cardSurface: '#FFFFFF',
   inputBackground: '#F0F0F3',

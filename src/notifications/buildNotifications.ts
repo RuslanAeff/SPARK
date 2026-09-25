@@ -158,7 +158,7 @@ export async function runNotificationSync(
   // —— 1) Aylık bütçe %80 / %100 / aşım ——
   if (!muted(mutes, 'budget')) {
     const row = currentBudget;
-    const fallback = row ?? (await BudgetDao.getLatestActive());
+    const fallback = row ?? (await BudgetDao.getLatestAtOrBefore(start));
     const budgetAmount = await BudgetRolloverDao.effectiveAmount(fallback, start, end);
 
     if (budgetAmount > 0) {
@@ -232,7 +232,7 @@ export async function runNotificationSync(
       const days = daysToDate(goal.target_date);
       if (days > 0 && days <= 90) {
         const row = currentBudget;
-        const fallback = row ?? (await BudgetDao.getLatestActive());
+        const fallback = row ?? (await BudgetDao.getLatestAtOrBefore(start));
         const budgetAmount = await BudgetRolloverDao.effectiveAmount(fallback, start, end);
         if (budgetAmount > 0) {
           const spent = await ExpenseDao.getTotalByDateRange(start, end);
@@ -257,7 +257,7 @@ export async function runNotificationSync(
   try {
     const attentionGoal = await GoalDao.get();
     const exactBudget = await BudgetDao.getContainingDate(todayIso());
-    const fallbackBudget = exactBudget ?? await BudgetDao.getLatestActive();
+    const fallbackBudget = exactBudget ?? await BudgetDao.getLatestAtOrBefore(start);
     const attentionCycle = exactBudget?.period_start && exactBudget.period_end
       ? budgetCycleFromBounds(
           exactBudget.period_start,
@@ -518,7 +518,7 @@ export async function runNotificationSync(
           const totalPrev = await ExpenseDao.getTotalByDateRange(ps, pe);
           if (totalPrev > 0) {
             const prevBudgetRow =
-              (await BudgetDao.getForMonth(prevYm)) ?? (await BudgetDao.getLatestActive());
+              (await BudgetDao.getForMonth(prevYm)) ?? (await BudgetDao.getLatestAtOrBefore(ps));
             const budgetAmount = await BudgetRolloverDao.effectiveAmount(prevBudgetRow, ps, pe);
             const pct = budgetAmount > 0
               ? Math.min(999, Math.round((totalPrev / budgetAmount) * 100))

@@ -29,10 +29,12 @@ export default function GlassSelectionIndicator({ target }: { target?: LayoutRec
       easing: Easing.out(Easing.cubic),
       reduceMotion: ReduceMotion.System,
     };
+    // Keep a small breathing gap inside the selector while giving the glass
+    // enough vertical presence to read as a surface rather than a thin stripe.
     x.value = withTiming(target.x + 2, config);
-    y.value = withTiming(target.y + 5, config);
+    y.value = withTiming(target.y + 3, config);
     width.value = withTiming(Math.max(0, target.width - 4), config);
-    height.value = withTiming(Math.max(0, target.height - 10), config);
+    height.value = withTiming(Math.max(0, target.height - 6), config);
     initialized.current = true;
   }, [target, x, y, width, height]);
 

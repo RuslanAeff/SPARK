@@ -580,7 +580,8 @@ const getStyles = () => StyleSheet.create({
   },
   title: {
     ...Typography.headlineLarge,
-    color: Colors.textPrimary,
+    fontFamily: FontFamily.extraBold,
+    color: Colors.primary,
     flex: 1,
     textAlign: 'center',
   },

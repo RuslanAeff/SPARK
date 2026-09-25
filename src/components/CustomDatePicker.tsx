@@ -41,6 +41,8 @@ interface CustomDatePickerProps {
   initialDate: string; // YYYY-MM-DD
   onSelectDate: (date: string) => void;
   maximumDate?: string;
+  disabledDateRanges?: Array<{ start: string; end: string }>;
+  disabledDateHint?: string;
 }
 
 export default function CustomDatePicker({
@@ -49,6 +51,8 @@ export default function CustomDatePicker({
   initialDate,
   onSelectDate,
   maximumDate,
+  disabledDateRanges = [],
+  disabledDateHint,
 }: CustomDatePickerProps) {
   const { t } = useLanguage();
   const scheme = useAppTheme();
@@ -90,7 +94,7 @@ export default function CustomDatePicker({
     const m = (currentDate.getMonth() + 1).toString().padStart(2, '0');
     const d = day.toString().padStart(2, '0');
     const selected = `${y}-${m}-${d}`;
-    if (selected > maximum) return;
+    if (selected > maximum || disabledDateRanges.some(range => range.start <= selected && range.end >= selected)) return;
     onSelectDate(selected);
     onClose();
   };
@@ -101,7 +105,9 @@ export default function CustomDatePicker({
     const m = (now.getMonth() + 1).toString().padStart(2, '0');
     const d = now.getDate().toString().padStart(2, '0');
     const today = `${y}-${m}-${d}`;
-    onSelectDate(today > maximum ? maximum : today);
+    const selected = today > maximum ? maximum : today;
+    if (disabledDateRanges.some(range => range.start <= selected && range.end >= selected)) return;
+    onSelectDate(selected);
     onClose();
   };
 
@@ -228,6 +234,11 @@ export default function CustomDatePicker({
           borderColor: Colors.primary,
           backgroundColor: 'transparent',
         },
+        dayMarkDisabled: {
+          backgroundColor: Colors.surfaceLight,
+          borderWidth: 1,
+          borderColor: Colors.border,
+        },
         dayText: {
           fontSize: 15,
           lineHeight: Platform.OS === 'android' ? 18 : 17,
@@ -250,6 +261,12 @@ export default function CustomDatePicker({
         dayTextDisabled: {
           color: Colors.textMuted,
           opacity: 0.4,
+        },
+        disabledHint: {
+          ...Typography.labelSmall,
+          color: Colors.textMuted,
+          textAlign: 'center',
+          marginTop: Spacing.sm,
         },
         footer: {
           flexDirection: 'row',
@@ -400,7 +417,8 @@ export default function CustomDatePicker({
                    const selected = isSelectedDate(day);
                    const today = isToday(day);
                    const dayValue = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-                   const disabled = dayValue > maximum;
+                   const occupied = disabledDateRanges.some(range => range.start <= dayValue && range.end >= dayValue);
+                   const disabled = dayValue > maximum || occupied;
                    return (
                      <Pressable
                        key={day}
@@ -408,7 +426,7 @@ export default function CustomDatePicker({
                        disabled={disabled}
                        style={styles.dayBox}
                        accessibilityRole="button"
-                       accessibilityLabel={`${day} ${monthNames[month]} ${year}`}
+                       accessibilityLabel={`${day} ${monthNames[month]} ${year}${occupied && disabledDateHint ? `, ${disabledDateHint}` : ''}`}
                        accessibilityState={{ selected, disabled }}
                      >
                        {({ pressed }) => (
@@ -417,6 +435,7 @@ export default function CustomDatePicker({
                              styles.dayMark,
                              selected && styles.dayMarkSelected,
                              today && !selected && styles.dayMarkToday,
+                             occupied && styles.dayMarkDisabled,
                              pressed && !selected && !today && !disabled && { backgroundColor: dayHoverBg },
                              pressed && !selected && { opacity: 0.92 },
                            ]}
@@ -437,6 +456,7 @@ export default function CustomDatePicker({
                    );
                  })}
               </View>
+              {disabledDateHint ? <Text style={styles.disabledHint}>{disabledDateHint}</Text> : null}
             </>
           )}
 

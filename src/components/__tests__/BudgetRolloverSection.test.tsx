@@ -7,6 +7,21 @@ import { BudgetRolloverDao } from '../../db/budgetRolloverDao';
 import { SparkToast } from '../SparkToast';
 import type { Budget } from '../../db/schema';
 
+jest.mock('react-native-reanimated', () => {
+  const { View, Easing } = require('react-native');
+  const { useRef } = require('react');
+  return {
+    __esModule: true,
+    default: { View },
+    Easing,
+    ReduceMotion: { System: 'system' },
+    useSharedValue: (value: unknown) => useRef({ value }).current,
+    useAnimatedStyle: (callback: () => unknown) => callback(),
+    withTiming: (value: unknown) => value,
+  };
+});
+
+
 const mockTriggerRefresh = jest.fn();
 const mockSync = jest.fn(async () => undefined);
 
@@ -112,6 +127,7 @@ beforeEach(() => {
 it('kaynak dönemin devredilebilir tutarını önerir ve girilen toplamı kaydeder', async () => {
   const screen = await render(<BudgetRolloverSection budget={budget({})} />);
 
+  await fireEvent.press(screen.getByTestId('rollover-toggle'));
   await waitFor(() => expect(screen.getByTestId('rollover-amount')).toBeTruthy());
   // Öneri, kaynak dönemin henüz devredilmemiş kalanıdır; kullanıcı düşürebilir.
   expect(screen.getByTestId('rollover-amount').props.value).toBe('20.00');
@@ -126,6 +142,7 @@ it('kaynak dönemin devredilebilir tutarını önerir ve girilen toplamı kayded
 
 it('geçersiz tutarda DAO çağrılmaz; DAO alan hatası kullanıcı mesajına dönüşür', async () => {
   const screen = await render(<BudgetRolloverSection budget={budget({})} />);
+  await fireEvent.press(screen.getByTestId('rollover-toggle'));
   await waitFor(() => expect(screen.getByTestId('rollover-amount')).toBeTruthy());
 
   await act(async () => { fireEvent.changeText(screen.getByTestId('rollover-amount'), '0'); });
@@ -161,6 +178,7 @@ it('mevcut devri onay sonrası sıfırlayarak geri alır', async () => {
 
   const screen = await render(<BudgetRolloverSection budget={budget({})} />);
 
+  await fireEvent.press(screen.getByTestId('rollover-toggle'));
   await waitFor(() => expect(screen.getByTestId('rollover-reverse-u-1')).toBeTruthy());
   await act(async () => { fireEvent.press(screen.getByTestId('rollover-reverse-u-1')); });
   await act(async () => { fireEvent.press(screen.getByTestId('rollover-reverse-confirm')); });
@@ -172,6 +190,7 @@ it('mevcut devri onay sonrası sıfırlayarak geri alır', async () => {
 it('geçmiş dönemde aktarım formu açılmaz', async () => {
   const past = await render(<BudgetRolloverSection budget={budget({ id: 1, period_start: '2026-08-01', period_end: '2026-08-31' })} />);
 
+  await fireEvent.press(past.getByTestId('rollover-toggle'));
   await waitFor(() => expect(past.getByText('rollover_unavailable')).toBeTruthy());
   expect(past.queryByTestId('rollover-amount')).toBeNull();
 });
@@ -181,6 +200,21 @@ it('bitişik kaynak dönem yoksa aktarım formu açılmaz', async () => {
 
   const orphan = await render(<BudgetRolloverSection budget={budget({})} />);
 
+  await fireEvent.press(orphan.getByTestId('rollover-toggle'));
   await waitFor(() => expect(orphan.getByText('rollover_unavailable')).toBeTruthy());
   expect(orphan.queryByTestId('rollover-amount')).toBeNull();
+});
+
+ it('starts compact, hides closed controls, and retains the draft across disclosure toggles', async () => {
+  const screen = await render(<BudgetRolloverSection budget={budget({})} />);
+  expect(screen.getByTestId('rollover-toggle').props.accessibilityState.expanded).toBe(false);
+  expect(screen.queryByTestId('rollover-amount')).toBeNull();
+  await fireEvent.press(screen.getByTestId('rollover-toggle'));
+  await waitFor(() => expect(screen.getByTestId('rollover-amount')).toBeTruthy());
+  await fireEvent.changeText(screen.getByTestId('rollover-amount'), '12');
+  await fireEvent.press(screen.getByTestId('rollover-toggle'));
+  expect(screen.queryByTestId('rollover-save')).toBeNull();
+  await fireEvent.press(screen.getByTestId('rollover-toggle'));
+  expect(screen.getByTestId('rollover-amount').props.value).toBe('12');
+  expect(saveMock).not.toHaveBeenCalled();
 });

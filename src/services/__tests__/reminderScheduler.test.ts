@@ -49,6 +49,7 @@ jest.mock('../../db/budgetDao', () => ({
   BudgetDao: {
     getContainingDate: (date: string) => mockBudgetGetContainingDate(date),
     getLatestActive: () => mockBudgetGetLatestActive(),
+    getLatestAtOrBefore: () => mockBudgetGetLatestActive(),
   },
 }));
 

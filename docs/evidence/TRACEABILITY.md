@@ -1,5 +1,15 @@
 # SPARK Akademik İzlenebilirlik Kaydı
 
+## 25 Eylül 2026 — Bütçe takvimi ve geçmiş dönem onarımı
+
+- **İstek:** Ürün sahibi, geçmiş bütçelerin düzeltilememesini, başlangıç günü değişikliğinin beklenmedik dönemler üretmesini ve aylar sonra dönüldüğünde sistemin onarılamamasını bildirdi; önce kod incelemesi, ardından önerilen güvenli planın uygulanmasını istedi.
+- **Doğrulanan nedenler:** UI düzenlemeyi mevcut + dört geçmiş dönemle sınırlıyordu; geçmiş kartı exact `budget.id` yerine yalnız ay anahtarı gönderiyordu; takvim günü ve tutar tek kaydetme eylemindeydi; tarih etiketi güncel global çıpadan tekrar kuruluyordu; exact satırı olmayan dönemde Dashboard son planı sessiz kullanırken Ayarlar boş görünüyordu; ekran yüklemesinde stale-response koruması yoktu.
+- **Karar/uygulama:** Tutar exact kimlikle yalnız amount alanını günceller; bütün kayıtlı geçmiş seçilebilir. Önceki plan yalnız ileri yönde ve açık etiketle devam eder. Takvim ayrı önizleme/onay akışıdır; mevcut dönem korunur, gerekirse exact geçiş dönemi oluşturulur. Tarih onarımı çakışma ve devir bağımlılığını reddeder. İsteğe bağlı sağlık kontrolü geçersiz sınır, çakışma ve kopmuş devir raporlar; otomatik veri değiştirmez.
+- **Kod:** `app/settings-budget.tsx`; `src/components/{BudgetHistoryCard,BudgetPeriodRepairSection,BudgetHealthSection}.tsx`; `src/db/budgetDao.ts`; `src/utils/{budgetCycleTransition,budgetPeriodHealth}.ts`; budget hook, bildirim kural motoru ve native reminder scheduler ileri yönlü fallback üzerinde uzlaştırıldı; dört dil kaynağı/çıktısı güncellendi.
+- **Otomatik kanıt:** Saf geçiş/sağlık testleri, gerçek bellek-içi SQLite planlama DAO testi, exact geçmiş kartı ve bütçe ekranı regresyonları; locale üretimi/paritesi ve `npm run typecheck` başarılı; tam Jest 146 suite / 1.158 test başarılı; son `git diff --check` temiz.
+- **Açık kabul:** Fiziksel Android cihazda uzun geçmiş, aynı ayda iki exact kayıt, 23→21 ve 1→23 değişimi, virgüllü tutar, tarih klavyesi, devir geri alma→onarım, restart ve backup→restore henüz doğrulanmadı. Cihazda doğrulanmayan bulgu kapanmış sayılmaz; commit/push yapılmadı.
+
+
 ## 24 Eylül 2026 — Fiş tarama kurtarma ekranı
 
 - **İstek:** Kullanıcı, kota hatası ekran görüntüsü üzerinden daha profesyonel bir tasarım istedi.
@@ -414,3 +424,136 @@ yaz saati geçişli sıfırlama zamanı testleri, logdaki senaryonun servis test
 Jest 142 suite / 1.146 test, typecheck ve `git diff --check` temiz. Gerçek 429
 gövdesinin `quotaId` alanı cihaz logunda kesildiği için görülmedi; ayrım Google'ın
 belgelenmiş biçimine ve metin yedeğine dayanıyor. Cihazda doğrulanmadı.
+
+
+## 25 Eylül 2026 — Kompakt bütçe devri ve dönem kontrolleri
+
+- İnsan gereksinimi: devir bölümünün kapladığı alanı azaltmak, animasyonla açmak,
+  geri almayı gerçek bir düğme yapmak, Dashboard devir bilgisini koyu temada
+  okunur ve düzenli göstermek, tarih düzeltmenin konumunu iyileştirmek.
+- Kod kanıtı: `BudgetCard` içindeki devir tutarı `debtImpactValue` üzerinden
+  renk tanımı olmadan render ediliyordu. `BudgetRolloverSection` bütün formu
+  sürekli gösteriyordu. Finansal hesap veya DAO davranışı bu çalışmada değişmedi.
+- Uygulama: `BudgetDisclosure` ölçülen yükseklik, Reanimated ve sistem azaltılmış
+  hareket tercihiyle iki kontrolü açar; kapalı çocuklar touch/accessibility dışında
+  kalır. Devir inceleme uyarısı kapalı başlıkta kalır; geri alma onayı korunur.
+  `BudgetCard` devir özetini ilerleme çubuğu altına taşır ve açık metin rengi verir.
+  `settings-budget` tarih düzeltmeyi tutar eylemlerinin hemen ardına alır.
+- Otomatik kanıt: typecheck geçti; tam Jest 147 suite / 1.161 test geçti.
+  Devir formu aç/kapa, taslak koruma, onaylı geri alma ve açık/koyu tema renk
+  regresyonları kapsandı; dört dil üretimi ve diff boşluk kontrolü başarılı.
+- Cihaz kanıtı / kullanıcı kabulü: açık. Fiziksel Android'de küçük ekran/büyük
+  yazı, klavye açıkken kapanma, hızlı aç/kapa, azaltılmış hareket, ekran okuyucu,
+  tema geçişi ve tarih onarımının görsel yerleşimi henüz doğrulanmadı.
+
+
+## 25 Eylül 2026 — Geçmiş bütçe kartlarının sadeleştirilmesi
+
+**İnsan geri bildirimi:** Kullanıcı önceki kompakt devir, geri alma düğmesi,
+Dashboard devir görünümü ve tarih düzeltme yerleşimini kabul etti. Bu, kullanıcı
+kabulüdür; test cihazı/OS bilgisi verilmediğinden fiziksel cihaz testinin yerine
+geçmez. Yeni talep: geçmiş bütçeleri daha sade, belirgin sınırlı kartlarla sunmak.
+**AI uygulaması:** `BudgetHistoryCard.tsx` içinde tam çerçeve, kartlar arası boşluk,
+seçim simgesi, yıl dahil kesin dönem tarihleri, ana kalan/aşım tutarı ve etiketli
+plan/harcama satırları. Kartlar kullanılabilir genişlik ve yazı ölçeğine uyarlanır.
+Finansal hesaplar ve exact bütçe kimliğiyle seçim korunmuştur.
+**Kanıt:** TypeScript geçti; geçmiş kartı testi seçili kimliği, kısa dönemlerin
+kesin sınırlarını ve tutar etiketlerini kapsar. Fiziksel cihazda yatay kaydırma,
+büyük yazı, dar ekran, tema kontrastı ve yeni tasarımın kullanıcı kabulü açıktır.
+
+**Son doğrulama:** Tam Jest 147 suite / 1.161 test geçti; `git diff --check` temiz.
+
+## 25 Eylül 2026 — Kayan cam göstergenin dikey oranı
+
+**İnsan geri bildirimi:** Cam seçim yüzeyi yukarıdan ve aşağıdan biraz daha geniş
+olacak; ana panel sınırına yaklaşmadan nefes payı korunacak.
+**Uygulama:** `GlassSelectionIndicator` iç boşluğu üst/alt 5 pikselden 3 piksele
+indirdi; panel ile temas için yatay 2 piksellik pay ve panel padding'i korundu.
+**Kanıt:** Typecheck ve tam Jest çalıştırılmalıdır. Fiziksel cihazda açık/koyu
+tema, büyük yazı ve azaltılmış hareket görünümü ayrıca kontrol edilmelidir.
+
+## 25 Eylül 2026 — Analiz zaman seçicisinde kayan cam gösterge
+
+**İnsan gereksinimi:** Haftalık, aylık, yıllık ve özel seçimlerde seçili alan
+cam gibi yarı saydam görünmeli; seçim değişince sağa-sola akıcı biçimde hareket
+etmeli ve aktif vurgu rengini taşımalı.
+**Uygulama:** Analiz sekmelerinin gerçek ölçüleri `onLayout` ile tutuluyor.
+`GlassSelectionIndicator`, seçili sekmenin konumuna Reanimated ile hareket ediyor;
+tema vurgu rengi, cam gradyanı ve kenar parıltısında kullanılıyor. Sekme seçimi,
+metinler ve özel tarih akışı korunuyor; eski statik arka plan kaldırıldı.
+**Kanıt:** Typecheck ve analiz davranış testleri çalıştırılmalı. Fiziksel cihazda
+azaltılmış hareket, hızlı seçim değişimi, açık/koyu tema ve beş vurgu rengi ayrıca
+kontrol edilmelidir.
+
+## 25 Eylül 2026 — Ana başlıkların vurgu rengi ve ağırlığı
+
+**İnsan gereksinimi:** Önceki başlık hizalama düzenlemesine ek olarak tüm ana
+sekme başlıkları daha kalın, elit bir ağırlıkta ve uygulamanın aktif vurgu
+rengiyle görünmelidir.
+**Uygulama:** İşlemler, Tarayıcı, Analiz ve Ayarlar başlıkları `extraBold` yazı
+ailesine ve tema mağazasından gelen `primary` vurgu rengine alındı. Dashboard ve
+alt içerik metinleri değişmedi.
+**Kanıt:** Typecheck ve tam Jest çalıştırılmalıdır; vurgu paletlerinin açık/koyu
+tema üzerindeki fiziksel görünümü cihaz kabulünde ayrıca kontrol edilmelidir.
+
+## 25 Eylül 2026 — Ana sekme başlıklarının ortak hizada düzenlenmesi
+
+**İnsan gereksinimi:** Dashboard korunacak; İşlemler, Tarayıcı, Analiz ve Ayarlar
+başlıkları aynı boyut ve yatay merkezde olacak. Tarayıcı ikonu ve AI tarama
+metni başlığın altında merkezlenecek.
+**Uygulama:** İşlemler/Ayarlar/Analiz başlıkları ortak `headlineLarge` ölçüsünü
+kullanıyor. Tarayıcı başlığı da aynı ölçüye alındı; idle içerik merkezi hizaya
+geçti. Analiz düzenleme düğmesi mutlak sağ konuma alınarak başlık merkezini
+etkilemiyor. Dashboard koduna dokunulmadı.
+**Kanıt:** TypeScript ve Scanner ekranı regresyon testleri geçti; tam paket ve
+`git diff --check` teslim öncesi kontrolünde çalıştırılmalıdır. Fiziksel cihazda
+başlıkların farklı dil, büyük yazı ve dar ekran görünümü ayrıca doğrulanmalıdır.
+
+## 25 Eylül 2026 — Hedef ve limitler bölümünün alt boşluğu
+
+**İnsan geri bildirimi:** “Hedef ve Limitleri Düzenle” satırının altında diğer
+ayar satırlarına göre daha büyük bir boşluk vardı; önceki düzenlemeler kabul edildi.
+**Uygulama:** Goal ayarlarının `SettingsSection` alt padding'i kaldırıldı. Satırın
+kendi dikey aralığı korunuyor; böylece sonraki Düzenli Ödemeler satırına geçiş,
+Kategori Yönetimi ve diğer navigasyon satırlarıyla aynı ritmi kullanıyor.
+**Kanıt:** Typecheck ve testler çalıştırılacak; fiziksel cihazda açık/koyu tema
+ve büyük yazı ile görsel kabul ayrıca kontrol edilmelidir.
+
+## 25 Eylül 2026 — Takvim bilgi düğmesi hizası ve ayırıcı kontrastı
+
+**İnsan gereksinimi:** Takvim başlığındaki `i` düğmesinin aylık bütçe başlığındaki
+düğmeyle aynı sağ hizaya gelmesi; ayırıcı çizgilerin yaklaşık yüzde 30 daha
+belirgin olması; navigasyon uyarısının kalan kaynağının incelenmesi.
+**Uygulama:** Takvim başlığı da bilgi düğmesini iten ortak `sectionTitleWithInfo`
+düzenini kullanıyor. Tema ayırıcılarının opaklığı `0.08`den `0.105`e çıkarıldı.
+Kaynak kodda nesne biçimli `navigate`/router yönlendirmesi kalmadığı doğrulandı.
+**Kanıt:** Typecheck, odaklı testler ve tam Jest 147 suite / 1.161 test geçti;
+`git diff --check` temiz. Expo/React Navigation uyarısının fiziksel cihaz logunda
+tekrar edilmediği henüz doğrulanmadı.
+
+## 25 Eylül 2026 — Bütçe takvimi açıklaması ve çalışma zamanı uyarıları
+
+**İnsan gereksinimi:** Bütçe takviminin uzun açıklamasını başlık yanındaki bilgi
+düğmesine almak; örnek kur çiftlerini dile göre göstermek; navigasyon ve ikon
+uyarılarını çözmek.
+**Uygulama:** Takvim açıklaması kalıcı metin olmaktan çıkarılıp bilgi modalına
+taşındı. Türkçe `AZN/TRY`, İngilizce `USD/EUR`, Azerbaycanca `AZN/PLN`
+kullanıyor. Nesne biçimli Expo Router yönlendirmeleri URL biçimine çevrildi ve
+Material Community Icons içinde bulunmayan `shield-search-outline`, desteklenen
+`shield-outline` ile değiştirildi.
+**Kanıt:** Locale derleme, typecheck ve tam Jest 147 suite / 1.161 test geçti;
+`git diff --check` temiz. Fiziksel cihaz logunda uyarıların tekrarlanmadığı henüz
+doğrulanmadı; Android navigasyon akışları ve Bütçe sağlığı ikonu cihaz kabulünde
+kontrol edilmelidir.
+
+## 25 Eylül 2026 — Dönem onarımında takvim seçimi ve pasif günler
+
+**İnsan gereksinimi:** Klavye ile tarih girişi korunacak; işlemler ekranındaki
+takvim deneyimi dönem başlangıç/bitiş alanlarına da eklenecek. Başka eski bütçe
+dönemlerinin kullandığı günler takvimde kapalı ve açıklamalı görünecek.
+**Uygulama:** `BudgetPeriodRepairSection` iki takvim düğmesi ve ortak
+`CustomDatePicker` kullanıyor. Diğer aktif dönem aralıkları yüklenip gün bazında
+pasif yüzey/erişilebilirlik etiketi olarak gösteriliyor; seçilen bütçenin kendi
+aralığı hariç tutuluyor. Klavye girişi ve mevcut DAO çakışma/devir kilidi korunuyor.
+**Kanıt:** Locale üretimi ve typecheck kontrol edilecek; fiziksel cihazda takvim
+klavyesi, pasif günlerin kontrastı ve dokunulamaz davranışı ayrıca açık kalıyor.

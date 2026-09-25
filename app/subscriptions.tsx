@@ -131,17 +131,11 @@ export default function SubscriptionsScreen() {
   };
 
   const openDetectedPlan = (subscription: SubscriptionWithDetails) => {
-    router.push({
-      pathname: '/recurring-payment',
-      params: { detectedVendorId: String(subscription.vendor_id) },
-    });
+    router.push(`/recurring-payment?detectedVendorId=${encodeURIComponent(String(subscription.vendor_id))}`);
   };
 
   const openEditPlan = (plan: RecurringPaymentReminder) => {
-    router.push({
-      pathname: '/recurring-payment',
-      params: { id: String(plan.id) },
-    });
+    router.push(`/recurring-payment?id=${encodeURIComponent(String(plan.id))}`);
   };
 
   const togglePlan = async (plan: RecurringPaymentReminder) => {

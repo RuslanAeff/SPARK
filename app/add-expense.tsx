@@ -274,7 +274,7 @@ export default function AddExpenseScreen() {
 
   async function handleDetailedEdit() {
     if (isEditing && id) {
-      router.push({ pathname: '/edit-items', params: { id } });
+      router.push(`/edit-items?id=${encodeURIComponent(id)}`);
       return;
     }
 
@@ -308,10 +308,10 @@ export default function AddExpenseScreen() {
       
       SparkToast.show(t('draft_created'), 'info');
       // Convert current screen to 'editing' mode for the newly saved draft
-      router.replace({ pathname: '/add-expense', params: { id: newId.toString() } });
+      router.replace(`/add-expense?id=${encodeURIComponent(newId.toString())}`);
       
       navTimerRef.current = setTimeout(() => {
-        router.push({ pathname: '/edit-items', params: { id: newId.toString() } });
+        router.push(`/edit-items?id=${encodeURIComponent(newId.toString())}`);
       }, 100);
       
     } catch(e) {

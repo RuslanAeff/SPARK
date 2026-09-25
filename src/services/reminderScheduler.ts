@@ -64,7 +64,7 @@ export async function syncAndroidReminderSchedules(
   const computedCycle = getCurrentCycle(cycleStartDay, new Date(nowMs));
   const today = localYmdAt(nowMs);
   const exactBudget = await BudgetDao.getContainingDate(today);
-  const fallbackBudget = exactBudget ?? await BudgetDao.getLatestActive();
+  const fallbackBudget = exactBudget ?? await BudgetDao.getLatestAtOrBefore(computedCycle.start);
   const budgetCycle = exactBudget?.period_start && exactBudget.period_end
     ? budgetCycleFromBounds(
         exactBudget.period_start,

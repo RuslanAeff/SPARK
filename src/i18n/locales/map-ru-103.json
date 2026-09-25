@@ -1,0 +1,7 @@
+{
+  "rollover_compact_hint": "Управляйте остатком между периодами",
+  "budget_calendar_info_accessibility": "Подробнее о бюджетном календаре"
+  ,"budget_repair_start_picker": "Выбрать дату начала в календаре",
+  "budget_repair_end_picker": "Выбрать дату окончания в календаре",
+  "budget_repair_blocked_day_hint": "Этот день уже используется другим бюджетным периодом."
+}

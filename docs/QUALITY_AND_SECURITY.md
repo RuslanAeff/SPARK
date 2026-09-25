@@ -315,3 +315,34 @@ Güvenlik sınırları, kalite kapıları, native doğrulama gereksinimleri veya
   eylem gerekir. Onay, desteklenen pazar/hizmet koşulu kararının yerini tutmaz.
 
 Güncel bulgu durumları: [düzeltme kaydı](evidence/SECURITY_REMEDIATION_2026-09-16.md).
+
+## Bütçe takvimi ve geçmiş onarımı — cihaz kabulü (25 Eylül 2026)
+
+Otomatik testler exact kimlikle tutar düzeltmesini, ileri yönlü varsayılan planı,
+23→21 değişiminde korunan mevcut dönem + geçiş dönemini, çakışma/devir kilidini
+ve sağlık denetimini kapsar. Aşağıdakiler fiziksel cihaz görülmeden kapanmış
+sayılmaz:
+
+- Altı aydan eski kayıt seçimi, tutar düzeltmesi ve yeniden açılışta kalıcılık.
+- Aynı ayda başlayan iki legacy/geçiş satırından dokunulan exact kaydın açılması.
+- 23→21 ve 1→23 önizlemesinin tarihleri; mevcut dönemin değişmeden kalması.
+- Virgüllü tutar girişi, tarih alanı klavyesi, küçük ekran ve büyük yazı.
+- Devirli dönemde onarımın yönlendirici hata vermesi ve devir geri alındıktan
+  sonra onarımın çalışması.
+- Sağlık kontrolünün çakışmayı göstermesi, temiz veride başarı bildirmesi ve
+  hiçbir kaydı kendiliğinden değiştirmemesi.
+- Dashboard, geçmiş şeridi, analiz ve bütçe bildirimlerinin aynı dönem/tutarı
+  göstermesi; process restart ve backup→restore sonrasında aynı sonuç.
+
+
+Bütçe kontrollerinin kompakt görünümü için ayrıca devir/tarih alanlarında hızlı
+art arda aç-kapa, klavye açıkken kapatma, sistem azaltılmış hareket ve ekran
+okuyucunun kapalı forma erişmemesi fiziksel cihazda kontrol edilmelidir.
+Dashboard devir tutarı açık/koyu temada, büyük yazı ve dar ekranla gözlenmelidir.
+Bu görsel kabul, otomatik tema rengi testinin geçtiği anlamına indirgenmez.
+
+Dönem onarımındaki takvimde başka aktif bütçe dönemlerinin kapladığı günler
+pasif gösterilmelidir. Klavye girişi ve takvim seçimi aynı DAO doğrulamasına
+gider; takvimdeki pasif işaret yalnız UX geri bildirimidir ve çakışma korumasını
+ortadan kaldırmaz. Cihaz kabulünde kendi dönemi, komşu dönemi ve iki geçişin aynı
+aya düştüğü örnekler kontrol edilmelidir.

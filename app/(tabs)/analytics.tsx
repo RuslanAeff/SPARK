@@ -1,6 +1,6 @@
 // S.P.A.R.K. — Advanced Analytics Screen
 import React, { useCallback, useEffect, useState, useMemo, useRef } from 'react';
-import { View, Text, ScrollView, StyleSheet, Pressable, PanResponder, Animated as RNAnimated, Dimensions, RefreshControl, Platform, ActivityIndicator } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, Pressable, PanResponder, Animated as RNAnimated, Dimensions, RefreshControl, Platform, ActivityIndicator, type LayoutRectangle } from 'react-native';
 import { useAppTheme, useThemeRevision } from '../../src/theme/themeStore';
 import { useFocusEffect } from 'expo-router';
 import { useIsFocused } from '@react-navigation/native';
@@ -33,6 +33,7 @@ import {
 } from '../../src/utils/personalInflation';
 
 import AnimatedCard from '../../src/components/AnimatedCard';
+import GlassSelectionIndicator from '../../src/components/GlassSelectionIndicator';
 import CustomDatePicker from '../../src/components/CustomDatePicker';
 import { ErrorBoundary } from '../../src/components/ErrorBoundary';
 import { SparkToast } from '../../src/components/SparkToast';
@@ -270,6 +271,7 @@ export default function AnalyticsScreen() {
   // geçişlerinde yeniden oluştur.
   const styles = useMemo(() => getAnalyticsStyles(), [scheme, themeRevision]);
   const [timeframe, setTimeframe] = useState<Timeframe>('month');
+  const [timeframeLayouts, setTimeframeLayouts] = useState<Record<string, LayoutRectangle>>({});
   const { t, tc, language } = useLanguage();
   const { currency } = useCurrency();
   const { setNestedHorizontalGestureActive } = useTabSwipe();
@@ -1442,7 +1444,7 @@ export default function AnalyticsScreen() {
         >
           {/* Header */}
           <View style={styles.header}>
-            <View style={{ flex: 1 }}>
+            <View style={styles.headerTitleBlock}>
               <Text style={styles.title}>{isEditing ? t('card_management_hint') : t('analytics_title')}</Text>
               {!isEditing && (
                 <Text style={styles.dateRange}>
@@ -1468,6 +1470,7 @@ export default function AnalyticsScreen() {
           {!isEditing && (
             <>
               <Animated.View entering={FadeInDown.duration(300)} style={styles.tabContainer}>
+                <GlassSelectionIndicator target={timeframeLayouts[timeframe]} />
                 {[
                   { id: 'week', label: t('tab_weekly') },
                   { id: 'month', label: t('tab_monthly') },
@@ -1475,11 +1478,18 @@ export default function AnalyticsScreen() {
                   { id: 'custom', label: t('tab_custom'), icon: 'calendar-range' as const },
                 ].map(tab => {
                   const isActive = timeframe === tab.id;
-                  return (
+  return (
                     <Pressable
                       key={tab.id}
                       onPress={() => setTimeframe(tab.id as Timeframe)}
-                      style={[styles.tab, isActive && styles.tabActive]}
+                      onLayout={({ nativeEvent: { layout } }) => {
+                        setTimeframeLayouts(previous => {
+                          const old = previous[tab.id];
+                          if (old && old.x === layout.x && old.y === layout.y && old.width === layout.width && old.height === layout.height) return previous;
+                          return { ...previous, [tab.id]: layout };
+                        });
+                      }}
+                      style={styles.tab}
                     >
                       {tab.icon ? (
                         <MaterialCommunityIcons name={tab.icon} size={16} color={isActive ? Colors.primary : Colors.textSecondary} />

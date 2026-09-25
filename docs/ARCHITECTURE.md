@@ -217,6 +217,26 @@ sheet bileşenini kullanır.
 
 Bütçe dönemi kullanıcının belirlediği döngü başlangıç gününden türetilir. Başlangıç günü bir olduğunda takvim ayıyla eşleşir; diğer değerler aylar arası aralık üretir. Oluşturulan her bütçe kendi kesin başlangıç/bitiş sınırını ve başlangıç günü snapshot'ını saklar; global kural değişikliği geçmişi yeniden hesaplayamaz. Dashboard, analiz, bildirimler ve DAO sorguları aynı çözümlenmiş dönem sınırlarını kullanmalıdır.
 
+Tutar yazma yolları exact bütçe kimliğini kullanır. `updateBudgetAmount` yalnız
+`monthly_amount` alanını değiştirir; dönem sınırı ve para birimi korunur. Yeni
+bir döneme özel kayıt `setBudgetForPeriod` ile yazılır. Kayıt yoksa
+`getLatestAtOrBefore(periodStart)` yalnız önceki bir planı ileri yönlü varsayılan
+olarak çözer; gelecekteki bir satırı geçmişe uygulamaz. Dashboard, bütçe
+bildirimleri ve native dikkat planı aynı ileri yönlü fallback kuralını kullanır.
+
+Takvim değişikliği `applyCycleStartDayChange` transaction'ıdır. Bugünü kapsayan
+exact dönem varsa değişmeden kalır; yalnız devralınmış plan varsa önce o dönem
+exact snapshot olarak dondurulur. Yeni çıpa ertesi günle hizalanmıyorsa mevcut
+plan ve para birimiyle kısa bir geçiş dönemi yazılır, sonra global başlangıç
+günü güncellenir. Çakışan gelecek dönem veya eksik varsayılan plan transaction'ı
+reddeder. Eski “bugün kes ve yeniden başlat” yazma yolu kaldırılmıştır.
+
+`repairBudgetPeriod` yalnız açık kullanıcı onayıyla tek exact kaydın tarihlerini
+değiştirir. Tarih biçimi/sırası doğrulanır; başka aktif dönemle kesişim veya
+`budget_rollovers` bağlantısı işlemi durdurur. `budgetPeriodHealth` salt okunur
+olarak geçersiz sınır, aktif dönem çakışması ve kopmuş devir uçlarını raporlar.
+Kaydedilmemiş aylar hata değildir; varsayılan planın devamı olabilir.
+
 Dashboard bütçe donutunda dış payda `effectiveBudget`, renkli segment değerleri
 aynı dönemin kategori harcamalarıdır. Segment toplamı bütçeden küçükken fark nötr
 ray olarak kalır; aşımda segmentler kesilmez ve harcama toplamı çizim ölçeği olur.

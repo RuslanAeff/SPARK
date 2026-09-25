@@ -1,5 +1,5 @@
 // S.P.A.R.K. — Settings: Budget & goals
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { View, Text, ScrollView, StyleSheet, Pressable, TextInput, Switch } from 'react-native';
 import { useAppTheme, useThemeRevision } from '../src/theme/themeStore';
 import { useRouter } from 'expo-router';
@@ -26,18 +26,25 @@ import {
   shiftCycleKey,
   MIN_CYCLE_START_DAY,
   MAX_CYCLE_START_DAY,
+  budgetCycleFromBounds,
 } from '../src/utils/budgetCycle';
 import type { Budget } from '../src/db/schema';
 import GlassCheckButton from '../src/components/GlassCheckButton';
 import GlassDeleteModal from '../src/components/GlassDeleteModal';
-import BudgetHistoryCard from '../src/components/BudgetHistoryCard';
+import BudgetHistoryCard, { type BudgetHistorySelection } from '../src/components/BudgetHistoryCard';
 import BudgetRolloverSection from '../src/components/BudgetRolloverSection';
+import BudgetPeriodRepairSection from '../src/components/BudgetPeriodRepairSection';
+import BudgetHealthSection from '../src/components/BudgetHealthSection';
+import ConfirmModal from '../src/components/ConfirmModal';
 import { SparkToast } from '../src/components/SparkToast';
 import {
   getGoalFeaturePreferences,
   setGoalDashboardFocusEnabled,
   setGoalFeatureEnabled as persistGoalFeatureEnabled,
 } from '../src/services/goalFeatureSettings';
+import { formatMoneyInput, parseMoneyInput } from '../src/utils/moneyMath';
+import { previewBudgetCycleTransition, type BudgetCycleTransitionPreview } from '../src/utils/budgetCycleTransition';
+import type { BudgetCycle } from '../src/utils/budgetCycle';
 import {
   SettingsInfoHintModal,
   SettingsInfoIconButton,
@@ -46,9 +53,6 @@ import {
   SettingsNavigationRow,
   SettingsSection,
 } from '../src/components/SettingsList';
-
-/** Mevcut dönem + önceki 4. Daha eskisi salt-okunur tarihtir. */
-const EDITABLE_PERIOD_COUNT = 5;
 
 /** Kilitli dönem uyarısı kullanıcıya özel; diğer yazma hataları genel mesajda kalır. */
 function budgetWriteErrorKey(error: unknown): string {
@@ -74,13 +78,23 @@ export default function SettingsBudgetScreen() {
   });
   const [budgetAmount, setBudgetAmount] = useState('');
   const [selectedBudget, setSelectedBudget] = useState<Budget | null>(null);
+  const [inheritedBudget, setInheritedBudget] = useState<Budget | null>(null);
+  const [selectedCycle, setSelectedCycle] = useState<BudgetCycle | null>(null);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [goalFeatureOn, setGoalFeatureOn] = useState(true);
   const [goalFocusOn, setGoalFocusOn] = useState(false);
   const [cycleDay, setCycleDay] = useState(1);
   const [persistedCycleDay, setPersistedCycleDay] = useState(1);
+  const [cyclePreview, setCyclePreview] = useState<BudgetCycleTransitionPreview | null>(null);
+  const [cycleChangeOpen, setCycleChangeOpen] = useState(false);
+  const [currentPeriodKey, setCurrentPeriodKey] = useState(() => {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  });
   const [budgetInfoOpen, setBudgetInfoOpen] = useState(false);
+  const [calendarInfoOpen, setCalendarInfoOpen] = useState(false);
   const [goalInfoOpen, setGoalInfoOpen] = useState(false);
+  const loadSequence = useRef(0);
 
   useEffect(() => {
     let alive = true;
@@ -93,53 +107,124 @@ export default function SettingsBudgetScreen() {
       setGoalFocusOn(goalPreferences.dashboardFocusEnabled);
       setCycleDay(day);
       setPersistedCycleDay(day);
-      // Açılışta güncel döngüyü göster (anchor=1'de bu zaten takvim ayıdır).
-      setSelectedMonth(getCurrentCycle(day).key);
+      // Aynı başlangıç ayında bir geçiş satırı bulunabilir; güncel satırı ay
+      // adıyla değil bugünü gerçekten kapsayan kesin kimliğiyle aç.
+      const exact = await BudgetDao.getContainingDate(getToday());
+      if (!alive) return;
+      if (exact?.period_start) {
+        setCurrentPeriodKey(exact.period_start.slice(0, 7));
+        void loadBudgetById(exact.id);
+      } else {
+        const current = getCurrentCycle(day);
+        setCurrentPeriodKey(current.key);
+        setSelectedMonth(current.key);
+        setSelectedCycle(current);
+        void loadUnrecordedCycle(current);
+      }
     })();
     return () => {
       alive = false;
     };
   }, []);
 
-  // Düzenlenebilir pencere: mevcut dönem + önceki 4. Gelecek dönemin bütçesi
-  // henüz bilinemez; başlamamış döneme hedef yazmak sistemi karıştırıyordu.
-  const currentPeriodKey = useMemo(() => getCurrentCycle(cycleDay).key, [cycleDay]);
-  const oldestEditableKey = useMemo(
-    () => shiftCycleKey(currentPeriodKey, -(EDITABLE_PERIOD_COUNT - 1)),
-    [currentPeriodKey],
-  );
-  const canGoBack = selectedMonth > oldestEditableKey;
+  const canGoBack = selectedMonth > '2000-01';
   const canGoForward = selectedMonth < currentPeriodKey;
 
   // Seçili döngünün tarih aralığı (etiket için). anchor=1'de ay adı, aksi halde aralık.
   const cycleLabel = useMemo(() => {
-    if (cycleDay === 1) return formatMonthYear(`${selectedMonth}-01`, t);
-    const c = getCycleForKey(cycleDay, selectedMonth);
+    const c = selectedCycle ?? getCycleForKey(persistedCycleDay, selectedMonth);
+    if (c.startDay === 1 && c.start.endsWith('-01')) return formatMonthYear(c.start, t);
     return `${formatDayMonth(c.start, t)} – ${formatDayMonth(c.end, t)}`;
-  }, [cycleDay, selectedMonth, t]);
+  }, [persistedCycleDay, selectedCycle, selectedMonth, t]);
 
   async function changeCycleDay(next: number) {
     const clamped = Math.min(MAX_CYCLE_START_DAY, Math.max(MIN_CYCLE_START_DAY, next));
     if (clamped === cycleDay) return;
     setCycleDay(clamped);
-    setSelectedMonth(getCurrentCycle(clamped).key);
     void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
   }
 
   useEffect(() => {
-    loadBudgetForMonth(selectedMonth);
-  }, [selectedMonth, refreshKey]);
+    if (cycleDay === persistedCycleDay) {
+      setCyclePreview(null);
+      return;
+    }
+    let alive = true;
+    (async () => {
+      const exact = await BudgetDao.getContainingDate(getToday());
+      const current = exact?.period_start && exact.period_end
+        ? { start: exact.period_start, end: exact.period_end }
+        : getCurrentCycle(persistedCycleDay);
+      if (alive) setCyclePreview(previewBudgetCycleTransition(current.start, current.end, cycleDay));
+    })();
+    return () => { alive = false; };
+  }, [cycleDay, persistedCycleDay]);
 
-  async function loadBudgetForMonth(monthStr: string) {
+  useEffect(() => {
+    if (refreshKey === 0) return;
+    if (selectedBudget) void loadBudgetById(selectedBudget.id);
+    else void loadBudgetForMonth(selectedMonth, persistedCycleDay);
+  }, [refreshKey]);
+
+  async function loadBudgetForMonth(monthStr: string, anchorDay: number = persistedCycleDay) {
+    const sequence = ++loadSequence.current;
     const budget = await BudgetDao.getForMonth(monthStr);
+    if (sequence !== loadSequence.current) return;
+    const cycle = budget?.period_start && budget.period_end
+      ? budgetCycleFromBounds(budget.period_start, budget.period_end, budget.cycle_start_day ?? anchorDay)
+      : getCycleForKey(anchorDay, monthStr);
+    setSelectedMonth(monthStr);
     setSelectedBudget(budget);
-    setBudgetAmount(budget ? budget.monthly_amount.toString() : '');
+    const inherited = budget ? null : await BudgetDao.getLatestAtOrBefore(cycle.start);
+    if (sequence !== loadSequence.current) return;
+    setInheritedBudget(inherited);
+    setSelectedCycle(cycle);
+    setBudgetAmount(budget ? formatMoneyInput(budget.monthly_amount)
+      : inherited ? formatMoneyInput(inherited.monthly_amount) : '');
+  }
+
+  async function loadBudgetById(id: number) {
+    const sequence = ++loadSequence.current;
+    const budget = await BudgetDao.getById(id);
+    if (sequence !== loadSequence.current || !budget?.period_start || !budget.period_end) return;
+    setSelectedMonth(budget.period_start.slice(0, 7));
+    setSelectedBudget(budget);
+    setInheritedBudget(null);
+    setSelectedCycle(budgetCycleFromBounds(
+      budget.period_start,
+      budget.period_end,
+      budget.cycle_start_day ?? persistedCycleDay,
+    ));
+    setBudgetAmount(formatMoneyInput(budget.monthly_amount));
+  }
+
+  async function loadUnrecordedCycle(cycle: BudgetCycle) {
+    const sequence = ++loadSequence.current;
+    const inherited = await BudgetDao.getLatestAtOrBefore(cycle.start);
+    if (sequence !== loadSequence.current) return;
+    setSelectedMonth(cycle.key);
+    setSelectedBudget(null);
+    setInheritedBudget(inherited);
+    setSelectedCycle(cycle);
+    setBudgetAmount(inherited ? formatMoneyInput(inherited.monthly_amount) : '');
+  }
+
+  function selectHistoryPeriod(selection: BudgetHistorySelection) {
+    if (!selection.budget) {
+      void loadUnrecordedCycle(selection.cycle);
+      return;
+    }
+    loadSequence.current += 1;
+    setSelectedMonth(selection.key);
+    setSelectedBudget(selection.budget);
+    setInheritedBudget(null);
+    setSelectedCycle(selection.cycle);
+    setBudgetAmount(selection.budget ? formatMoneyInput(selection.budget.monthly_amount) : '');
   }
 
   /**
    * Bütçe hedefi kaldırılır; dönemin harcamaları ve tarihsel toplamları korunur.
-   * Kural ihlali içeren eski satır 5 dönemlik pencerenin dışında kalsa bile
-   * geçmiş şeridinden seçilip buradan silinebilir.
+   * Bütün kayıtlı geçmiş dönemler exact kimliğiyle seçilip buradan silinebilir.
    */
   async function handleDeleteBudget() {
     if (!selectedBudget) return;
@@ -165,29 +250,31 @@ export default function SettingsBudgetScreen() {
    * kullanıcıya ne yapması gerektiğini söyleyen mesajı gösterir.
    */
   async function handleSaveBudget() {
-    const amount = parseFloat(budgetAmount);
-    if (isNaN(amount) || amount <= 0) {
+    const amount = parseMoneyInput(budgetAmount);
+    if (amount === null || amount <= 0 || !selectedCycle) {
       SparkToast.show(t('enter_valid_budget'), 'error');
       return;
     }
     try {
-      if (cycleDay !== persistedCycleDay) {
-        await BudgetDao.transitionAndSetBudget({
-          amount,
-          currency,
-          previousStartDay: persistedCycleDay,
-          nextStartDay: cycleDay,
-          effectiveDate: getToday(),
-        });
-        setPersistedCycleDay(cycleDay);
-        setSelectedMonth(getCurrentCycle(cycleDay).key);
+      if (selectedBudget) {
+        await BudgetDao.updateBudgetAmount(selectedBudget.id, amount);
+        setSelectedBudget({ ...selectedBudget, monthly_amount: amount });
       } else {
-        await BudgetDao.setMonthlyBudget(amount, selectedMonth, currency, cycleDay);
+        const targetCurrency = inheritedBudget?.currency ?? currency;
+        const id = await BudgetDao.setBudgetForPeriod({
+          amount,
+          currency: targetCurrency,
+          periodStart: selectedCycle.start,
+          periodEnd: selectedCycle.end,
+          cycleStartDay: selectedCycle.startDay,
+        });
+        await loadBudgetById(id);
       }
       triggerRefresh();
       await syncNotificationsBestEffort(syncNotifications, 'budget-save');
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      const curLabel = currency === 'TRY' ? 'TL' : currency;
+      const savedCurrency = selectedBudget?.currency ?? inheritedBudget?.currency ?? currency;
+      const curLabel = savedCurrency === 'TRY' ? 'TL' : savedCurrency;
       SparkToast.show(
         t('budget_saved', { month: cycleLabel }),
         'success',
@@ -196,6 +283,37 @@ export default function SettingsBudgetScreen() {
     } catch (error) {
       if (__DEV__) console.warn('[budget] save failed', error);
       SparkToast.show(t(budgetWriteErrorKey(error)), 'error');
+    }
+  }
+
+  async function handleApplyCycleDay() {
+    if (cycleDay === persistedCycleDay) return;
+    try {
+      await BudgetDao.applyCycleStartDayChange(cycleDay, getToday());
+      setPersistedCycleDay(cycleDay);
+      setCyclePreview(null);
+      setCycleChangeOpen(false);
+      const exact = await BudgetDao.getContainingDate(getToday());
+      if (exact?.period_start) {
+        setCurrentPeriodKey(exact.period_start.slice(0, 7));
+        await loadBudgetById(exact.id);
+      } else {
+        const current = getCurrentCycle(cycleDay);
+        setCurrentPeriodKey(current.key);
+        await loadBudgetForMonth(current.key, cycleDay);
+      }
+      triggerRefresh();
+      await syncNotificationsBestEffort(syncNotifications, 'budget-cycle-change');
+      SparkToast.show(t('budget_cycle_change_saved'), 'success');
+    } catch (error) {
+      if (__DEV__) console.warn('[budget] cycle change failed', error);
+      const key = error instanceof Error && [
+        'budget_cycle_requires_budget',
+        'budget_cycle_future_conflict',
+        'rollover_period_locked',
+      ].includes(error.message) ? error.message : 'error_saving_data';
+      SparkToast.show(t(key), 'error');
+      setCycleChangeOpen(false);
     }
   }
 
@@ -227,9 +345,8 @@ export default function SettingsBudgetScreen() {
 
   function changeMonth(delta: number) {
     const next = shiftCycleKey(selectedMonth, delta);
-    // Başlamamış dönem bütçelenemez, 5 dönemden eskisi düzenlenemez.
-    if (next > currentPeriodKey || next < oldestEditableKey) return;
-    setSelectedMonth(next);
+    if (next > currentPeriodKey || next < '2000-01') return;
+    void loadBudgetForMonth(next, persistedCycleDay);
   }
 
   return (
@@ -252,6 +369,50 @@ export default function SettingsBudgetScreen() {
         </View>
 
         <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+          <Animated.View entering={FadeInDown.delay(40).duration(400)}>
+            <SettingsSection testID="settings-budget-cycle-section">
+              <View style={styles.sectionHeader}>
+                <View style={[styles.sectionIcon, { backgroundColor: Colors.primaryGlow }]}>
+                  <MaterialCommunityIcons name="calendar-sync-outline" size={22} color={Colors.primary} />
+                </View>
+                <Text style={[styles.sectionTitle, styles.sectionTitleWithInfo]}>
+                  {t('budget_calendar_title')}
+                </Text>
+                <SettingsInfoIconButton
+                  onPress={() => setCalendarInfoOpen(true)}
+                  accessibilityLabel={t('budget_calendar_info_accessibility')}
+                />
+              </View>
+              <View style={styles.cycleBox}>
+                <Text style={styles.cycleDayLabel}>{t('budget_cycle_start_day_label')}</Text>
+                <View style={styles.stepper}>
+                  <Pressable testID="budget-cycle-minus" onPress={() => changeCycleDay(cycleDay - 1)}
+                    style={({ pressed }) => [styles.stepperBtn, pressed && styles.stepperBtnPressed]}
+                    disabled={cycleDay <= MIN_CYCLE_START_DAY} accessibilityRole="button">
+                    <MaterialCommunityIcons name="minus" size={20} color={cycleDay <= MIN_CYCLE_START_DAY ? Colors.textMuted : Colors.textPrimary} />
+                  </Pressable>
+                  <Text style={styles.stepperValue}>{cycleDay === 1
+                    ? t('budget_cycle_day_default') : t('budget_cycle_day_value', { day: String(cycleDay) })}</Text>
+                  <Pressable testID="budget-cycle-plus" onPress={() => changeCycleDay(cycleDay + 1)}
+                    style={({ pressed }) => [styles.stepperBtn, pressed && styles.stepperBtnPressed]}
+                    disabled={cycleDay >= MAX_CYCLE_START_DAY} accessibilityRole="button">
+                    <MaterialCommunityIcons name="plus" size={20} color={cycleDay >= MAX_CYCLE_START_DAY ? Colors.textMuted : Colors.textPrimary} />
+                  </Pressable>
+                </View>
+                {cycleDay >= 29 && <Text style={styles.cycleClampNote}>{t('budget_cycle_clamp_note')}</Text>}
+              </View>
+              {cyclePreview && <View testID="budget-cycle-preview" style={styles.cyclePreview}>
+                <Text style={styles.cyclePreviewTitle}>{t('budget_cycle_preview_title')}</Text>
+                <Text style={styles.cyclePreviewText}>{t('budget_cycle_preview_preserved', cyclePreview.preserved)}</Text>
+                {cyclePreview.bridge && <Text style={styles.cyclePreviewText}>{t('budget_cycle_preview_bridge', { start: cyclePreview.bridge.start, end: cyclePreview.bridge.end })}</Text>}
+                <Text style={styles.cyclePreviewText}>{t('budget_cycle_preview_regular', { start: cyclePreview.firstRegular.start, end: cyclePreview.firstRegular.end })}</Text>
+                <Pressable testID="budget-cycle-apply" accessibilityRole="button" onPress={() => setCycleChangeOpen(true)}
+                  style={({ pressed }) => [styles.cycleApply, pressed && styles.stepperBtnPressed]}>
+                  <Text style={styles.cycleApplyText}>{t('budget_cycle_apply')}</Text>
+                </Pressable>
+              </View>}
+            </SettingsSection>
+          </Animated.View>
           {/* Budget */}
           <Animated.View entering={FadeInDown.delay(80).duration(400)}>
             <SettingsSection testID="settings-budget-main-section">
@@ -269,54 +430,6 @@ export default function SettingsBudgetScreen() {
                   onPress={() => setBudgetInfoOpen(true)}
                   accessibilityLabel={t('settings_info_accessibility')}
                 />
-              </View>
-
-              {/* Döngü başlangıç günü — bütçe takvim ayına değil bu güne göre işler */}
-              <View style={styles.cycleBox}>
-                <View style={styles.cycleBoxHeader}>
-                  <MaterialCommunityIcons
-                    name="calendar-sync-outline"
-                    size={18}
-                    color={Colors.primary}
-                  />
-                  <Text style={styles.cycleDayLabel}>{t('budget_cycle_start_day_label')}</Text>
-                </View>
-                <View style={styles.stepper}>
-                  <Pressable
-                    onPress={() => changeCycleDay(cycleDay - 1)}
-                    style={({ pressed }) => [styles.stepperBtn, pressed && styles.stepperBtnPressed]}
-                    disabled={cycleDay <= MIN_CYCLE_START_DAY}
-                    hitSlop={6}
-                    accessibilityRole="button"
-                  >
-                    <MaterialCommunityIcons
-                      name="minus"
-                      size={20}
-                      color={cycleDay <= MIN_CYCLE_START_DAY ? Colors.textMuted : Colors.textPrimary}
-                    />
-                  </Pressable>
-                  <Text style={styles.stepperValue}>
-                    {cycleDay === 1
-                      ? t('budget_cycle_day_default')
-                      : t('budget_cycle_day_value', { day: String(cycleDay) })}
-                  </Text>
-                  <Pressable
-                    onPress={() => changeCycleDay(cycleDay + 1)}
-                    style={({ pressed }) => [styles.stepperBtn, pressed && styles.stepperBtnPressed]}
-                    disabled={cycleDay >= MAX_CYCLE_START_DAY}
-                    hitSlop={6}
-                    accessibilityRole="button"
-                  >
-                    <MaterialCommunityIcons
-                      name="plus"
-                      size={20}
-                      color={cycleDay >= MAX_CYCLE_START_DAY ? Colors.textMuted : Colors.textPrimary}
-                    />
-                  </Pressable>
-                </View>
-                {cycleDay >= 29 && (
-                  <Text style={styles.cycleClampNote}>{t('budget_cycle_clamp_note')}</Text>
-                )}
               </View>
 
               <View style={styles.monthSelector}>
@@ -355,6 +468,14 @@ export default function SettingsBudgetScreen() {
               {!canGoForward && (
                 <Text style={styles.periodBoundHint}>{t('budget_future_locked')}</Text>
               )}
+              {!selectedBudget && inheritedBudget && (
+                <Text testID="budget-inherited-note" style={styles.inheritedNote}>
+                  {t('budget_inherited_note', {
+                    amount: formatMoneyInput(inheritedBudget.monthly_amount),
+                    currency: inheritedBudget.currency,
+                  })}
+                </Text>
+              )}
 
               <View style={styles.inputRow}>
                 <TextInput
@@ -365,7 +486,8 @@ export default function SettingsBudgetScreen() {
                   placeholder="5000"
                   placeholderTextColor={Colors.textMuted}
                 />
-                <Text style={styles.currency}>{currency === 'TRY' ? 'TL' : currency}</Text>
+                <Text style={styles.currency}>{(selectedBudget?.currency ?? inheritedBudget?.currency ?? currency) === 'TRY'
+                  ? 'TL' : (selectedBudget?.currency ?? inheritedBudget?.currency ?? currency)}</Text>
                 <GlassCheckButton onPress={handleSaveBudget} />
               </View>
 
@@ -389,6 +511,11 @@ export default function SettingsBudgetScreen() {
                 </Pressable>
               )}
 
+              <BudgetPeriodRepairSection budget={selectedBudget} onRepaired={() => {
+                if (selectedBudget) void loadBudgetById(selectedBudget.id);
+                triggerRefresh();
+              }} />
+
               <BudgetRolloverSection budget={selectedBudget} />
 
               <View style={styles.historyDivider}>
@@ -396,16 +523,17 @@ export default function SettingsBudgetScreen() {
                 <Text style={styles.historyDividerText}>{t('past_budgets')}</Text>
               </View>
               <BudgetHistoryCard
-                selectedKey={selectedMonth}
-                oldestEditableKey={oldestEditableKey}
-                onSelectPeriod={setSelectedMonth}
+                selectedBudgetId={selectedBudget?.id ?? null}
+                selectedPeriodStart={selectedCycle?.start}
+                onSelectPeriod={selectHistoryPeriod}
               />
+              <BudgetHealthSection onSelectBudget={(budget) => void loadBudgetById(budget.id)} />
             </SettingsSection>
           </Animated.View>
 
           {/* Goal feature toggle */}
           <Animated.View entering={FadeInDown.delay(160).duration(400)}>
-            <SettingsSection testID="settings-budget-goal-section">
+            <SettingsSection testID="settings-budget-goal-section" style={styles.goalSettingsSection}>
               <View style={styles.sectionHeader}>
                 <View style={[styles.sectionIcon, { backgroundColor: Colors.primary + '22' }]}>
                   <MaterialCommunityIcons
@@ -504,6 +632,12 @@ export default function SettingsBudgetScreen() {
         paragraphs={[t('budget_hint'), t('budget_cycle_hint')]}
       />
       <SettingsInfoHintModal
+        visible={calendarInfoOpen}
+        onClose={() => setCalendarInfoOpen(false)}
+        title={t('budget_calendar_title')}
+        paragraphs={[t('budget_calendar_explanation'), t('budget_cycle_hint')]}
+      />
+      <SettingsInfoHintModal
         visible={goalInfoOpen}
         onClose={() => setGoalInfoOpen(false)}
         title={t('goal_feature_section_title')}
@@ -515,6 +649,16 @@ export default function SettingsBudgetScreen() {
         message={t('budget_delete_confirm', { period: cycleLabel })}
         onCancel={() => setDeleteOpen(false)}
         onDelete={handleDeleteBudget}
+      />
+      <ConfirmModal
+        visible={cycleChangeOpen}
+        title={t('budget_cycle_confirm_title')}
+        message={t('budget_cycle_confirm_message')}
+        confirmLabel={t('budget_cycle_apply')}
+        cancelLabel={t('cancel')}
+        icon="calendar-sync-outline"
+        onCancel={() => setCycleChangeOpen(false)}
+        onConfirm={() => void handleApplyCycleDay()}
       />
     </>
   );
@@ -621,6 +765,35 @@ const getStyles = () => StyleSheet.create({
     color: Colors.textMuted,
     fontStyle: 'italic',
   },
+  calendarExplanation: {
+    ...Typography.bodySmall,
+    color: Colors.textSecondary,
+    lineHeight: 20,
+  },
+  cyclePreview: {
+    backgroundColor: Colors.surfaceLight,
+    borderWidth: 1,
+    borderColor: Colors.cardBorder,
+    borderRadius: BorderRadius.lg,
+    padding: Spacing.md,
+    gap: Spacing.xs,
+  },
+  cyclePreviewTitle: {
+    ...Typography.labelLarge,
+    color: Colors.textPrimary,
+    fontFamily: FontFamily.bold,
+  },
+  cyclePreviewText: { ...Typography.bodySmall, color: Colors.textSecondary },
+  cycleApply: {
+    minHeight: 44,
+    marginTop: Spacing.sm,
+    borderRadius: BorderRadius.round,
+    backgroundColor: Colors.primaryAction,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: Spacing.lg,
+  },
+  cycleApplyText: { ...Typography.labelLarge, color: Colors.onPrimary, fontFamily: FontFamily.bold },
   inputRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
   input: {
     ...Typography.bodyLarge,
@@ -639,6 +812,14 @@ const getStyles = () => StyleSheet.create({
     color: Colors.textMuted,
     textAlign: 'center',
     marginTop: Spacing.xs,
+  },
+  inheritedNote: {
+    ...Typography.bodySmall,
+    color: Colors.textSecondary,
+    backgroundColor: Colors.surfaceLight,
+    borderRadius: BorderRadius.md,
+    padding: Spacing.sm,
+    marginBottom: Spacing.sm,
   },
   // Yıkıcı eylem sessiz durur; onay penceresi olmadan silme yapılmaz.
   budgetDeleteBtn: {
@@ -690,5 +871,11 @@ const getStyles = () => StyleSheet.create({
   },
   goalFeatureRowDisabled: {
     opacity: 0.48,
+  },
+  // The navigation row already provides its own vertical rhythm. Keeping the
+  // parent section's bottom padding here would create a visibly larger gap
+  // before the adjacent recurring-payments row.
+  goalSettingsSection: {
+    paddingBottom: 0,
   },
 });

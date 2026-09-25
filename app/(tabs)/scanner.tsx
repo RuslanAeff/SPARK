@@ -675,17 +675,16 @@ const getStyles = (theme: typeof DarkTheme, isDark: boolean) => {
   header: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
     paddingHorizontal: ScreenPadding.horizontal,
     paddingTop: Spacing.xl,
     paddingBottom: Spacing.sm,
   },
   title: {
-    ...Typography.displaySmall,
-    fontFamily: FontFamily.bold,
-    fontSize: 29,
-    lineHeight: 36,
-    letterSpacing: -0.65,
-    color: theme.textPrimary,
+    ...Typography.headlineLarge,
+    fontFamily: FontFamily.extraBold,
+    textAlign: 'center',
+    color: theme.primary,
   },
   content: {
     paddingHorizontal: ScreenPadding.horizontal,
@@ -693,7 +692,7 @@ const getStyles = (theme: typeof DarkTheme, isDark: boolean) => {
   },
   // Idle
   idleContent: {
-    alignItems: 'flex-start',
+    alignItems: 'center',
     paddingTop: Spacing.xxl,
   },
   heroIcon: {
@@ -718,7 +717,7 @@ const getStyles = (theme: typeof DarkTheme, isDark: boolean) => {
   idleSubtitle: {
     ...Typography.bodyLarge,
     color: theme.textSecondary,
-    textAlign: 'left',
+    textAlign: 'center',
     lineHeight: 24,
     maxWidth: 350,
     marginBottom: Spacing.huge,

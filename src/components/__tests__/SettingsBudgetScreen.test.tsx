@@ -82,8 +82,11 @@ jest.mock('../../context/NotificationsContext', () => ({
 jest.mock('../../db/budgetDao', () => ({
   BudgetDao: {
     getForMonth: jest.fn().mockResolvedValue(null),
-    setMonthlyBudget: jest.fn(),
-    transitionAndSetBudget: jest.fn(),
+    getById: jest.fn(),
+    getContainingDate: jest.fn().mockResolvedValue(null),
+    getLatestAtOrBefore: jest.fn().mockResolvedValue(null),
+    updateBudgetAmount: jest.fn(),
+    applyCycleStartDayChange: jest.fn(),
     setBudgetForPeriod: jest.fn(),
     deleteBudget: jest.fn().mockResolvedValue(1),
   },
@@ -112,6 +115,15 @@ jest.mock('../GlassCheckButton', () => {
 });
 jest.mock('../BudgetHistoryCard', () => () => null);
 jest.mock('../BudgetRolloverSection', () => () => null);
+jest.mock('../BudgetPeriodRepairSection', () => () => null);
+jest.mock('../BudgetHealthSection', () => () => null);
+jest.mock('../ConfirmModal', () => {
+  const React = require('react');
+  const { Pressable, Text } = require('react-native');
+  return ({ visible, onConfirm }: any) => visible
+    ? React.createElement(Pressable, { testID: 'cycle-change-confirm', onPress: onConfirm }, React.createElement(Text, null, 'confirm-cycle'))
+    : null;
+});
 jest.mock('../GlassDeleteModal', () => {
   const React = require('react');
   const { Pressable, Text } = require('react-native');
@@ -139,6 +151,9 @@ describe('SettingsBudgetScreen goal focus preference', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    (BudgetDao.getContainingDate as jest.Mock).mockResolvedValue(null);
+    (BudgetDao.getLatestAtOrBefore as jest.Mock).mockResolvedValue(null);
+    (BudgetDao.getById as jest.Mock).mockResolvedValue(null);
     setDashboardFocus.mockResolvedValue(undefined);
   });
 
@@ -193,35 +208,30 @@ describe('SettingsBudgetScreen goal focus preference', () => {
     expect(mockRouterPush).toHaveBeenCalledWith('/subscriptions');
   });
 
-  it('keeps cycle steps as a draft and persists the transition only with budget save', async () => {
+  it('keeps the calendar draft separate from amount saving and applies it explicitly', async () => {
     getPreferences.mockResolvedValue({ enabled: true, dashboardFocusEnabled: false });
     (BudgetDao.getForMonth as jest.Mock).mockResolvedValue(null);
-    (BudgetDao.transitionAndSetBudget as jest.Mock).mockResolvedValue(21);
+    (BudgetDao.applyCycleStartDayChange as jest.Mock).mockResolvedValue({ bridgeId: 21 });
 
     const screen = await render(<SettingsBudgetScreen />);
     await waitFor(() => expect(screen.getByText('budget_cycle_day_default')).toBeTruthy());
 
-    await fireEvent.press(screen.getByText('plus'));
-    expect(BudgetDao.transitionAndSetBudget).not.toHaveBeenCalled();
+    await fireEvent.press(screen.getByTestId('budget-cycle-plus'));
+    expect(BudgetDao.applyCycleStartDayChange).not.toHaveBeenCalled();
+    await waitFor(() => expect(screen.getByTestId('budget-cycle-preview')).toBeTruthy());
+    await fireEvent.press(screen.getByTestId('budget-cycle-apply'));
+    await fireEvent.press(screen.getByTestId('cycle-change-confirm'));
 
-    await fireEvent.changeText(screen.getByPlaceholderText('5000'), '3600');
-    await fireEvent.press(screen.getByTestId('budget-save'));
-
-    await waitFor(() => expect(BudgetDao.transitionAndSetBudget).toHaveBeenCalledWith(
-      expect.objectContaining({
-        amount: 3600,
-        currency: 'PLN',
-        previousStartDay: 1,
-        nextStartDay: 2,
-      }),
-    ));
+    await waitFor(() => expect(BudgetDao.applyCycleStartDayChange).toHaveBeenCalledWith(2, expect.any(String)));
+    expect(BudgetDao.setBudgetForPeriod).not.toHaveBeenCalled();
     expect(mockSyncNotifications).toHaveBeenCalledTimes(1);
   });
 
   it('bütçe commit edildikten sonra bildirim senkronu reddetse de başarıyı korur', async () => {
     getPreferences.mockResolvedValue({ enabled: true, dashboardFocusEnabled: false });
     (BudgetDao.getForMonth as jest.Mock).mockResolvedValue(null);
-    (BudgetDao.setMonthlyBudget as jest.Mock).mockResolvedValue(22);
+    (BudgetDao.setBudgetForPeriod as jest.Mock).mockResolvedValue(22);
+    (BudgetDao.getById as jest.Mock).mockResolvedValue(null);
     mockSyncNotifications.mockRejectedValueOnce(new Error('native inventory unavailable'));
 
     const screen = await render(<SettingsBudgetScreen />);
@@ -230,8 +240,44 @@ describe('SettingsBudgetScreen goal focus preference', () => {
     await fireEvent.press(screen.getByTestId('budget-save'));
 
     await waitFor(() => expect(mockSyncNotifications).toHaveBeenCalledTimes(1));
-    expect(BudgetDao.setMonthlyBudget).toHaveBeenCalled();
+    expect(BudgetDao.setBudgetForPeriod).toHaveBeenCalled();
     expect(SparkToast.show).not.toHaveBeenCalledWith('error_saving_data', 'error');
+  });
+
+  it('edits the exact historical row amount without rewriting its currency or dates', async () => {
+    getPreferences.mockResolvedValue({ enabled: true, dashboardFocusEnabled: false });
+    const exact = {
+      id: 42, monthly_amount: 1000, currency: 'EUR', start_date: '2026-09',
+      period_start: '2026-09-01', period_end: '2026-09-30', cycle_start_day: 1, active: 1,
+    };
+    (BudgetDao.getContainingDate as jest.Mock).mockResolvedValue(exact);
+    (BudgetDao.getById as jest.Mock).mockResolvedValue(exact);
+    (BudgetDao.updateBudgetAmount as jest.Mock).mockResolvedValue(1);
+    const screen = await render(<SettingsBudgetScreen />);
+    await waitFor(() => expect(screen.getByPlaceholderText('5000').props.value).toBe('1000.00'));
+    await fireEvent.changeText(screen.getByPlaceholderText('5000'), '1250,25');
+    await fireEvent.press(screen.getByTestId('budget-save'));
+    await waitFor(() => expect(BudgetDao.updateBudgetAmount).toHaveBeenCalledWith(42, 1250.25));
+    expect(BudgetDao.setBudgetForPeriod).not.toHaveBeenCalled();
+    expect(screen.getByText('EUR')).toBeTruthy();
+  });
+
+  it('shows an inherited plan explicitly and saves a period override in its currency', async () => {
+    getPreferences.mockResolvedValue({ enabled: true, dashboardFocusEnabled: false });
+    (BudgetDao.getForMonth as jest.Mock).mockResolvedValue(null);
+    (BudgetDao.getLatestAtOrBefore as jest.Mock).mockResolvedValue({
+      id: 7, monthly_amount: 850, currency: 'EUR', start_date: '2026-08',
+      period_start: '2026-08-01', period_end: '2026-08-31', cycle_start_day: 1, active: 1,
+    });
+    (BudgetDao.setBudgetForPeriod as jest.Mock).mockResolvedValue(99);
+    (BudgetDao.getById as jest.Mock).mockResolvedValue(null);
+    const screen = await render(<SettingsBudgetScreen />);
+    await waitFor(() => expect(screen.getByTestId('budget-inherited-note')).toBeTruthy());
+    expect(screen.getByPlaceholderText('5000').props.value).toBe('850.00');
+    await fireEvent.press(screen.getByTestId('budget-save'));
+    await waitFor(() => expect(BudgetDao.setBudgetForPeriod).toHaveBeenCalledWith(expect.objectContaining({
+      amount: 850, currency: 'EUR',
+    })));
   });
 });
 
@@ -242,6 +288,9 @@ describe('SettingsBudgetScreen dönem sınırı ve bütçe silme', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    (BudgetDao.getContainingDate as jest.Mock).mockResolvedValue(null);
+    (BudgetDao.getLatestAtOrBefore as jest.Mock).mockResolvedValue(null);
+    (BudgetDao.getById as jest.Mock).mockResolvedValue(null);
     getPreferences.mockResolvedValue({ enabled: true, dashboardFocusEnabled: false });
     (BudgetDao.getForMonth as jest.Mock).mockResolvedValue(null);
   });
@@ -256,18 +305,14 @@ describe('SettingsBudgetScreen dönem sınırı ve bütçe silme', () => {
     expect(screen.getByText('budget_future_locked')).toBeTruthy();
   });
 
-  it('geriye yalnız mevcut dönem dahil 5 dönem gezdirir', async () => {
+  it('beş dönemden daha eski kayıtlara gitmeyi engellemez', async () => {
     const screen = await render(<SettingsBudgetScreen />);
     await waitFor(() => expect(screen.getByText('budget_cycle_day_default')).toBeTruthy());
 
-    for (let step = 0; step < 4; step += 1) {
+    for (let step = 0; step < 6; step += 1) {
       await fireEvent.press(screen.getByTestId('budget-period-previous'));
     }
-    // 4 adım sonra en eski düzenlenebilir döneme gelinir; geri ok kapanır.
-    await waitFor(() =>
-      expect(screen.getByTestId('budget-period-previous').props.accessibilityState.disabled).toBe(true),
-    );
-    // Geriye gidilebildiği için ileri ok yeniden açılmıştır.
+    expect(screen.getByTestId('budget-period-previous').props.accessibilityState.disabled).toBe(false);
     expect(screen.getByTestId('budget-period-next').props.accessibilityState.disabled).toBe(false);
   });
 
@@ -279,7 +324,7 @@ describe('SettingsBudgetScreen dönem sınırı ve bütçe silme', () => {
   });
 
   it('onaydan sonra bütçe hedefini siler ve alanı temizler', async () => {
-    (BudgetDao.getForMonth as jest.Mock).mockResolvedValue({
+    const exact = {
       id: 42,
       monthly_amount: 3450,
       currency: 'PLN',
@@ -288,11 +333,13 @@ describe('SettingsBudgetScreen dönem sınırı ve bütçe silme', () => {
       period_end: '2026-09-30',
       cycle_start_day: 1,
       active: 1,
-    });
+    };
+    (BudgetDao.getContainingDate as jest.Mock).mockResolvedValue(exact);
+    (BudgetDao.getById as jest.Mock).mockResolvedValue(exact);
 
     const screen = await render(<SettingsBudgetScreen />);
     await waitFor(() => expect(screen.getByTestId('budget-delete-action')).toBeTruthy());
-    expect(screen.getByPlaceholderText('5000').props.value).toBe('3450');
+    expect(screen.getByPlaceholderText('5000').props.value).toBe('3450.00');
 
     await fireEvent.press(screen.getByTestId('budget-delete-action'));
     await fireEvent.press(screen.getByTestId('budget-delete-confirm'));

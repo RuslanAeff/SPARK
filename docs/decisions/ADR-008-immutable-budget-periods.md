@@ -50,3 +50,32 @@ sayılıyor ve geçmiş şeridinde iki "mevcut" rozeti çıkıyordu.
 
 Saf/DAO/component testleri otomatik çalıştırılır. Gerçek Expo SQLite migration'ı
 ve 23→21 geçişi standalone build üzerinde ayrıca doğrulanmalıdır.
+
+## 25 Eylül 2026 — tutar, takvim ve tarih onarımının ayrılması
+
+Kullanıcı incelemesi, önceki akışın değişmezleri korusa da anlaşılır ve
+onarılabilir olmadığını gösterdi. Beş dönemden eski kayıtlar seçilemiyor, aynı
+ayda başlayan birden fazla satır yalnız ay anahtarıyla açılıyor ve başlangıç
+günü bütçe tutarıyla aynı kaydetme eyleminde bugünkü dönemi kesiyordu. Ayrıca
+exact satırı olmayan dönemde son bütçe Dashboard'da sessizce devam ederken
+Ayarlar boş görünüyordu.
+
+Bu ek karar, yukarıdaki 3 Eylül bölümünün “bugün kesen geçiş”, “beş dönemlik
+pencere” ve “ay anahtarıyla normal düzenleme” maddelerini değiştirir:
+
+- Bütçe tutarı exact `budget.id` ile düzenlenir; yalnız tutar değişir. Kayıtlı
+  bütün geçmiş dönemler seçilebilir. Ay anahtarı yalnız boş dönem gezinmesidir.
+- Önceki plan, exact kayıt yoksa yalnız ileri yönde varsayılan olur ve UI bunu
+  açıkça gösterir. Gelecek plan geçmişe fallback olamaz.
+- Başlangıç günü ayrı kaydedilir. Devam eden dönem korunur; gerekiyorsa ertesi
+  gün ile yeni doğal çıpa arasına exact geçiş dönemi yazılır. Devralınmış mevcut
+  plan, global kural değişmeden önce exact snapshot'a dönüştürülür.
+- Yanlış tarih düzeltmesi ayrı onarımdır. Çakışma reddedilir; devir bağlantısı
+  bulunan dönem önce devrin geri alınmasını gerektirir.
+- Sağlık kontrolü salt okunurdur ve kendiliğinden veri değiştirmez.
+
+Yeni tablo veya alan eklenmedi. Geçiş dönemleri mevcut `budgets` satırlarıdır;
+bu nedenle backup v5'in bütçe taşıma sözleşmesi değişmez. Saf tarih testleri,
+gerçek bellek-içi SQLite DAO testleri ve ekran testleri otomatik kanıttır;
+standalone Android'deki tarih girişi, uzun geçmiş şeridi, klavye ve görsel
+anlaşılabilirlik ayrıca doğrulanmalıdır.

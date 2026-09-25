@@ -1,0 +1,8 @@
+{
+  "rollover_compact_hint": "Dövrlər arasında qalan məbləği idarə et",
+  "budget_hint": "Hər dövr üçün fərqli büdcə təyin edə bilərsiniz (məsələn, AZN/PLN məzənnəsi dəyişdikdə).",
+  "budget_calendar_info_accessibility": "Büdcə təqvimi haqqında əlavə məlumat"
+  ,"budget_repair_start_picker": "Başlanğıc tarixini təqvimdən seç",
+  "budget_repair_end_picker": "Bitiş tarixini təqvimdən seç",
+  "budget_repair_blocked_day_hint": "Bu gün başqa büdcə dövrü tərəfindən istifadə olunur."
+}
