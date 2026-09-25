@@ -1579,6 +1579,13 @@ büyük yazı, dar ekran, tema kontrastı ve yeni tasarımın kullanıcı kabul�
 
 **Son doğrulama:** Tam Jest 147 suite / 1.161 test geçti; `git diff --check` temiz.
 
+## 25 Eylül 2026 — Yedek hatırlatıcısında glassmorphism
+
+**İnsan kararı:** Veri ve Yedek sayfasındaki hatırlatma satırı, Analiz sayfasındaki
+kayan cam seçim yüzeyini kullanacak.
+**AI uygulaması:** `GlassSelectionIndicator` kapalı/haftalık/aylık çiplerine gerçek
+layout ölçümleriyle bağlandı; mevcut tercih ve senkron davranışı korundu.
+
 ## 25 Eylül 2026 — Cam göstergenin dikey genişliği
 
 **İnsan kararı:** Sevilen cam efektinin üst ve alt boşlukları biraz azaltılacak,

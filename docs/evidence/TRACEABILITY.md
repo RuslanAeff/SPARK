@@ -463,6 +463,17 @@ büyük yazı, dar ekran, tema kontrastı ve yeni tasarımın kullanıcı kabul�
 
 **Son doğrulama:** Tam Jest 147 suite / 1.161 test geçti; `git diff --check` temiz.
 
+## 25 Eylül 2026 — Yedek hatırlatıcısında kayan cam seçimi
+
+**İnsan gereksinimi:** Veri ve Yedek sayfasındaki yedek hatırlatıcısı seçenekleri,
+Analiz zaman seçicisindeki cam efektini aynı şekilde kullanmalı.
+**Uygulama:** `BackupSection` içindeki kapalı/haftalık/aylık seçeneklerinin gerçek
+ölçüleri tutuluyor ve ortak `GlassSelectionIndicator` aktif seçeneğe animasyonla
+taşınıyor. Statik aktif arka plan kaldırıldı; hatırlatma kaydetme ve bildirim
+senkronu değişmedi.
+**Kanıt:** Backup odaklı testler ve typecheck çalıştırılmalı; fiziksel cihazda
+tema, vurgu rengi ve hızlı seçenek değişimi ayrıca doğrulanmalıdır.
+
 ## 25 Eylül 2026 — Kayan cam göstergenin dikey oranı
 
 **İnsan geri bildirimi:** Cam seçim yüzeyi yukarıdan ve aşağıdan biraz daha geniş

@@ -9,6 +9,7 @@ import {
   StyleSheet,
   ActivityIndicator,
   ScrollView,
+  type LayoutRectangle,
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
@@ -22,6 +23,7 @@ import { useRefreshActions } from '../context/RefreshContext';
 import { SparkToast } from './SparkToast';
 import ConfirmModal from './ConfirmModal';
 import CustomDatePicker from './CustomDatePicker';
+import GlassSelectionIndicator from './GlassSelectionIndicator';
 import { SettingsInfoHintModal, SettingsInfoIconButton } from './SettingsInfoHint';
 import { SettingsSection } from './SettingsList';
 import {
@@ -85,6 +87,7 @@ export default function BackupSection() {
   const [importConfirm, setImportConfirm] = useState(false);
   const [infoOpen, setInfoOpen] = useState(false);
   const [meta, setMeta] = useState<BackupMeta | null>(null);
+  const [reminderLayouts, setReminderLayouts] = useState<Record<BackupReminderInterval, LayoutRectangle>>({} as Record<BackupReminderInterval, LayoutRectangle>);
 
   useEffect(() => {
     void (async () => setMeta(await loadBackupMeta()))();
@@ -434,6 +437,7 @@ export default function BackupSection() {
           <Text style={styles.reminderLabel}>{t('backup_reminder_label')}</Text>
         </View>
         <View style={styles.reminderChips}>
+          <GlassSelectionIndicator target={reminderLayouts[meta?.reminderInterval ?? 'off']} />
           {(['off', 'weekly', 'monthly'] as BackupReminderInterval[]).map((opt) => {
             const active = (meta?.reminderInterval ?? 'off') === opt;
             return (
@@ -442,7 +446,14 @@ export default function BackupSection() {
                 accessibilityRole="radio"
                 accessibilityState={{ checked: active }}
                 onPress={() => handleReminderChange(opt)}
-                style={[styles.reminderChip, active && styles.reminderChipActive]}
+                onLayout={({ nativeEvent: { layout } }) => {
+                  setReminderLayouts(previous => {
+                    const old = previous[opt];
+                    if (old && old.x === layout.x && old.y === layout.y && old.width === layout.width && old.height === layout.height) return previous;
+                    return { ...previous, [opt]: layout };
+                  });
+                }}
+                style={styles.reminderChip}
               >
                 <Text
                   style={[
@@ -679,6 +690,7 @@ const getStyles = () => {
       fontFamily: FontFamily.semiBold,
     },
     reminderChips: {
+      position: 'relative',
       padding: 3,
       borderRadius: BorderRadius.round,
       backgroundColor: Colors.surfaceLight,
@@ -693,9 +705,6 @@ const getStyles = () => {
       minHeight: 44,
       justifyContent: 'center',
       alignItems: 'center',
-    },
-    reminderChipActive: {
-      backgroundColor: Colors.primary + '1C',
     },
     reminderChipText: {
       ...Typography.labelSmall,
