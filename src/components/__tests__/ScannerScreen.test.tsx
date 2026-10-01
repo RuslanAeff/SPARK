@@ -35,8 +35,18 @@ function getPressHandler(instance: any): () => any {
   throw new Error('Press handler not found');
 }
 
+async function analyzeCollectedReceipt(screen: Awaited<ReturnType<typeof render>>) {
+  await waitFor(() => expect(screen.getByTestId('scanner-analyze-action')).toBeTruthy());
+  await fireEvent.press(screen.getByTestId('scanner-analyze-action'));
+}
+
 jest.mock('expo-router', () => ({
   useRouter: () => ({ push: mockRouterPush }),
+}));
+
+jest.mock('react-native-gesture-handler', () => ({
+  ...jest.requireActual('react-native-gesture-handler'),
+  GestureDetector: ({ children }: any) => children,
 }));
 
 jest.mock('react-native-safe-area-context', () => {
@@ -224,6 +234,7 @@ describe('Scanner runtime theme', () => {
       const screen = await render(<ScannerScreen />);
 
       await fireEvent.press(screen.getByTestId('scanner-camera-action'));
+      await analyzeCollectedReceipt(screen);
       await waitFor(() => expect(mockParseReceipt).toHaveBeenCalled());
 
       expect(mockCompressImageToBase64).toHaveBeenCalledWith(
@@ -231,13 +242,63 @@ describe('Scanner runtime theme', () => {
         expect.objectContaining({ width: 1600, height: 4000, signal: expect.objectContaining({ aborted: false }) }),
       );
       expect(mockParseReceipt).toHaveBeenCalledWith(
-        'compressed-base64',
+        ['compressed-base64'],
         language,
         expect.objectContaining({ aborted: false }),
       );
       expect(screen.getByText('tc:Market')).toBeTruthy();
     },
   );
+
+  it('collects multiple gallery pages and sends them together only after analysis is requested', async () => {
+    mockRequestMediaLibraryPermissionsAsync.mockResolvedValue({ granted: true });
+    mockLaunchImageLibraryAsync.mockResolvedValue({
+      canceled: false,
+      assets: [
+        { uri: 'file://page-1.jpg', width: 1000, height: 1600, type: 'image' },
+        { uri: 'file://page-2.jpg', width: 1000, height: 1600, type: 'image' },
+      ],
+    });
+    mockCompressImageToBase64
+      .mockResolvedValueOnce('page-1-base64')
+      .mockResolvedValueOnce('page-2-base64');
+    const screen = await render(<ScannerScreen />);
+
+    await fireEvent.press(screen.getByTestId('scanner-gallery-action'));
+    await waitFor(() => expect(screen.getByTestId('scanner-analyze-action')).toBeTruthy());
+    expect(mockParseReceipt).not.toHaveBeenCalled();
+    await fireEvent.press(screen.getByTestId('scanner-analyze-action'));
+
+    await waitFor(() => expect(mockParseReceipt).toHaveBeenCalledWith(
+      ['page-1-base64', 'page-2-base64'],
+      'tr',
+      expect.objectContaining({ aborted: false }),
+    ));
+  });
+
+  it('keeps every selected page visible while AI processing is in progress', async () => {
+    mockRequestMediaLibraryPermissionsAsync.mockResolvedValue({ granted: true });
+    mockLaunchImageLibraryAsync.mockResolvedValue({
+      canceled: false,
+      assets: [
+        { uri: 'file://page-1.jpg', width: 1000, height: 1600, type: 'image' },
+        { uri: 'file://page-2.jpg', width: 1000, height: 1600, type: 'image' },
+      ],
+    });
+    let resolveParse!: (value: typeof receipt) => void;
+    mockParseReceipt.mockImplementation(
+      () => new Promise<typeof receipt>(resolve => { resolveParse = resolve; }),
+    );
+    const screen = await render(<ScannerScreen />);
+
+    await fireEvent.press(screen.getByTestId('scanner-gallery-action'));
+    await analyzeCollectedReceipt(screen);
+    await waitFor(() => expect(screen.getByTestId('scanner-processing-preview-1')).toBeTruthy());
+
+    expect(screen.getByTestId('scanner-processing-preview-2')).toBeTruthy();
+    resolveParse(receipt);
+    await waitFor(() => expect(screen.getByText('tc:Market')).toBeTruthy());
+  });
 
   it.each(['camera', 'gallery'])('does not process or send when %s transfer is declined', async source => {
     const { confirmAiTransfer } = require('../../utils/confirmAiTransfer');
@@ -249,6 +310,7 @@ describe('Scanner runtime theme', () => {
     mockLaunchImageLibraryAsync.mockResolvedValue(result);
     const screen = await render(<ScannerScreen />);
     await fireEvent.press(screen.getByTestId(`scanner-${source}-action`));
+    await analyzeCollectedReceipt(screen);
     await waitFor(() => expect(confirmAiTransfer).toHaveBeenCalled());
     expect(mockCompressImageToBase64).not.toHaveBeenCalled();
     expect(mockParseReceipt).not.toHaveBeenCalled();
@@ -264,6 +326,7 @@ describe('Scanner runtime theme', () => {
     const screen = await render(<ScannerScreen />);
 
     await fireEvent.press(screen.getByTestId('scanner-camera-action'));
+    await analyzeCollectedReceipt(screen);
     await waitFor(() => expect(screen.getByText('scan_invalid_result')).toBeTruthy());
     expect(mockProcessReceipt).not.toHaveBeenCalled();
   });
@@ -278,6 +341,7 @@ describe('Scanner runtime theme', () => {
     const screen = await render(<ScannerScreen />);
 
     await fireEvent.press(screen.getByTestId('scanner-camera-action'));
+    await analyzeCollectedReceipt(screen);
     await waitFor(() => expect(screen.getByText('ai_error_key_rejected')).toBeTruthy());
     expect(screen.queryByTestId('scanner-error-retry')).toBeNull();
 
@@ -295,6 +359,7 @@ describe('Scanner runtime theme', () => {
     const screen = await render(<ScannerScreen />);
 
     await fireEvent.press(screen.getByTestId('scanner-camera-action'));
+    await analyzeCollectedReceipt(screen);
     await waitFor(() => expect(screen.getByText('ai_error_quota_wait')).toBeTruthy());
     expect(screen.getByTestId('scanner-error-retry')).toBeTruthy();
 
@@ -313,6 +378,7 @@ describe('Scanner runtime theme', () => {
     const screen = await render(<ScannerScreen />);
 
     await fireEvent.press(screen.getByTestId('scanner-camera-action'));
+    await analyzeCollectedReceipt(screen);
     await waitFor(() => expect(screen.getByText('scan_failed_generic')).toBeTruthy());
   });
 
@@ -322,6 +388,7 @@ describe('Scanner runtime theme', () => {
     mockParseReceipt.mockRejectedValue(new Error('AI_NETWORK'));
     const screen = await render(<ScannerScreen />);
     await fireEvent.press(screen.getByTestId('scanner-camera-action'));
+    await analyzeCollectedReceipt(screen);
     await waitFor(() => expect(screen.getByText('scan_recovery_title')).toBeTruthy());
     expect(screen.getByText('scan_recovery_title').props.accessibilityRole).toBe('header');
     expect(StyleSheet.flatten(screen.getByTestId('scanner-recovery-card').props.style).backgroundColor).toBe(DarkTheme.cardSurface);
@@ -344,6 +411,7 @@ describe('Scanner runtime theme', () => {
     mockLaunchCameraAsync.mockResolvedValue({ canceled: false, assets: [{ uri: 'file://receipt.jpg', width: 1000, height: 1600 }] });
     const screen = await render(<ScannerScreen />);
     await fireEvent.press(screen.getByTestId('scanner-camera-action'));
+    await analyzeCollectedReceipt(screen);
     await waitFor(() => expect(screen.getByText('no_api_key_msg')).toBeTruthy());
     expect(screen.getByTestId('scanner-error-settings')).toBeTruthy();
     expect(screen.queryByTestId('scanner-error-retry')).toBeNull();
@@ -355,16 +423,19 @@ describe('Scanner runtime theme', () => {
   it('recovers an Android camera result after the Activity is recreated', async () => {
     const originalOS = Platform.OS;
     Object.defineProperty(Platform, 'OS', { configurable: true, value: 'android' });
-    mockGetPendingResultAsync.mockResolvedValue({
-      canceled: false,
-      assets: [{ uri: 'file://recovered.jpg', width: 1800, height: 3600, type: 'image' }],
-    });
+    mockGetPendingResultAsync
+      .mockResolvedValueOnce({
+        canceled: false,
+        assets: [{ uri: 'file://recovered.jpg', width: 1800, height: 3600, type: 'image' }],
+      })
+      .mockResolvedValue(null);
     const screen = await render(<ScannerScreen />);
 
     try {
       await waitFor(() => expect(mockGetPendingResultAsync).toHaveBeenCalled());
+      await analyzeCollectedReceipt(screen);
       await waitFor(() => expect(mockParseReceipt).toHaveBeenCalledWith(
-        'compressed-base64',
+        ['compressed-base64'],
         'tr',
         expect.objectContaining({ aborted: false }),
       ));
@@ -396,8 +467,10 @@ describe('Scanner runtime theme', () => {
     const screen = await render(<ScannerScreen />);
 
     let scanPromise: Promise<void> = Promise.resolve();
+    await fireEvent.press(screen.getByTestId('scanner-camera-action'));
+    await waitFor(() => expect(screen.getByTestId('scanner-analyze-action')).toBeTruthy());
     await act(async () => {
-      scanPromise = getPressHandler(screen.getByTestId('scanner-camera-action'))();
+      scanPromise = getPressHandler(screen.getByTestId('scanner-analyze-action'))();
       while (mockParseReceipt.mock.calls.length === 0) await Promise.resolve();
     });
     await act(async () => {

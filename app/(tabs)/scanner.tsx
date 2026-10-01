@@ -6,7 +6,7 @@ import {
   View, Text, StyleSheet, Pressable, ActivityIndicator, ScrollView, Image, Platform, AppState,
 } from 'react-native';
 import { useRouter } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Svg, { Path } from 'react-native-svg';
 import * as ImagePicker from 'expo-image-picker';
@@ -23,11 +23,13 @@ import { processReceipt } from '../../src/services/receiptParser';
 import AnimatedCard from '../../src/components/AnimatedCard';
 import { SparkToast } from '../../src/components/SparkToast';
 import { useLanguage } from '../../src/i18n/LanguageContext';
+import type { Language } from '../../src/i18n/translations';
 import { useRefreshActions } from '../../src/context/RefreshContext';
 import { useCurrency } from '../../src/context/CurrencyContext';
 import { setScanSessionError } from '../../src/services/scanSession';
 import { presentAiError } from '../../src/utils/aiErrorPresentation';
 import ScanRecoveryCard from '../../src/components/ScanRecoveryCard';
+import ReceiptHolographicCarousel from '../../src/components/ReceiptHolographicCarousel';
 import {
   effectiveLineDiscount,
   formatReceiptDiscountAmount,
@@ -37,13 +39,14 @@ import { itemDisplayName } from '../../src/utils/itemDisplayName';
 import { compressImageToBase64 } from '../../src/utils/imageCompressor';
 import { formatMeasurementQuantity } from '../../src/utils/measurementUnit';
 import { canonicalReceiptCategoryName } from '../../src/utils/receiptCategory';
+import { ContainerDepositDao } from '../../src/db/containerDepositDao';
 import {
   createSusevarStyles,
   susevarButtonPressed,
   susevarButtonRow,
 } from '../../src/theme/susevar';
 
-type ScanState = 'idle' | 'processing' | 'result' | 'error' | 'no_key';
+type ScanState = 'idle' | 'collecting' | 'processing' | 'result' | 'error' | 'no_key';
 
 const CAMERA_RESULT_TIMEOUT_MS = 120_000;
 const SCAN_TOTAL_TIMEOUT_MS = 90_000;
@@ -128,23 +131,28 @@ function ScannerGalleryMark({ color }: { color: string }) {
 export default function ScannerScreen() {
   const scheme = useAppTheme();
   const theme = useThemePalette();
-  const styles = React.useMemo(() => getStyles(theme, scheme === 'dark'), [scheme, theme]);
-  const router = useRouter();
   const { t, tc, language } = useLanguage();
+  const styles = React.useMemo(
+    () => getStyles(theme, scheme === 'dark', language),
+    [scheme, theme, language],
+  );
+  const router = useRouter();
   const { triggerRefresh } = useRefreshActions();
   const { currency } = useCurrency();
   const [state, setState] = useState<ScanState>('idle');
-  const [imageUri, setImageUri] = useState<string | null>(null);
+  const [images, setImages] = useState<ImagePicker.ImagePickerAsset[]>([]);
   const [result, setResult] = useState<ParsedReceipt | null>(null);
   const [errorMsg, setErrorMsg] = useState('');
   // Hata ekranının birincil eylemi: anahtar sorunlarında doğrudan Ayarlar.
   const [errorAction, setErrorAction] = useState<'settings' | 'retry'>('retry');
   const [sourceBusy, setSourceBusy] = useState(false);
   const [resultBusy, setResultBusy] = useState(false);
-  const receiptCopyRef = useRef<string | null>(null);
-  const replaceReceiptCopy = (uri: string | null) => {
-    if (receiptCopyRef.current !== uri) void removeReceiptCopy(receiptCopyRef.current);
-    receiptCopyRef.current = uri;
+  const receiptCopiesRef = useRef<string[]>([]);
+  const replaceReceiptCopies = (uris: string[]) => {
+    for (const previous of receiptCopiesRef.current) {
+      if (!uris.includes(previous)) void removeReceiptCopy(previous);
+    }
+    receiptCopiesRef.current = uris;
   };
   const timersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
   const sourceBusyRef = useRef(false);
@@ -157,7 +165,7 @@ export default function ScannerScreen() {
 
   useEffect(() => {
     return () => {
-      replaceReceiptCopy(null);
+      replaceReceiptCopies([]);
       mountedRef.current = false;
       scanIdRef.current += 1;
       timersRef.current.forEach(clearTimeout);
@@ -165,15 +173,17 @@ export default function ScannerScreen() {
     };
   }, []);
 
-  const processImage = useCallback(async (
-    asset: ImagePicker.ImagePickerAsset,
+  const processImages = useCallback(async (
+    assets: ImagePicker.ImagePickerAsset[],
     scanId: number,
   ) => {
     const isCurrent = () => mountedRef.current && scanIdRef.current === scanId;
     const hasKey = await hasApiKey();
-    if (!isCurrent()) { await removeReceiptCopy(asset.uri); return; }
+    if (!isCurrent()) { for (const asset of assets) await removeReceiptCopy(asset.uri); return; }
     if (!hasKey) {
-      await removeReceiptCopy(asset.uri);
+      for (const asset of assets) await removeReceiptCopy(asset.uri);
+      receiptCopiesRef.current = [];
+      setImages([]);
       setScanSessionError(null);
       setErrorMsg(t('no_api_key_msg'));
       setState('no_key');
@@ -194,14 +204,17 @@ export default function ScannerScreen() {
 
     try {
       if (!await confirmAiTransfer(t, 'receipt', controller.signal) || !isCurrent()) {
-        if (isCurrent()) { setState('idle'); replaceReceiptCopy(null); setImageUri(null); }
+        if (isCurrent()) { setState('idle'); replaceReceiptCopies([]); setImages([]); }
         return;
       }
-      const base64 = await compressImageToBase64(asset.uri, {
-        width: asset.width,
-        height: asset.height,
-        signal: controller.signal,
-      });
+      const base64: string[] = [];
+      for (const asset of assets) {
+        base64.push(await compressImageToBase64(asset.uri, {
+          width: asset.width,
+          height: asset.height,
+          signal: controller.signal,
+        }));
+      }
       if (!isCurrent() || controller.signal.aborted) return;
       const parsed = await parseReceipt(base64, language, controller.signal);
       if (!isCurrent() || controller.signal.aborted) return;
@@ -227,20 +240,20 @@ export default function ScannerScreen() {
       setState('error');
     } finally {
       clearTimeout(totalTimeout);
-      await removeReceiptCopy(asset.uri);
-      if (receiptCopyRef.current === asset.uri) receiptCopyRef.current = null;
-      if (isCurrent()) setImageUri(null);
+      for (const asset of assets) await removeReceiptCopy(asset.uri);
+      receiptCopiesRef.current = [];
+      if (isCurrent()) setImages([]);
       if (abortRef.current === controller) abortRef.current = null;
     }
   }, [language, t]);
 
-  async function pickImage(useCamera: boolean) {
+  async function pickImage(useCamera: boolean, append = false) {
     if (sourceBusyRef.current) return;
-    const scanId = scanIdRef.current + 1;
+    const scanId = append ? scanIdRef.current : scanIdRef.current + 1;
     scanIdRef.current = scanId;
     sourceBusyRef.current = true;
     setSourceBusy(true);
-    let asset: ImagePicker.ImagePickerAsset | null = null;
+    let pickedAssets: ImagePicker.ImagePickerAsset[] = [];
     try {
       let pickerResult: ImagePicker.ImagePickerResult;
       if (useCamera) {
@@ -265,6 +278,8 @@ export default function ScannerScreen() {
         pickerResult = await ImagePicker.launchImageLibraryAsync({
           quality: 1,
           base64: false,
+          allowsMultipleSelection: true,
+          selectionLimit: Math.max(1, 4 - (append ? images.length : 0)),
         });
       }
 
@@ -276,7 +291,7 @@ export default function ScannerScreen() {
         for (const image of pickerResult.assets ?? []) void removeReceiptCopy(image.uri);
         return;
       }
-      asset = pickerResult.assets[0];
+      pickedAssets = pickerResult.assets.slice(0, Math.max(0, 4 - (append ? images.length : 0)));
     } catch (error) {
       if (scanIdRef.current !== scanId) return;
       const code = error instanceof Error ? error.message : '';
@@ -295,12 +310,13 @@ export default function ScannerScreen() {
         setSourceBusy(false);
       }
     }
-    if (asset && scanIdRef.current === scanId) {
+    if (pickedAssets.length > 0 && scanIdRef.current === scanId) {
       timersRef.current.forEach(clearTimeout);
       timersRef.current = [];
-      replaceReceiptCopy(asset.uri);
-      setImageUri(asset.uri);
-      await processImage(asset, scanId);
+      const next = (append ? [...images, ...pickedAssets] : pickedAssets).slice(0, 4);
+      replaceReceiptCopies(next.map(asset => asset.uri));
+      setImages(next);
+      setState('collecting');
     }
   }
 
@@ -336,9 +352,9 @@ export default function ScannerScreen() {
         const scanId = scanIdRef.current + 1;
         scanIdRef.current = scanId;
         const recoveredAsset = pending.assets[0];
-        replaceReceiptCopy(recoveredAsset.uri);
-        setImageUri(recoveredAsset.uri);
-        await processImage(recoveredAsset, scanId);
+        replaceReceiptCopies([recoveredAsset.uri]);
+        setImages([recoveredAsset]);
+        setState('collecting');
       } catch {
         if (active && mountedRef.current) {
           const message = t('camera_result_recovery_failed');
@@ -360,7 +376,19 @@ export default function ScannerScreen() {
       active = false;
       subscription.remove();
     };
-  }, [processImage, t]);
+  }, [t]);
+
+  function removeCollectedImage(uri: string) {
+    const next = images.filter(asset => asset.uri !== uri);
+    replaceReceiptCopies(next.map(asset => asset.uri));
+    setImages(next);
+    if (next.length === 0) setState('idle');
+  }
+
+  async function analyzeCollectedImages() {
+    if (images.length === 0 || sourceBusyRef.current) return;
+    await processImages(images, scanIdRef.current);
+  }
 
   function handleStopScan() {
     scanIdRef.current += 1;
@@ -372,8 +400,8 @@ export default function ScannerScreen() {
     setState('idle');
     setResult(null);
     setErrorMsg('');
-    replaceReceiptCopy(null);
-    setImageUri(null);
+    replaceReceiptCopies([]);
+    setImages([]);
   }
 
   async function handleSave() {
@@ -382,17 +410,35 @@ export default function ScannerScreen() {
     setResultBusy(true);
     const receiptToSave = result;
     try {
-      await processReceipt(receiptToSave);
+      if (receiptToSave.document_type === 'container_return_voucher' && receiptToSave.voucher_issued) {
+        await ContainerDepositDao.createVoucher({
+          amount: receiptToSave.voucher_issued.amount,
+          currency: receiptToSave.currency,
+          issuedDate: receiptToSave.date,
+          expiresOn: receiptToSave.voucher_issued.expires_on,
+          note: receiptToSave.vendor_name,
+        });
+      } else {
+        await processReceipt(receiptToSave);
+      }
       setScanSessionError(null);
       timersRef.current.forEach(clearTimeout);
       timersRef.current = [];
       triggerRefresh();
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      SparkToast.show(t('receipt_parsed'), 'success', `${receiptToSave.vendor_name} • ${receiptToSave.items?.length || 0}`);
+      SparkToast.show(
+        receiptToSave.document_type === 'container_return_voucher'
+          ? t('deposit_voucher_saved')
+          : t('receipt_parsed'),
+        'success',
+        receiptToSave.document_type === 'container_return_voucher'
+          ? formatCurrency(receiptToSave.voucher_issued?.amount ?? 0, receiptToSave.currency, false)
+          : `${receiptToSave.vendor_name} • ${receiptToSave.items?.length || 0}`,
+      );
       setState('idle');
       setResult(null);
-      replaceReceiptCopy(null);
-    setImageUri(null);
+      replaceReceiptCopies([]);
+      setImages([]);
     } catch (e) {
       SparkToast.show(t('error_saving_data'), 'error');
     } finally {
@@ -403,6 +449,10 @@ export default function ScannerScreen() {
 
   async function handleEditBeforeSave() {
     if (!result || resultBusyRef.current) return;
+    if (result.document_type === 'container_return_voucher') {
+      await handleSave();
+      return;
+    }
     resultBusyRef.current = true;
     setResultBusy(true);
     const receiptToSave = result;
@@ -417,8 +467,8 @@ export default function ScannerScreen() {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       setState('idle');
       setResult(null);
-      replaceReceiptCopy(null);
-    setImageUri(null);
+      replaceReceiptCopies([]);
+      setImages([]);
       router.push(`/add-expense?id=${expenseId}`);
     } catch (e) {
       SparkToast.show(t('error_saving_data'), 'error');
@@ -497,11 +547,53 @@ export default function ScannerScreen() {
           </Animated.View>
         )}
 
+        {state === 'collecting' && (
+          <Animated.View entering={FadeIn.duration(250)} style={styles.collectingContent}>
+            <Text style={styles.collectingTitle}>{t('receipt_pages_title')}</Text>
+            <Text style={styles.collectingHint}>{t('receipt_pages_hint')}</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.pageStrip}>
+              {images.map((asset, index) => (
+                <View key={asset.uri} style={styles.pagePreviewWrap}>
+                  <Image source={{ uri: asset.uri }} style={styles.pagePreview} resizeMode="cover" />
+                  <View style={styles.pageNumber}><Text style={styles.pageNumberText}>{index + 1}</Text></View>
+                  <Pressable
+                    onPress={() => removeCollectedImage(asset.uri)}
+                    style={styles.pageRemove}
+                    accessibilityRole="button"
+                    accessibilityLabel={t('remove')}
+                  >
+                    <Ionicons name="close" size={17} color="#FFFFFF" />
+                  </Pressable>
+                </View>
+              ))}
+            </ScrollView>
+            {images.length < 4 ? (
+              <View style={styles.addPageRow}>
+                <Pressable onPress={() => pickImage(true, true)} style={styles.addPageButton}>
+                  <Ionicons name="camera-outline" size={19} color={theme.primary} />
+                  <Text style={styles.addPageText}>{t('receipt_add_page_camera')}</Text>
+                </Pressable>
+                <Pressable onPress={() => pickImage(false, true)} style={styles.addPageButton}>
+                  <Ionicons name="images-outline" size={19} color={theme.primary} />
+                  <Text style={styles.addPageText}>{t('receipt_add_page_gallery')}</Text>
+                </Pressable>
+              </View>
+            ) : null}
+            <Pressable
+              testID="scanner-analyze-action"
+              onPress={() => void analyzeCollectedImages()}
+              disabled={sourceBusy}
+              style={({ pressed }) => [styles.analyzeButton, pressed && styles.analyzeButtonPressed]}
+            >
+              <Ionicons name="sparkles-outline" size={20} color={theme.onPrimary} />
+              <Text style={styles.analyzeButtonText}>{t('receipt_analyze_pages', { count: images.length })}</Text>
+            </Pressable>
+          </Animated.View>
+        )}
+
         {state === 'processing' && (
           <View style={styles.processingContent} accessibilityLiveRegion="polite">
-            {imageUri && (
-              <Image source={{ uri: imageUri }} style={styles.previewImage} resizeMode="contain" />
-            )}
+            <ReceiptHolographicCarousel images={images} accessibilityLabel={t('receipt_pages_title')} />
             <ActivityIndicator size="large" color={theme.primary} />
             <Text style={styles.processingText}>{t('scanning_ai_toast')}</Text>
             <Text style={styles.processingSubtext}>{t('processing')}</Text>
@@ -513,7 +605,7 @@ export default function ScannerScreen() {
               accessibilityLabel={t('stop_scan')}
             >
               <View style={styles.stopButtonRow}>
-                <Ionicons name="stop-circle-outline" size={20} color="#FFFFFF" />
+                <Ionicons name="stop-circle-outline" size={20} color="#FFFFFF" style={styles.stopButtonIcon} />
                 <Text style={styles.stopButtonText}>{t('stop_scan')}</Text>
               </View>
             </Pressable>
@@ -527,10 +619,11 @@ export default function ScannerScreen() {
             onPrimary={() => {
               const openSettings = state === 'no_key' || errorAction === 'settings';
               setState('idle');
-              setImageUri(null);
+              replaceReceiptCopies([]);
+              setImages([]);
               if (openSettings) router.push('/settings-ai');
             }}
-            onManual={() => { setState('idle'); setImageUri(null); router.push('/add-expense'); }}
+            onManual={() => { setState('idle'); replaceReceiptCopies([]); setImages([]); router.push('/add-expense'); }}
           />
         )}
 
@@ -558,6 +651,22 @@ export default function ScannerScreen() {
               <View style={styles.divider} />
 
               {/* Line Items */}
+              {result.document_type === 'container_return_voucher' && result.voucher_issued ? (
+                <View style={styles.voucherResult}>
+                  <MaterialCommunityIcons name="ticket-confirmation-outline" size={26} color={theme.primary} />
+                  <View style={styles.voucherResultCopy}>
+                    <Text style={styles.voucherResultTitle}>{t('deposit_voucher_detected')}</Text>
+                    <Text style={styles.voucherResultMeta}>
+                      {result.voucher_issued.expires_on
+                        ? t('deposit_voucher_expires', { date: result.voucher_issued.expires_on })
+                        : t('deposit_voucher_no_expiry')}
+                    </Text>
+                  </View>
+                  <Text style={styles.voucherResultAmount}>
+                    {formatCurrency(result.voucher_issued.amount, lineCurrency)}
+                  </Text>
+                </View>
+              ) : null}
               {result.items.map((item, i) => {
                 const hasDisc = lineHasDiscount(item);
                 const discAmt = effectiveLineDiscount(item);
@@ -604,17 +713,39 @@ export default function ScannerScreen() {
 
               <View style={styles.divider} />
 
+              {result.document_type !== 'container_return_voucher'
+                && ((result.container_deposit_paid ?? 0) > 0 || (result.container_voucher_used ?? 0) > 0) ? (
+                <View style={styles.depositResultPanel}>
+                  {(result.container_deposit_paid ?? 0) > 0 ? (
+                    <View style={styles.depositResultRow}>
+                      <Text style={styles.depositResultLabel}>{t('deposit_paid')}</Text>
+                      <Text style={styles.depositResultValue}>
+                        {formatCurrency(result.container_deposit_paid!, lineCurrency)}
+                      </Text>
+                    </View>
+                  ) : null}
+                  {(result.container_voucher_used ?? 0) > 0 ? (
+                    <View style={styles.depositResultRow}>
+                      <Text style={styles.depositResultLabel}>{t('deposit_voucher_used')}</Text>
+                      <Text style={[styles.depositResultValue, { color: theme.primary }]}>
+                        {formatCurrency(result.container_voucher_used!, lineCurrency)}
+                      </Text>
+                    </View>
+                  ) : null}
+                </View>
+              ) : null}
+
               {/* Total */}
-              <View style={styles.totalRow}>
+              {result.document_type !== 'container_return_voucher' ? <View style={styles.totalRow}>
                 <Text style={styles.totalLabel}>{t('total').toUpperCase()}</Text>
                 <Text style={styles.totalAmount}>
                   {formatCurrency(result.total, lineCurrency)}
                 </Text>
-              </View>
+              </View> : null}
             </AnimatedCard>
 
             <View style={styles.resultActionsCol}>
-              <Pressable
+              {result.document_type !== 'container_return_voucher' ? <Pressable
                 onPress={handleSave}
                 disabled={resultBusy}
                 style={({ pressed }) => [
@@ -626,9 +757,13 @@ export default function ScannerScreen() {
                 accessibilityLabel={t('save')}
                 accessibilityState={{ disabled: resultBusy, busy: resultBusy }}
               >
-                <Ionicons name="checkmark" size={20} color={theme.onPrimary} />
-                <Text style={styles.savePillText}>{t('save')}</Text>
-              </Pressable>
+                <View style={styles.resultActionInner}>
+                  <View style={styles.resultActionIconSlot}>
+                    <MaterialCommunityIcons name="check-bold" size={20} color={theme.onPrimary} />
+                  </View>
+                  <Text style={styles.savePillText}>{t('save')}</Text>
+                </View>
+              </Pressable> : null}
               <Pressable
                 onPress={handleEditBeforeSave}
                 disabled={resultBusy}
@@ -641,18 +776,31 @@ export default function ScannerScreen() {
                 accessibilityLabel={t('edit')}
                 accessibilityState={{ disabled: resultBusy, busy: resultBusy }}
               >
-                <Ionicons name="pencil-outline" size={20} color={theme.primary} />
-                <Text style={styles.editPillText}>{t('edit')}</Text>
+                <View style={styles.resultActionInner}>
+                  <View style={styles.resultActionIconSlot}>
+                    <MaterialCommunityIcons name="pencil" size={19} color={theme.primary} />
+                  </View>
+                  <Text style={styles.editPillText}>{t('edit')}</Text>
+                </View>
               </Pressable>
               <Pressable
-                onPress={() => { setState('idle'); setResult(null); setImageUri(null); }}
+                onPress={() => { setState('idle'); setResult(null); replaceReceiptCopies([]); setImages([]); }}
                 disabled={resultBusy}
-                style={[styles.cancelGhost, resultBusy && styles.resultActionDisabled]}
+                style={({ pressed }) => [
+                  styles.cancelGhost,
+                  resultBusy && styles.resultActionDisabled,
+                  pressed && styles.cancelGhostPressed,
+                ]}
                 accessibilityRole="button"
                 accessibilityLabel={t('cancel')}
                 accessibilityState={{ disabled: resultBusy }}
               >
-                <Text style={styles.cancelGhostText}>{t('cancel')}</Text>
+                <View style={styles.resultActionInner}>
+                  <View style={styles.resultActionIconSlot}>
+                    <MaterialCommunityIcons name="close-thick" size={17} color={theme.danger} />
+                  </View>
+                  <Text style={styles.cancelGhostText}>{t('cancel')}</Text>
+                </View>
               </Pressable>
             </View>
           </Animated.View>
@@ -665,8 +813,16 @@ export default function ScannerScreen() {
   );
 }
 
-const getStyles = (theme: typeof DarkTheme, isDark: boolean) => {
+const getStyles = (theme: typeof DarkTheme, isDark: boolean, language: Language) => {
   const susevar = createSusevarStyles(theme);
+  // Etiket genişlikleri dile göre değiştiği için ikon–metin optik boşluğu
+  // ayrı ayarlanır. AZ düzeni mevcut kabul edilen ölçülerde korunur.
+  const actionTextPadding = {
+    tr: { save: 28, edit: 28, cancel: 12 },
+    en: { save: 8, edit: 8, cancel: 8 },
+    az: { save: 28, edit: 44, cancel: 28 },
+    ru: { save: 40, edit: 32, cancel: 16 },
+  }[language];
   return StyleSheet.create({
   container: {
     flex: 1,
@@ -799,17 +955,69 @@ const getStyles = (theme: typeof DarkTheme, isDark: boolean) => {
   actionLabelSecondary: {
     color: theme.textPrimary,
   },
+  collectingContent: {
+    paddingTop: Spacing.lg,
+    gap: Spacing.md,
+  },
+  collectingTitle: {
+    ...Typography.headlineSmall,
+    color: theme.textPrimary,
+    textAlign: 'center',
+  },
+  collectingHint: {
+    ...Typography.bodyMedium,
+    color: theme.textSecondary,
+    textAlign: 'center',
+    marginBottom: Spacing.sm,
+  },
+  pageStrip: { gap: Spacing.md, paddingVertical: Spacing.sm, paddingHorizontal: 2 },
+  pagePreviewWrap: { width: 132, height: 178, position: 'relative' },
+  pagePreview: {
+    width: '100%',
+    height: '100%',
+    borderRadius: BorderRadius.lg,
+    borderWidth: 1,
+    borderColor: theme.cardBorder,
+  },
+  pageNumber: {
+    position: 'absolute', left: 8, bottom: 8,
+    minWidth: 26, height: 26, borderRadius: 13,
+    alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(0,0,0,0.72)',
+  },
+  pageNumberText: { ...Typography.labelSmall, color: '#FFFFFF', fontFamily: FontFamily.bold },
+  pageRemove: {
+    position: 'absolute', right: 8, top: 8,
+    width: 28, height: 28, borderRadius: 14,
+    alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(0,0,0,0.72)',
+  },
+  addPageRow: { flexDirection: 'row', gap: Spacing.sm },
+  addPageButton: {
+    flex: 1,
+    minHeight: 48,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: Spacing.xs,
+    borderWidth: 1,
+    borderColor: theme.cardBorder,
+    borderRadius: BorderRadius.round,
+    backgroundColor: theme.cardSurface,
+    paddingHorizontal: Spacing.sm,
+  },
+  addPageText: { ...Typography.labelMedium, color: theme.textPrimary, flexShrink: 1 },
+  analyzeButton: {
+    ...susevar.button,
+    marginTop: Spacing.md,
+    flexDirection: 'row',
+    gap: Spacing.sm,
+  },
+  analyzeButtonPressed: susevarButtonPressed,
+  analyzeButtonText: susevar.text,
   // Processing
   processingContent: {
     alignItems: 'center',
     paddingTop: 40,
     gap: Spacing.lg,
-  },
-  previewImage: {
-    width: 200,
-    height: 280,
-    borderRadius: BorderRadius.lg,
-    marginBottom: Spacing.lg,
   },
   processingText: {
     ...Typography.headlineSmall,
@@ -825,10 +1033,27 @@ const getStyles = (theme: typeof DarkTheme, isDark: boolean) => {
     backgroundColor: theme.danger,
     shadowColor: theme.danger,
     marginTop: Spacing.xl,
+    minWidth: 180,
+    minHeight: 56,
+    paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.xxl,
   },
   stopButtonPressed: susevarButtonPressed,
-  stopButtonRow: susevarButtonRow,
-  stopButtonText: susevar.text,
+  stopButtonRow: {
+    ...susevarButtonRow,
+    minHeight: 22,
+    gap: 10,
+  },
+  stopButtonIcon: {
+    marginTop: 0,
+  },
+  stopButtonText: {
+    ...susevar.text,
+    fontSize: 17,
+    lineHeight: 22,
+    includeFontPadding: false,
+    textAlignVertical: 'center',
+  },
   // Result
   resultCard: {
     marginTop: Spacing.lg,
@@ -905,6 +1130,28 @@ const getStyles = (theme: typeof DarkTheme, isDark: boolean) => {
     color: theme.primary,
     fontFamily: FontFamily.bold,
   },
+  voucherResult: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.md,
+    paddingVertical: Spacing.sm,
+  },
+  voucherResultCopy: { flex: 1 },
+  voucherResultTitle: { ...Typography.bodyMedium, color: theme.textPrimary, fontFamily: FontFamily.semiBold },
+  voucherResultMeta: { ...Typography.labelSmall, color: theme.textSecondary, marginTop: 2 },
+  voucherResultAmount: { ...Typography.headlineSmall, color: theme.primary, fontFamily: FontFamily.bold },
+  depositResultPanel: {
+    gap: Spacing.xs,
+    padding: Spacing.md,
+    borderRadius: BorderRadius.md,
+    backgroundColor: theme.primaryGlow,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: theme.glassBorder,
+    marginBottom: Spacing.md,
+  },
+  depositResultRow: { flexDirection: 'row', justifyContent: 'space-between', gap: Spacing.md },
+  depositResultLabel: { ...Typography.bodySmall, color: theme.textSecondary, flex: 1 },
+  depositResultValue: { ...Typography.labelLarge, color: theme.textPrimary, fontFamily: FontFamily.semiBold },
   totalRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -946,7 +1193,6 @@ const getStyles = (theme: typeof DarkTheme, isDark: boolean) => {
   },
   savePill: {
     ...susevar.button,
-    ...susevarButtonRow,
     // Shared susevar geometrisini korurken tema rengini runtime'da yenile.
     backgroundColor: theme.primaryAction,
     shadowColor: theme.primaryAction,
@@ -957,15 +1203,13 @@ const getStyles = (theme: typeof DarkTheme, isDark: boolean) => {
    * Kart yüzeyi ile aynı düz dolgu + tam opak vurgu çerçevesi, gölge yok.
    */
   editPill: {
-    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: Spacing.sm,
     paddingVertical: Spacing.lg,
     paddingHorizontal: Spacing.xxl,
     backgroundColor: theme.cardSurface,
     borderRadius: BorderRadius.round,
-    borderWidth: 2,
+    borderWidth: 1.5,
     borderColor: theme.primary,
   },
   pillPressed: {
@@ -974,22 +1218,68 @@ const getStyles = (theme: typeof DarkTheme, isDark: boolean) => {
   resultActionDisabled: {
     opacity: 0.5,
   },
-  savePillText: susevar.text,
-  editPillText: {
-    color: theme.primary,
+  savePillText: {
+    ...susevar.text,
+    flex: 1,
+    textAlign: 'center',
+    paddingLeft: actionTextPadding.save,
     fontFamily: FontFamily.extraBold,
+    fontSize: language === 'ru' ? 17 : 18,
+    lineHeight: language === 'ru' ? 22 : 23,
+    letterSpacing: 0.7,
+  },
+  editPillText: {
+    ...susevar.text,
+    flex: 1,
+    textAlign: 'center',
+    paddingLeft: actionTextPadding.edit,
+    color: theme.primary,
+    fontFamily: FontFamily.semiBold,
     fontSize: 17,
-    letterSpacing: 0.8,
-    textTransform: 'uppercase',
+    lineHeight: 22,
+    letterSpacing: 0.5,
   },
   cancelGhost: {
+    minHeight: 50,
     alignItems: 'center',
-    paddingVertical: Spacing.md,
+    justifyContent: 'center',
+    paddingHorizontal: Spacing.xxl,
+    borderRadius: BorderRadius.round,
+    borderWidth: 1.5,
+    borderColor: theme.danger,
+    backgroundColor: theme.danger + '12',
+  },
+  resultActionInner: {
+    width: 200,
+    minHeight: 24,
+    position: 'relative',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  resultActionIconSlot: {
+    position: 'absolute',
+    left: 40,
+    width: 24,
+    height: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+  },
+  cancelGhostPressed: {
+    opacity: 0.82,
+    transform: [{ scale: 0.98 }],
   },
   cancelGhostText: {
-    ...Typography.labelLarge,
-    color: theme.textSecondary,
-    fontFamily: FontFamily.bold,
+    ...susevar.text,
+    flex: 1,
+    textAlign: 'center',
+    paddingLeft: actionTextPadding.cancel,
+    color: theme.danger,
+    fontFamily: FontFamily.medium,
+    fontSize: 16,
+    lineHeight: 21,
+    letterSpacing: 0.4,
   },
   });
 };
