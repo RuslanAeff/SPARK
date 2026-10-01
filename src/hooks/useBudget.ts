@@ -17,6 +17,7 @@ import {
 import { getToday } from '../utils/dateUtils';
 import { computeDebtAdjustedBudget } from '../utils/debtMath';
 import { BudgetRolloverDao } from '../db/budgetRolloverDao';
+import { ContainerDepositDao } from '../db/containerDepositDao';
 
 export interface BudgetInfo {
   carryIn?: number;
@@ -46,7 +47,9 @@ export interface BudgetInfo {
   netDebtFlow: number;
   /** Bu döngüde elde edilen ek gelir toplamı (extra_incomes.date ∈ döngü; yalnız +). */
   extraIncomeIn: number;
-  /** monthlyBudget + netDebtFlow + extraIncomeIn (remaining/percentage bunun üzerinden). */
+  /** Bu döngüde kullanılan/nakde çevrilen depozito voucher toplamı. */
+  depositRecoveredIn?: number;
+  /** Plan + nakit akışları + devir (remaining/percentage bunun üzerinden). */
   effectiveBudget: number;
   /** Global açık borç toplamı (kırmızı rozet) — döngü bağımsız, Σ open remaining. */
   outstandingDebt: number;
@@ -70,6 +73,7 @@ export function useBudget(specificMonth?: string) {
     repaidIn: 0,
     netDebtFlow: 0,
     extraIncomeIn: 0,
+    depositRecoveredIn: 0,
     effectiveBudget: 0,
     outstandingDebt: 0,
   });
@@ -126,6 +130,11 @@ export function useBudget(specificMonth?: string) {
       // düştüğü döngünün harcanabilir tutarını artırır. Kayıt yoksa 0 döner →
       // effectiveBudget eski davranışıyla birebir aynı kalır.
       const extraIncomeIn = await IncomeDao.getTotalByDateRange(cycle.start, cycle.end);
+      const depositRecoveredIn = await ContainerDepositDao.getRecoveredByDateRange(
+        cycle.start,
+        cycle.end,
+        budgetCurrency,
+      );
       const transfers = await BudgetRolloverDao.totals(cycle.start, cycle.end, budgetCurrency);
       const rolloverNeedsReview = exactBudget && (transfers.incoming > 0 || transfers.outgoing > 0)
         ? (await BudgetRolloverDao.status(exactBudget)).needsReview : false;
@@ -147,7 +156,15 @@ export function useBudget(specificMonth?: string) {
       // Bütçe etkisi = nakit akışı: remaining/percentage/isOverBudget
       // effectiveBudget (= plan + borrowedIn − repaidIn) üzerinden hesaplanır.
       const { effectiveBudget, netDebtFlow, remaining, percentage, isOverBudget } =
-        computeDebtAdjustedBudget({ monthlyBudget: budgetAmount, totalSpent, borrowedIn, repaidIn, extraIncomeIn, carryIn: transfers.incoming });
+        computeDebtAdjustedBudget({
+          monthlyBudget: budgetAmount,
+          totalSpent,
+          borrowedIn,
+          repaidIn,
+          extraIncomeIn,
+          depositRecoveredIn,
+          carryIn: transfers.incoming,
+        });
 
       const dailyAverage = dayOfCycle > 0 ? totalSpent / dayOfCycle : 0;
       const dailyBudget = daysRemaining > 0 ? Math.max(0, remaining) / daysRemaining : 0;
@@ -173,6 +190,7 @@ export function useBudget(specificMonth?: string) {
           repaidIn,
           netDebtFlow,
           extraIncomeIn,
+          depositRecoveredIn,
           effectiveBudget,
           outstandingDebt,
         });

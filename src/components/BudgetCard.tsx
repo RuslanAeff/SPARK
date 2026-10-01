@@ -147,6 +147,18 @@ function BudgetCard({ budget }: BudgetCardProps) {
         </View>
       ) : null}
 
+      {(budget.depositRecoveredIn ?? 0) > 0 ? (
+        <View style={styles.debtImpactRow}>
+          <MaterialCommunityIcons name="bottle-soda-outline" size={14} color={Colors.textSecondary} />
+          <Text style={styles.debtImpactLabel}>{t('deposit_recovered_budget_label')}</Text>
+          <View style={styles.debtImpactValues}>
+            <Text style={[styles.debtImpactValue, { color: Colors.success }]}>
+              +{formatCurrency(budget.depositRecoveredIn!, currency, false)}
+            </Text>
+          </View>
+        </View>
+      ) : null}
+
       <View style={styles.divider} />
 
       <View style={styles.row}>

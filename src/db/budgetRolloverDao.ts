@@ -5,6 +5,7 @@ import { BudgetDao } from './budgetDao';
 import { ExpenseDao } from './expenseDao';
 import { DebtDao } from './debtDao';
 import { IncomeDao } from './incomeDao';
+import { ContainerDepositDao } from './containerDepositDao';
 import { getToday } from '../utils/dateUtils';
 import { sanitizeAmount, sanitizeDate } from '../utils/inputValidation';
 import { fromMinorUnits, toMinorUnits, sumMoney, subtractMoney } from '../utils/moneyMath';
@@ -37,9 +38,12 @@ export const BudgetRolloverDao = {
     const borrowedIn = await DebtDao.getBorrowedTotalByDateRange(start, end);
     const repaidIn = await DebtDao.getRepaidTotalByDateRange(start, end);
     const extraIncomeIn = await IncomeDao.getTotalByDateRange(start, end);
+    const depositRecoveredIn = await ContainerDepositDao.getRecoveredByDateRange(
+      start, end, budget?.currency ?? 'PLN',
+    );
     const { incoming } = await BudgetRolloverDao.totals(start, end, budget?.currency ?? 'PLN');
     return computeDebtAdjustedBudget({ monthlyBudget: budget?.monthly_amount ?? 0, totalSpent: 0,
-      borrowedIn, repaidIn, extraIncomeIn, carryIn: incoming }).effectiveBudget;
+      borrowedIn, repaidIn, extraIncomeIn, depositRecoveredIn, carryIn: incoming }).effectiveBudget;
   },
   async list(): Promise<BudgetRollover[]> {
     return (await getDatabase()).getAllAsync<BudgetRollover>('SELECT * FROM budget_rollovers ORDER BY source_start, uid');
@@ -69,9 +73,13 @@ export const BudgetRolloverDao = {
       const borrowed = await DebtDao.getBorrowedTotalByDateRange(start, end);
       const repaid = await DebtDao.getRepaidTotalByDateRange(start, end);
       const income = await IncomeDao.getTotalByDateRange(start, end);
+      const depositRecoveredIn = await ContainerDepositDao.getRecoveredByDateRange(
+        start, end, b.currency,
+      );
       const incoming = sumMoney(rows.filter(r => r.target_start === start && r.target_end === end && r.currency === b.currency).map(r => fromMinorUnits(r.amount_minor)));
       const remaining = computeDebtAdjustedBudget({ monthlyBudget: b.monthly_amount, totalSpent: spent,
-        borrowedIn: borrowed, repaidIn: repaid, extraIncomeIn: income, carryIn: incoming }).remaining;
+        borrowedIn: borrowed, repaidIn: repaid, extraIncomeIn: income,
+        depositRecoveredIn, carryIn: incoming }).remaining;
       balances.set(key, remaining);
       return remaining;
     };

@@ -3,6 +3,7 @@ import * as SQLite from 'expo-sqlite';
 import * as Crypto from 'expo-crypto';
 import {
   CREATE_TABLES_SQL,
+  CONTAINER_DEPOSIT_SCHEMA_SQL,
   DEFAULT_CATEGORIES,
   PAYMENT_REMINDERS_SCHEMA_SQL,
   PRODUCT_IDENTITY_LINKS_SCHEMA_SQL,
@@ -22,6 +23,7 @@ export const PAYMENT_REMINDERS_MIGRATION = 'migration_payment_reminders_v1';
 export const PAYMENT_REMINDER_VENDOR_DETACH_MIGRATION =
   'migration_payment_reminder_vendor_detach_v2';
 export const PRODUCT_IDENTITY_MIGRATION = 'migration_product_identity_v1';
+export const CONTAINER_DEPOSIT_MIGRATION = 'migration_container_deposit_v1';
 
 interface SqliteTableInfoRow {
   name: string;
@@ -44,6 +46,44 @@ interface ProductIdentityMigrationAliasRow {
   canonical_product_id: number;
   normalized_alias: string;
   measurement_unit: MeasurementUnit;
+}
+
+export async function migrateContainerDepositsOnce(
+  database: SQLite.SQLiteDatabase,
+): Promise<void> {
+  const applied = await database.getFirstAsync<{ value: string }>(
+    'SELECT value FROM settings WHERE key = ?',
+    [CONTAINER_DEPOSIT_MIGRATION],
+  );
+  if (applied?.value === '1') return;
+
+  const expenseColumns = await database.getAllAsync<SqliteTableInfoRow>('PRAGMA table_info(expenses);');
+  const itemColumns = await database.getAllAsync<SqliteTableInfoRow>('PRAGMA table_info(expense_items);');
+  const expenseNames = new Set(expenseColumns.map(column => column.name));
+  const itemNames = new Set(itemColumns.map(column => column.name));
+
+  await database.withTransactionAsync(async () => {
+    if (!expenseNames.has('container_deposit_paid')) {
+      await database.execAsync(
+        'ALTER TABLE expenses ADD COLUMN container_deposit_paid REAL NOT NULL DEFAULT 0 CHECK(container_deposit_paid >= 0);',
+      );
+    }
+    if (!expenseNames.has('container_voucher_used')) {
+      await database.execAsync(
+        'ALTER TABLE expenses ADD COLUMN container_voucher_used REAL NOT NULL DEFAULT 0 CHECK(container_voucher_used >= 0);',
+      );
+    }
+    if (!itemNames.has('financial_kind')) {
+      await database.execAsync(
+        "ALTER TABLE expense_items ADD COLUMN financial_kind TEXT NOT NULL DEFAULT 'product' CHECK(financial_kind IN ('product', 'container_deposit'));",
+      );
+    }
+    await database.execAsync(CONTAINER_DEPOSIT_SCHEMA_SQL);
+    await database.runAsync(
+      'INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)',
+      [CONTAINER_DEPOSIT_MIGRATION, '1'],
+    );
+  });
 }
 
 /**
@@ -397,6 +437,7 @@ export async function getDatabase(): Promise<SQLite.SQLiteDatabase> {
     try {
       await instance.execAsync('ALTER TABLE expense_items ADD COLUMN list_line_total_before_discount REAL;');
     } catch (_) {}
+    await migrateContainerDepositsOnce(instance);
     await migrateItemMeasurementUnitsOnce(instance);
     await migrateProductIdentityOnce(instance);
     await normalizeReceiptMoneyPrecisionOnce(instance);

@@ -50,6 +50,43 @@ export const BUDGET_ROLLOVERS_SCHEMA_SQL = `
   CREATE INDEX IF NOT EXISTS idx_rollovers_target ON budget_rollovers(target_start, target_end);
 `;
 
+/** Refundable container deposits and store vouchers are separate from income. */
+export const CONTAINER_DEPOSIT_SCHEMA_SQL = `
+  CREATE TABLE IF NOT EXISTS container_deposit_vouchers (
+    id                    INTEGER PRIMARY KEY AUTOINCREMENT,
+    uid                   TEXT NOT NULL UNIQUE CHECK(length(uid) = 36),
+    amount                REAL NOT NULL CHECK(amount > 0),
+    currency              TEXT NOT NULL DEFAULT 'PLN' CHECK(length(trim(currency)) BETWEEN 1 AND 10),
+    issued_date           TEXT NOT NULL CHECK(length(issued_date) = 10),
+    expires_on            TEXT CHECK(expires_on IS NULL OR length(expires_on) = 10),
+    status                TEXT NOT NULL DEFAULT 'available' CHECK(status IN ('available', 'redeemed', 'expired')),
+    redeemed_date         TEXT,
+    redemption_expense_id INTEGER REFERENCES expenses(id) ON DELETE SET NULL,
+    note                  TEXT CHECK(note IS NULL OR length(note) <= 1000),
+    created_at            TEXT NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS idx_container_vouchers_status
+    ON container_deposit_vouchers(status, currency, issued_date);
+  CREATE INDEX IF NOT EXISTS idx_container_vouchers_expiry
+    ON container_deposit_vouchers(expires_on);
+  CREATE TABLE IF NOT EXISTS container_deposit_recoveries (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    uid         TEXT NOT NULL UNIQUE CHECK(length(uid) = 36),
+    voucher_id  INTEGER REFERENCES container_deposit_vouchers(id) ON DELETE SET NULL,
+    expense_id  INTEGER REFERENCES expenses(id) ON DELETE CASCADE,
+    amount      REAL NOT NULL CHECK(amount > 0),
+    currency    TEXT NOT NULL CHECK(length(trim(currency)) BETWEEN 1 AND 10),
+    date        TEXT NOT NULL CHECK(length(date) = 10),
+    method      TEXT NOT NULL CHECK(method IN ('purchase_voucher', 'cash')),
+    created_at  TEXT NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS idx_container_recoveries_date
+    ON container_deposit_recoveries(date, currency);
+  CREATE UNIQUE INDEX IF NOT EXISTS idx_container_recoveries_expense
+    ON container_deposit_recoveries(expense_id)
+    WHERE expense_id IS NOT NULL;
+`;
+
 export interface BudgetRollover {
   uid: string;
   source_start: string;
@@ -94,6 +131,8 @@ export const CREATE_TABLES_SQL = `
     currency     TEXT DEFAULT 'PLN',
     note         TEXT,
     receipt_uri  TEXT,
+    container_deposit_paid REAL NOT NULL DEFAULT 0 CHECK(container_deposit_paid >= 0),
+    container_voucher_used REAL NOT NULL DEFAULT 0 CHECK(container_voucher_used >= 0),
     date         TEXT NOT NULL,
     created_at   TEXT DEFAULT (datetime('now'))
   );
@@ -109,8 +148,11 @@ export const CREATE_TABLES_SQL = `
     canonical_product_id INTEGER REFERENCES canonical_products(id) ON DELETE SET NULL,
     unit_price  REAL NOT NULL,
     total_price REAL NOT NULL,
+    financial_kind TEXT NOT NULL DEFAULT 'product' CHECK(financial_kind IN ('product', 'container_deposit')),
     category_id INTEGER REFERENCES categories(id)
   );
+
+  ${CONTAINER_DEPOSIT_SCHEMA_SQL}
 
   CREATE TABLE IF NOT EXISTS budgets (
     id              INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -493,6 +535,8 @@ export interface Expense {
   currency: string;
   note: string | null;
   receipt_uri: string | null;
+  container_deposit_paid?: number;
+  container_voucher_used?: number;
   date: string;
   created_at: string;
 }
@@ -509,11 +553,40 @@ export interface ExpenseItem {
   canonical_product_id?: number | null;
   unit_price: number;
   total_price: number;
+  financial_kind?: 'product' | 'container_deposit';
   category_id: number | null;
   /** Satır indirimi (pozitif tutar) */
   line_discount?: number | null;
   /** İndirim öncesi satır toplamı */
   list_line_total_before_discount?: number | null;
+}
+
+export type ContainerDepositVoucherStatus = 'available' | 'redeemed' | 'expired';
+
+export interface ContainerDepositVoucher {
+  id: number;
+  uid: string;
+  amount: number;
+  currency: string;
+  issued_date: string;
+  expires_on: string | null;
+  status: ContainerDepositVoucherStatus;
+  redeemed_date: string | null;
+  redemption_expense_id: number | null;
+  note: string | null;
+  created_at: string;
+}
+
+export interface ContainerDepositRecovery {
+  id: number;
+  uid: string;
+  voucher_id: number | null;
+  expense_id: number | null;
+  amount: number;
+  currency: string;
+  date: string;
+  method: 'purchase_voucher' | 'cash';
+  created_at: string;
 }
 
 export interface CanonicalProduct {

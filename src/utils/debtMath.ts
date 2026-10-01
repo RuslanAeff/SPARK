@@ -12,6 +12,7 @@
 // belirler → sonraki döngüye sarkmaz (bütçe planı temiz kalır).
 //
 // effectiveBudget = monthlyBudget + borrowedIn − repaidIn + extraIncomeIn
+//                   + depositRecoveredIn + carryIn
 // remaining       = effectiveBudget − totalSpent
 // isOverBudget    = remaining < 0
 // percentage      = effectiveBudget'a göre (kullanıcı kararı: remaining ile
@@ -38,6 +39,8 @@ export interface DebtCashFlowInput {
    * Opsiyonel; verilmezse 0 (ek gelir öncesi davranış birebir korunur).
    */
   extraIncomeIn?: number;
+  /** Previously paid refundable deposits recovered by voucher/cash use. */
+  depositRecoveredIn?: number;
 }
 
 export interface DebtCashFlowResult {
@@ -45,7 +48,8 @@ export interface DebtCashFlowResult {
   netDebtFlow: number;
   /** Döngünün ek gelir toplamı (yalnız +; geri ödeme yok). */
   extraIncomeIn: number;
-  /** monthlyBudget + netDebtFlow + extraIncomeIn. */
+  depositRecoveredIn: number;
+  /** Plan + debt flow + extra income + recovered deposit + carry-in. */
   effectiveBudget: number;
   /** effectiveBudget − totalSpent. */
   remaining: number;
@@ -62,9 +66,18 @@ export function computeDebtAdjustedBudget(input: DebtCashFlowInput): DebtCashFlo
   const borrowedIn = Number.isFinite(input.borrowedIn) ? input.borrowedIn : 0;
   const repaidIn = Number.isFinite(input.repaidIn) ? input.repaidIn : 0;
   const extraIncomeIn = Number.isFinite(input.extraIncomeIn) ? (input.extraIncomeIn as number) : 0;
+  const depositRecoveredIn = Number.isFinite(input.depositRecoveredIn)
+    ? (input.depositRecoveredIn as number)
+    : 0;
 
   const netDebtFlow = subtractMoney(borrowedIn, repaidIn);
-  const effectiveBudget = sumMoney([monthlyBudget, netDebtFlow, extraIncomeIn, input.carryIn ?? 0]);
+  const effectiveBudget = sumMoney([
+    monthlyBudget,
+    netDebtFlow,
+    extraIncomeIn,
+    depositRecoveredIn,
+    input.carryIn ?? 0,
+  ]);
   const remaining = subtractMoney(effectiveBudget, totalSpent);
   const percentage =
     effectiveBudget > 0
@@ -74,6 +87,7 @@ export function computeDebtAdjustedBudget(input: DebtCashFlowInput): DebtCashFlo
   return {
     netDebtFlow,
     extraIncomeIn,
+    depositRecoveredIn,
     effectiveBudget,
     remaining,
     percentage,

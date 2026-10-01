@@ -4,6 +4,7 @@ import { BudgetDao } from '../../db/budgetDao';
 import { DebtDao } from '../../db/debtDao';
 import { ExpenseDao } from '../../db/expenseDao';
 import { IncomeDao } from '../../db/incomeDao';
+import { ContainerDepositDao } from '../../db/containerDepositDao';
 import { useBudget } from '../useBudget';
 jest.mock('../../db/budgetRolloverDao', () => ({ BudgetRolloverDao: {
   totals: jest.fn(async () => ({ incoming: 0, outgoing: 0 })),
@@ -37,6 +38,10 @@ jest.mock('../../db/incomeDao', () => ({
   IncomeDao: {
     getTotalByDateRange: jest.fn(),
   },
+}));
+
+jest.mock('../../db/containerDepositDao', () => ({
+  ContainerDepositDao: { getRecoveredByDateRange: jest.fn() },
 }));
 
 jest.mock('../../services/budgetCycleSettings', () => ({
@@ -85,6 +90,7 @@ describe('useBudget refresh sıralaması', () => {
     (DebtDao.getRepaidTotalByDateRange as jest.Mock).mockResolvedValue(0);
     (DebtDao.getOutstandingTotal as jest.Mock).mockResolvedValue(0);
     (IncomeDao.getTotalByDateRange as jest.Mock).mockResolvedValue(0);
+    (ContainerDepositDao.getRecoveredByDateRange as jest.Mock).mockResolvedValue(0);
   });
 
   it('geç biten eski sorgu, daha yeni bütçe sonucunu ezmez', async () => {

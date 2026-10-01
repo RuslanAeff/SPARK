@@ -12,6 +12,7 @@ import { ExpenseDao } from '../db/expenseDao';
 import { BudgetRolloverDao } from '../db/budgetRolloverDao';
 import { DebtDao } from '../db/debtDao';
 import { IncomeDao } from '../db/incomeDao';
+import { ContainerDepositDao } from '../db/containerDepositDao';
 import { computeDebtAdjustedBudget } from '../utils/debtMath';
 import { fromMinorUnits, sumMoney, subtractMoney } from '../utils/moneyMath';
 import { Budget } from '../db/schema';
@@ -118,7 +119,18 @@ export default function BudgetHistoryCard({
         const borrowedIn = await DebtDao.getBorrowedTotalByDateRange(cycle.start, cycle.end);
         const repaidIn = await DebtDao.getRepaidTotalByDateRange(cycle.start, cycle.end);
         const extraIncomeIn = await IncomeDao.getTotalByDateRange(cycle.start, cycle.end);
-        const { effectiveBudget } = computeDebtAdjustedBudget({ monthlyBudget: budget.monthly_amount, totalSpent: spent, borrowedIn, repaidIn, extraIncomeIn, carryIn });
+        const depositRecoveredIn = await ContainerDepositDao.getRecoveredByDateRange(
+          cycle.start, cycle.end, budget.currency,
+        );
+        const { effectiveBudget } = computeDebtAdjustedBudget({
+          monthlyBudget: budget.monthly_amount,
+          totalSpent: spent,
+          borrowedIn,
+          repaidIn,
+          extraIncomeIn,
+          depositRecoveredIn,
+          carryIn,
+        });
         withData.push({
           key,
           renderKey: `budget:${periodKey}:${budget.id}`,

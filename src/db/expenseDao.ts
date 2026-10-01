@@ -29,6 +29,11 @@ type ExpenseItemWrite = Omit<ExpenseItem, 'id'> & {
   product_identity_hint?: ProductIdentityHint | null;
 };
 
+type ExpenseCreate = Omit<Expense, 'id' | 'created_at' | 'container_deposit_paid' | 'container_voucher_used'> & {
+  container_deposit_paid?: number;
+  container_voucher_used?: number;
+};
+
 type ExpenseItemUpdate = Partial<ExpenseItem> & {
   turkish_name?: string | null;
   user_label?: string | null;
@@ -125,17 +130,22 @@ export const ExpenseDao = {
     );
   },
 
-  async create(expense: Omit<Expense, 'id' | 'created_at'>): Promise<number> {
+  async create(expense: ExpenseCreate): Promise<number> {
     const db = await getDatabase();
     const safeTotalAmount = sanitizeAmount(expense.total_amount);
     const safeCurrency = sanitizeText(expense.currency || 'PLN', 10);
     const safeNote = expense.note ? sanitizeText(expense.note, 1000) : null;
     const result = await db.runAsync(
-      `INSERT INTO expenses (vendor_id, category_id, total_amount, currency, note, receipt_uri, date)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO expenses
+        (vendor_id, category_id, total_amount, currency, note, receipt_uri,
+         container_deposit_paid, container_voucher_used, date)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         expense.vendor_id, expense.category_id, safeTotalAmount,
-        safeCurrency, safeNote, expense.receipt_uri, expense.date,
+        safeCurrency, safeNote, expense.receipt_uri,
+        sanitizeAmount(expense.container_deposit_paid ?? 0),
+        sanitizeAmount(expense.container_voucher_used ?? 0),
+        expense.date,
       ]
     );
     return result.lastInsertRowId;
@@ -155,6 +165,14 @@ export const ExpenseDao = {
     if (expense.currency !== undefined) { fields.push('currency = ?'); values.push(expense.currency); }
     if (expense.note !== undefined) { fields.push('note = ?'); values.push(expense.note); }
     if (expense.receipt_uri !== undefined) { fields.push('receipt_uri = ?'); values.push(expense.receipt_uri); }
+    if (expense.container_deposit_paid !== undefined) {
+      fields.push('container_deposit_paid = ?');
+      values.push(sanitizeAmount(expense.container_deposit_paid));
+    }
+    if (expense.container_voucher_used !== undefined) {
+      fields.push('container_voucher_used = ?');
+      values.push(sanitizeAmount(expense.container_voucher_used));
+    }
     if (expense.date !== undefined) { fields.push('date = ?'); values.push(expense.date); }
 
     if (fields.length > 0) {
@@ -165,7 +183,15 @@ export const ExpenseDao = {
 
   async delete(id: number): Promise<void> {
     const db = await getDatabase();
-    await db.runAsync('DELETE FROM expenses WHERE id = ?', [id]);
+    await db.withTransactionAsync(async () => {
+      await db.runAsync(
+        `UPDATE container_deposit_vouchers
+            SET status = 'available', redeemed_date = NULL, redemption_expense_id = NULL
+          WHERE redemption_expense_id = ? AND status = 'redeemed'`,
+        [id],
+      );
+      await db.runAsync('DELETE FROM expenses WHERE id = ?', [id]);
+    });
   },
 
   /** Toplu silme; expense_items FK ile birlikte temizlenir (CASCADE). */
@@ -178,7 +204,15 @@ export const ExpenseDao = {
     for (let i = 0; i < safeIds.length; i += CHUNK) {
       const chunk = safeIds.slice(i, i + CHUNK);
       const placeholders = chunk.map(() => '?').join(',');
-      await db.runAsync(`DELETE FROM expenses WHERE id IN (${placeholders})`, chunk);
+      await db.withTransactionAsync(async () => {
+        await db.runAsync(
+          `UPDATE container_deposit_vouchers
+              SET status = 'available', redeemed_date = NULL, redemption_expense_id = NULL
+            WHERE redemption_expense_id IN (${placeholders}) AND status = 'redeemed'`,
+          chunk,
+        );
+        await db.runAsync(`DELETE FROM expenses WHERE id IN (${placeholders})`, chunk);
+      });
     }
   },
 
@@ -199,17 +233,22 @@ export const ExpenseDao = {
     const safeLineDiscount = ld != null && ld !== undefined ? sanitizeAmount(ld) : 0;
     const safeListBefore = lb != null && lb !== undefined ? sanitizeAmount(lb) : null;
     const safeMeasurementUnit = sanitizeMeasurementUnit(item.measurement_unit);
-    const identity = await resolveCanonicalProductForItem({
-      name: safeName,
-      measurementUnit: safeMeasurementUnit,
-      hint: item.product_identity_hint,
-    }, db);
+    const safeFinancialKind = item.financial_kind === 'container_deposit'
+      ? 'container_deposit'
+      : 'product';
+    const identity = safeFinancialKind === 'container_deposit'
+      ? null
+      : await resolveCanonicalProductForItem({
+        name: safeName,
+        measurementUnit: safeMeasurementUnit,
+        hint: item.product_identity_hint,
+      }, db);
     const result = await db.runAsync(
       `INSERT INTO expense_items
          (expense_id, name, turkish_name, user_label, quantity, measurement_unit,
           canonical_product_id, unit_price, total_price, category_id, line_discount,
-          list_line_total_before_discount)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          list_line_total_before_discount, financial_kind)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         item.expense_id,
         safeName,
@@ -223,6 +262,7 @@ export const ExpenseDao = {
         item.category_id,
         safeLineDiscount,
         safeListBefore,
+        safeFinancialKind,
       ]
     );
     return result.lastInsertRowId;
@@ -265,8 +305,9 @@ export const ExpenseDao = {
       const current = await db.getFirstAsync<{
         name: string;
         measurement_unit: MeasurementUnit;
+        financial_kind: 'product' | 'container_deposit';
       }>(
-        'SELECT name, measurement_unit FROM expense_items WHERE id = ?',
+        'SELECT name, measurement_unit, financial_kind FROM expense_items WHERE id = ?',
         [id],
       );
       if (!current) throw new Error('RECEIPT_ITEM_NOT_FOUND');
@@ -276,11 +317,14 @@ export const ExpenseDao = {
       const nextUnit = sanitizeMeasurementUnit(
         item.measurement_unit === undefined ? current.measurement_unit : item.measurement_unit,
       );
-      const identity = await resolveCanonicalProductForItem({
-        name: nextName,
-        measurementUnit: nextUnit,
-        hint: item.product_identity_hint,
-      }, db);
+      const nextFinancialKind = item.financial_kind ?? current.financial_kind;
+      const identity = nextFinancialKind === 'container_deposit'
+        ? null
+        : await resolveCanonicalProductForItem({
+          name: nextName,
+          measurementUnit: nextUnit,
+          hint: item.product_identity_hint,
+        }, db);
       fields.push('canonical_product_id = ?');
       values.push(identity?.canonicalProductId ?? null);
     } else if (item.canonical_product_id !== undefined) {
@@ -295,6 +339,10 @@ export const ExpenseDao = {
     if (item.total_price !== undefined) {
       fields.push('total_price = ?');
       values.push(roundMoney(sanitizeUnitPrice(item.total_price)));
+    }
+    if (item.financial_kind !== undefined) {
+      fields.push('financial_kind = ?');
+      values.push(item.financial_kind === 'container_deposit' ? 'container_deposit' : 'product');
     }
     if (item.category_id !== undefined) { fields.push('category_id = ?'); values.push(item.category_id); }
     if (item.line_discount !== undefined) {
@@ -562,6 +610,7 @@ export const ExpenseDao = {
        JOIN expenses e ON i.expense_id = e.id
        LEFT JOIN canonical_products p ON p.id = i.canonical_product_id
        WHERE e.vendor_id = ? AND e.date BETWEEN ? AND ?
+         AND i.financial_kind = 'product'
          AND i.unit_price > 0`,
       [vendorId, startDate, endDate]
     );
@@ -713,7 +762,8 @@ export const ExpenseDao = {
        FROM expense_items i
        JOIN expenses e ON i.expense_id = e.id
        LEFT JOIN canonical_products p ON p.id = i.canonical_product_id
-       WHERE e.date BETWEEN ? AND ?`,
+       WHERE e.date BETWEEN ? AND ?
+         AND i.financial_kind = 'product'`,
       [startDate, endDate],
     );
 
@@ -796,6 +846,7 @@ export const ExpenseDao = {
        JOIN expenses e ON i.expense_id = e.id
        LEFT JOIN vendors v ON e.vendor_id = v.id
        LEFT JOIN canonical_products p ON p.id = i.canonical_product_id
+       WHERE i.financial_kind = 'product'
        ORDER BY e.date ASC, i.id ASC`
     );
 
@@ -874,6 +925,7 @@ export const ExpenseDao = {
        JOIN expenses e ON i.expense_id = e.id
        LEFT JOIN canonical_products p ON p.id = i.canonical_product_id
        WHERE e.date >= date('now', '-' || ? || ' months')
+         AND i.financial_kind = 'product'
          AND i.unit_price > 0
        ORDER BY TRIM(i.name), e.date ASC`,
       [safeMonths]
@@ -1031,6 +1083,7 @@ export const ExpenseDao = {
        LEFT JOIN categories c ON i.category_id = c.id
        LEFT JOIN canonical_products p ON p.id = i.canonical_product_id
        WHERE e.date BETWEEN ? AND ?
+         AND i.financial_kind = 'product'
          AND i.unit_price > 0`,
       [startDate, endDate]
     );

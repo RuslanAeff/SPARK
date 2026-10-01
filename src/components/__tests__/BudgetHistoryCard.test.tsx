@@ -12,6 +12,9 @@ jest.mock('../../db/debtDao', () => ({ DebtDao: {
   getBorrowedTotalByDateRange: jest.fn(async () => 0), getRepaidTotalByDateRange: jest.fn(async () => 0),
 } }));
 jest.mock('../../db/incomeDao', () => ({ IncomeDao: { getTotalByDateRange: jest.fn(async () => 0) } }));
+jest.mock('../../db/containerDepositDao', () => ({ ContainerDepositDao: {
+  getRecoveredByDateRange: jest.fn(async () => 0),
+} }));
 jest.mock('../../services/budgetCycleSettings', () => ({ getCycleStartDay: jest.fn(async () => 23) }));
 jest.mock('../../utils/dateUtils', () => ({ getToday: () => '2026-09-25', formatDayMonth: (v: string) => v }));
 jest.mock('../../theme/themeStore', () => ({ useAppTheme: () => 'dark', useThemeRevision: () => 0 }));
