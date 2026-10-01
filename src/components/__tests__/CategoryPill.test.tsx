@@ -31,7 +31,7 @@ describe('CategoryPill', () => {
     expect(screen.getByText('Yeme-İçme')).toBeTruthy();
     expect(screen.getByText('24%')).toBeTruthy();
     expect(screen.getByLabelText('Yeme-İçme, 24%')).toBeTruthy();
-    expect(StyleSheet.flatten(screen.getByText('Yeme-İçme').props.style).minHeight).toBeUndefined();
+    expect(StyleSheet.flatten(screen.getByText('Yeme-İçme').props.style).minHeight).toBe(28);
   });
 
   it('uzun kategori adını iki satırla sınırlar ve tam adı erişilebilir etikette korur', async () => {
@@ -46,6 +46,22 @@ describe('CategoryPill', () => {
 
     expect(screen.getByText('Diğer Uzun Harcamalar').props.numberOfLines).toBe(2);
     expect(screen.getByLabelText('Diğer Uzun Harcamalar, 7%')).toBeTruthy();
+  });
+
+  it('compound category labels break at the hyphen instead of splitting the final word', async () => {
+    const screen = await render(
+      <CategoryPill
+        name="Hesab-fakturalar"
+        icon="receipt"
+        color="#FFCC00"
+        percentage={44}
+      />,
+    );
+
+    const label = screen.getByText('Hesab\nfakturalar');
+    expect(label.props.numberOfLines).toBe(2);
+    expect(label.props.style).toEqual(expect.objectContaining({ minHeight: 28, includeFontPadding: false }));
+    expect(screen.getByLabelText('Hesab-fakturalar, 44%')).toBeTruthy();
   });
 
   it('etkileşim verildiğinde erişilebilir düğme olarak çalışır', async () => {

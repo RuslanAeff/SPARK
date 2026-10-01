@@ -17,6 +17,14 @@ interface CategoryPillProps {
   size?: 'small' | 'medium' | 'large';
 }
 
+/** Keep compound localized labels readable inside the compact dashboard pill. */
+function formatCategoryLabel(name: string): string {
+  const separator = name.indexOf('-');
+  return separator > 0 && name.length >= 13
+    ? `${name.slice(0, separator)}\n${name.slice(separator + 1)}`
+    : name;
+}
+
 export default function CategoryPill({
   name,
   icon,
@@ -90,7 +98,7 @@ export default function CategoryPill({
           numberOfLines={2}
           ellipsizeMode="tail"
         >
-          {name}
+          {formatCategoryLabel(name)}
         </Text>
         {percentage != null && (
           <Text style={[styles.percentage, { color }]}>{percentage}%</Text>
@@ -128,6 +136,9 @@ const getStyles = () => StyleSheet.create({
     color: Colors.textPrimary,
     fontFamily: FontFamily.medium,
     textAlign: 'center',
+    minHeight: 28,
+    includeFontPadding: false,
+    textAlignVertical: 'center',
   },
   percentage: {
     ...Typography.labelSmall,
