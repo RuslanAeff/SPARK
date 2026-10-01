@@ -29,6 +29,7 @@ import type { SwipeableMethods } from 'react-native-gesture-handler/ReanimatedSw
 import * as Haptics from 'expo-haptics';
 
 import BottomSheetModal from '../src/components/BottomSheetModal';
+import { RecurringPaymentReminderDao } from '../src/db/recurringPaymentReminderDao';
 import GlassDeleteModal from '../src/components/GlassDeleteModal';
 import NotificationSwipeCard from '../src/components/NotificationSwipeCard';
 import { SparkToast } from '../src/components/SparkToast';
@@ -477,6 +478,21 @@ export default function NotificationsScreen() {
     () => (detailNotifId ? feed.find((item) => item.id === detailNotifId) ?? null : null),
     [detailNotifId, feed],
   );
+  const detailPaymentPlanUid = detailNotif?.id.match(
+    /^payplan-due-v1-([0-9a-f-]{36})-/i,
+  )?.[1] ?? null;
+
+  const editDetailPaymentReminder = useCallback(async () => {
+    if (!detailPaymentPlanUid) return;
+    try {
+      const plan = await RecurringPaymentReminderDao.getByUid(detailPaymentPlanUid);
+      if (!plan) throw new Error('Reminder not found');
+      setDetailNotifId(null);
+      router.push(`/recurring-payment?id=${plan.id}`);
+    } catch {
+      SparkToast.show(t('operation_failed'), 'error');
+    }
+  }, [detailPaymentPlanUid, router, t]);
 
   useEffect(() => {
     if (detailNotifId && !detailNotif) setDetailNotifId(null);
@@ -794,6 +810,17 @@ export default function NotificationsScreen() {
               </Text>
             </ScrollView>
             <Text style={styles.detailTime}>{formatTime(detailNotif.createdAt)}</Text>
+            {detailPaymentPlanUid ? (
+              <Pressable
+                style={({ pressed }) => [styles.detailEditBtn, pressed && styles.detailCloseBtnPressed]}
+                onPress={() => void editDetailPaymentReminder()}
+                accessibilityRole="button"
+                accessibilityLabel={t('payment_reminder_edit_action')}
+              >
+                <MaterialCommunityIcons name="calendar-clock-outline" size={18} color={Colors.primary} />
+                <Text style={styles.detailEditBtnText}>{t('payment_reminder_edit_action')}</Text>
+              </Pressable>
+            ) : null}
             <Pressable
               style={({ pressed }) => [styles.detailCloseBtn, pressed && styles.detailCloseBtnPressed]}
               onPress={() => setDetailNotifId(null)}
@@ -1328,6 +1355,23 @@ const getStyles = (isDark: boolean) => {
       borderWidth: 1,
       borderColor: Colors.border,
       backgroundColor: Colors.surfaceLight,
+    },
+    detailEditBtn: {
+      minHeight: 48,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: Spacing.sm,
+      borderWidth: 1,
+      borderColor: Colors.primary + '55',
+      borderRadius: BorderRadius.round,
+      marginBottom: Spacing.sm,
+      backgroundColor: Colors.primaryGlow,
+    },
+    detailEditBtnText: {
+      ...Typography.labelLarge,
+      color: Colors.primary,
+      fontFamily: FontFamily.semiBold,
     },
     detailCloseBtnPressed: {
       opacity: 0.92,
