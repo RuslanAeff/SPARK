@@ -309,6 +309,14 @@ function AppShell({ onboardingLoading, onboardingCompleted }: AppShellProps) {
             }}
           />
           <Stack.Screen
+            name="deposit-wallet"
+            options={{
+              presentation: 'card',
+              animation: 'slide_from_right',
+              contentStyle: { backgroundColor: theme.background },
+            }}
+          />
+          <Stack.Screen
             name="settings-general"
             options={{
               presentation: 'card',

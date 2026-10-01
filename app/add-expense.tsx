@@ -37,6 +37,8 @@ import {
   susevarButtonPressed,
 } from '../src/theme/susevar';
 import { useThemeRevision } from '../src/theme/themeStore';
+import { getDatabase } from '../src/db/database';
+import { ContainerDepositDao } from '../src/db/containerDepositDao';
 
 export default function AddExpenseScreen() {
   useThemeRevision();
@@ -52,6 +54,9 @@ export default function AddExpenseScreen() {
   const [amount, setAmount] = useState('');
   const [recordCurrency, setRecordCurrency] = useState<string>(displayCurrency);
   const [note, setNote] = useState('');
+  const [depositExpanded, setDepositExpanded] = useState(false);
+  const [containerDepositPaid, setContainerDepositPaid] = useState('');
+  const [containerVoucherUsed, setContainerVoucherUsed] = useState('');
   const [date, setDate] = useState(getToday());
   const [vendorName, setVendorName] = useState('');
   // Two-level category selection: parent stays selected when picking sub-category
@@ -145,6 +150,11 @@ export default function AddExpenseScreen() {
         setAmount(formatMoneyInput(expense.total_amount));
         setRecordCurrency(expense.currency || displayCurrency);
         setNote(expense.note || '');
+        setContainerDepositPaid(formatMoneyInput(expense.container_deposit_paid ?? 0));
+        setContainerVoucherUsed(formatMoneyInput(expense.container_voucher_used ?? 0));
+        setDepositExpanded(
+          (expense.container_deposit_paid ?? 0) > 0 || (expense.container_voucher_used ?? 0) > 0,
+        );
         setDate(expense.date);
         setExistingItems(expense.items || []);
         if (expense.vendor_name) setVendorName(expense.vendor_name);
@@ -173,6 +183,11 @@ export default function AddExpenseScreen() {
           setVendorName(pre.vendorName);
           setDate(pre.date);
           setNote(pre.note);
+          setContainerDepositPaid(pre.containerDepositPaid === '0.00' ? '' : pre.containerDepositPaid);
+          setContainerVoucherUsed(pre.containerVoucherUsed === '0.00' ? '' : pre.containerVoucherUsed);
+          setDepositExpanded(
+            Number(pre.containerDepositPaid) > 0 || Number(pre.containerVoucherUsed) > 0,
+          );
           const cat = cats.find(c => c.id === pre.categoryId);
           if (cat) {
             if (cat.parent_id) {
@@ -219,6 +234,15 @@ export default function AddExpenseScreen() {
       SparkToast.show(t('invalid_amount'), 'error');
       return;
     }
+    const parsedDepositPaid = containerDepositPaid.trim() ? parseMoneyInput(containerDepositPaid) : 0;
+    const parsedVoucherUsed = containerVoucherUsed.trim() ? parseMoneyInput(containerVoucherUsed) : 0;
+    if (
+      parsedDepositPaid == null || parsedDepositPaid < 0 || parsedDepositPaid > parsedAmount
+      || parsedVoucherUsed == null || parsedVoucherUsed < 0 || parsedVoucherUsed > parsedAmount
+    ) {
+      SparkToast.show(t('deposit_amount_invalid'), 'error');
+      return;
+    }
 
     setSaving(true);
     try {
@@ -231,34 +255,43 @@ export default function AddExpenseScreen() {
         });
       }
 
-      if (isEditing && id) {
-        const expenseId = parseInt(id, 10);
-        await ExpenseDao.update(expenseId, {
+      const db = await getDatabase();
+      let savedExpenseId = 0;
+      await db.withTransactionAsync(async () => {
+        if (isEditing && id) {
+          savedExpenseId = parseInt(id, 10);
+          await ExpenseDao.update(savedExpenseId, {
           total_amount: parsedAmount,
           currency: recordCurrency,
           note: note || null,
           date,
           vendor_id: vendorId,
           category_id: effectiveCategoryId,
-        });
+          container_deposit_paid: parsedDepositPaid,
+          container_voucher_used: parsedVoucherUsed,
+          });
+        } else {
+          savedExpenseId = await ExpenseDao.create({
+            total_amount: parsedAmount,
+            currency: recordCurrency,
+            note: note || null,
+            date,
+            vendor_id: vendorId,
+            category_id: effectiveCategoryId,
+            receipt_uri: null,
+            container_deposit_paid: parsedDepositPaid,
+            container_voucher_used: parsedVoucherUsed,
+          });
+        }
+        await ContainerDepositDao.syncPurchaseRecovery(savedExpenseId);
+      });
 
-        // Bu harcama fiş taramasından geldiyse mevcut bildirimi son kaydedilmiş
-        // satıcıyla yenile. Manuel harcamada eşleşen bildirim olmadığı için no-op.
+      if (isEditing && savedExpenseId > 0) {
         try {
-          await refreshReceiptSavedNotification(expenseId);
+          await refreshReceiptSavedNotification(savedExpenseId);
         } catch (error) {
           if (__DEV__) console.warn('[add-expense] receipt notification refresh failed', error);
         }
-      } else {
-        await ExpenseDao.create({
-          total_amount: parsedAmount,
-          currency: recordCurrency,
-          note: note || null,
-          date,
-          vendor_id: vendorId,
-          category_id: effectiveCategoryId,
-          receipt_uri: null,
-        });
       }
 
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -284,6 +317,15 @@ export default function AddExpenseScreen() {
       SparkToast.show(t('invalid_amount'), 'error');
       return;
     }
+    const parsedDepositPaid = containerDepositPaid.trim() ? parseMoneyInput(containerDepositPaid) : 0;
+    const parsedVoucherUsed = containerVoucherUsed.trim() ? parseMoneyInput(containerVoucherUsed) : 0;
+    if (
+      parsedDepositPaid == null || parsedDepositPaid < 0 || parsedDepositPaid > parsedAmount
+      || parsedVoucherUsed == null || parsedVoucherUsed < 0 || parsedVoucherUsed > parsedAmount
+    ) {
+      SparkToast.show(t('deposit_amount_invalid'), 'error');
+      return;
+    }
     
     setSaving(true);
     try {
@@ -294,14 +336,21 @@ export default function AddExpenseScreen() {
         });
       }
       
-      const newId = await ExpenseDao.create({
-        total_amount: parsedAmount,
-        currency: recordCurrency,
-        note: note || null,
-        date,
-        vendor_id: vendorId,
-        category_id: effectiveCategoryId,
-        receipt_uri: null,
+      const db = await getDatabase();
+      let newId = 0;
+      await db.withTransactionAsync(async () => {
+        newId = await ExpenseDao.create({
+          total_amount: parsedAmount,
+          currency: recordCurrency,
+          note: note || null,
+          date,
+          vendor_id: vendorId,
+          category_id: effectiveCategoryId,
+          receipt_uri: null,
+          container_deposit_paid: parsedDepositPaid,
+          container_voucher_used: parsedVoucherUsed,
+        });
+        await ContainerDepositDao.syncPurchaseRecovery(newId);
       });
 
       triggerRefresh();
@@ -439,6 +488,56 @@ export default function AddExpenseScreen() {
               placeholderTextColor={Colors.textMuted}
               multiline
             />
+          </View>
+
+          {/* Category Selection — Two-level */}
+          <View style={styles.depositCard}>
+            <Pressable
+              onPress={() => setDepositExpanded(value => !value)}
+              style={styles.depositHeader}
+              accessibilityRole="button"
+              accessibilityState={{ expanded: depositExpanded }}
+            >
+              <View style={styles.depositIcon}>
+                <MaterialCommunityIcons name="ticket-confirmation-outline" size={19} color={Colors.primary} />
+              </View>
+              <View style={styles.depositHeaderCopy}>
+                <Text style={styles.depositTitle}>{t('deposit_and_voucher')}</Text>
+                <Text style={styles.depositHint}>{t('deposit_and_voucher_hint')}</Text>
+              </View>
+              <MaterialCommunityIcons
+                name={depositExpanded ? 'chevron-up' : 'chevron-down'}
+                size={21}
+                color={Colors.textSecondary}
+              />
+            </Pressable>
+            {depositExpanded ? (
+              <Animated.View entering={FadeInDown.duration(220)} style={styles.depositFields}>
+                <View style={styles.depositField}>
+                  <Text style={styles.fieldLabel}>{t('deposit_paid')}</Text>
+                  <TextInput
+                    style={styles.textInput}
+                    value={containerDepositPaid}
+                    onChangeText={setContainerDepositPaid}
+                    keyboardType="decimal-pad"
+                    placeholder="0.00"
+                    placeholderTextColor={Colors.textMuted}
+                  />
+                </View>
+                <View style={styles.depositField}>
+                  <Text style={styles.fieldLabel}>{t('deposit_voucher_used')}</Text>
+                  <TextInput
+                    style={styles.textInput}
+                    value={containerVoucherUsed}
+                    onChangeText={setContainerVoucherUsed}
+                    keyboardType="decimal-pad"
+                    placeholder="0.00"
+                    placeholderTextColor={Colors.textMuted}
+                  />
+                  <Text style={styles.depositHelp}>{t('deposit_voucher_used_hint')}</Text>
+                </View>
+              </Animated.View>
+            ) : null}
           </View>
 
           {/* Category Selection — Two-level */}
@@ -703,6 +802,50 @@ const getStyles = () => StyleSheet.create({
     paddingVertical: Spacing.md,
     borderWidth: 1,
     borderColor: Colors.border,
+  },
+  depositCard: {
+    marginBottom: Spacing.xl,
+    backgroundColor: Colors.surface,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: BorderRadius.lg,
+    overflow: 'hidden',
+  },
+  depositHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: Spacing.md,
+    gap: Spacing.md,
+  },
+  depositIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: Colors.primary + '18',
+  },
+  depositHeaderCopy: { flex: 1 },
+  depositTitle: {
+    ...Typography.bodyMedium,
+    color: Colors.textPrimary,
+    fontFamily: FontFamily.semiBold,
+  },
+  depositHint: {
+    ...Typography.labelSmall,
+    color: Colors.textMuted,
+    marginTop: 2,
+  },
+  depositFields: {
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: Colors.border,
+    padding: Spacing.md,
+    gap: Spacing.md,
+  },
+  depositField: { gap: Spacing.xs },
+  depositHelp: {
+    ...Typography.labelSmall,
+    color: Colors.textMuted,
   },
   /** Vendor input altında küçük "otomatik kategori uygulandı" rozeti */
   vendorAutoHint: {

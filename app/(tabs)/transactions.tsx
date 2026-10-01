@@ -434,7 +434,15 @@ export default function TransactionsScreen() {
             <MaterialCommunityIcons name="close" size={24} color={Colors.textPrimary} />
           </Pressable>
         ) : (
-          <View style={styles.headerIconPlaceholder} />
+          <Pressable
+            onPress={() => router.push('/deposit-wallet')}
+            style={styles.headerIconBtn}
+            hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel={t('deposit_wallet_title')}
+          >
+            <MaterialCommunityIcons name="ticket-confirmation-outline" size={23} color={Colors.primary} />
+          </Pressable>
         )}
         <Text style={styles.title} numberOfLines={1}>
           {selectionMode
