@@ -193,6 +193,9 @@ Tüm görünür ürün metinleri Türkçe, İngilizce, Azerbaycanca ve Rusça ç
 ## Dış servisler ve native API'ler
 
 - Gemini'ye yalnız mevcut servis ve güvenli anahtar wrapper'ı üzerinden erişin.
+- Yerel Expo Android modüllerinde `expo-module-gradle-plugin` kullanılıyorsa
+  `android.defaultConfig` içinde modülün `versionCode` ve `versionName` değerlerini
+  açıkça tanımlayın; yalnız Gradle proje `version` alanı Expo 55 için yeterli değildir.
 - İptal sinyallerini görsel ayrıştırma isteklerine kadar taşıyın.
 - API anahtarlarını URL, SQLite, log, analytics veya hata metninden uzak tutun.
 - Android'de Expo Go içinde kullanılamayan bildirim davranışlarını guard ile koruyun.

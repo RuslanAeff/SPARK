@@ -156,8 +156,8 @@ oluşturmasına dayanmaz.
 |---|---|
 | `categories` | İkon, renk ve sistem sahipliği metaverisi bulunan iki seviyeli kategori ağacı. |
 | `vendors` | Kanonik satıcı kaydı; manuel ve taranmış harcamalarda kullanılan varsayılan kategori tutabilir. |
-| `expenses` | Finansal işlem başlığı. Kaydedilmiş fiş toplamı tüketim toplamıdır. |
-| `expense_items` | Harcamaya bağlı isteğe bağlı fiş satır ayrıntısı; ham `name`/`turkish_name`, ayrı kullanıcı görünüm etiketi, `measurement_unit` ve nullable kanonik ürün bağlantısını taşır; harcama silinince kalemler cascade ile silinir. |
+| `expenses` | Finansal işlem başlığı. Kaydedilmiş fiş toplamı tüketim toplamıdır; ayrıca fişte ödenen ambalaj depozitosu ile ödeme aracı olarak kullanılan depozito voucher tutarını ayrı taşır. |
+| `expense_items` | Harcamaya bağlı isteğe bağlı fiş satır ayrıntısı; ham `name`/`turkish_name`, ayrı kullanıcı görünüm etiketi, `measurement_unit`, `financial_kind` ve nullable kanonik ürün bağlantısını taşır; harcama silinince kalemler cascade ile silinir. |
 | `canonical_products` | Ölçü birimine bağlı, taşınabilir UID'li ürün kimliği ve kullanıcıya dönük kanonik ad/metaveri. Yerel eşleşme anahtarı kullanıcı etiketi değildir. |
 | `product_aliases` | Normalize edilmiş fiş etiketini aynı ölçüdeki kanonik ürüne bağlayan deterministik, AI veya kullanıcı kaynaklı öğrenilmiş eşleşme. Alias+ölçü çifti tektir. |
 | `budgets` | Takvim ayı olmak zorunda olmayan bütçe döngüsü anahtarıyla ilişkili planlanan tutar. |
@@ -169,6 +169,8 @@ oluşturmasına dayanmaz.
 | `debts` | Tüketimden ayrı izlenen alınan veya verilen borç anaparası; nakit-akışı tarihi ile opsiyonel vade birbirinden ayrıdır. |
 | `debt_payments` | Borca bağlı kısmi veya tam geri ödeme olayları. |
 | `extra_incomes` | Geri ödeme yükümlülüğü olmadan harcanabilir nakdi artıran tek seferlik gelir. |
+| `container_deposit_vouchers` | Ambalaj iadesinden doğan, tutar tabanlı ve durumlu voucher cüzdanı; oluşturulması tek başına bütçe etkisi üretmez. |
+| `container_deposit_recoveries` | Voucher'ın alışverişte kullanıldığı veya nakde çevrildiği tarihte oluşan geri kazanım nakit akışı; opsiyonel voucher ve harcama bağlantısı taşır. |
 | `settings` | Yerel anahtar/değer tercihleri ve alt sistem durumu; gizli bilgiler burada tutulmaz. |
 
 Kolonlar, constraint'ler, index'ler ve silme davranışında [`src/db/schema.ts`](../src/db/schema.ts) içindeki SQL bildirimleri yetkilidir.
@@ -212,6 +214,11 @@ sheet bileşenini kullanır.
 - Kullanıcı kaynaklı kalem ekleme/düzenleme/silme ile harcama başlığı toplamının senkronizasyonu tek SQLite transaction'ıdır. Başlık, item `REAL` değerlerini doğrudan toplamak yerine yuvarlanmış minor-unit toplamından üretilir.
 - Eski binary float artıkları tek seferlik idempotent migration ile hassasiyete çekilir; migration başlığı kalem toplamına eşitlemez ve basılı toplam otoritesini değiştirmez.
 - Borç veya geri ödemeyi modellemek için fiş görselleri ve kalemleri yapay harcamalara bölünmemelidir.
+- `financial_kind='container_deposit'` satırı fiş toplamında kalır; kanonik ürün,
+  fiyat geçmişi, kişisel enflasyon ve sessiz harcama analizlerinden dışlanır.
+- Voucher cüzdanına ekleme bütçeyi değiştirmez. Yalnız
+  `container_deposit_recoveries` içindeki gerçek kullanım/nakde çevirme olayı
+  etkin bütçeyi artırır; bu kayıt `extra_incomes` değildir.
 
 ### Bütçe döngüleri
 

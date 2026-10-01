@@ -291,7 +291,7 @@ Güvenlik sınırları, kalite kapıları, native doğrulama gereksinimleri veya
 
 ## 16 Eylül güvenlik düzeltmelerinin kalıcı sınırları
 
-- Yedek v1–v5 görsel dosyası taşımaz. Restore, dış `logo_uri` ve `receipt_uri`
+- Yedek v1–v6 görsel dosyası taşımaz. Restore, dış `logo_uri` ve `receipt_uri`
   değerlerini temizler; mevcut yerel satıcı logosu korunur. Görsel sunucularına
   istek açmamak için satıcı render noktaları yalnız yerel picker URI şemalarını kabul eder.
 - SecureStore okuma/migration/yazma/silme aynı işlem kuyruğundadır. Silme legacy
@@ -303,6 +303,10 @@ Güvenlik sınırları, kalite kapıları, native doğrulama gereksinimleri veya
 - Kamera/galeri kopyaları yalnız ilgili taramanın sahip olduğu kesin URI ile
   temizlenir. Geç manipulator/picker çıktısı da temizlenir. Eski sahipsiz picker
   dosyalarıyla aynı dizindeki kullanıcı logoları topluca silinmez.
+- Çok sayfalı fiş taraması en fazla dört geçici görseli kullanıcı analizi açıkça
+  başlatana kadar yerel tutar. İptal, hata, durdurma ve unmount her seçili kopyayı
+  temizlemelidir. Sayfa sırası, picker Activity geri kazanımı ve büyük görsel
+  bellek davranışı standalone fiziksel cihazda ayrıca doğrulanır.
 - Başarılı SAF kaydı ve paylaşılmayan export cache kopyası işlem sonunda silinir.
   Paylaşım başlatılan kopya, alıcı okuması için 24 saat tutulur; bu süre dolduktan
   sonraki uygulama açılışı veya export temizliğinde silinir. Aktif export korunur;

@@ -189,7 +189,8 @@ Kullanıcı tutar, tarih, satıcı, kategori ve isteğe bağlı not girer. Kayı
 
 ### 5.2 Fişten işlem oluşturma
 
-1. Kullanıcı kamera veya galeriden görsel seçer.
+1. Kullanıcı kamera veya galeriden en fazla dört fiş sayfası seçer; sayfaları
+   görüp sırasını kontrol ettikten sonra analizi açıkça başlatır.
 2. Google Gemini’ye gönderilecek fiş verisi ve amaç görünür açıklanır; kullanıcı Gönder’i seçerse görsel küçültülür ve sıkıştırılır. İptalde ağ isteği yapılmaz; manuel kayıt kullanılabilir.
 3. Gemini yapılandırılmış fiş verisi ve opsiyonel, yalnız açıklayıcı ürün kimliği metadatası önerir.
 4. Yanıt doğrulanır, temizlenir ve satırlar birleştirilir.
@@ -197,6 +198,12 @@ Kullanıcı tutar, tarih, satıcı, kategori ve isteğe bağlı not girer. Kayı
 6. Yerel deterministik kurallar ürün aliaslarını çözer; fiş başlığı, kalemler ve nullable ürün bağlantıları tek atomik işlemle kaydedilir.
 
 AI sonucu doğrudan finansal gerçek kabul edilmez. Kullanıcı kontrol noktası akışın zorunlu ürün ilkesidir.
+
+İade edilebilir ambalaj depozitosu fişin parçası olarak harcamada kalır, ancak
+ürün fiyat analizlerine girmez. İade makinesinin verdiği voucher harcama değildir;
+tutar ve durumuyla depozito cüzdanına girer. Voucher alışverişte kullanıldığında
+veya nakde çevrildiğinde daha önce ödenmiş depozitonun geri kazanımı olarak bütçeye
+yansır. Bu olay ürün indirimi veya yeni ek gelir diye etiketlenmez.
 
 Tarama dili uygulamanın o anda seçili TR/EN/AZ/RU dilidir. Model basılı adı
 değiştirmeden ayrıca bu dilde okunabilir ürün adı üretir; kategori ise çevrilmiş
@@ -526,6 +533,7 @@ Bu kurallar ürün davranışıdır; uygulama ayrıntısı gibi sessizce değiş
 15. **Analiz güveni görünür ve karşılaştırma eş olmalıdır.** Harcama kaydı olmayan gün başarı etiketi değildir; kısa takip geçmişi başarı/seri üretmez ve kapsam sayısı kullanıcıya gösterilir. Devam eden harcama dönemi, önceki dönemin aynı sayıda tamamlanmış günüyle karşılaştırılır; bugün ve gelecek günler toplamlara katılmaz. Veri yükleme hatası ile geçerli `0 harcama` sonucu ayrıdır. İlgili veri bulunmayan opsiyonel analiz kartları boş yüzey olarak yer kaplamaz.
 16. **Ürün kimliği ölçüye bağlı ve geri düzeltilebilir olmalıdır.** Güvenli yazım farkları kalıcı canonical ürün ve aliaslarla toplanabilir; fuzzy benzerlik, ortak ürün ailesi veya AI önerisi kullanıcı onayı olmadan semantik merge yapamaz. Ham `name`/`turkish_name` korunur, kullanıcı etiketi ayrıdır ve merge/split hiçbir finansal gözlemi silmez.
 17. **Geçersiz AI çıktısı finansal kayıt değildir.** Seçili dil yalnız görünüm metnini değil fiş çeviri sözleşmesini belirler; kategori anahtarı dilden bağımsızdır. Eksik satıcı/tarih/kalem/tutar veya kanıtsız sıfır toplam kaydedilemez ve Detaylı Düzenle boş/sıfır bir harcamayı otomatik oluşturamaz. İşlem listesi her kaydın kendi para birimini gösterir.
+18. **Depozito geri kazanımı indirim veya yeni gelir değildir.** Ödenen ambalaj depozitosu fiş toplamında kalır; voucher oluşturulması bütçeyi artırmaz. Bütçe etkisi yalnız voucher kullanımı veya nakde çevirme tarihinde oluşur ve depozito satırları ürün fiyat analizlerine katılmaz.
 
 Ayrıntılı teknik sözleşmeler için [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) ve karar kayıtları kullanılır.
 
@@ -799,3 +807,23 @@ kapsadığı günler takvimde pasif, farklı yüzeyli ve açıklamalı görünü
 Onarım yapılan dönemin kendi mevcut günleri düzenlenebilir kalır. Bu görsel kilit
 veritabanı çakışma kontrolünün yerine geçmez; yalnızca kullanıcıya erken geri
 bildirim verir.
+
+### Fiş işleme — holografik karusel (30 Eylül 2026)
+
+İşleme sırasında seçili fiş sayfaları yarım daire hissi veren perspektifli bir
+karuselde gösterilir. Merkez kart 1.22 ölçek/1 opaklık; komşu kart 0.82
+ölçek/~0.75 opaklık ve 28° perspektif dönüşü kullanır. 136×192 kart, 300
+birimlik sahne içinde 3 birim genlikli 3.8 saniyelik süzülmeyle sunulur.
+Yay yerleşimi damping 22, stiffness 190, mass 0.85 kullanır. Kullanıcı vurgusu
+ışık/çerçeveye uygulanır; koyu sahne siyah, açık sahne mevcut tema yüzeyidir.
+Yeşil numara rozetleri korunur. Fiş oranı korunarak tamamı gösterilir.
+
+Merkeze yeni bir kart oturduğunda vurgu seçicisiyle aynı titreşim profili
+(Android Context_Click / iOS Rigid) bir kez çalışır. İlk açılış ve aynı karta
+tekrar yerleşme titreşmez. Ekran okuyucu artır/azalt eylemleri desteklenir;
+sistem hareket azaltma tercihinde sürekli süzülme durur. Görsel seçim, AI'a
+iletilen fotoğraf sırasını veya fiş analizini değiştirmez.
+
+Sayfa rozeti ikincil bilgidir: 18 birim çap, 10 birim semiBold rakam, aktif
+tema vurgu rengi dolgusu ve vurgu renginin açık tonu kenarlık olarak kullanılır;
+neon çerçeve taşımaz.
