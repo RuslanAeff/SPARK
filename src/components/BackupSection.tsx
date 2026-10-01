@@ -243,9 +243,11 @@ export default function BackupSection() {
       }
       const s: ImportSummary = res.summary;
       const added = s.expensesAdded + s.debtsAdded + s.debtPaymentsAdded
-        + s.extraIncomesAdded + s.remindersAdded + s.rolloversAdded;
+        + s.extraIncomesAdded + s.remindersAdded + s.rolloversAdded
+        + s.depositVouchersAdded + s.depositRecoveriesAdded;
       const skipped = s.expensesSkipped + s.debtsSkipped + s.debtPaymentsSkipped
-        + s.extraIncomesSkipped + s.remindersSkipped + s.rolloversSkipped;
+        + s.extraIncomesSkipped + s.remindersSkipped + s.rolloversSkipped
+        + s.depositVouchersSkipped + s.depositRecoveriesSkipped;
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       // Restore aktif borç ve ödeme planları ekleyebilir. Kullanıcı uygulamayı
       // hemen kapatsa bile yeni tarihli alarmlar 300 ms refresh debounce'una

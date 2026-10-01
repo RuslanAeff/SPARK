@@ -36,7 +36,7 @@ it('exports complete linked periods and restores them on a new database without 
   expect(payload.data.expenses).toHaveLength(1);
   expect(payload.data.budgets).toHaveLength(2);
   expect(payload.data.budget_rollovers).toHaveLength(1);
-  expect(validateAndNormalizeBackupPayload(payload).version).toBe(5);
+  expect(validateAndNormalizeBackupPayload(payload).version).toBe(6);
   await db.close(); await open();
   expect((await importBackupPayload(payload)).rolloversAdded).toBe(1);
   expect((await importBackupPayload(payload)).rolloversSkipped).toBe(1);

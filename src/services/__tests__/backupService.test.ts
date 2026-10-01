@@ -149,6 +149,38 @@ const makeV4Payload = (): BackupPayload => {
   return payload;
 };
 
+const makeV6Payload = (): BackupPayload => {
+  const payload = makeV4Payload();
+  payload.version = 6;
+  payload.data.budget_rollovers = [];
+  payload.data.expenses[0].container_deposit_paid = 0.5;
+  payload.data.expenses[0].container_voucher_used = 3.5;
+  payload.data.expenses[0].items[0].financial_kind = 'product';
+  payload.data.container_deposit_vouchers = [{
+    uid: '523e4567-e89b-42d3-a456-426614174000',
+    amount: 3.5,
+    currency: 'PLN',
+    issued_date: '2026-08-01',
+    expires_on: '2027-01-21',
+    status: 'redeemed',
+    redeemed_date: '2026-08-05',
+    redemption_expense_source_id: 10,
+    note: null,
+    created_at: '2026-08-01T10:00:00.000Z',
+  }];
+  payload.data.container_deposit_recoveries = [{
+    uid: '623e4567-e89b-42d3-a456-426614174000',
+    voucher_uid: '523e4567-e89b-42d3-a456-426614174000',
+    expense_source_id: 10,
+    amount: 3.5,
+    currency: 'PLN',
+    date: '2026-08-05',
+    method: 'purchase_voucher',
+    created_at: '2026-08-05T09:00:00.000Z',
+  }];
+  return payload;
+};
+
 describe('backup payload version compatibility and validation', () => {
   beforeEach(() => jest.clearAllMocks());
 
@@ -198,6 +230,34 @@ describe('backup payload version compatibility and validation', () => {
     delete invalid.data.product_aliases;
 
     expect(() => validateAndNormalizeBackupPayload(invalid)).toThrow('INVALID_FORMAT');
+  });
+
+  it('preserves the v6 deposit wallet and recovery references', () => {
+    const normalized = validateAndNormalizeBackupPayload(makeV6Payload());
+
+    expect(normalized.data.expenses[0]).toMatchObject({
+      container_deposit_paid: 0.5,
+      container_voucher_used: 3.5,
+    });
+    expect(normalized.data.container_deposit_vouchers[0]).toMatchObject({
+      amount: 3.5,
+      status: 'redeemed',
+      redemption_expense_source_id: 10,
+    });
+    expect(normalized.data.container_deposit_recoveries[0]).toMatchObject({
+      voucher_uid: '523e4567-e89b-42d3-a456-426614174000',
+      expense_source_id: 10,
+      method: 'purchase_voucher',
+    });
+  });
+
+  it('rejects an orphan v6 voucher recovery before opening the database', async () => {
+    const invalid = makeV6Payload();
+    invalid.data.container_deposit_recoveries![0].voucher_uid =
+      '723e4567-e89b-42d3-a456-426614174000';
+
+    await expect(importBackupPayload(invalid)).rejects.toThrow('INVALID_FORMAT');
+    expect(getDatabaseMock).not.toHaveBeenCalled();
   });
 
   it.each([
@@ -397,13 +457,15 @@ describe('buildBackupPayload v4 relational closure', () => {
       if (sql === 'SELECT * FROM categories') return [];
       if (sql.includes('FROM budgets WHERE active = 1')) return [];
       if (sql.includes('FROM budget_rollovers')) return [];
+      if (sql.includes('FROM container_deposit_vouchers')) return [];
+      if (sql.includes('FROM container_deposit_recoveries')) return [];
       throw new Error(`Unexpected query: ${sql}`);
     });
     getDatabaseMock.mockResolvedValue({ getAllAsync } as any);
 
     const payload = await buildBackupPayload({ start: '2026-08-01', end: '2026-08-31' });
 
-    expect(payload.version).toBe(5);
+    expect(payload.version).toBe(6);
     expect(payload.data.debts).toHaveLength(1);
     expect(payload.data.debt_payments?.map(payment => payment.source_id)).toEqual([70, 71]);
     expect(payload.data.extra_incomes).toHaveLength(1);

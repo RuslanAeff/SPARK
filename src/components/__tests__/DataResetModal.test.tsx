@@ -21,6 +21,7 @@ const summary: UserDataSummary = {
   debts: 2,
   incomes: 5,
   paymentPlans: 1,
+  depositVouchers: 0,
   products: 0,
   customCategories: 0,
   categoryLimits: 0,

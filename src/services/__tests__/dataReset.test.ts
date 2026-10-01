@@ -28,6 +28,7 @@ describe('resetAllUserData', () => {
     for (const table of [
       'budget_rollovers', 'expenses', 'expense_items', 'vendors', 'budgets', 'debts', 'debt_payments',
       'extra_incomes', 'recurring_payment_reminders', 'subscriptions',
+      'container_deposit_recoveries', 'container_deposit_vouchers',
       'category_limits', 'savings_goal', 'canonical_products', 'product_aliases',
     ]) {
       expect(wiped).toContain(`DELETE FROM ${table}`);
@@ -45,6 +46,8 @@ describe('resetAllUserData', () => {
     expect(before('debt_payments', 'debts')).toBe(true);
     expect(before('budget_rollovers', 'budgets')).toBe(true);
     expect(before('expense_items', 'expenses')).toBe(true);
+    expect(before('container_deposit_recoveries', 'container_deposit_vouchers')).toBe(true);
+    expect(before('container_deposit_recoveries', 'expenses')).toBe(true);
     expect(before('expenses', 'vendors')).toBe(true);
     expect(before('subscriptions', 'vendors')).toBe(true);
     expect(before('product_aliases', 'canonical_products')).toBe(true);
@@ -83,13 +86,13 @@ describe('resetAllUserData', () => {
 describe('summarizeUserData', () => {
   it('sayımları toplar ve toplamı kalem sayısını iki kez saymadan verir', async () => {
     const { getFirstAsync } = mockDb();
-    // Her sorgu 3 döndürür: 11 sorgu, 10'u toplama girer (kalemler hariç).
+    // Her sorgu 3 döndürür: 12 sorgu, 11'i toplama girer (kalemler hariç).
     const summary = await summarizeUserData();
 
-    expect(getFirstAsync).toHaveBeenCalledTimes(11);
+    expect(getFirstAsync).toHaveBeenCalledTimes(12);
     expect(summary.expenses).toBe(3);
     expect(summary.items).toBe(3);
-    expect(summary.total).toBe(30);
+    expect(summary.total).toBe(33);
   });
 
   it('boş veritabanında toplamı sıfır bildirir', async () => {

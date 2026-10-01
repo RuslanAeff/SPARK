@@ -29,6 +29,8 @@ import {
   ProductAlias,
   Vendor,
   BudgetRollover,
+  ContainerDepositVoucher,
+  ContainerDepositRecovery,
 } from '../db/schema';
 import { expandRolloverRange } from '../utils/rolloverBackup';
 import {
@@ -49,10 +51,12 @@ import { sanitizeMeasurementUnit } from '../utils/measurementUnit';
  *  v2 → vendors.default_category_name + dismissed subscriptions
  *  v3 → borçlar/ödemeler, ek gelirler ve kullanıcı tanımlı ödeme hatırlatıcıları
  *  v4 → UUID tabanlı kanonik ürünler, alias kararları ve kalem bağlantıları
+ *  v5 → bütçe devirleri
+ *  v6 → şişe depozitoları, voucher'lar ve geri kazanım olayları
  *
  * Yeni alanlar v1-v3 importunda boş dizilere normalize edilir. Eski uygulamalar
  * v4 dosyasını `UNSUPPORTED_VERSION` ile bilinçli biçimde reddeder. */
-export const BACKUP_FORMAT_VERSION = 5;
+export const BACKUP_FORMAT_VERSION = 6;
 
 const MIN_BACKUP_FORMAT_VERSION = 1;
 const MAX_BACKUP_ROWS_PER_COLLECTION = 100_000;
@@ -107,9 +111,20 @@ interface ExportedExpense {
   currency: string;
   note: string | null;
   receipt_uri: string | null;
+  container_deposit_paid?: number;
+  container_voucher_used?: number;
   vendor_name: string | null;
   category_name: string | null;
   items: ExportedExpenseItem[];
+}
+
+interface ExportedContainerDepositVoucher extends Omit<ContainerDepositVoucher, 'id' | 'redemption_expense_id'> {
+  redemption_expense_source_id: number | null;
+}
+
+interface ExportedContainerDepositRecovery extends Omit<ContainerDepositRecovery, 'id' | 'voucher_id' | 'expense_id'> {
+  voucher_uid: string | null;
+  expense_source_id: number | null;
 }
 
 interface ExportedCategory {
@@ -223,6 +238,9 @@ export interface BackupPayload {
     product_aliases?: ExportedProductAlias[];
     /** v5: carryovers with full connected period history included in range. */
     budget_rollovers?: BudgetRollover[];
+    /** v6: refundable-container voucher wallet and realized recoveries. */
+    container_deposit_vouchers?: ExportedContainerDepositVoucher[];
+    container_deposit_recoveries?: ExportedContainerDepositRecovery[];
   };
 }
 
@@ -278,6 +296,10 @@ export interface ImportSummary {
   /** v5: bütçe devirleri ayrı bir finansal kayıt türüdür; harcama/gelir sayımına karışmaz. */
   rolloversAdded: number;
   rolloversSkipped: number;
+  depositVouchersAdded: number;
+  depositVouchersSkipped: number;
+  depositRecoveriesAdded: number;
+  depositRecoveriesSkipped: number;
 }
 
 /** `YYYY-MM-DD` doğrulaması + başlangıç <= son kuralı. */
@@ -316,6 +338,8 @@ type NormalizedBackupPayload = BackupPayload & {
     canonical_products: ExportedCanonicalProduct[];
     product_aliases: ExportedProductAlias[];
     budget_rollovers: BudgetRollover[];
+    container_deposit_vouchers: ExportedContainerDepositVoucher[];
+    container_deposit_recoveries: ExportedContainerDepositRecovery[];
   };
 };
 
@@ -721,6 +745,58 @@ export function validateAndNormalizeBackupPayload(input: unknown): NormalizedBac
       }
     }
   }
+  if (root.version >= 6) {
+    const expenses = data.expenses as ExportedExpense[];
+    const expenseIds = new Set(expenses.map(expense => expense.source_id));
+    for (const expense of expenses) {
+      if (!isNonNegativeMoney(expense.container_deposit_paid)
+        || !isNonNegativeMoney(expense.container_voucher_used)) invalidFormat();
+      for (const item of expense.items) {
+        if (!['product', 'container_deposit'].includes(String(item.financial_kind))) invalidFormat();
+      }
+    }
+    const voucherUids = new Set<string>();
+    for (const raw of asBoundedArray(data.container_deposit_vouchers)) {
+      const voucher = asRecord(raw);
+      const uid = normalizeCanonicalUuid(voucher.uid);
+      if (!uid || voucherUids.has(uid)
+        || !isPositiveMoney(voucher.amount)
+        || !isBoundedString(voucher.currency, 10, false)
+        || !isStrictDate(voucher.issued_date)
+        || (voucher.expires_on != null && !isStrictDate(voucher.expires_on))
+        || !['available', 'redeemed', 'expired'].includes(String(voucher.status))
+        || (voucher.redeemed_date != null && !isStrictDate(voucher.redeemed_date))
+        || (voucher.redemption_expense_source_id != null
+          && (!isPositiveInteger(voucher.redemption_expense_source_id)
+            || !expenseIds.has(voucher.redemption_expense_source_id)))
+        || !isNullableBoundedString(voucher.note, 1000)
+        || !isIsoTimestamp(voucher.created_at)) invalidFormat();
+      voucher.uid = uid;
+      voucherUids.add(uid);
+    }
+    const recoveryUids = new Set<string>();
+    for (const raw of asBoundedArray(data.container_deposit_recoveries)) {
+      const recovery = asRecord(raw);
+      const uid = normalizeCanonicalUuid(recovery.uid);
+      if (!uid || recoveryUids.has(uid)
+        || (recovery.voucher_uid != null
+          && (!normalizeCanonicalUuid(recovery.voucher_uid)
+            || !voucherUids.has(String(recovery.voucher_uid).toLowerCase())))
+        || (recovery.expense_source_id != null
+          && (!isPositiveInteger(recovery.expense_source_id)
+            || !expenseIds.has(recovery.expense_source_id)))
+        || !isPositiveMoney(recovery.amount)
+        || !isBoundedString(recovery.currency, 10, false)
+        || !isStrictDate(recovery.date)
+        || !['purchase_voucher', 'cash'].includes(String(recovery.method))
+        || !isIsoTimestamp(recovery.created_at)) invalidFormat();
+      recovery.uid = uid;
+      if (recovery.voucher_uid != null) {
+        recovery.voucher_uid = normalizeCanonicalUuid(recovery.voucher_uid);
+      }
+      recoveryUids.add(uid);
+    }
+  }
 
   return {
     ...(root as unknown as BackupPayload),
@@ -743,6 +819,12 @@ export function validateAndNormalizeBackupPayload(input: unknown): NormalizedBac
         ? data.product_aliases as ExportedProductAlias[]
         : [],
       budget_rollovers: root.version >= 5 ? data.budget_rollovers as BudgetRollover[] : [],
+      container_deposit_vouchers: root.version >= 6
+        ? data.container_deposit_vouchers as ExportedContainerDepositVoucher[]
+        : [],
+      container_deposit_recoveries: root.version >= 6
+        ? data.container_deposit_recoveries as ExportedContainerDepositRecovery[]
+        : [],
     },
   };
 }
@@ -758,7 +840,8 @@ export async function buildBackupPayload(range: BackupDateRange): Promise<Backup
   const expenses = await db.getAllAsync<
     Expense & { vendor_name: string | null; category_name: string | null }
   >(
-    `SELECT e.id, e.vendor_id, e.category_id, e.total_amount, e.currency, e.note, e.receipt_uri, e.date, e.created_at,
+    `SELECT e.id, e.vendor_id, e.category_id, e.total_amount, e.currency, e.note, e.receipt_uri,
+            e.container_deposit_paid, e.container_voucher_used, e.date, e.created_at,
             v.name AS vendor_name, c.name AS category_name
        FROM expenses e
        LEFT JOIN vendors v ON e.vendor_id = v.id
@@ -805,6 +888,7 @@ export async function buildBackupPayload(range: BackupDateRange): Promise<Backup
         total_price: it.total_price,
         line_discount: it.line_discount ?? null,
         list_line_total_before_discount: it.list_line_total_before_discount ?? null,
+        financial_kind: it.financial_kind === 'container_deposit' ? 'container_deposit' : 'product',
         category_name: it.category_name ?? null,
       };
     });
@@ -817,11 +901,52 @@ export async function buildBackupPayload(range: BackupDateRange): Promise<Backup
       currency: exp.currency,
       note: exp.note,
       receipt_uri: exp.receipt_uri,
+      container_deposit_paid: exp.container_deposit_paid ?? 0,
+      container_voucher_used: exp.container_voucher_used ?? 0,
       vendor_name: exp.vendor_name ?? null,
       category_name: exp.category_name ?? null,
       items,
     });
   }
+
+  const depositExpenseIds = new Set(expenses.map(expense => expense.id));
+  const depositVouchersOut = (await db.getAllAsync<ContainerDepositVoucher>(
+    'SELECT * FROM container_deposit_vouchers ORDER BY issued_date ASC, id ASC',
+  )).map<ExportedContainerDepositVoucher>(voucher => ({
+    uid: voucher.uid,
+    amount: voucher.amount,
+    currency: voucher.currency,
+    issued_date: voucher.issued_date,
+    expires_on: voucher.expires_on,
+    status: voucher.status,
+    redeemed_date: voucher.redeemed_date,
+    redemption_expense_source_id: voucher.redemption_expense_id != null
+      && depositExpenseIds.has(voucher.redemption_expense_id)
+      ? voucher.redemption_expense_id
+      : null,
+    note: voucher.note,
+    created_at: voucher.created_at,
+  }));
+  const voucherUidById = new Map(
+    (await db.getAllAsync<{ id: number; uid: string }>(
+      'SELECT id, uid FROM container_deposit_vouchers',
+    )).map(row => [row.id, row.uid] as const),
+  );
+  const depositRecoveriesOut = (await db.getAllAsync<ContainerDepositRecovery>(
+    `SELECT * FROM container_deposit_recoveries
+      WHERE date BETWEEN ? AND ? ORDER BY date ASC, id ASC`,
+    [range.start, range.end],
+  )).filter(recovery => recovery.expense_id == null || depositExpenseIds.has(recovery.expense_id))
+    .map<ExportedContainerDepositRecovery>(recovery => ({
+      uid: recovery.uid,
+      voucher_uid: recovery.voucher_id == null ? null : voucherUidById.get(recovery.voucher_id) ?? null,
+      expense_source_id: recovery.expense_id,
+      amount: recovery.amount,
+      currency: recovery.currency,
+      date: recovery.date,
+      method: recovery.method,
+      created_at: recovery.created_at,
+    }));
 
   // Tarih aralığının mahremiyetini korumak için yalnız seçili kalemlerin
   // referans verdiği ürünler ve bu ürünlere ait tüm öğrenilmiş alias'lar taşınır.
@@ -1120,6 +1245,8 @@ export async function buildBackupPayload(range: BackupDateRange): Promise<Backup
       canonical_products: canonicalProductsOut,
       product_aliases: productAliasesOut,
       budget_rollovers: rolloversOut,
+      container_deposit_vouchers: depositVouchersOut,
+      container_deposit_recoveries: depositRecoveriesOut,
     },
   };
 }
@@ -1169,6 +1296,8 @@ export async function exportBackupToFile(range: BackupDateRange): Promise<Export
     const reminderCount = payload.data.recurring_payment_reminders?.length ?? 0;
     const canonicalProductCount = payload.data.canonical_products?.length ?? 0;
     const productAliasCount = payload.data.product_aliases?.length ?? 0;
+    const depositVoucherCount = payload.data.container_deposit_vouchers?.length ?? 0;
+    const depositRecoveryCount = payload.data.container_deposit_recoveries?.length ?? 0;
 
     const result: ExportResult = {
       fileUri: file.uri,
@@ -1182,7 +1311,8 @@ export async function exportBackupToFile(range: BackupDateRange): Promise<Export
       canonicalProductCount,
       productAliasCount,
       recordCount: payload.data.expenses.length + debtCount + debtPaymentCount
-        + incomeCount + reminderCount + canonicalProductCount + productAliasCount + (payload.data.budget_rollovers?.length ?? 0),
+        + incomeCount + reminderCount + canonicalProductCount + productAliasCount
+        + (payload.data.budget_rollovers?.length ?? 0) + depositVoucherCount + depositRecoveryCount,
       sizeBytes: file.size ?? json.length,
       destination: 'cancelled',
     };
@@ -1295,6 +1425,10 @@ export async function importBackupPayload(inputPayload: BackupPayload): Promise<
     itemCanonicalLinksAdded: 0,
     rolloversAdded: 0,
     rolloversSkipped: 0,
+    depositVouchersAdded: 0,
+    depositVouchersSkipped: 0,
+    depositRecoveriesAdded: 0,
+    depositRecoveriesSkipped: 0,
   };
 
   await db.withTransactionAsync(async () => {
@@ -1549,8 +1683,11 @@ export async function importBackupPayload(inputPayload: BackupPayload): Promise<
       note: string | null;
       date: string;
       created_at: string;
+      container_deposit_paid: number;
+      container_voucher_used: number;
     }>(
-      `SELECT id, vendor_id, category_id, total_amount, currency, note, date, created_at
+      `SELECT id, vendor_id, category_id, total_amount, currency, note, date, created_at,
+              container_deposit_paid, container_voucher_used
          FROM expenses ORDER BY id ASC`,
     );
     const expenseKey = (
@@ -1563,8 +1700,17 @@ export async function importBackupPayload(inputPayload: BackupPayload): Promise<
         note: string | null;
         date: string;
         createdAt?: string | null;
+        containerDepositPaid?: number;
+        containerVoucherUsed?: number;
       },
-    ): string => version >= 3
+    ): string => version >= 6
+      ? JSON.stringify([
+          value.createdAt, value.date, toMinorUnits(value.total), value.currency,
+          value.vendorId, value.categoryId, value.note ?? '',
+          toMinorUnits(value.containerDepositPaid ?? 0),
+          toMinorUnits(value.containerVoucherUsed ?? 0),
+        ])
+      : version >= 3
       ? JSON.stringify([
           value.createdAt,
           value.date,
@@ -1590,6 +1736,8 @@ export async function importBackupPayload(inputPayload: BackupPayload): Promise<
         note: existing.note,
         date: existing.date,
         createdAt: existing.created_at,
+        containerDepositPaid: existing.container_deposit_paid,
+        containerVoucherUsed: existing.container_voucher_used,
       });
       const pool = existingExpensePools.get(key) ?? [];
       pool.push(existing.id);
@@ -1609,6 +1757,7 @@ export async function importBackupPayload(inputPayload: BackupPayload): Promise<
       category_id: number | null;
       line_discount: number | null;
       list_line_total_before_discount: number | null;
+      financial_kind: 'product' | 'container_deposit';
     };
     const itemFingerprint = (value: {
       name: string;
@@ -1620,6 +1769,7 @@ export async function importBackupPayload(inputPayload: BackupPayload): Promise<
       categoryId: number | null;
       lineDiscount: number | null;
       listBefore: number | null;
+      financialKind?: 'product' | 'container_deposit';
     }): string => JSON.stringify([
       value.name,
       value.turkishName,
@@ -1630,6 +1780,7 @@ export async function importBackupPayload(inputPayload: BackupPayload): Promise<
       value.categoryId,
       value.lineDiscount == null ? null : toMinorUnits(value.lineDiscount),
       value.listBefore == null ? null : toMinorUnits(value.listBefore),
+      value.financialKind ?? 'product',
     ]);
     const reconcileDuplicateExpenseItems = async (
       targetExpenseId: number,
@@ -1639,6 +1790,7 @@ export async function importBackupPayload(inputPayload: BackupPayload): Promise<
         `SELECT id, name, turkish_name, user_label, quantity, measurement_unit,
                 canonical_product_id, unit_price, total_price, category_id,
                 line_discount, list_line_total_before_discount
+                , financial_kind
            FROM expense_items
           WHERE expense_id = ?
           ORDER BY id ASC`,
@@ -1660,6 +1812,7 @@ export async function importBackupPayload(inputPayload: BackupPayload): Promise<
           listBefore: existing.list_line_total_before_discount == null
             ? null
             : sanitizeAmount(existing.list_line_total_before_discount),
+          financialKind: existing.financial_kind,
         });
         const candidates = pools.get(key) ?? [];
         candidates.push(existing);
@@ -1690,6 +1843,7 @@ export async function importBackupPayload(inputPayload: BackupPayload): Promise<
           categoryId: itemCategoryId,
           lineDiscount,
           listBefore,
+          financialKind: item.financial_kind === 'container_deposit' ? 'container_deposit' : 'product',
         });
         const existing = pools.get(key)?.shift();
         if (!existing) invalidFormat();
@@ -1741,6 +1895,10 @@ export async function importBackupPayload(inputPayload: BackupPayload): Promise<
       const note = exp.note ? sanitizeText(exp.note, 1000) : null;
       const receiptUri = exp.receipt_uri && typeof exp.receipt_uri === 'string'
         ? sanitizeText(exp.receipt_uri, 2000) : null;
+      const containerDepositPaid = payload.version >= 6
+        ? sanitizeAmount(exp.container_deposit_paid ?? 0) : 0;
+      const containerVoucherUsed = payload.version >= 6
+        ? sanitizeAmount(exp.container_voucher_used ?? 0) : 0;
 
       const vendorId = exp.vendor_name
         ? vendorIdByName.get(exp.vendor_name.trim().toLowerCase()) ?? null
@@ -1757,6 +1915,8 @@ export async function importBackupPayload(inputPayload: BackupPayload): Promise<
         note,
         date,
         createdAt: exp.created_at ?? null,
+        containerDepositPaid,
+        containerVoucherUsed,
       });
       const duplicatePool = existingExpensePools.get(key);
       const duplicateId = duplicatePool?.shift();
@@ -1769,7 +1929,16 @@ export async function importBackupPayload(inputPayload: BackupPayload): Promise<
         continue;
       }
 
-      const ins = payload.version >= 3
+      const ins = payload.version >= 6
+        ? await db.runAsync(
+            `INSERT INTO expenses
+               (vendor_id, category_id, total_amount, currency, note, receipt_uri, date, created_at,
+                container_deposit_paid, container_voucher_used)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [vendorId, categoryId, total, currency, note, receiptUri, date, exp.created_at!,
+              containerDepositPaid, containerVoucherUsed],
+          )
+        : payload.version >= 3
         ? await db.runAsync(
             `INSERT INTO expenses
                (vendor_id, category_id, total_amount, currency, note, receipt_uri, date, created_at)
@@ -1813,8 +1982,8 @@ export async function importBackupPayload(inputPayload: BackupPayload): Promise<
           `INSERT INTO expense_items
              (expense_id, name, turkish_name, user_label, quantity,
               measurement_unit, canonical_product_id, unit_price, total_price,
-              category_id, line_discount, list_line_total_before_discount)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+              category_id, line_discount, list_line_total_before_discount, financial_kind)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           [
             expenseId,
             itemName,
@@ -1828,10 +1997,78 @@ export async function importBackupPayload(inputPayload: BackupPayload): Promise<
             itemCatId,
             ld,
             lb,
+            payload.version >= 6 && it.financial_kind === 'container_deposit'
+              ? 'container_deposit'
+              : 'product',
           ]
         );
         summary.itemsAdded += 1;
         if (canonicalProductId != null) summary.itemCanonicalLinksAdded += 1;
+      }
+    }
+
+    if (payload.version >= 6) {
+      const voucherIdByUid = new Map<string, number>();
+      const existingVouchers = await db.getAllAsync<ContainerDepositVoucher>(
+        'SELECT * FROM container_deposit_vouchers ORDER BY id ASC',
+      );
+      for (const voucher of existingVouchers) voucherIdByUid.set(voucher.uid, voucher.id);
+      for (const voucher of payload.data.container_deposit_vouchers) {
+      const uid = normalizeCanonicalUuid(voucher.uid)!;
+      const linkedExpenseId = voucher.redemption_expense_source_id == null
+        ? null
+        : expenseIdBySource.get(voucher.redemption_expense_source_id) ?? null;
+      const existingId = voucherIdByUid.get(uid);
+      if (existingId != null) {
+        const existing = existingVouchers.find(row => row.id === existingId)!;
+        if (toMinorUnits(existing.amount) !== toMinorUnits(voucher.amount)
+          || existing.currency !== voucher.currency
+          || existing.issued_date !== voucher.issued_date
+          || existing.expires_on !== voucher.expires_on
+          || existing.status !== voucher.status
+          || existing.redeemed_date !== voucher.redeemed_date
+          || existing.note !== voucher.note) invalidFormat();
+        summary.depositVouchersSkipped += 1;
+        continue;
+      }
+      const inserted = await db.runAsync(
+        `INSERT INTO container_deposit_vouchers
+          (uid, amount, currency, issued_date, expires_on, status, redeemed_date,
+           redemption_expense_id, note, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [uid, sanitizeAmount(voucher.amount), voucher.currency, voucher.issued_date,
+          voucher.expires_on, voucher.status, voucher.redeemed_date, linkedExpenseId,
+          voucher.note, voucher.created_at],
+      );
+      voucherIdByUid.set(uid, Number(inserted.lastInsertRowId));
+      summary.depositVouchersAdded += 1;
+      }
+
+      const existingRecoveryUids = new Set(
+        (await db.getAllAsync<{ uid: string }>('SELECT uid FROM container_deposit_recoveries'))
+          .map(row => row.uid),
+      );
+      for (const recovery of payload.data.container_deposit_recoveries) {
+      const uid = normalizeCanonicalUuid(recovery.uid)!;
+      if (existingRecoveryUids.has(uid)) {
+        summary.depositRecoveriesSkipped += 1;
+        continue;
+      }
+      const voucherId = recovery.voucher_uid == null
+        ? null
+        : voucherIdByUid.get(recovery.voucher_uid) ?? null;
+      const expenseId = recovery.expense_source_id == null
+        ? null
+        : expenseIdBySource.get(recovery.expense_source_id) ?? null;
+      await db.runAsync(
+        `INSERT INTO container_deposit_recoveries
+          (uid, voucher_id, expense_id, amount, currency, date, method, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        [uid, voucherId, expenseId, sanitizeAmount(recovery.amount), recovery.currency,
+          recovery.date, recovery.method, recovery.created_at],
+      );
+      existingRecoveryUids.add(uid);
+      summary.depositRecoveriesAdded += 1;
       }
     }
 

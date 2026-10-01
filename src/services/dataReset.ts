@@ -29,6 +29,7 @@ export interface UserDataSummary {
   debts: number;
   incomes: number;
   paymentPlans: number;
+  depositVouchers: number;
   products: number;
   /** Kullanıcının eklediği kategoriler (sistem ağacı sayılmaz). */
   customCategories: number;
@@ -46,6 +47,8 @@ export interface UserDataSummary {
  */
 const WIPE_ORDER: readonly string[] = [
   'budget_rollovers',
+  'container_deposit_recoveries',
+  'container_deposit_vouchers',
   'debt_payments',
   'debts',
   'expense_items',
@@ -87,6 +90,7 @@ export async function summarizeUserData(): Promise<UserDataSummary> {
     debts: await count('SELECT COUNT(*) AS value FROM debts'),
     incomes: await count('SELECT COUNT(*) AS value FROM extra_incomes'),
     paymentPlans: await count('SELECT COUNT(*) AS value FROM recurring_payment_reminders'),
+    depositVouchers: await count('SELECT COUNT(*) AS value FROM container_deposit_vouchers'),
     products: await count('SELECT COUNT(*) AS value FROM canonical_products'),
     customCategories: await count(
       'SELECT COUNT(*) AS value FROM categories WHERE COALESCE(is_system, 0) = 0',
@@ -103,6 +107,7 @@ export async function summarizeUserData(): Promise<UserDataSummary> {
       + summary.debts
       + summary.incomes
       + summary.paymentPlans
+      + summary.depositVouchers
       + summary.products
       + summary.customCategories
       + summary.categoryLimits

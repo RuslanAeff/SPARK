@@ -112,6 +112,7 @@ export default function DataResetModal({
         ['data_reset_row_debts', summary.debts],
         ['data_reset_row_incomes', summary.incomes],
         ['data_reset_row_plans', summary.paymentPlans],
+        ['deposit_wallet_title', summary.depositVouchers],
         ['data_reset_row_products', summary.products],
         ['data_reset_row_limits', summary.categoryLimits],
         ['data_reset_row_categories', summary.customCategories],
