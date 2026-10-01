@@ -568,3 +568,183 @@ pasif yüzey/erişilebilirlik etiketi olarak gösteriliyor; seçilen bütçenin 
 aralığı hariç tutuluyor. Klavye girişi ve mevcut DAO çakışma/devir kilidi korunuyor.
 **Kanıt:** Locale üretimi ve typecheck kontrol edilecek; fiziksel cihazda takvim
 klavyesi, pasif günlerin kontrastı ve dokunulamaz davranışı ayrıca açık kalıyor.
+
+## 30 Eylül 2026 — Ödeme hatırlatıcısı görünürlüğü ve depozito cüzdanı
+
+| Gereksinim | Karar | Kod | Otomatik kanıt | Açık sınır |
+|---|---|---|---|---|
+| `SPK-REM-006`: yaklaşan ödemede varsayılan üç gün korunmalı; ödeme bazındaki gün/saat ayarı bildirimden erişilebilir olmalı | Varsayılan `3 gün / 09:00` değişmedi. Ödeme-planı bildiriminin ayrıntısından ilgili planın düzenleme ekranına gidilir; 0/1/3/7/özel gün ve saat mevcut formda görünür | `app/notifications.tsx`, `app/recurring-payment.tsx`, `src/db/recurringPaymentReminderDao.ts` | `recurringPaymentReminderDao` varsayılan parametre testi; `NotificationsScreen` ve tam regresyon paketi | Gerçek planlanmış bildirime dokunma, seçilen saatte teslim, process-kill/reboot ve OEM gecikmesi standalone Android cihazda doğrulanmadı |
+| `SPK-DOM-006`: ambalaj depozitosu, voucher ve geri kazanım ürün indirimi veya yeni gelir olmadan izlenmeli | [ADR-014](../decisions/ADR-014-container-deposit-wallet.md): tutar tabanlı voucher cüzdanı; voucher elde etme ile gerçek geri kazanım ayrıdır; kesin olmayan eşleşme tahmin edilmez; depozito satırı ürün analizlerinden çıkar | `src/db/{schema,database,containerDepositDao,expenseDao}.ts`, `src/services/{geminiService,receiptParser,backupService,dataReset}.ts`, `src/hooks/useBudget.ts`, `src/utils/debtMath.ts`, `app/{deposit-wallet,add-expense}.tsx`, bütçe kartları, dört dil | DAO gerçek bellek-içi SQLite senaryoları; migration sözleşmesi; Gemini coercion/istek, receipt transaction, yedek v6 ve veri sıfırlama regresyonları; typecheck | Kullanıcı mevcut APK'da veritabanı migration'ını ve voucher akışını doğruladığını bildirdi. Farklı mağaza fişlerinde AI doğruluğu, gerçek dosyada v6 export→başka kurulum restore ve ayrıntılı cihaz matrisi açık |
+| `SPK-SCAN-008`: uzun fiş bir görüntüye sığmıyorsa birden fazla sayfa aynı analizde gönderilebilmeli | Kullanıcı en fazla dört kamera/galeri sayfasını görür, çıkarabilir ve analizi açıkça başlatır; görseller sıralı tek Gemini isteğine girer | `app/(tabs)/scanner.tsx`, `src/services/geminiService.ts`, dört dil | Scanner component testi iki sayfanın analizden önce gönderilmediğini ve birlikte sıralı gönderildiğini; Gemini testi dört inline görsel sınırını doğrular | Kullanıcı kamera/galeri ve çok fotoğraflı taramayı APK'da doğruladığını bildirdi. Kamera Activity geri kazanımı, sayfa sırası, dar cihaz belleği ve gerçek Gemini sonucunun ayrıntılı logları açık |
+
+## 30 Eylül 2026 — Tarama sonucu CTA ve voucher ikon dili
+
+**İnsan geri bildirimi:** Tarama sonucu ekranındaki `KAYDET` ve `DÜZENLE`
+düğmelerinin metinleri daha güçlü, şüşevar diliyle uyumlu görünmeli. Voucher
+alanlarında şişe sembolü kullanılmamalı; voucher farklı kaynaklardan gelen
+kuponları da temsil edebilmeli.
+
+**Uygulama:** Sonuç ekranındaki iki CTA etiketi ortak daha tok tipografiyle
+(`black`, 18pt, 23pt satır yüksekliği, artırılmış harf aralığı) hizalandı.
+Depozito satırının kendisi için kullanılan şişe göstergesi korunurken voucher
+erişimi, voucher cüzdanı, tarama sonucu ve manuel alanlarda genel
+`ticket-confirmation-outline` ikonuna geçildi.
+
+**Kanıt:** Typecheck, tam Jest ve Expo Doctor mevcut doğrulama paketinde geçti;
+ikon adı Material Community Icons glyph map içinde mevcut. Açık/koyu tema ve
+farklı vurgu renklerinde son görsel kabul, bu değişiklikler APK'dan sonra yapıldığı
+için cihazda yeniden kontrol edilmelidir.
+
+**İnsan kararı:** Kullanıcı üç günlük varsayılanın korunmasını, ödeme bazlı mevcut
+ayarların görünür olmasını ve tutar tabanlı depozito cüzdanı + manuel/AI giriş +
+voucher durumu + çok fotoğraflı tarama kapsamını açıkça onayladı.
+
+**Durum:** Kod ve otomatik regresyon kapsamı tamamlandı. Kullanıcı mevcut APK
+üzerinde temel migration, kamera/galeri, çok fotoğraflı tarama, voucher ve
+bildirim dokunuşunu doğruladığını bildirdi. Yeni CTA, ikon ve cüzdan ikon
+animasyonu bu APK'dan sonra değiştiği için son görsel cihaz kabulü hâlâ açıktır.
+Commit, push ve mağaza yayını bu kaydın parçası değildir.
+
+**Otomatik doğrulama özeti:** `npm run typecheck` başarılı; tam Jest paketi
+150/150 suite ve 1.170/1.170 test ile başarılı; `npx expo-doctor` 20/20 kontrolü
+geçti. `git diff --check` temizdi. Kamera, gerçek Gemini çağrısı, Expo SQLite
+migration, bildirim teslimi ve yeni APK üzerinde smoke testi yine ayrı cihaz
+kanıtı gerektirir.
+
+**İnsan cihaz doğrulaması:** Kullanıcı, indirilen standalone APK üzerinde mevcut
+veritabanı migration'ını, kamera/galeri akışını, çok fotoğraflı taramayı, voucher
+akışını ve bildirim içindeki ödeme dokunuşunu gerçek cihazda doğruladığını bildirdi.
+Cihaz modeli, Android sürümü ve log dosyası kaydedilmediği için bu kayıt kullanıcı
+kabulü olarak tutulur; otomatik test veya ayrıntılı cihaz matrisi yerine geçmez.
+
+## 30 Eylül 2026 — İşleme ekranı görsel karuseli ve durdur CTA hizası
+
+**İnsan gereksinimi:** Yapay zekâ fişi işlerken iki veya daha fazla yüklenen
+görselin yalnızca ilkini göstermek yerine tamamı yatay olarak kaydırılabilmeli;
+görseller eşit hizada, hafif yüzen kartlar gibi görünmeli. `DURDUR` düğmesinde
+ikon, metin ve aralıklar optik olarak merkezlenmeli.
+
+**Uygulama:** İşleme yüzeyindeki tek büyük önizleme, tüm seçili görselleri
+gösteren yatay `ScrollView` karuseline dönüştürüldü. Her görsel aynı ölçülü,
+yuvarlatılmış ve temaya duyarlı yüzeyde; sayfa numarası vurgu renkli rozetle
+belirtiliyor. Kartlar kısa ve kademeli `FadeInDown` girişiyle yükleniyor, yatay
+kaydırma ile küçük ekranlarda kalan görsellere erişilebiliyor. Durdur CTA'sı
+minimum genişlik/yükseklik, 22pt satır geometrisi, `includeFontPadding: false`
+ve sabit 10pt ikon-metni aralığıyla tek merkezlenmiş satır olarak düzenlendi.
+
+**Kod ve kanıt:** `app/(tabs)/scanner.tsx` ve
+`src/components/__tests__/ScannerScreen.test.tsx`; `npm run typecheck` başarılı,
+odaklı Scanner paketi 20/20 ve tam Jest paketi 150/150 suite, 1.171/1.171 test
+başarılı. `git diff --check` temiz.
+
+**Açık sınır:** Görsel karuselinin gerçek cihazda yatay kaydırma hissi, farklı
+ekran yükseklikleri, Android font metrikleri ve koyu/açık tema gölgeleri yeni bir
+APK üzerinde kontrol edilmedi. Önceki APK doğrulaması bu son UI değişikliğini
+kapsamaz; cihaz kabulü yapılmadan bulgu kapanmış sayılmamalıdır.
+
+## 30 Eylül 2026 — Expo 55 Android derleme onarımı
+
+| Bulguyu doğrulama | Kök neden | Düzeltme | Regresyon kanıtı | Açık sınır |
+|---|---|---|---|---|
+| EAS build `addff62b-7ebb-4445-82b7-553029bf920c` kaydının `Run gradlew` aşaması okundu | Yerel `spark-bounded-file` modülü yalnız Gradle proje `version` alanını taşıyordu. Expo 55 `expo-module-gradle-plugin`, `android.defaultConfig.versionName` değerini bulamadığı için `:expo` yapılandırmasını durdurdu; `SoftwareComponent release` mesajı zincirleme ikinci hataydı | Modüle `defaultConfig.versionCode = 1` ve `versionName = 1.0.0` eklendi. EAS sürüm kaynağı mevcut davranışı koruyan `local` olarak açıklandı | Yeni yapılandırma sözleşmesi testi, typecheck ve temiz Expo Android prebuild başarılı. EAS preview `d6974a69-e157-422e-87fb-314b669a9bb9`, 646 Gradle görevi sonrası `BUILD SUCCESSFUL` ve `FINISHED` oldu; indirilebilir APK üretildi | Yerel makinede Java runtime bulunmadığı için yerel Gradle çalıştırılamadı. APK'nın gerçek Android cihaza kurulumu, cold start, migration, kamera/galeri, çok sayfalı tarama ve bildirim dokunuşu smoke testi hâlâ açık; bu cihaz bulguları kapanmış sayılmaz |
+
+## 30 Eylül 2026 — Holografik fiş karuseli
+
+- İnsan gereksinimi: perspektifli yay, merkezde büyük kart, yumuşak yayla
+  yerleşme, süzülme ve vurgu seçicisiyle aynı tok titreşim.
+- Kod: `src/components/ReceiptHolographicCarousel.tsx`, `app/(tabs)/scanner.tsx`.
+  Yeniden kullanılabilir bileşen `onCardSelected`, `onSwipeStart`, `onSwipeEnd`
+  ve `triggerHapticFeedback` callback'lerini sunar. Tema ve hareket token'ları
+  DESIGN_BRIEF içinde kayıtlıdır. Analiz girdilerinin sırası değişmez.
+- Otomatik kanıt: Scanner 20 test; karusel seçim sınırları, tekrar seçimin
+  titreşmemesi ve iki platformun haptic profili için 3 test. Typecheck geçti.
+- Cihaz sınırı: perspektif katmanları, yatay/dikey gesture ayrımı, hızlı yön
+  değiştirme, yay bitimindeki titreşim hissi, tek/dört görsel, açık/koyu tema,
+  hareket azaltma ve işlem bitiminde animasyon temizliği cihazda bekliyor.
+  Önceki düz karusel ekran görüntüsü bu yeni tasarımın doğrulaması değildir.
+- Son otomatik koşu: `npm run typecheck` ve tam Jest 151/151 suite,
+  1.174/1.174 test başarılı; `git diff --check` temiz.
+
+## 30 Eylül 2026 — Sayfa rozetinin görsel ağırlığı
+
+Kullanıcı holografik tasarımı ekran görüntüsüyle kabul etti; yalnız numaralı
+rozetin küçülmesini istedi. `ReceiptHolographicCarousel.tsx` rozet çapı
+25→18 (yaklaşık %28 küçük), metni 12→10 olarak düzenlendi. Sakin yeşil dolgu
+ve ince kenarlık sıra bilgisini ikincil kılar. Bu son revizyonun cihaz kabulü
+henüz yoktur; önceki tasarım kabulünden ayrı tutulur.
+Doğrulama: Typecheck ve ilgili Scanner/karusel paketleri (23/23 test) başarılı;
+`git diff --check` temiz.
+
+Kullanıcı, küçültülmüş rozetin koyu ve cansıkıcı göründüğünü belirtti. Rozet
+artık sabit renk yerine aktif `theme.primary` ve `theme.primaryLight` token'larını
+kullanıyor; rakam `theme.onPrimary` ile okunuyor. Bu renk revizyonu için cihaz
+kabulü bekliyor.
+
+## 30 Eylül 2026 — Azerbaycanca dashboard kategori etiketi
+
+Kullanıcı, Dashboard ana kategorilerinde `Hesab-fakturalar` etiketinin son
+harflerinin üçüncü satıra kaydığını bildirdi. `CategoryPill` artık uzun bileşik
+etiketleri tireden bölerek `Hesab` / `fakturalar` şeklinde iki sabit satırda
+gösteriyor; tire yalnız görsel metinden çıkarılıyor, erişilebilir etiket tam
+adı koruyor. Etiket yüksekliği ve Android font üst boşluğu sabitlendi.
+Typecheck ve ilgili CategoryPill regresyonları çalıştırıldı; Azerbaycanca gerçek
+cihaz görünümü açık.
+
+## 30 Eylül 2026 — Uygulama sürümü 3.4.0
+
+`package.json`, `package-lock.json`, `app.json` ve gizlilik politikasındaki
+uygulama sürümü `3.4.0` olarak güncellendi. Android Play Store sürüm sırası için
+`versionCode` 13'ten 14'e çıkarıldı. Geçmiş güvenlik incelemesi ve tez pilot
+çıktısındaki `3.3.0` kayıtları tarihsel kanıt oldukları için değiştirilmedi;
+bağımlılıkların `^3.3.0` aralıkları da uygulama sürümü değildir.
+
+## 1 Ekim 2026 — Tarama sonucu eylem düğmeleri tipografi dengesi
+
+Kullanıcı, cihaz görüntüsündeki Kaydet/Düzenle/İptal metinlerinin fazla kalın
+olduğunu bildirdi. İkon + metin yapısının korunmasına karar verildi: bu yapı
+eylemi hızlı tanımayı destekliyor. Kaydet `extraBold 18pt`, Düzenle `semiBold
+17pt`, İptal `medium 16pt` oldu; ikonlar 20/19/17pt'e indirildi ve Düzenle
+çerçevesi 1.5pt yapıldı. Otomatik test/typecheck sonrası açık-koyu tema ve
+Azerbaycanca uzun etiket görünümü cihazda kontrol edilecek.
+
+## 1 Ekim 2026 — Sonuç düğmelerinde sabit ikon hizası
+
+Kullanıcı, Azerbaycanca etiket uzunlukları nedeniyle üç sonuç düğmesindeki
+ikonların yatay olarak ileri-geri kaydığını fark etti. `resultActionInner`
+200pt sabit içerik kanalı ve 24pt ikon yuvası kullanıyor; Kaydet, Düzenle ve
+İptal metinleri aynı başlangıç çizgisinden ilerliyor. İkon + metin yapısı ve
+önceki daha hafif tipografi korunuyor. Scanner testleri ve typecheck başarılı;
+Azerbaycanca cihaz görsel kabulü açık.
+
+Metinlerin sabit ikon kanalından dolayı sola çekildiği fark edildi. İç kanal
+korundu; ikon yuvası sabit kaldı, üç metin ise kendi 200pt kanalında merkez
+hizaya alındı. Böylece ikonlar aynı çizgide, etiketler buton merkezinde kalıyor.
+Son doğrulama: `npm run typecheck`, Scanner regresyonu 20/20 ve `git diff --check`
+başarılı. AZ görsel cihaz kabulü hâlâ açık.
+
+Uzun `Redaktə et` etiketi ile kalem ikonu arasındaki optik boşluk dar kaldığı
+görüldü. Yalnızca bu etiket için metin güvenli alanı genişletildi; ortak ikon
+hizası ve diğer iki düğmenin merkez düzeni korunuyor.
+
+İngilizce ve Rusça görsel metrikleri de ayrı ele alındı: İngilizce kısa etiketler
+daha küçük iç boşlukla, Rusça uzun etiketler daha geniş iç boşlukla yerleşiyor.
+Azerbaycanca kabul edilen ölçüler değiştirilmedi. Dil hook sırası düzeltildikten
+sonra typecheck, Scanner 20/20 ve `git diff --check` başarılı; İngilizce/Rusça
+cihaz görsel kabulü açık.
+
+Son görsel kontrolde Rusça metinlerin fazla sağa taşındığı, Türkçe `Düzenle` ve
+`İptal` etiketlerinin de ikonlardan gereğinden uzak kaldığı görüldü. İngilizce ve
+Azerbaycanca değerleri korunarak yalnız Rusça ve Türkçe padding değerleri azaltıldı.
+
+Rusça `Сохранить` etiketi ayrıca bir kademe küçültüldü ve çok az sağa alındı;
+Rusça dışındaki tipografi değerleri değişmedi.
+Sağa kayma fazla bulunduğu için yalnız Rusça `Сохранить` iç boşluğu bir adım
+geri çekildi; 17pt yazı boyutu korundu.
+
+## 1 Ekim 2026 — iOS Simulator EAS profil konumu
+
+EAS çalıştırmasında `build.production.ios-simulator is not allowed` hatası
+alındı. Neden, `ios-simulator` profilinin `production` nesnesinin içine
+yerleştirilmesiydi. Profil `build` altında `production` ile aynı seviyeye taşındı;
+`eas.json` JSON doğrulaması ve `ios.simulator: true` kontrolü başarılı. Gerçek
+iPhone veya fiziksel iOS cihaz doğrulaması yapılmadı.

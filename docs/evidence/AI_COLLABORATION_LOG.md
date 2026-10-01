@@ -1650,3 +1650,212 @@ hangi nedenle kapalı oldukları gösterilecek.
 dönemin kendi aralığı düzenlenebilir bırakıldı; diğer aktif bütçeler görsel kilit
 ve erişilebilirlik açıklaması olarak işlendi. DAO'nun kesin çakışma kontrolü
 korundu.
+
+## 30 Eylül 2026 — Depozito yaşam döngüsü ve ödeme hatırlatıcısına erişim
+
+**İnsan kararı:** Kullanıcı “3 günlük bildirim varsayılanı korunacak ve ödeme
+bazındaki mevcut ayarlar görünür hâle getirilecek” kararını; ayrıca “depozito için
+tutar tabanlı cüzdan, manuel ve AI girişi, voucher durumu ve çok fotoğraflı fiş
+taraması” kapsamını açıkça kabul edip koda uygulanmasını istedi.
+
+**AI uygulama tercihleri:** Mevcut `3 gün / 09:00` DAO varsayılanı korunup ödeme
+bildirimi ayrıntısına ilgili planı düzenleme eylemi eklendi. Depozito için iki
+ayrı ledger kuruldu: elde bulunan voucher ve gerçekleşmiş geri kazanım. Fişte
+ödenen depozito ile kullanılan voucher ayrı harcama alanları oldu; voucher
+kullanımı indirim veya ek gelir sayılmadı. Aynı tutarlı tek voucher varsa bağlantı
+kuruluyor, birden fazla adayda tahmin yapılmıyor. Depozito kalemleri ürün
+kimliği/fiyat/enflasyon/sessiz harcama analizlerinden çıkarıldı. Tarayıcı en fazla
+dört sayfayı kullanıcı “Analiz et” dedikten sonra aynı Gemini isteğinde gönderiyor.
+Bağımsız iade voucher'ı harcama yerine cüzdana yazılıyor. Yedek formatı v6'ya
+çıkarıldı; sıfırlama akışına yeni tablolar eklendi ve ADR-014 oluşturuldu.
+
+**AI öz-denetim düzeltmeleri:** İlk regresyon koşusunda eski tarayıcı testlerinin
+fotoğraf seçimini otomatik analiz sanması, bütçe testlerinin yeni DAO'yu mock'lamaması
+ve eski yedek testinin v5 beklemesi bulundu. Testler yeni ürün davranışına göre
+güncellendi. Depozito satırlarının kanonik ürün ve fiyat analizine yanlışlıkla
+girebildiği fark edilip sorgular ve kimlik çözümü daraltıldı. Yalnız voucher verisi
+olan kullanıcıda “tüm veriyi sil” kapısının boş görünmemesi için sıfırlama özeti de
+voucher sayısını kapsayacak şekilde düzeltildi.
+
+**Kanıt ve sınır:** TypeScript, odaklı DAO/migration/parser/scanner/backup testleri
+ve tam Jest paketi çalıştırıldı; kesin son sayılar aynı tarihli traceability
+kaydında tutulur. Otomatik testler gerçek kamera, galeri, Expo SQLite migration,
+Gemini hizmet doğruluğu, Android bildirim teslimi veya gerçek dosya restore'u
+kanıtlamaz. Bu cihaz kontrolleri açık kaldı; commit, push veya yayın yapılmadı.
+
+## 30 Eylül 2026 — Android Gradle hatasının kanıta dayalı onarımı
+
+**İnsan bildirimi:** Kullanıcı bir önceki preview APK denemesinin EAS tarafından
+`Gradle build failed with unknown error` mesajıyla durdurulduğunu bildirdi ve
+özellik çalışmasına devam edilmesini istedi.
+
+**AI incelemesi ve uygulaması:** Genel EAS özetine göre tahmin yapılmadı; ilgili
+build kaydının `Run gradlew` günlükleri okundu. Kayıt, yerel
+`spark-bounded-file` Expo modülünde `android.defaultConfig.versionName` eksikliğini
+kesin olarak gösterdi. Modüle Android kütüphane sürüm alanları eklendi ve aynı
+eksikliği yeniden yakalayan yapılandırma testi yazıldı. EAS CLI'ın gelecekte
+zorunlu olacağını bildirdiği sürüm kaynağı, mevcut yerel `app.json` sürümleme
+davranışını koruyacak şekilde `local` olarak açıklandı.
+
+**Kanıt ve sınır:** Odaklı sözleşme testi, typecheck ve temiz Expo Android
+prebuild başarılıdır. Yerel cihazda Java runtime bulunmadığı için Gradle görevleri
+çalıştırılamadı. Yeni EAS preview işi
+`d6974a69-e157-422e-87fb-314b669a9bb9`, 646 Gradle görevi sonrası
+`BUILD SUCCESSFUL` ve `FINISHED` oldu; indirilebilir APK üretildi. Bu sonuç dünkü
+Gradle yapılandırma bulgusunu kapatır. APK'nın gerçek Android cihaza kurulumu,
+cold start, migration, kamera/galeri, çok sayfalı tarama ve bildirim dokunuşu
+smoke testi yapılmadığı için cihaz bulguları açık kalır. Commit, push veya mağaza
+yayını yapılmadı.
+
+## 30 Eylül 2026 — Tarama sonucu CTA ve genel voucher ikonu
+
+**İnsan kararı:** Kullanıcı cihazda doğruladığı tarama sonucu ekranında Kaydet ve
+Düzenle metinlerinin daha tok, şüşevar stiline daha yakın görünmesini istedi.
+Voucher ikonunun yalnızca şişe depozitosunu çağrıştırmamasını; farklı kupon ve
+voucher kaynaklarını da anlatan modern bir sembol kullanılmasını istedi.
+
+**AI uygulaması:** Sonuç CTA metinleri aynı tipografik sözleşmede birleştirildi:
+`FontFamily.black`, 18pt, 23pt satır yüksekliği ve 1pt harf aralığı. Şişe ikonu
+yalnızca bütçe içinde gerçekten geri kazanılmış ambalaj depozitosu satırında
+korundu. Voucher cüzdanı, manuel depozito/voucher alanı, tarama sonucu ve
+İşlemler kısayolu `ticket-confirmation-outline` ile genel kupon anlamına taşındı.
+
+**Kanıt ve sınır:** İkon adı mevcut Material Community Icons glyph map ile
+doğrulandı. Değişiklikten sonra typecheck ve tam Jest paketi 150/150 suite,
+1.170/1.170 test ile geçti; `git diff --check` temiz. Cihazda açık/koyu tema,
+vurgu renkleri ve büyük yazı görünümü ayrıca kontrol edilmelidir.
+
+**Sonraki insan doğrulaması:** Kullanıcı, indirilen standalone APK üzerinde
+veritabanı migration'ını, kamera/galeri, çok fotoğraflı tarama, voucher akışı ve
+bildirim dokunuşunu gerçek cihazda doğruladığını bildirdi. Bu doğrulama yeni
+ikon/tipografi değişikliğinden önceki APK'ya aittir; yeni görsel değişiklikler için
+ayrı cihaz kabulü beklenmektedir. Cihaz modeli ve log ayrıntısı kaydedilmedi.
+
+## 30 Eylül 2026 — İşleme ekranında çoklu görsel karuseli ve durdur düğmesi
+
+**İnsan kararı:** Kullanıcı, AI okuması sürerken yüklenen tüm fiş fotoğraflarının
+üst bölümde yatay kaydırılabilir, eşit hizalı ve küçük baloncuk/kartlar gibi
+görünmesini; `DURDUR` ikon ve metninin profesyonel ölçü ve aralıklarla tam
+merkezlenmesini istedi.
+
+**AI uygulaması:** `scanner.tsx` içindeki işlem görünümü tüm `images` varlığını
+gezen yatay bir karusele çevrildi. Her kartta aynı 116×170 ölçü, yuvarlatılmış
+köşeler, tema yüzeyi, vurgu gölgesi ve sayfa sırası rozeti kullanıldı. Reanimated
+ile 45ms kademeli giriş korunarak karusel hareketli fakat kısa tutuldu. Durdur
+satırında susevar satır sözleşmesi korunurken CTA'nın minimum 180×56 ölçüsü,
+10pt ikon-metni aralığı, 22pt satır yüksekliği ve Android font üst boşluğu
+kontrolü açıkça tanımlandı.
+
+**İnsan kararı ile AI önerisi ayrımı:** Görsellerin karusel biçiminde sunulması
+ve durdur CTA'sının hizalanması insanın kabul ettiği UX hedefidir. Kart ölçüsü,
+gölge, rozet ve giriş gecikmesi kod kanıtına dayalı AI uygulama ayrıntılarıdır;
+son görsel estetik kabul kullanıcı cihazında yapılacaktır.
+
+**Doğrulama:** `npm run typecheck` ve odaklı Scanner paketi başarılıdır (20/20
+test). Değişiklik sonrasında tam Jest paketi de 150/150 suite, 1.171/1.171 test
+ile geçti; `git diff --check` temizdir. Yeni APK henüz üretilmedi.
+
+**Devam noktası:** Yeni APK ile işleme ekranında iki ve dört görseli kaydırma,
+görselin kırpılmadan okunabilirliği, `DURDUR` satırının optik merkezi ve dar
+Android ekranlarda dikey taşma kontrol edilecek. Cihaz kontrolü olmadan bu kayıt
+otomatik doğrulama olarak kalır; bulgu kapanmış kabul edilmez.
+
+## 30 Eylül 2026 — Perspektifli fiş karuseli
+
+**İnsan kararı:** Kullanıcı 3D yay üzerinde sürüklenen, merkezde büyüyen,
+kenarlarda geriye çekilen kartları ve mevcut vurgu seçicisinin titreşim hissini
+istedi. Tasarım belgelerinde ilham kaynaklarının isimlerini kullanmama talebi
+uygulandı.
+
+**AI uygulaması:** Ayrı ReceiptHolographicCarousel bileşeni; Reanimated
+perspektif/ölçek/opaklık/gölge interpolasyonu, hafif sinüs süzülmesi, gesture
+sonunda yayla yerleşme, erişilebilir seçim ve hareket azaltma desteği.
+136×192 kart, 1.22/0.82 ölçek ve yay katsayıları uygulama tercihleridir.
+Mevcut açık/koyu tema ve vurgu kişiselleştirmesi korunmuştur. Görseller contain
+ile kırpılmadan sunulur; durdur/analiz/veri akışı değiştirilmez.
+
+**Doğrulama ve devam:** Scanner testlerinde yeni native gesture sınırı için
+GestureDetector test adaptörü gerekti; ilk Jest hatası bu eksik adaptörden
+kaynaklandı. Karusel testleri seçim sınırı ve haptic profilini denetler.
+Fiziksel cihazda 3D hareket, yatay gesture ve titreşim estetiği henüz kabul
+edilmedi; yeni APK üretilmedi. Otomatik kanıt cihaz kabulünden ayrıdır.
+
+**Son otomatik sonuç:** Typecheck ve tam Jest 151 suite / 1.174 test geçti.
+`git diff --check` temiz. Fiziksel cihaz doğrulaması açık kalır.
+
+## 30 Eylül 2026 — Minimal sayfa rozeti
+
+İnsan kabulü: Kullanıcı holografik karuselin istediği gibi çalıştığını bildirdi
+ve cihaz ekran görüntüsü sundu. Bu, genel tasarım için kullanıcı kabulüdür;
+ayrıntılı gesture/haptic cihaz matrisi yerine geçmez.
+İnsan revizyonu: Numaralı yeşil daire daha küçük ve ikincil olmalı.
+AI uygulaması: Rozet çapı 25→18, yazı 12→10; extraBold yerine semiBold,
+neon kenarlık yerine ince yarı saydam kenarlık ve daha sakin koyu yeşil dolgu.
+Yeni rozetin cihazdaki görsel kabulü bekleniyor.
+
+## 30 Eylül 2026 — Rozet vurgu rengiyle eşitlendi
+
+İnsan geri bildirimi: Küçültülmüş yeşil rozet fazla koyu görünüyordu; aktif
+vurgu rengiyle aynı olması istendi. Sabit `#286348` kaldırıldı; rozet dolgusu
+`theme.primary`, kenarlığı `theme.primaryLight`, rakamı `theme.onPrimary` oldu.
+Böylece yeşil, mavi, turuncu, mor ve kırmızı paletlerde aynı kart bileşeni doğru
+vurgu rengini taşır. Otomatik typecheck ve ilgili karusel/tarayıcı testleri
+başarılı; cihaz görsel kabulü açık.
+
+## 30 Eylül 2026 — Dashboard'da Azerbaycanca kategori satır kırılması
+
+İnsan bulgusu: `Hesab-fakturalar` dar kategori sütununda `ar` parçasını ayrı
+ve hizasız gösteriyordu. İnsan kabul ettiği tasarım yönü, kategori adının
+`Hesab` üstte ve `fakturalar` altta, tire olmadan görünmesidir. AI uygulaması:
+uzun tireli etiketleri görsel olarak tire konumunda bölen yardımcı, sabit 28pt
+etiket yüksekliği ve `includeFontPadding: false` eklendi. Erişilebilirlik tam
+yerel adı kullanmaya devam eder. Cihazda AZ akışı henüz doğrulanmadı.
+
+## 30 Eylül 2026 — Uygulama sürümünün 3.4.0'a yükseltilmesi
+
+İnsan kararı: Uygulamanın sürümü tüm güncel ürün yüzeylerinde `3.4.0` olmalı.
+Uygulama: npm sürümü, Expo sürümü, lockfile kök sürümü ve gizlilik politikası
+güncellendi; Android `versionCode` Play Store sırası için 14 yapıldı. Tarihsel
+security review/pilot çıktılarına ve üçüncü taraf bağımlılık sürüm aralıklarına
+dokunulmadı. Typecheck ve diff kontrolü başarılı.
+
+## 1 Ekim 2026 — Sonuç eylemlerinde daha hafif tipografi
+
+İnsan geri bildirimi: Kaydet, Düzenle ve İptal düğmelerindeki yazı ağırlığı
+fazlaydı; ikon ve yazının aynı butonda bulunmasının profesyonel olup olmadığı
+sorgulandı. Karar: Anlamı doğrudan destekleyen ikon + etiket yapısı korunacak,
+ancak üç düğme aynı kalınlıkta olmayacak. AI uygulaması birincil Kaydet'i
+`extraBold 18pt`, Düzenle'yi `semiBold 17pt`, İptal'i `medium 16pt` yaptı;
+ikonları 20/19/17pt'e çekti ve outline kalınlığını azalttı. Son görsel cihaz
+kabulü açık.
+
+## 1 Ekim 2026 — Azerbaycanca sonuç düğmelerinde ikon kanalı
+
+İnsan bulgusu: Farklı uzunluktaki `Saxla`, `Redaktə et` ve `Ləğv et` etiketleri
+ikon + metin grubunu ayrı ayrı ortaladığı için ikonlar aynı dikey hizada
+görünmüyordu. AI uygulaması, üç eylemde 200pt sabit iç kanal ve 24pt ikon yuvası
+oluşturdu; metinler ortak başlangıç çizgisinde kaldı. Önceki tipografi ağırlığı
+kararı korunuyor. Typecheck ve Scanner regresyonları başarılı; cihaz kabulü açık.
+
+Takip eden insan geri bildirimi: Sabit kanal ikonları hizalarken metinleri fazla
+sola taşımıştı. Uygulama: ikon yuvası mutlak ve sabit kaldı; her etiket tam iç
+kanal genişliğinde `textAlign: center` ile merkezlendi. Bu iki hedefi aynı anda
+korur. Son doğrulama: typecheck, Scanner 20/20 ve `git diff --check` başarılı;
+cihazdaki AZ görsel kabulü açık. Takip eden görsel kontrolde uzun `Redaktə et`
+etiketinin kalem ikonuna fazla yaklaştığı görüldü; yalnız bu etiketin güvenli
+metin iç boşluğu genişletildi, ortak ikon kanalı değiştirilmedi. Son insan
+geri bildirimiyle İngilizce kısa etiketler ve Rusça uzun etiketler için ayrı
+padding değerleri tanımlandı; Azerbaycanca değerleri korunuyor. İngilizce/Rusça
+cihaz görsel kabulü açık. Dil hook sırası düzeltildikten sonra typecheck,
+Scanner 20/20 ve `git diff --check` başarılı. Takip eden insan geri bildirimiyle
+Rusça etiketler biraz sola, Türkçe `Düzenle` ve `İptal` metinleri ikonlara biraz
+daha yakına alındı; İngilizce ve Azerbaycanca ölçülere dokunulmadı.
+Ek insan geri bildirimiyle Rusça `Сохранить` etiketi 17pt'e indirildi ve iç
+boşluğu küçük bir miktar artırılarak sağa taşındı; diğer diller korunuyor.
+Takip eden geri bildirimde sağa kayma fazla bulundu; padding bir adım azaltıldı,
+yazı boyutu korunuyor.
+
+İnsan bildirimi: iOS Simulator build'i `build.production.ios-simulator is not
+allowed` hatasıyla başlamadı. İnceleme, profilin yanlışlıkla `production` içine
+konduğunu gösterdi. AI uygulaması profili `build` altında kardeş profile taşıdı;
+JSON ve simulator profil kontrolü başarılı. Fiziksel iPhone kanıtı yok.
