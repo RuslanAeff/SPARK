@@ -5,4 +5,10 @@ plugins {
 
 group = 'expo.modules.sparkboundedfile'
 version = '1.0.0'
-android { namespace 'expo.modules.sparkboundedfile' }
+android {
+  namespace 'expo.modules.sparkboundedfile'
+  defaultConfig {
+    versionCode 1
+    versionName '1.0.0'
+  }
+}
