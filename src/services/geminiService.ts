@@ -240,6 +240,7 @@ Analyze the receipt image carefully and extract all information.
 
 Return ONLY a valid JSON object (no markdown, no code blocks) with this exact structure:
 {
+  "document_type": "purchase_receipt",
   "vendor_name": "Store/restaurant name from the receipt",
   "date": "YYYY-MM-DD format",
   "translation_language": "${language}",
@@ -254,6 +255,7 @@ Return ONLY a valid JSON object (no markdown, no code blocks) with this exact st
       "category_key": "market",
       "line_discount": 0.00,
       "list_line_total_before_discount": 0.00,
+      "financial_kind": "product",
       "product_identity": {
         "canonical_name": "Conservative human-readable product name",
         "brand": null,
@@ -265,12 +267,20 @@ Return ONLY a valid JSON object (no markdown, no code blocks) with this exact st
     }
   ],
   "total": 0.00,
-  "currency": "PLN"
+  "currency": "PLN",
+  "container_deposit_paid": 0.00,
+  "container_voucher_used": 0.00,
+  "voucher_issued": null
 }
 
 Rules:
 - Extract EVERY real product line from the receipt, INCLUDING duplicates: if the same product appears on multiple lines (e.g. "NapCocColaZer1,75l" printed twice, or "But Plastik kaucja" twice), output a SEPARATE item for EACH occurrence. NEVER merge, deduplicate, or skip repeated lines — the item count and order must match the receipt exactly.
 - The "total" field MUST be the printed grand total on the receipt (the "SUMA PLN" / "SUMA" / "TOTAL" line, e.g. 68.80), read DIRECTLY from that line. Do NOT compute "total" by summing the items you extracted — if your item sum differs from the printed total, trust the printed total.
+- document_type MUST be "purchase_receipt" for a shopping receipt or "container_return_voucher" for a bottle/can return voucher.
+- Refundable container deposit rows (for example "But Plastik kaucja", "kaucja", "opakowanie zwrotne") stay in items and use financial_kind="container_deposit". Ordinary products use financial_kind="product". container_deposit_paid is the positive sum of those deposit rows.
+- A tender line such as "Inna Bon - zwrot opak (PET/CAN)" is a container voucher used to pay. It is NOT a discount. Put its positive amount in container_voucher_used and do not subtract it from total.
+- For a standalone bottle/can return voucher, use document_type="container_return_voucher", items=[], total=0, container_deposit_paid=0, container_voucher_used=0, and voucher_issued={"amount":3.50,"expires_on":"YYYY-MM-DD or null"}.
+- For an ordinary shopping receipt that prints a newly issued return voucher, voucher_issued may contain that voucher. Otherwise it is null.
 - Prices must be numbers (not strings).
 - If quantity is not specified, assume 1.
 - measurement_unit MUST be one of "piece", "kg", "g", "l", or "ml". Use kg/g for weighed produce, meat and similar rows. A package name containing 1.75L or 500g is still one "piece" unless the receipt explicitly sells it by weight or volume.
@@ -297,6 +307,7 @@ Rules:
 }
 
 export interface ParsedReceipt {
+  document_type?: 'purchase_receipt' | 'container_return_voucher';
   vendor_name: string;
   date: string;
   /** Tarama anında ürün adlarının çevrildiği UI dili. */
@@ -304,6 +315,9 @@ export interface ParsedReceipt {
   items: ParsedItem[];
   total: number;
   currency: string;
+  container_deposit_paid?: number;
+  container_voucher_used?: number;
+  voucher_issued?: { amount: number; expires_on: string | null } | null;
   _modelUsed?: string;
 }
 
@@ -316,6 +330,7 @@ export interface ParsedItem {
   measurement_unit?: import('../utils/measurementUnit').MeasurementInputUnit;
   unit_price: number;
   total_price: number;
+  financial_kind?: 'product' | 'container_deposit';
   suggested_category: string;
   /** Satırda uygulanan indirim tutarı (pozitif, para birimi) */
   line_discount?: number;
@@ -680,7 +695,7 @@ async function generateContentWithFallback(
 }
 
 export async function parseReceipt(
-  imageBase64: string,
+  imageBase64: string | string[],
   language: Language = 'tr',
   signal?: AbortSignal,
 ): Promise<ParsedReceipt> {
@@ -689,16 +704,21 @@ export async function parseReceipt(
     throw new GeminiServiceError('AI_NO_KEY');
   }
 
+  const images = Array.isArray(imageBase64) ? imageBase64 : [imageBase64];
+  if (images.length === 0 || images.length > 4 || images.some(image => !image)) {
+    throw new GeminiServiceError('RECEIPT_INVALID_RESULT');
+  }
+
   const requestBody: GeminiRequestBody = {
     contents: [{
       parts: [
         { text: buildReceiptPrompt(language) },
-        {
+        ...images.map(data => ({
           inline_data: {
             mime_type: 'image/jpeg',
-            data: imageBase64,
+            data,
           },
-        },
+        })),
       ],
     }],
     generationConfig: {
@@ -845,6 +865,7 @@ export function coerceParsedReceipt(raw: Record<string, unknown>): ParsedReceipt
       measurement_unit: measurementUnit,
       unit_price: unit,
       total_price: total,
+      financial_kind: it.financial_kind === 'container_deposit' ? 'container_deposit' : 'product',
       category_key: categoryKey,
       suggested_category: canonicalReceiptCategoryName(categoryKey),
       line_discount: lineDisc && lineDisc > 0.0001 ? lineDisc : undefined,
@@ -864,13 +885,41 @@ export function coerceParsedReceipt(raw: Record<string, unknown>): ParsedReceipt
       ? raw.translation_language
       : undefined;
 
+  const documentType = raw.document_type === 'container_return_voucher'
+    ? 'container_return_voucher'
+    : 'purchase_receipt';
+  const derivedDepositPaid = sumMoney(
+    items
+      .filter(item => item.financial_kind === 'container_deposit')
+      .map(item => Math.max(0, item.total_price)),
+  );
+  const containerDepositPaid = roundMoney(
+    Math.max(0, toFiniteNumber(raw.container_deposit_paid, derivedDepositPaid)),
+  );
+  const containerVoucherUsed = roundMoney(
+    Math.max(0, toFiniteNumber(raw.container_voucher_used, 0)),
+  );
+  const rawVoucher = raw.voucher_issued && typeof raw.voucher_issued === 'object'
+    ? raw.voucher_issued as Record<string, unknown>
+    : null;
+  const voucherAmount = rawVoucher ? roundMoney(toFiniteNumber(rawVoucher.amount, 0)) : 0;
+  const voucherExpiry = rawVoucher?.expires_on == null
+    ? null
+    : sanitizeText(rawVoucher.expires_on, 32);
+
   return {
+    document_type: documentType,
     vendor_name: sanitizeText(raw.vendor_name ?? 'Bilinmiyor', 500) || 'Bilinmiyor',
     date: sanitizeText(raw.date, 32),
     translation_language: translationLanguage,
     items,
     total: Number.isFinite(total) ? total : sum,
     currency: normalizeReceiptCurrency(raw.currency),
+    container_deposit_paid: containerDepositPaid,
+    container_voucher_used: containerVoucherUsed,
+    voucher_issued: voucherAmount > 0
+      ? { amount: voucherAmount, expires_on: voucherExpiry || null }
+      : null,
   };
 }
 
@@ -909,6 +958,15 @@ export function validateParsedReceipt(receipt: ParsedReceipt): ReceiptValidation
   const vendor = sanitizeText(receipt?.vendor_name, 500);
   if (isPlaceholderLabel(vendor)) return { valid: false, code: 'missing_vendor' };
   if (!isSupportedYmd(receipt?.date)) return { valid: false, code: 'invalid_date' };
+  if (receipt.document_type === 'container_return_voucher') {
+    const voucherAmount = Number(receipt.voucher_issued?.amount);
+    const expiry = receipt.voucher_issued?.expires_on;
+    if (!Number.isFinite(voucherAmount) || voucherAmount <= 0) {
+      return { valid: false, code: 'invalid_total' };
+    }
+    if (expiry != null && !isSupportedYmd(expiry)) return { valid: false, code: 'invalid_date' };
+    return { valid: true };
+  }
   if (!Array.isArray(receipt?.items) || receipt.items.length === 0) {
     return { valid: false, code: 'empty_items' };
   }

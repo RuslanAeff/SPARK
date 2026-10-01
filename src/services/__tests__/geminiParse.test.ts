@@ -92,6 +92,36 @@ describe('coerceParsedReceipt', () => {
     expect(out.currency).toBe('PLN');
   });
 
+  it('depozito satırını ayrı işaretler ve ödenen depozitoyu satırlardan türetir', () => {
+    const out = coerceParsedReceipt({
+      vendor_name: 'Market', date: '2026-09-29', currency: 'PLN', total: 7,
+      items: [
+        { name: 'İçecek', quantity: 1, unit_price: 6.5, total_price: 6.5 },
+        { name: 'Butelka kaucja', quantity: 1, unit_price: 0.5, total_price: 0.5,
+          financial_kind: 'container_deposit' },
+      ],
+    })!;
+
+    expect(out.items[1].financial_kind).toBe('container_deposit');
+    expect(out.container_deposit_paid).toBe(0.5);
+    expect(out.container_voucher_used).toBe(0);
+  });
+
+  it('tek başına iade voucher belgesini ürünsüz geçerli sonuç olarak kabul eder', () => {
+    const receipt = tryJsonToReceipt(JSON.stringify({
+      document_type: 'container_return_voucher',
+      vendor_name: 'Biedronka', date: '2026-09-23', currency: 'PLN',
+      items: [], total: 0,
+      voucher_issued: { amount: 3.5, expires_on: '2027-01-21' },
+    }));
+
+    expect(receipt).toMatchObject({
+      document_type: 'container_return_voucher',
+      voucher_issued: { amount: 3.5, expires_on: '2027-01-21' },
+    });
+    expect(validateParsedReceipt(receipt!).valid).toBe(true);
+  });
+
   it('line_discount yalnızca pozitifse korunur', () => {
     const withDisc = coerceParsedReceipt({
       items: [{ name: 'A', quantity: 1, unit_price: 5, total_price: 5, line_discount: 1.41, suggested_category: 'Market' }],
@@ -331,6 +361,35 @@ describe('parseReceipt model kalite fallback', () => {
     expect(receipt.translation_language).toBe('az');
     expect(receipt._modelUsed).toContain('gemini-2.5-pro');
     expect(fetchMock).toHaveBeenCalledTimes(3);
+  });
+
+  it('en fazla dört fiş fotoğrafını aynı istekte ve doğru sırada gönderir', async () => {
+    let generateBody: any;
+    fetchMock.mockImplementation(async (input: RequestInfo | URL, init?: RequestInit) => {
+      if (String(input).endsWith('/models')) {
+        return {
+          ok: true,
+          json: async () => ({ models: [{
+            name: 'models/gemini-2.5-flash', supportedGenerationMethods: ['generateContent'],
+          }] }),
+        } as Response;
+      }
+      generateBody = JSON.parse(String(init?.body));
+      return {
+        ok: true,
+        json: async () => ({ candidates: [{ content: { parts: [{ text: JSON.stringify({
+          vendor_name: 'Market', date: '2026-09-29', currency: 'PLN', total: 5,
+          items: [{ name: 'Ekmek', quantity: 1, unit_price: 5, total_price: 5 }],
+        }) }] } }] }),
+      } as Response;
+    });
+
+    await parseReceipt(['page-1', 'page-2', 'page-3', 'page-4'], 'tr');
+
+    expect(generateBody.contents[0].parts.slice(1).map((part: any) => part.inline_data.data))
+      .toEqual(['page-1', 'page-2', 'page-3', 'page-4']);
+    await expect(parseReceipt(['1', '2', '3', '4', '5'], 'tr'))
+      .rejects.toMatchObject({ code: 'RECEIPT_INVALID_RESULT' });
   });
 });
 

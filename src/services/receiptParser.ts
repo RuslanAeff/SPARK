@@ -1,5 +1,6 @@
 // S.P.A.R.K. — Receipt Parser (process Gemini output into DB)
 import { ParsedReceipt, ParsedItem, validateParsedReceipt } from './geminiService';
+import * as Crypto from 'expo-crypto';
 import { getDatabase } from '../db/database';
 import { ExpenseDao } from '../db/expenseDao';
 import { VendorDao } from '../db/vendorDao';
@@ -40,6 +41,8 @@ export async function getPrefillFromParsedReceipt(receipt: ParsedReceipt): Promi
   date: string;
   note: string;
   categoryId: number;
+  containerDepositPaid: string;
+  containerVoucherUsed: string;
 }> {
   const validation = validateParsedReceipt(receipt);
   if (!validation.valid) throw new Error(`INVALID_RECEIPT_${validation.code}`);
@@ -75,12 +78,17 @@ export async function getPrefillFromParsedReceipt(receipt: ParsedReceipt): Promi
     date: normalizedDate,
     note: `Fiş: ${vendorName}`,
     categoryId: primaryCategoryId,
+    containerDepositPaid: formatMoneyInput(receipt.container_deposit_paid ?? 0),
+    containerVoucherUsed: formatMoneyInput(receipt.container_voucher_used ?? 0),
   };
 }
 
 export async function processReceipt(receipt: ParsedReceipt): Promise<number> {
   const validation = validateParsedReceipt(receipt);
   if (!validation.valid) throw new Error(`INVALID_RECEIPT_${validation.code}`);
+  if (receipt.document_type === 'container_return_voucher') {
+    throw new Error('CONTAINER_VOUCHER_REQUIRES_VOUCHER_FLOW');
+  }
   const vendorName = String(receipt.vendor_name || '').trim() || 'Bilinmeyen';
   const existingVendor = await VendorDao.findByName(vendorName);
   const vendorId = existingVendor?.id ?? (await VendorDao.findOrCreate(vendorName));
@@ -101,6 +109,16 @@ export async function processReceipt(receipt: ParsedReceipt): Promise<number> {
     primaryCategoryId = await resolveCategory({ suggested_category: primaryCategory });
   }
   const normalizedDate = normalizeToYYYYMMDD(receipt.date);
+  const derivedDepositPaid = sumMoney(
+    (receipt.items || [])
+      .filter(item => item.financial_kind === 'container_deposit')
+      .map(item => Math.max(0, Number(item.total_price) || 0)),
+  );
+  const containerDepositPaid = roundMoney(Math.max(
+    0,
+    Number(receipt.container_deposit_paid) || derivedDepositPaid,
+  ));
+  const containerVoucherUsed = roundMoney(Math.max(0, Number(receipt.container_voucher_used) || 0));
 
   const itemsSum = sumMoney(
     (receipt.items || []).map((item) => Number(item.total_price)).filter(Number.isFinite),
@@ -148,6 +166,8 @@ export async function processReceipt(receipt: ParsedReceipt): Promise<number> {
       note: `Fiş: ${vendorName}`,
       receipt_uri: null,
       date: normalizedDate,
+      container_deposit_paid: containerDepositPaid,
+      container_voucher_used: containerVoucherUsed,
     });
     for (const r of resolvedItems) {
       await ExpenseDao.addItem({
@@ -164,10 +184,58 @@ export async function processReceipt(receipt: ParsedReceipt): Promise<number> {
           r.item.list_line_total_before_discount != null
             ? roundMoney(Number(r.item.list_line_total_before_discount))
             : null,
+        financial_kind: r.item.financial_kind === 'container_deposit'
+          ? 'container_deposit'
+          : 'product',
         // Yapılandırılmış Gemini çıktısı yalnız yeni ürünün gösterim/metadatasına
         // yardımcı olur; alias/merge kararı ExpenseDao içindeki yerel kurallardadır.
         product_identity_hint: r.item.product_identity,
       } as any);
+    }
+    if (containerVoucherUsed > 0) {
+      let matchedVoucherId: number | null = null;
+      const matches = await db.getAllAsync<{ id: number }>(
+        `SELECT id FROM container_deposit_vouchers
+          WHERE status = 'available' AND currency = ? AND ROUND(amount, 2) = ?
+          ORDER BY COALESCE(expires_on, '9999-12-31') ASC, issued_date ASC, id ASC
+          LIMIT 2`,
+        [receipt.currency || 'PLN', containerVoucherUsed],
+      );
+      if (matches.length === 1) {
+        matchedVoucherId = matches[0].id;
+        await db.runAsync(
+          `UPDATE container_deposit_vouchers
+              SET status = 'redeemed', redeemed_date = ?, redemption_expense_id = ?
+            WHERE id = ? AND status = 'available'`,
+          [normalizedDate, expenseId, matches[0].id],
+        );
+      }
+      await db.runAsync(
+        `INSERT INTO container_deposit_recoveries
+          (uid, voucher_id, expense_id, amount, currency, date, method, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, 'purchase_voucher', ?)`,
+        [
+          Crypto.randomUUID(), matchedVoucherId, expenseId, containerVoucherUsed,
+          receipt.currency || 'PLN', normalizedDate, new Date().toISOString(),
+        ],
+      );
+    }
+    if (receipt.voucher_issued && receipt.voucher_issued.amount > 0) {
+      await db.runAsync(
+        `INSERT INTO container_deposit_vouchers
+          (uid, amount, currency, issued_date, expires_on, status, redeemed_date,
+           redemption_expense_id, note, created_at)
+         VALUES (?, ?, ?, ?, ?, 'available', NULL, NULL, ?, ?)`,
+        [
+          Crypto.randomUUID(),
+          roundMoney(receipt.voucher_issued.amount),
+          receipt.currency || 'PLN',
+          normalizedDate,
+          receipt.voucher_issued.expires_on,
+          `Voucher: ${vendorName}`,
+          new Date().toISOString(),
+        ],
+      );
     }
     // NOT: Burada syncExpenseTotal ÇAĞRILMAZ. Fişin basılı toplamı (totalAmount =
     // Gemini'nin okuduğu "SUMA PLN") gerçek ödenen tutardır; AI bir kalemi atlarsa
