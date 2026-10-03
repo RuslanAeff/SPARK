@@ -821,3 +821,12 @@ Typecheck ve tam Jest 151 suite/1190 test başarılı; toast için 8 test pressO
 - Kanıt: Standart typecheck, strict unused typecheck, tam Jest (151 suite,
   1188 test) ve `git diff --check` başarılı. Fiziksel cihaz/APK doğrulaması bu
   temizlik için yapılmadı; native ve eski kayıt uyumluluğu kabulü açık.
+
+
+## 3 Ekim 2026 — Projeksiyon kartının sadeleştirilmesi
+
+- İnsan gereksinimi: Dönem sonu projeksiyonunda sade, modern ve net bilgi hiyerarşisi.
+- Kod/karar: `ProjectionCard.tsx` ve `analyticsStyles.ts`; nötr ana tahmin tutarı, ayrı dönem/kalan gün satırı, harcanan ve bütçe metrikleri, ince semantik çizgili sonuç. Belirsiz çok açıklamalı çubuk, dekoratif büyük ikonlar ve renkli sonuç kutusu kaldırıldı. Uzun açıklamalar kırpılmıyor; metrikler dar alanda alt satıra geçebiliyor. TR/EN ve AZ/RU kaynak map-105 üzerinden tahmin dili güncellendi.
+- Hesaplama sınırı: `spendingProjection.ts` formülü değişmedi. Tempo kırpmasının gerçek harcamayı silmediği açıklanıyor; kesin bütçe vaadi verilmiyor.
+- Otomatik kanıt: Typecheck, 3 odaklı suite/27 test ve tam Jest 151 suite/1192 test başarılı; diff whitespace kontrolü temiz. Güvenli/sınır/aşım/bütçesiz durumlar, gerçek harcamanın görünmesi ve çeviri paritesi kapsandı.
+- Açık kabul: Fiziksel Android/iOS görünümü, açık/koyu tema, dört dil, dar ekran ve büyük sistem yazısı bu oturumda görsel olarak doğrulanmadı. Kullanıcı kabulü bekleniyor.

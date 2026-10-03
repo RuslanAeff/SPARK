@@ -828,3 +828,14 @@ iletilen fotoğraf sırasını veya fiş analizini değiştirmez.
 Sayfa rozeti ikincil bilgidir: 18 birim çap, 10 birim semiBold rakam, aktif
 tema vurgu rengi dolgusu ve vurgu renginin açık tonu kenarlık olarak kullanılır;
 neon çerçeve taşımaz.
+
+
+### Dönem sonu projeksiyonu — bilgi hiyerarşisi
+
+Projeksiyon kartında tek ana tutar tahmini toplam harcamadır. Başlık ve dönem
+bilgisi ayrılır; harcanan tutar ile dönem bütçesi eşit ağırlıklı iki alanla
+karşılaştırılır. Dar alanda metinler ve alanlar alta geçebilir. Çok açıklamalı
+çubuk ve büyük renkli sonuç kutusu yerine ince semantik renk çizgisiyle kısa
+bir tahmin durumu gösterilir. Renk tek başına anlam taşımaz. Sonuç kesin vaat
+olarak yazılmaz; günlük tempo tahmini olarak adlandırılır. Yüksek harcamaların
+tempo tahminindeki ağırlığı azaltılsa da gerçek harcamada kaldığı açıklanır.

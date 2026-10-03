@@ -1931,3 +1931,10 @@ Doğrulama: `npm run typecheck`,
 `git diff --check` başarılı. Native davranış için cihaz doğrulaması yapılmadı;
 özel olarak tarama→düzenle, bildirim ve native SQLite yaşam döngüsü cihaz kabulü
 açık bırakıldı. Temizlik sırasında commit veya push yapılmadı.
+
+
+## 3 Ekim 2026 — Projeksiyon kartı görsel hiyerarşisi
+
+İnsan isteği: Ekran görüntüsündeki dönem sonu projeksiyonunu gereksiz görsel yükten arındırıp modernleştirmek. AI uygulaması: Nötr ana tutar, okunaklı başlık/dönem ayrımı, açık harcama–bütçe metrikleri ve ince renk çizgili sonuç tasarımı. Tahminler dört dilde kesin vaat olmaktan çıkarıldı; günlük tempo ve büyük harcama açıklaması mevcut hesaplama davranışına uyarlandı. Finansal hesaplama değiştirilmedi. Önceden var olan `SettingsInfoHint.tsx` değişikliğine dokunulmadı.
+
+Doğrulama: Typecheck, odaklı 27 test ve tam Jest 151 suite/1192 test başarılı. Cihaz görsel doğrulaması yapılmadı; açık/koyu tema, dört dil, büyük yazı ve dar ekran kabulü açık. Commit/push yapılmadı.
