@@ -8,6 +8,7 @@ import { Typography, FontFamily } from '../theme/typography';
 import { Spacing, BorderRadius, ScreenPadding } from '../theme/spacing';
 import { formatCurrency } from '../utils/formatCurrency';
 import { ExpenseWithDetails } from '../db/schema';
+import { subtractMoney } from '../utils/moneyMath';
 import VendorAvatar from './VendorAvatar';
 import { useLanguage } from '../i18n/LanguageContext';
 import { useCurrency } from '../context/CurrencyContext';
@@ -33,6 +34,9 @@ function TransactionRow({
   const styles = useMemo(() => getStyles(), [scheme, themeRevision]);
   const { t, tc } = useLanguage();
   const { currency } = useCurrency();
+  const paymentCurrency = expense.currency || currency;
+  const hasVoucher = (expense.container_voucher_used ?? 0) > 0;
+  const cashPaid = Math.max(0, subtractMoney(expense.total_amount, expense.container_voucher_used ?? 0));
 
   const rowInner = (
     <Pressable
@@ -81,8 +85,13 @@ function TransactionRow({
 
       <View style={styles.amountContainer}>
         <Text style={styles.amount}>
-          {formatCurrency(expense.total_amount, expense.currency || currency)}
+          {formatCurrency(cashPaid, paymentCurrency)}
         </Text>
+        {hasVoucher ? (
+          <Text style={styles.receiptTotal}>
+            {t('total')} {formatCurrency(expense.total_amount, paymentCurrency)}
+          </Text>
+        ) : null}
       </View>
     </Pressable>
   );
@@ -143,6 +152,7 @@ const getStyles = () => StyleSheet.create({
   },
   details: {
     flex: 1,
+    minWidth: 0,
     gap: Spacing.xxs,
   },
   vendorName: {
@@ -161,10 +171,19 @@ const getStyles = () => StyleSheet.create({
   },
   amountContainer: {
     alignItems: 'flex-end',
+    maxWidth: '52%',
+    gap: Spacing.xxs,
+  },
+  receiptTotal: {
+    ...Typography.labelSmall,
+    color: Colors.textSecondary,
+    textAlign: 'right',
+    fontVariant: ['tabular-nums'],
   },
   amount: {
     ...Typography.amountSmall,
     color: Colors.textPrimary,
     fontSize: 16,
+    textAlign: 'right',
   },
 });

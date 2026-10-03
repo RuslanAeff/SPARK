@@ -54,4 +54,17 @@ describe('TransactionRow currency', () => {
 
     expect(screen.getByText(formatCurrency(12.5, 'PLN'))).toBeTruthy();
   });
+  it('shows cash payment as the primary amount and receipt total as secondary', async () => {
+    const screen = await render(<TransactionRow expense={{ ...baseExpense, total_amount: 100, container_voucher_used: 5 }} />);
+    expect(screen.getByText(formatCurrency(95, 'USD'))).toBeTruthy();
+    expect(screen.getByText(`total ${formatCurrency(100, 'USD')}`)).toBeTruthy();
+    expect(screen.queryByText(/deposit_cash_paid/)).toBeNull();
+  });
+
+  it('shows zero cash payment when a voucher covers the full receipt', async () => {
+    const screen = await render(<TransactionRow expense={{ ...baseExpense, container_voucher_used: 12.5 }} />);
+    expect(screen.getByText(formatCurrency(0, 'USD'))).toBeTruthy();
+    expect(screen.getByText(`total ${formatCurrency(12.5, 'USD')}`)).toBeTruthy();
+  });
+
 });
