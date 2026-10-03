@@ -60,10 +60,14 @@ export function SettingsInfoHintModal({ visible, onClose, title, paragraphs }: I
             ))}
           </ScrollView>
           <Pressable
-            style={({ pressed }) => [styles.closeBtn, pressed && { opacity: 0.92 }]}
+            style={({ pressed }) => [styles.closeBtn, pressed && styles.closeBtnPressed]}
             onPress={onClose}
+            accessibilityRole="button"
+            accessibilityLabel={t('close')}
           >
-            <Text style={styles.closeBtnText}>{t('close')}</Text>
+            {({ pressed }) => (
+              <Text style={[styles.closeBtnText, pressed && styles.closeBtnTextPressed]}>{t('close')}</Text>
+            )}
           </Pressable>
         </Pressable>
       </Pressable>
@@ -181,13 +185,21 @@ const getModalStyles = () =>
       justifyContent: 'center',
       paddingVertical: Spacing.md,
       borderRadius: BorderRadius.round,
-      backgroundColor: Colors.surfaceLight,
+      minHeight: 48,
+      backgroundColor: Colors.primaryGlow,
       borderWidth: 1,
-      borderColor: Colors.border,
+      borderColor: Colors.glassBorder,
+    },
+    closeBtnPressed: {
+      backgroundColor: Colors.primaryAction,
+      borderColor: Colors.primaryAction,
+    },
+    closeBtnTextPressed: {
+      color: Colors.onPrimary,
     },
     closeBtnText: {
       ...Typography.labelLarge,
-      color: Colors.textPrimary,
+      color: Colors.primaryAction,
       fontFamily: FontFamily.semiBold,
     },
   });
