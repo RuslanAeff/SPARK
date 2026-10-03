@@ -8,6 +8,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { View, Text, TextInput, StyleSheet, Pressable, ScrollView, Dimensions } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
 import * as Haptics from 'expo-haptics';
 
 import BottomSheetModal from './BottomSheetModal';
@@ -686,9 +687,22 @@ export default function DebtSheet({ visible, onClose, currency, onChanged }: Deb
         <Pressable
           onPress={() => activeDebt && setDeleteId(activeDebt.id)}
           hitSlop={10}
-          style={styles.headerDeleteBtn}
+          style={({ pressed }) => [styles.headerDeleteBtn, pressed && styles.headerDeletePressed]}
+          accessibilityRole="button"
           accessibilityLabel={t('delete')}
         >
+          <View pointerEvents="none" accessible={false} style={StyleSheet.absoluteFill}>
+            <Svg width="100%" height="100%">
+              <Defs>
+                <LinearGradient id="debt-delete-glass" x1="0" y1="0" x2="0.3" y2="1">
+                  <Stop offset="0" stopColor="#FFFFFF" stopOpacity={scheme === 'dark' ? 0.18 : 0.65} />
+                  <Stop offset="0.45" stopColor={Colors.danger} stopOpacity={0.06} />
+                  <Stop offset="1" stopColor={Colors.danger} stopOpacity={0.22} />
+                </LinearGradient>
+              </Defs>
+              <Rect width="100%" height="100%" fill="url(#debt-delete-glass)" />
+            </Svg>
+          </View>
           <MaterialCommunityIcons name="trash-can-outline" size={22} color={Colors.danger} />
         </Pressable>
       </View>
@@ -1152,7 +1166,20 @@ const getStyles = () => StyleSheet.create({
   },
   headerDeleteBtn: {
     marginLeft: 'auto',
-    padding: Spacing.xs,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    flexShrink: 0,
+    overflow: 'hidden',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: Colors.danger + '12',
+    borderWidth: 1,
+    borderColor: Colors.danger + '45',
+  },
+  headerDeletePressed: {
+    backgroundColor: Colors.danger + '26',
+    transform: [{ scale: 0.96 }],
   },
   formTitle: {
     ...Typography.headlineSmall,
