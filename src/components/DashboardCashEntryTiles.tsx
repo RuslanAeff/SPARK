@@ -57,16 +57,16 @@ function DashboardCashEntryTiles({
           <MaterialCommunityIcons name="hand-coin-outline" size={17} color={Colors.danger} />
         </View>
         <View style={styles.textWrap}>
-          <Text style={styles.label} numberOfLines={1}>{t('debt_tile_label')}</Text>
+          <Text style={styles.label}>{t('debt_tile_label')}</Text>
           {outstandingDebt > 0 ? (
             <>
-              <Text style={[styles.value, { color: Colors.danger }]} numberOfLines={1}>
+              <Text style={[styles.value, { color: Colors.danger }]}>
                 {debtAmount}
               </Text>
-              <Text style={styles.context} numberOfLines={1}>{t('debt_tile_balance_hint')}</Text>
+              <Text style={styles.context}>{t('debt_tile_balance_hint')}</Text>
             </>
           ) : (
-            <Text style={styles.empty} numberOfLines={2}>{t('debt_tile_empty')}</Text>
+            <Text style={styles.empty}>{t('debt_tile_empty')}</Text>
           )}
         </View>
       </Pressable>
@@ -81,16 +81,16 @@ function DashboardCashEntryTiles({
           <MaterialCommunityIcons name="cash-plus" size={17} color={Colors.success} />
         </View>
         <View style={styles.textWrap}>
-          <Text style={styles.label} numberOfLines={1}>{t('income_tile_label')}</Text>
+          <Text style={styles.label}>{t('income_tile_label')}</Text>
           {extraIncomeIn > 0 ? (
             <>
-              <Text style={[styles.value, { color: Colors.success }]} numberOfLines={1}>
+              <Text style={[styles.value, { color: Colors.success }]}>
                 {incomeAmount}
               </Text>
-              <Text style={styles.context} numberOfLines={1}>{t('income_tile_applied_hint')}</Text>
+              <Text style={styles.context}>{t('income_tile_applied_hint')}</Text>
             </>
           ) : (
-            <Text style={styles.empty} numberOfLines={2}>{t('income_tile_empty')}</Text>
+            <Text style={styles.empty}>{t('income_tile_empty')}</Text>
           )}
         </View>
       </Pressable>
@@ -109,14 +109,14 @@ const getStyles = () => StyleSheet.create({
   tile: {
     flex: 1,
     minWidth: 0,
-    minHeight: 78,
+    minHeight: 88,
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     gap: Spacing.sm,
     backgroundColor: Colors.surface,
     borderRadius: BorderRadius.lg,
     paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
+    paddingVertical: Spacing.md,
     borderWidth: 1,
     borderColor: Colors.border,
   },
@@ -127,6 +127,7 @@ const getStyles = () => StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 16,
+    marginTop: 2,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -135,26 +136,30 @@ const getStyles = () => StyleSheet.create({
     minWidth: 0,
   },
   label: {
-    ...Typography.labelSmall,
-    color: Colors.textSecondary,
-    fontFamily: FontFamily.semiBold,
+    ...Typography.labelLarge,
+    color: Colors.textPrimary,
+    fontFamily: FontFamily.bold,
+    letterSpacing: 0,
   },
   value: {
-    ...Typography.labelMedium,
-    fontFamily: FontFamily.bold,
-    marginTop: 1,
+    fontSize: 17,
+    lineHeight: 24,
+    fontFamily: FontFamily.semiBold,
+    fontVariant: ['tabular-nums'],
+    letterSpacing: -0.3,
+    marginTop: 5,
   },
   context: {
-    fontSize: 9,
-    lineHeight: 12,
-    color: Colors.textMuted,
-    fontFamily: FontFamily.medium,
-    marginTop: 1,
+    ...Typography.bodySmall,
+    color: Colors.textSecondary,
+    letterSpacing: 0,
+    marginTop: 2,
   },
   empty: {
-    ...Typography.labelSmall,
-    color: Colors.textMuted,
-    fontFamily: FontFamily.medium,
-    marginTop: 3,
+    ...Typography.bodySmall,
+    color: Colors.textSecondary,
+    fontFamily: FontFamily.regular,
+    letterSpacing: 0,
+    marginTop: 5,
   },
 });
