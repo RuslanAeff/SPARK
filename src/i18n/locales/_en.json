@@ -1057,5 +1057,18 @@
   "deposit_wallet_hint": "Voucher balance is not cash. Using a voucher reduces the cash you spend on a purchase.",
   "deposit_cash_paid": "Paid by card / cash",
   "deposit_legacy_cash_refund": "Previous cash refund",
-  "deposit_voucher_unavailable": "This voucher is unavailable for the selected purchase."
+  "deposit_voucher_unavailable": "This voucher is unavailable for the selected purchase.",
+  "projection_title_cycle": "Cycle-end forecast",
+  "projection_title": "Month-end forecast",
+  "projection_estimated_cycle": "Estimated total spending",
+  "projection_estimated": "Estimated total spending",
+  "projection_outcome_save_title": "Forecast below budget",
+  "projection_outcome_save_sub": "Estimated remaining: {amount}",
+  "projection_outcome_over_title": "Budget overrun expected",
+  "projection_outcome_warn_title": "Forecast close to budget",
+  "projection_outcome_warn_sub_cycle": "Estimated spending is close to this cycle’s budget",
+  "projection_outcome_warn_sub": "Estimated spending is close to this month’s budget",
+  "projection_outlier_note": "High spending days have less weight in the daily forecast; actual spending still includes them.",
+  "projection_daily_pace": "Estimated daily spending",
+  "projection_budget_label": "Period budget"
 }

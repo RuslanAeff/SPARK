@@ -1,0 +1,15 @@
+{
+  "projection_title_cycle": "Прогноз на конец периода",
+  "projection_title": "Прогноз на конец месяца",
+  "projection_estimated_cycle": "Ожидаемые общие расходы",
+  "projection_estimated": "Ожидаемые общие расходы",
+  "projection_outcome_save_title": "Прогноз ниже бюджета",
+  "projection_outcome_save_sub": "Ожидаемый остаток: {amount}",
+  "projection_outcome_over_title": "Ожидается превышение бюджета",
+  "projection_outcome_warn_title": "Прогноз близок к бюджету",
+  "projection_outcome_warn_sub_cycle": "Ожидаемые расходы близки к бюджету периода",
+  "projection_outcome_warn_sub": "Ожидаемые расходы близки к бюджету месяца",
+  "projection_outlier_note": "Крупные траты меньше влияют на дневной прогноз, но включены в фактические расходы.",
+  "projection_daily_pace": "Ожидаемые расходы в день",
+  "projection_budget_label": "Бюджет периода"
+}
