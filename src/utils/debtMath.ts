@@ -4,7 +4,7 @@
 //   • Borç ALINAN döngüde harcanabilir tutar +amount artar.
 //   • Geri ÖDENEN döngüde harcanabilir tutar −payment azalır.
 // İki döngü toplamında borç + ödeme birbirini götürür (+100 −100 = 0) → hayalî
-// para oluşmaz; tüketim (totalSpent) her zaman gerçek fiş toplamıdır.
+// para oluşmaz; bütçe harcaması (totalSpent) voucher sonrası nakit/kart çıkışıdır.
 //
 // EK GELİR (extra_incomes — banka bonusu, hediye, tek seferlik ek iş) aynı
 // nakit-akışı modelinin + yönlü tek terimidir: borçtan farkı geri ödenmemesidir,
@@ -27,7 +27,7 @@ export interface DebtCashFlowInput {
   carryIn?: number;
   /** Planlanan döngü bütçesi (debt'ten bağımsız). */
   monthlyBudget: number;
-  /** Döngüde gerçekleşen toplam harcama (fiş bütün — bölünmez). */
+  /** Döngünün voucher sonrası nakit/kart harcaması; basılı fiş ayrı korunur. */
   totalSpent: number;
   /** Bu döngüde alınan borç toplamı (date ∈ döngü). */
   borrowedIn: number;
@@ -39,7 +39,7 @@ export interface DebtCashFlowInput {
    * Opsiyonel; verilmezse 0 (ek gelir öncesi davranış birebir korunur).
    */
   extraIncomeIn?: number;
-  /** Previously paid refundable deposits recovered by voucher/cash use. */
+  /** Historical cash refunds only. Voucher payments are deducted from totalSpent, never added here. */
   depositRecoveredIn?: number;
 }
 

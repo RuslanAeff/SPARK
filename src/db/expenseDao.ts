@@ -10,7 +10,7 @@ import {
   sanitizeIdArray,
 } from '../utils/inputValidation';
 import { normalizeItemKey } from '../utils/itemNameNormalizer';
-import { fromMinorUnits, roundMoney } from '../utils/moneyMath';
+import { fromMinorUnits, roundMoney, sumMoney, subtractMoney } from '../utils/moneyMath';
 import {
   sanitizeMeasurementUnit,
   type MeasurementUnit,
@@ -382,6 +382,10 @@ export const ExpenseDao = {
     );
     if (result) {
       const total = fromMinorUnits(Number(result.total_minor) || 0);
+      const expense = await db.getFirstAsync<{ container_voucher_used: number }>(
+        'SELECT container_voucher_used FROM expenses WHERE id = ?', [expenseId],
+      );
+      if ((expense?.container_voucher_used ?? 0) > total) throw new Error('INVALID_CONTAINER_RECOVERY');
       await db.runAsync('UPDATE expenses SET total_amount = ? WHERE id = ?', [total, expenseId]);
     }
   },
@@ -420,6 +424,29 @@ export const ExpenseDao = {
     });
   },
 
+  async getCashSpendingByDays(startDate: string, endDate: string): Promise<{ date: string; total: number }[]> {
+    const rows = await (await getDatabase()).getAllAsync<{ date: string; total_amount: number; container_voucher_used: number }>(
+      'SELECT date, total_amount, container_voucher_used FROM expenses WHERE date BETWEEN ? AND ? ORDER BY date',
+      [startDate, endDate],
+    );
+    const days = new Map<string, number>();
+    for (const row of rows) {
+      const paid = Math.max(0, subtractMoney(row.total_amount, row.container_voucher_used ?? 0));
+      days.set(row.date, sumMoney([days.get(row.date) ?? 0, paid]));
+    }
+    return Array.from(days, ([date, total]) => ({ date, total }));
+  },
+
+  /** Budget cash outflow; receipt totals and product discounts stay unchanged. */
+  async getCashSpentByDateRange(startDate: string, endDate: string): Promise<number> {
+    const db = await getDatabase();
+    const rows = await db.getAllAsync<{ total_amount: number; container_voucher_used: number }>(
+      'SELECT total_amount, container_voucher_used FROM expenses WHERE date BETWEEN ? AND ?',
+      [startDate, endDate],
+    );
+    return sumMoney(rows.map(row => Math.max(0, subtractMoney(row.total_amount, row.container_voucher_used ?? 0))));
+  },
+
   async getTotalByDateRange(startDate: string, endDate: string): Promise<number> {
     const db = await getDatabase();
     const result = await db.getFirstAsync<{ total: number }>(
@@ -435,16 +462,6 @@ export const ExpenseDao = {
       'SELECT MIN(date) as first_date FROM expenses',
     );
     return result?.first_date ?? null;
-  },
-
-  async getSpendingByMonth(month: string): Promise<number> {
-    // month format: 'YYYY-MM'
-    const startDate = `${month}-01`;
-    // Get last day of month
-    const [y, m] = month.split('-').map(Number);
-    const lastDay = new Date(y, m, 0).getDate();
-    const endDate = `${month}-${String(lastDay).padStart(2, '0')}`;
-    return ExpenseDao.getTotalByDateRange(startDate, endDate);
   },
 
   // Get all distinct months (YYYY-MM) that have any spending data
@@ -563,19 +580,6 @@ export const ExpenseDao = {
        GROUP BY segment
        ORDER BY total DESC`,
       [startDate, endDate]
-    );
-  },
-
-  async getMonthlyTotals(months: number = 6) {
-    const db = await getDatabase();
-    const safeMonths = Math.max(1, Math.floor(Math.abs(months)));
-    return db.getAllAsync(
-      `SELECT strftime('%Y-%m', date) as month, COALESCE(SUM(total_amount), 0) as total
-       FROM expenses
-       WHERE date >= date('now', '-' || ? || ' months')
-       GROUP BY strftime('%Y-%m', date)
-       ORDER BY month ASC`,
-      [safeMonths]
     );
   },
 
@@ -977,64 +981,6 @@ export const ExpenseDao = {
        LIMIT ?`,
       [startDate, endDate, limit]
     );
-  },
-
-  /**
-   * Saat dilimi × hafta günü matrisi.
-   *
-   * `expenses.date` sadece YYYY-MM-DD tutar (saat bilgisi yok). Bu yüzden
-   * harcamanın **kayda alındığı** anı (`created_at`) kullanırız. Kullanıcının
-   * uygulamayı en çok hangi gün/saatte kullandığını ve hangi saatlerde işlem
-   * eklediğini gösterir — gerçek "alışveriş saati" yaklaşığı olarak da
-   * okunabilir, ama kart UI'ı bunu açıkça belirtir.
-   *
-   * `created_at` UTC datetime('now') ile dolar; kullanıcının yerel timezone'una
-   * çevirmek için strftime'ı 'localtime' modifier'ı ile çağırırız.
-   *
-   * Dönüş: 7 (gün, 0=Pazar) × 4 (zaman dilimi) flat array — her hücre toplam
-   * harcama tutarı. Zaman dilimleri: 0=sabah(06-12), 1=öğle(12-17),
-   * 2=akşam(17-22), 3=gece(22-06).
-   */
-  async getTimeOfDayMatrix(startDate: string, endDate: string) {
-    const db = await getDatabase();
-    const rows = await db.getAllAsync<{ dow: string; hour: string; total: number }>(
-      `SELECT
-         strftime('%w', e.created_at, 'localtime') as dow,
-         strftime('%H', e.created_at, 'localtime') as hour,
-         COALESCE(SUM(e.total_amount), 0) as total
-       FROM expenses e
-       WHERE date(e.created_at, 'localtime') BETWEEN ? AND ?
-       GROUP BY dow, hour`,
-      [startDate, endDate]
-    );
-
-    // 7 × 4 matris (gün × dilim). Aynı zamanda toplam, peak ve count tutarız.
-    const matrix: number[][] = Array.from({ length: 7 }, () => [0, 0, 0, 0]);
-    let total = 0;
-    let peakValue = 0;
-    let peakDow = 0;
-    let peakSlot = 0;
-
-    for (const r of rows) {
-      const dow = parseInt(r.dow, 10);
-      const hour = parseInt(r.hour, 10);
-      const value = Number(r.total) || 0;
-      let slot: number;
-      if (hour >= 6 && hour < 12) slot = 0;
-      else if (hour >= 12 && hour < 17) slot = 1;
-      else if (hour >= 17 && hour < 22) slot = 2;
-      else slot = 3;
-      if (Number.isFinite(dow) && dow >= 0 && dow < 7) {
-        matrix[dow][slot] += value;
-        total += value;
-        if (matrix[dow][slot] > peakValue) {
-          peakValue = matrix[dow][slot];
-          peakDow = dow;
-          peakSlot = slot;
-        }
-      }
-    }
-    return { matrix, total, peakValue, peakDow, peakSlot };
   },
 
   /**

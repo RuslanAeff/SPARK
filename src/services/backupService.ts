@@ -750,7 +750,8 @@ export function validateAndNormalizeBackupPayload(input: unknown): NormalizedBac
     const expenseIds = new Set(expenses.map(expense => expense.source_id));
     for (const expense of expenses) {
       if (!isNonNegativeMoney(expense.container_deposit_paid)
-        || !isNonNegativeMoney(expense.container_voucher_used)) invalidFormat();
+        || !isNonNegativeMoney(expense.container_voucher_used)
+        || Number(expense.container_voucher_used) > Number(expense.total_amount)) invalidFormat();
       for (const item of expense.items) {
         if (!['product', 'container_deposit'].includes(String(item.financial_kind))) invalidFormat();
       }

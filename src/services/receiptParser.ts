@@ -1,3 +1,4 @@
+import { ContainerDepositDao } from '../db/containerDepositDao';
 // S.P.A.R.K. — Receipt Parser (process Gemini output into DB)
 import { ParsedReceipt, ParsedItem, validateParsedReceipt } from './geminiService';
 import * as Crypto from 'expo-crypto';
@@ -7,7 +8,6 @@ import { VendorDao } from '../db/vendorDao';
 import { CategoryDao } from '../db/categoryDao';
 import { normalizeToYYYYMMDD } from '../utils/dateUtils';
 import {
-  formatMoneyInput,
   roundMoney,
   roundUnitRate,
   sumMoney,
@@ -31,56 +31,6 @@ async function resolveCategory(item: Pick<ParsedItem, 'category_key' | 'suggeste
   // Last resort: first available category
   const all = await CategoryDao.getAll();
   return all[0]?.id ?? 1;
-}
-
-/** Tarayıcıdan "Kaydet" etmeden add-expense formunu doldurmak için (processReceipt ile aynı toplam/kategori mantığı) */
-export async function getPrefillFromParsedReceipt(receipt: ParsedReceipt): Promise<{
-  amount: string;
-  currency: string;
-  vendorName: string;
-  date: string;
-  note: string;
-  categoryId: number;
-  containerDepositPaid: string;
-  containerVoucherUsed: string;
-}> {
-  const validation = validateParsedReceipt(receipt);
-  if (!validation.valid) throw new Error(`INVALID_RECEIPT_${validation.code}`);
-  const vendorName = String(receipt.vendor_name || '').trim() || 'Bilinmeyen';
-
-  // Önce satıcının önceden belirlenmiş varsayılan kategorisi var mı diye bak;
-  // varsa Gemini'nin önerisini geç ve kullanıcı tercihini uygula.
-  const existingVendor = await VendorDao.findByName(vendorName);
-  let primaryCategoryId: number | null =
-    existingVendor?.default_category_id != null ? existingVendor.default_category_id : null;
-
-  if (primaryCategoryId == null) {
-    const categoryCounts: Record<string, number> = {};
-    for (const item of receipt.items || []) {
-      const cat = canonicalReceiptCategoryName(item.category_key, item.suggested_category);
-      categoryCounts[cat] = (categoryCounts[cat] || 0) + 1;
-    }
-    const primaryCategory = Object.entries(categoryCounts)
-      .sort(([, a], [, b]) => b - a)[0]?.[0] || 'Diğer';
-    primaryCategoryId = await resolveCategory({ suggested_category: primaryCategory });
-  }
-  const itemsSum = sumMoney(
-    (receipt.items || []).map((item) => Number(item.total_price)).filter(Number.isFinite),
-  );
-  const rawTotal = Number(receipt.total);
-  const totalAmount =
-    Number.isFinite(rawTotal) && rawTotal >= 0 ? roundMoney(rawTotal) : itemsSum > 0 ? itemsSum : 0;
-  const normalizedDate = normalizeToYYYYMMDD(receipt.date);
-  return {
-    amount: formatMoneyInput(totalAmount),
-    currency: receipt.currency || 'PLN',
-    vendorName,
-    date: normalizedDate,
-    note: `Fiş: ${vendorName}`,
-    categoryId: primaryCategoryId,
-    containerDepositPaid: formatMoneyInput(receipt.container_deposit_paid ?? 0),
-    containerVoucherUsed: formatMoneyInput(receipt.container_voucher_used ?? 0),
-  };
 }
 
 export async function processReceipt(receipt: ParsedReceipt): Promise<number> {
@@ -193,32 +143,7 @@ export async function processReceipt(receipt: ParsedReceipt): Promise<number> {
       } as any);
     }
     if (containerVoucherUsed > 0) {
-      let matchedVoucherId: number | null = null;
-      const matches = await db.getAllAsync<{ id: number }>(
-        `SELECT id FROM container_deposit_vouchers
-          WHERE status = 'available' AND currency = ? AND ROUND(amount, 2) = ?
-          ORDER BY COALESCE(expires_on, '9999-12-31') ASC, issued_date ASC, id ASC
-          LIMIT 2`,
-        [receipt.currency || 'PLN', containerVoucherUsed],
-      );
-      if (matches.length === 1) {
-        matchedVoucherId = matches[0].id;
-        await db.runAsync(
-          `UPDATE container_deposit_vouchers
-              SET status = 'redeemed', redeemed_date = ?, redemption_expense_id = ?
-            WHERE id = ? AND status = 'available'`,
-          [normalizedDate, expenseId, matches[0].id],
-        );
-      }
-      await db.runAsync(
-        `INSERT INTO container_deposit_recoveries
-          (uid, voucher_id, expense_id, amount, currency, date, method, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, 'purchase_voucher', ?)`,
-        [
-          Crypto.randomUUID(), matchedVoucherId, expenseId, containerVoucherUsed,
-          receipt.currency || 'PLN', normalizedDate, new Date().toISOString(),
-        ],
-      );
+      await ContainerDepositDao.syncPurchaseRecovery(expenseId);
     }
     if (receipt.voucher_issued && receipt.voucher_issued.amount > 0) {
       await db.runAsync(

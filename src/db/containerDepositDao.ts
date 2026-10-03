@@ -4,7 +4,7 @@ import { getDatabase } from './database';
 import type { ContainerDepositVoucher } from './schema';
 import { sanitizeAmount, sanitizeDate, sanitizeText } from '../utils/inputValidation';
 import { getToday } from '../utils/dateUtils';
-import { roundMoney } from '../utils/moneyMath';
+import { roundMoney, sumMoney } from '../utils/moneyMath';
 
 export interface ContainerDepositSummary {
   depositPaid: number;
@@ -113,31 +113,20 @@ export const ContainerDepositDao = {
     return roundMoney(Number(row?.total) || 0);
   },
 
-  async markRedeemed(id: number, date: string = getToday(), expenseId?: number | null): Promise<void> {
-    const safeDate = sanitizeDate(date);
-    if (!Number.isSafeInteger(id) || id <= 0 || !safeDate) throw new Error('INVALID_CONTAINER_VOUCHER');
+  async getById(id: number): Promise<ContainerDepositVoucher | null> {
+    return (await getDatabase()).getFirstAsync<ContainerDepositVoucher>(
+      'SELECT * FROM container_deposit_vouchers WHERE id = ?', [id],
+    );
+  },
+
+  /** Compatibility only: historical cash records must not become voucher payments. */
+  async getCashRecoveredByDateRange(start: string, end: string, currency: string): Promise<number> {
     const db = await getDatabase();
-    await db.withTransactionAsync(async () => {
-      const voucher = await db.getFirstAsync<ContainerDepositVoucher>(
-        `SELECT * FROM container_deposit_vouchers WHERE id = ? AND status = 'available'`,
-        [id],
-      );
-      if (!voucher) throw new Error('CONTAINER_VOUCHER_NOT_AVAILABLE');
-      await db.runAsync(
-        `UPDATE container_deposit_vouchers
-            SET status = 'redeemed', redeemed_date = ?, redemption_expense_id = ?
-          WHERE id = ? AND status = 'available'`,
-        [safeDate, expenseId ?? null, id],
-      );
-      if (expenseId == null) {
-        await db.runAsync(
-          `INSERT INTO container_deposit_recoveries
-            (uid, voucher_id, expense_id, amount, currency, date, method, created_at)
-           VALUES (?, ?, NULL, ?, ?, ?, 'cash', ?)`,
-          [Crypto.randomUUID(), id, voucher.amount, voucher.currency, safeDate, new Date().toISOString()],
-        );
-      }
-    });
+    const rows = await db.getAllAsync<{ amount: number }>(
+      "SELECT amount FROM container_deposit_recoveries WHERE method = 'cash' AND date BETWEEN ? AND ? AND currency = ?",
+      [start, end, safeCurrency(currency)],
+    );
+    return sumMoney(rows.map(row => row.amount));
   },
 
   async recordPurchaseRecovery(input: {
@@ -165,17 +154,23 @@ export const ContainerDepositDao = {
   },
 
   /** Must be called inside the expense write transaction. */
-  async syncPurchaseRecovery(expenseId: number): Promise<void> {
+  async syncPurchaseRecovery(expenseId: number, selectedVoucherId?: number): Promise<void> {
     const db = await getDatabase();
     const expense = await db.getFirstAsync<{
+      total_amount: number;
       container_voucher_used: number;
       currency: string;
       date: string;
     }>(
-      `SELECT container_voucher_used, currency, date FROM expenses WHERE id = ?`,
+      `SELECT total_amount, container_voucher_used, currency, date FROM expenses WHERE id = ?`,
       [expenseId],
     );
     if (!expense) throw new Error('EXPENSE_NOT_FOUND');
+    const amount = roundMoney(Number(expense.container_voucher_used) || 0);
+    if (amount < 0 || amount > roundMoney(expense.total_amount)) throw new Error('INVALID_CONTAINER_RECOVERY');
+    const previous = await db.getFirstAsync<{ id: number }>(
+      'SELECT id FROM container_deposit_vouchers WHERE redemption_expense_id = ?', [expenseId],
+    );
 
     await db.runAsync(
       `UPDATE container_deposit_vouchers
@@ -185,21 +180,33 @@ export const ContainerDepositDao = {
     );
     await db.runAsync('DELETE FROM container_deposit_recoveries WHERE expense_id = ?', [expenseId]);
 
-    const amount = roundMoney(Number(expense.container_voucher_used) || 0);
-    if (amount <= 0) return;
+    if (amount <= 0) {
+      if (selectedVoucherId != null) throw new Error('INVALID_CONTAINER_RECOVERY');
+      return;
+    }
     const matches = await db.getAllAsync<{ id: number }>(
       `SELECT id FROM container_deposit_vouchers
-        WHERE status = 'available' AND currency = ? AND ROUND(amount, 2) = ?
+        WHERE status IN ('available', 'expired') AND currency = ? AND ROUND(amount, 2) = ?
+          AND issued_date <= ? AND (expires_on IS NULL OR expires_on >= ?)
         ORDER BY COALESCE(expires_on, '9999-12-31') ASC, issued_date ASC, id ASC
         LIMIT 2`,
-      [safeCurrency(expense.currency), amount],
+      [safeCurrency(expense.currency), amount, expense.date, expense.date],
     );
-    const voucherId = matches.length === 1 ? matches[0].id : null;
+    let voucherId = matches.length === 1 ? matches[0].id : null;
+    const preferredId = selectedVoucherId ?? previous?.id;
+    if (preferredId != null) {
+      const preferred = await ContainerDepositDao.getById(preferredId);
+      const valid = preferred && ['available', 'expired'].includes(preferred.status)
+        && preferred.currency === safeCurrency(expense.currency) && roundMoney(preferred.amount) === amount
+        && preferred.issued_date <= expense.date && (!preferred.expires_on || preferred.expires_on >= expense.date);
+      if (selectedVoucherId != null && !valid) throw new Error('CONTAINER_VOUCHER_NOT_AVAILABLE');
+      if (valid) voucherId = preferredId;
+    }
     if (voucherId != null) {
       await db.runAsync(
         `UPDATE container_deposit_vouchers
             SET status = 'redeemed', redeemed_date = ?, redemption_expense_id = ?
-          WHERE id = ? AND status = 'available'`,
+          WHERE id = ? AND status IN ('available', 'expired')`,
         [expense.date, expenseId, voucherId],
       );
     }
@@ -212,37 +219,4 @@ export const ContainerDepositDao = {
     });
   },
 
-  async deleteVoucher(id: number): Promise<void> {
-    if (!Number.isSafeInteger(id) || id <= 0) return;
-    const db = await getDatabase();
-    await db.runAsync('DELETE FROM container_deposit_vouchers WHERE id = ?', [id]);
-  },
-
-  /** Exact single-voucher match is safe; ambiguous or split payments stay unlinked. */
-  async linkExactAvailableVoucher(input: {
-    amount: number;
-    currency: string;
-    date: string;
-    expenseId: number;
-  }): Promise<number | null> {
-    const amount = roundMoney(sanitizeAmount(input.amount));
-    if (amount <= 0) return null;
-    const db = await getDatabase();
-    const matches = await db.getAllAsync<{ id: number }>(
-      `SELECT id FROM container_deposit_vouchers
-        WHERE status = 'available' AND currency = ? AND ROUND(amount, 2) = ?
-        ORDER BY COALESCE(expires_on, '9999-12-31') ASC, issued_date ASC, id ASC
-        LIMIT 2`,
-      [safeCurrency(input.currency), amount],
-    );
-    if (matches.length !== 1) return null;
-    const db2 = await getDatabase();
-    await db2.runAsync(
-      `UPDATE container_deposit_vouchers
-          SET status = 'redeemed', redeemed_date = ?, redemption_expense_id = ?
-        WHERE id = ? AND status = 'available'`,
-      [input.date, input.expenseId, matches[0].id],
-    );
-    return matches[0].id;
-  },
 };

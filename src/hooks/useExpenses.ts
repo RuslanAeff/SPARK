@@ -32,51 +32,6 @@ function useAutoRefresh(
   }, [refresh, enabled, autoLoad]);
 }
 
-export function useExpenses(startDate?: string, endDate?: string) {
-  const [expenses, setExpenses] = useState<ExpenseWithDetails[]>([]);
-  const [loading, setLoading] = useState(true);
-  const mounted = useMounted();
-
-  const start = startDate || getStartOfMonth();
-  const end = endDate || getEndOfMonth();
-
-  const refresh = useCallback(async () => {
-    setLoading(true);
-    try {
-      const data = await ExpenseDao.getByDateRange(start, end);
-      if (mounted.current) setExpenses(data);
-    } catch (e) {
-      console.error('Error loading expenses:', e);
-    }
-    if (mounted.current) setLoading(false);
-  }, [start, end]);
-
-  useEffect(() => { refresh(); }, [refresh]);
-
-  return { expenses, loading, refresh };
-}
-
-export function useAllExpenses(limit: number = 100) {
-  const [expenses, setExpenses] = useState<ExpenseWithDetails[]>([]);
-  const [loading, setLoading] = useState(true);
-  const mounted = useMounted();
-
-  const refresh = useCallback(async () => {
-    setLoading(true);
-    try {
-      const data = await ExpenseDao.getAll(limit, 0);
-      if (mounted.current) setExpenses(data);
-    } catch (e) {
-      console.error('Error loading all expenses:', e);
-    }
-    if (mounted.current) setLoading(false);
-  }, [limit]);
-
-  useEffect(() => { refresh(); }, [refresh]);
-
-  return { expenses, loading, refresh };
-}
-
 // P9: İşlem listesinde tüm satırları tek seferde okuyup FlatList’e vermek yerine
 // sayfalı çekim. İlk sayfa anında görünür, kullanıcı listeyi aşağı kaydırınca
 // `loadMore` ile arka arkaya sayfalar eklenir. Arama, hâlihazırda yüklü satırlar
@@ -309,7 +264,7 @@ export function useVendorSpending(
 export function useDailySpending(
   startDate?: string,
   endDate?: string,
-  options: ExpenseQueryOptions = {},
+  options: ExpenseQueryOptions & { cashOnly?: boolean } = {},
 ) {
   const [data, setData] = useState<{ date: string; total: number }[]>([]);
   const [loading, setLoading] = useState(true);
@@ -317,6 +272,7 @@ export function useDailySpending(
   const refreshSequence = useRef(0);
   const enabled = options.enabled ?? true;
   const autoLoad = options.autoLoad ?? true;
+  const cashOnly = options.cashOnly ?? false;
   useEffect(() => {
     if (!enabled) {
       refreshSequence.current += 1;
@@ -332,7 +288,9 @@ export function useDailySpending(
     const sequence = ++refreshSequence.current;
     setLoading(true);
     try {
-      const raw = await ExpenseDao.getSpendingByDays(start, end);
+      const raw = cashOnly
+        ? await ExpenseDao.getCashSpendingByDays(start, end)
+        : await ExpenseDao.getSpendingByDays(start, end);
       
       const result = [];
       const currentDate = new Date(start + 'T12:00:00Z');
@@ -366,7 +324,7 @@ export function useDailySpending(
       console.error('Error loading daily spending:', e);
     }
     if (mounted.current && sequence === refreshSequence.current) setLoading(false);
-  }, [start, end, enabled]);
+  }, [start, end, enabled, cashOnly]);
 
   useAutoRefresh(refresh, enabled, autoLoad);
 

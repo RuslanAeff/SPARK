@@ -38,7 +38,7 @@ export const BudgetRolloverDao = {
     const borrowedIn = await DebtDao.getBorrowedTotalByDateRange(start, end);
     const repaidIn = await DebtDao.getRepaidTotalByDateRange(start, end);
     const extraIncomeIn = await IncomeDao.getTotalByDateRange(start, end);
-    const depositRecoveredIn = await ContainerDepositDao.getRecoveredByDateRange(
+    const depositRecoveredIn = await ContainerDepositDao.getCashRecoveredByDateRange(
       start, end, budget?.currency ?? 'PLN',
     );
     const { incoming } = await BudgetRolloverDao.totals(start, end, budget?.currency ?? 'PLN');
@@ -69,11 +69,11 @@ export const BudgetRolloverDao = {
       const key = `${b.period_start}:${b.period_end}:${b.currency}`;
       if (balances.has(key)) return balances.get(key)!;
       const start = b.period_start!; const end = b.period_end!;
-      const spent = await ExpenseDao.getTotalByDateRange(start, end);
+      const spent = await ExpenseDao.getCashSpentByDateRange(start, end);
       const borrowed = await DebtDao.getBorrowedTotalByDateRange(start, end);
       const repaid = await DebtDao.getRepaidTotalByDateRange(start, end);
       const income = await IncomeDao.getTotalByDateRange(start, end);
-      const depositRecoveredIn = await ContainerDepositDao.getRecoveredByDateRange(
+      const depositRecoveredIn = await ContainerDepositDao.getCashRecoveredByDateRange(
         start, end, b.currency,
       );
       const incoming = sumMoney(rows.filter(r => r.target_start === start && r.target_end === end && r.currency === b.currency).map(r => fromMinorUnits(r.amount_minor)));

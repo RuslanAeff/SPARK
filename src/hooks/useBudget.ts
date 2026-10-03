@@ -47,7 +47,7 @@ export interface BudgetInfo {
   netDebtFlow: number;
   /** Bu döngüde elde edilen ek gelir toplamı (extra_incomes.date ∈ döngü; yalnız +). */
   extraIncomeIn: number;
-  /** Bu döngüde kullanılan/nakde çevrilen depozito voucher toplamı. */
+  /** Yalnız eski nakit iade kayıtları; alışveriş voucher tutarı harcamadan düşülür. */
   depositRecoveredIn?: number;
   /** Plan + nakit akışları + devir (remaining/percentage bunun üzerinden). */
   effectiveBudget: number;
@@ -122,7 +122,7 @@ export function useBudget(specificMonth?: string) {
       // NOT: Sorgular SERİ çalışır (Promise.all DEĞİL) — expo-sqlite tek bağlantıda
       // eşzamanlı prepareAsync'te "shared object already released" çökmesi
       // verebiliyor; seri erişim güvenli. 4 indeksli sorgu, fark edilmez maliyet.
-      const totalSpent = await ExpenseDao.getTotalByDateRange(cycle.start, cycle.end);
+      const totalSpent = await ExpenseDao.getCashSpentByDateRange(cycle.start, cycle.end);
       const borrowedIn = await DebtDao.getBorrowedTotalByDateRange(cycle.start, cycle.end);
       const repaidIn = await DebtDao.getRepaidTotalByDateRange(cycle.start, cycle.end);
       const outstandingDebt = await DebtDao.getOutstandingTotal();
@@ -130,7 +130,7 @@ export function useBudget(specificMonth?: string) {
       // düştüğü döngünün harcanabilir tutarını artırır. Kayıt yoksa 0 döner →
       // effectiveBudget eski davranışıyla birebir aynı kalır.
       const extraIncomeIn = await IncomeDao.getTotalByDateRange(cycle.start, cycle.end);
-      const depositRecoveredIn = await ContainerDepositDao.getRecoveredByDateRange(
+      const depositRecoveredIn = await ContainerDepositDao.getCashRecoveredByDateRange(
         cycle.start,
         cycle.end,
         budgetCurrency,

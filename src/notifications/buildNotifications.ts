@@ -10,7 +10,6 @@ import { SubscriptionDao } from '../db/subscriptionDao';
 import { DebtDao } from '../db/debtDao';
 import { RecurringPaymentReminderDao } from '../db/recurringPaymentReminderDao';
 import { hasApiKey } from '../services/geminiService';
-import { peekPendingReceiptDraft } from '../services/pendingReceiptDraft';
 import { getScanSessionError } from '../services/scanSession';
 import { getCycleStartDay } from '../services/budgetCycleSettings';
 import {
@@ -162,7 +161,7 @@ export async function runNotificationSync(
     const budgetAmount = await BudgetRolloverDao.effectiveAmount(fallback, start, end);
 
     if (budgetAmount > 0) {
-      const spent = await ExpenseDao.getTotalByDateRange(start, end);
+      const spent = await ExpenseDao.getCashSpentByDateRange(start, end);
       const ratio = spent / budgetAmount;
       const over = spent > budgetAmount + 0.005;
       const atOrOverFull = !over && spent >= budgetAmount - 0.005;
@@ -235,7 +234,7 @@ export async function runNotificationSync(
         const fallback = row ?? (await BudgetDao.getLatestAtOrBefore(start));
         const budgetAmount = await BudgetRolloverDao.effectiveAmount(fallback, start, end);
         if (budgetAmount > 0) {
-          const spent = await ExpenseDao.getTotalByDateRange(start, end);
+          const spent = await ExpenseDao.getCashSpentByDateRange(start, end);
           const pct = Math.min(100, Math.round((spent / budgetAmount) * 100));
           const overSpent = spent > budgetAmount + 0.005;
           rules.goalRisk = rules.goalRisk || {};
@@ -292,19 +291,7 @@ export async function runNotificationSync(
     if (__DEV__) console.warn('[notif] scheduled_attention', e);
   }
 
-  // —— 4) Fiş taslağı (düzenleme bekliyor) ——
-  feed = feed.filter((f) => f.id !== 'receipt-pending-edit');
-  if (!muted(mutes, 'receipt')) {
-    const draft = peekPendingReceiptDraft();
-    if (draft) {
-      const v = String(draft.vendor_name || '').trim() || '—';
-      feed = push(feed, 'receipt-pending-edit', 'info', 'notif_receipt_pending_t', 'notif_receipt_pending_b', {
-        vendor: v,
-      });
-    }
-  }
-
-  // —— 5) API / tarama hatası ——
+  // —— 4) API / tarama hatası ——
   if (!muted(mutes, 'system')) {
     const keyOk = await hasApiKey();
     if (!keyOk && !rules.apiDismissed) {
@@ -515,7 +502,7 @@ export async function runNotificationSync(
         if (!rules.monthSummary[prevYm]) {
           const ps = prevCycle.start;
           const pe = prevCycle.end;
-          const totalPrev = await ExpenseDao.getTotalByDateRange(ps, pe);
+          const totalPrev = await ExpenseDao.getCashSpentByDateRange(ps, pe);
           if (totalPrev > 0) {
             const prevBudgetRow =
               (await BudgetDao.getForMonth(prevYm)) ?? (await BudgetDao.getLatestAtOrBefore(ps));
