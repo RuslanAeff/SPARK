@@ -88,12 +88,12 @@ function MarqueeText({
 
       {overflow ? (
         <Animated.View
-          style={[{ flexDirection: 'row', alignSelf: 'flex-start' }, animStyle]}
+          style={[{ flexDirection: 'row', alignSelf: 'flex-start', width: 2 * textW + gap, flexShrink: 0 }, animStyle]}
           importantForAccessibility="no-hide-descendants"
         >
-          <Text style={style} numberOfLines={1}>{text}</Text>
-          <View style={{ width: gap }} />
-          <Text style={style} numberOfLines={1}>{text}</Text>
+          <Text style={[style, { width: textW, flexShrink: 0 }]} numberOfLines={1} ellipsizeMode="clip">{text}</Text>
+          <View style={{ width: gap, flexShrink: 0 }} />
+          <Text style={[style, { width: textW, flexShrink: 0 }]} numberOfLines={1} ellipsizeMode="clip">{text}</Text>
         </Animated.View>
       ) : (
         <Text style={style} numberOfLines={1} importantForAccessibility="no-hide-descendants">

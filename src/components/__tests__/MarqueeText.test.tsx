@@ -1,6 +1,7 @@
 import React from 'react';
 import { fireEvent, render } from '@testing-library/react-native';
 import MarqueeText from '../MarqueeText';
+import { StyleSheet } from 'react-native';
 
 const mockWithTiming = jest.fn((value: number) => value);
 
@@ -57,5 +58,11 @@ describe('MarqueeText', () => {
 
     expect(mockWithTiming).toHaveBeenCalledWith(-184);
     expect(screen.getByLabelText('Çok Uzun Satıcı İsmi')).toBeTruthy();
+    const copies = screen.getAllByText('Çok Uzun Satıcı İsmi', { includeHiddenElements: true }).filter(item => !item.props.onLayout);
+    expect(copies).toHaveLength(2);
+    for (const copy of copies) {
+      expect(StyleSheet.flatten(copy.props.style)).toMatchObject({ width: 160, flexShrink: 0 });
+      expect(copy.props.ellipsizeMode).toBe('clip');
+    }
   });
 });
