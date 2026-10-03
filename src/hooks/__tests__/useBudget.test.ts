@@ -6,6 +6,7 @@ import { ExpenseDao } from '../../db/expenseDao';
 import { IncomeDao } from '../../db/incomeDao';
 import { ContainerDepositDao } from '../../db/containerDepositDao';
 import { useBudget } from '../useBudget';
+jest.mock('../../utils/dateUtils', () => ({ getToday: () => '2026-07-10' }));
 jest.mock('../../db/budgetRolloverDao', () => ({ BudgetRolloverDao: {
   totals: jest.fn(async () => ({ incoming: 0, outgoing: 0 })),
   status: jest.fn(async () => ({ needsReview: false })),
@@ -22,7 +23,7 @@ jest.mock('../../db/budgetDao', () => ({
 
 jest.mock('../../db/expenseDao', () => ({
   ExpenseDao: {
-    getTotalByDateRange: jest.fn(),
+    getCashSpentByDateRange: jest.fn(),
   },
 }));
 
@@ -41,7 +42,7 @@ jest.mock('../../db/incomeDao', () => ({
 }));
 
 jest.mock('../../db/containerDepositDao', () => ({
-  ContainerDepositDao: { getRecoveredByDateRange: jest.fn() },
+  ContainerDepositDao: { getCashRecoveredByDateRange: jest.fn() },
 }));
 
 jest.mock('../../services/budgetCycleSettings', () => ({
@@ -90,19 +91,19 @@ describe('useBudget refresh sıralaması', () => {
     (DebtDao.getRepaidTotalByDateRange as jest.Mock).mockResolvedValue(0);
     (DebtDao.getOutstandingTotal as jest.Mock).mockResolvedValue(0);
     (IncomeDao.getTotalByDateRange as jest.Mock).mockResolvedValue(0);
-    (ContainerDepositDao.getRecoveredByDateRange as jest.Mock).mockResolvedValue(0);
+    (ContainerDepositDao.getCashRecoveredByDateRange as jest.Mock).mockResolvedValue(0);
   });
 
   it('geç biten eski sorgu, daha yeni bütçe sonucunu ezmez', async () => {
     const firstExpenseQuery = deferred<number>();
-    (ExpenseDao.getTotalByDateRange as jest.Mock)
+    (ExpenseDao.getCashSpentByDateRange as jest.Mock)
       .mockImplementationOnce(() => firstExpenseQuery.promise)
       .mockResolvedValueOnce(200);
 
     const { result } = await renderHook(() => useBudget());
 
     await waitFor(() => {
-      expect(ExpenseDao.getTotalByDateRange).toHaveBeenCalledTimes(1);
+      expect(ExpenseDao.getCashSpentByDateRange).toHaveBeenCalledTimes(1);
       expect(result.current).not.toBeNull();
     });
 
@@ -120,4 +121,11 @@ describe('useBudget refresh sıralaması', () => {
     expect(result.current!.budget.totalSpent).toBe(200);
     expect(result.current!.budget.remaining).toBe(800);
   });
+  it('uses cash spending without treating purchase vouchers as an increase to budget', async () => {
+    (ExpenseDao.getCashSpentByDateRange as jest.Mock).mockResolvedValue(95);
+    const { result } = await renderHook(() => useBudget());
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    expect(result.current.budget).toMatchObject({ totalSpent: 95, remaining: 905, effectiveBudget: 1000, depositRecoveredIn: 0, dailyAverage: 9.5 });
+  });
+
 });

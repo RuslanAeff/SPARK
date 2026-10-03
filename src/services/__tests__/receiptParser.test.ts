@@ -1,3 +1,5 @@
+const mockSyncPurchaseRecovery = jest.fn();
+jest.mock('../../db/containerDepositDao', () => ({ ContainerDepositDao: { syncPurchaseRecovery: (...args: unknown[]) => mockSyncPurchaseRecovery(...args) } }));
 const mockVendorFindByName = jest.fn();
 const mockCategoryFindByName = jest.fn();
 const mockCategoryGetAll = jest.fn();
@@ -34,7 +36,7 @@ jest.mock('../../db/expenseDao', () => ({ ExpenseDao: {
 jest.mock('expo-crypto', () => ({ randomUUID: () => '123e4567-e89b-42d3-a456-426614174000' }));
 jest.mock('../../notifications/receiptNotifications', () => ({ appendReceiptSavedNotification: jest.fn() }));
 
-import { getPrefillFromParsedReceipt, processReceipt } from '../receiptParser';
+import { processReceipt } from '../receiptParser';
 import type { ParsedReceipt } from '../geminiService';
 
 const validReceipt: ParsedReceipt = {
@@ -98,30 +100,7 @@ describe('receiptParser prefill quality and currency', () => {
       name: 'Butelka kaucja',
       financial_kind: 'container_deposit',
     }));
-    expect(mockDbRun.mock.calls.some(([sql]) => String(sql).includes(
-      'UPDATE container_deposit_vouchers',
-    ))).toBe(true);
-    expect(mockDbRun.mock.calls.some(([sql]) => String(sql).includes(
-      'INSERT INTO container_deposit_recoveries',
-    ))).toBe(true);
+    expect(mockSyncPurchaseRecovery).toHaveBeenCalledWith(41);
   });
 
-  it('fiş para birimini düzenleme ön dolumuna taşır', async () => {
-    await expect(getPrefillFromParsedReceipt(validReceipt)).resolves.toMatchObject({
-      amount: '12.50',
-      currency: 'USD',
-      categoryId: 7,
-    });
-  });
-
-  it('geçersiz sıfır fişi DAO sorgusundan önce reddeder', async () => {
-    await expect(getPrefillFromParsedReceipt({
-      ...validReceipt,
-      total: 0,
-      items: [{ ...validReceipt.items[0], unit_price: 0, total_price: 0 }],
-    })).rejects.toThrow('INVALID_RECEIPT_invalid_item');
-
-    expect(mockVendorFindByName).not.toHaveBeenCalled();
-    expect(mockCategoryFindByName).not.toHaveBeenCalled();
-  });
 });

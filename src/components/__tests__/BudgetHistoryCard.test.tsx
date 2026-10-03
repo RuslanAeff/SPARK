@@ -5,7 +5,7 @@ import BudgetHistoryCard from '../BudgetHistoryCard';
 const mockGetAllBudgets = jest.fn();
 jest.mock('../../db/budgetDao', () => ({ BudgetDao: { getAllBudgets: (...args: unknown[]) => mockGetAllBudgets(...args) } }));
 jest.mock('../../db/expenseDao', () => ({ ExpenseDao: {
-  getMonthsWithSpending: jest.fn(async () => []), getTotalByDateRange: jest.fn(async () => 0),
+  getMonthsWithSpending: jest.fn(async () => []), getCashSpentByDateRange: jest.fn(async () => 0),
 } }));
 jest.mock('../../db/budgetRolloverDao', () => ({ BudgetRolloverDao: { list: jest.fn(async () => []) } }));
 jest.mock('../../db/debtDao', () => ({ DebtDao: {
@@ -13,7 +13,7 @@ jest.mock('../../db/debtDao', () => ({ DebtDao: {
 } }));
 jest.mock('../../db/incomeDao', () => ({ IncomeDao: { getTotalByDateRange: jest.fn(async () => 0) } }));
 jest.mock('../../db/containerDepositDao', () => ({ ContainerDepositDao: {
-  getRecoveredByDateRange: jest.fn(async () => 0),
+  getCashRecoveredByDateRange: jest.fn(async () => 0),
 } }));
 jest.mock('../../services/budgetCycleSettings', () => ({ getCycleStartDay: jest.fn(async () => 23) }));
 jest.mock('../../utils/dateUtils', () => ({ getToday: () => '2026-09-25', formatDayMonth: (v: string) => v }));

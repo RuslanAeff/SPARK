@@ -251,6 +251,13 @@ describe('backup payload version compatibility and validation', () => {
     });
   });
 
+  it('rejects voucher payments exceeding the receipt total', async () => {
+    const invalid = makeV6Payload();
+    invalid.data.expenses[0].container_voucher_used = invalid.data.expenses[0].total_amount + 1;
+    await expect(importBackupPayload(invalid)).rejects.toThrow('INVALID_FORMAT');
+    expect(getDatabaseMock).not.toHaveBeenCalled();
+  });
+
   it('rejects an orphan v6 voucher recovery before opening the database', async () => {
     const invalid = makeV6Payload();
     invalid.data.container_deposit_recoveries![0].voucher_uid =

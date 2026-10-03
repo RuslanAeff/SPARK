@@ -38,7 +38,7 @@ jest.mock('../../db/budgetDao', () => ({
 }));
 jest.mock('../../db/expenseDao', () => ({
   ExpenseDao: {
-    getTotalByDateRange: jest.fn(async () => 0),
+    getCashSpentByDateRange: jest.fn(async () => 0),
     getSpentForCategoryInRange: jest.fn(async () => 0),
     getCategorySpending: jest.fn(async () => []),
   },
@@ -49,9 +49,6 @@ jest.mock('../../db/categoryLimitDao', () => ({
 }));
 jest.mock('../../db/categoryDao', () => ({ CategoryDao: { getById: jest.fn() } }));
 jest.mock('../../services/geminiService', () => ({ hasApiKey: jest.fn(async () => true) }));
-jest.mock('../../services/pendingReceiptDraft', () => ({
-  peekPendingReceiptDraft: jest.fn(() => null),
-}));
 jest.mock('../../services/scanSession', () => ({ getScanSessionError: jest.fn(() => null) }));
 jest.mock('../../services/budgetCycleSettings', () => ({
   getCycleStartDay: jest.fn(async () => 1),
