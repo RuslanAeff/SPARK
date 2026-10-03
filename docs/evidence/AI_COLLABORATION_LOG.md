@@ -1859,3 +1859,75 @@ yazı boyutu korunuyor.
 allowed` hatasıyla başlamadı. İnceleme, profilin yanlışlıkla `production` içine
 konduğunu gösterdi. AI uygulaması profili `build` altında kardeş profile taşıdı;
 JSON ve simulator profil kontrolü başarılı. Fiziksel iPhone kanıtı yok.
+
+
+## 2 Ekim 2026 — Dashboard kayan ad düzeltmesi
+
+İnsan bildirimi: Kayan mağaza adı üç noktayla kısalıyor; tam ad okunmalı. AI incelemesi: Gizli ölçüm genişliği animasyonda kullanılırken görünür kopyaların genişliği sabitlenmediği için yerleşim kısalabiliyor. Uygulama: Şerit ve kopyalar ölçülen tam genişlikte tutuldu, flex küçülmesi engellendi ve kayan kopyalarda ellipsis kaldırıldı. Typecheck ve odaklı Jest 2/2 başarılı. Yeni cihaz doğrulaması ve kullanıcı kabulü bekleniyor; ekran görüntüsü yalnız önceki sorunun kanıtıdır.
+
+
+## 2 Ekim 2026 — Voucher’ın bütçeye gelir gibi görünmesini önleme
+
+İnsan kararı: Şişe iadesi voucher olarak alınıyor ve alışverişte kullanılıyor; nakit iade seçeneği sunulmadan bu akış uygulansın. AI uygulaması: Basılı toplamı koruyarak bütçe harcamasını voucher sonrası kart/nakit ödemesine çevirdi; alışveriş recovery satırını bütçe artışından çıkardı. Cüzdan eylemi seçili kuponla yeni işlem formu açıyor, yalnız başarılı kayıt kuponu tüketiyor. Eski cash kayıtları kanıt olmadan dönüştürülmedi. Aynı tutarlı kuponlarda kullanıcı seçimi korunuyor; belirsiz otomatik eşleşmede tahmin yapılmıyor. Kısmi kupon bakiyesi bu kapsamda yok.
+
+Doğrulama: Typecheck ve tam Jest 151 suite/1184 test başarılı; diff whitespace kontrolü temiz. Yeni fiziksel cihaz kanıtı ve kullanıcı kabulü henüz yok. Önceki migration/voucher cihaz doğrulaması bu yeni davranışın kabulü olarak kullanılmadı. Devam noktası: ADR-015 cihaz kabul senaryoları; geçmişte yanlışlıkla cash işaretlenmiş kayıt varsa kullanıcıyla ayrıca değerlendirme, otomatik dönüşüm yok.
+
+
+## 2 Ekim 2026 — İşlem listesi tutar hiyerarşisi
+
+İnsan kararı: En belirgin tutar gerçek kart/nakit çıkışı olsun; fiş toplamı ikincil kalsın. AI uygulaması: Uzun mağaza altı ödeme açıklamasını kaldırdı; sağda net ödeme ve altında küçük, sağ hizalı toplam satırı oluşturdu. Finansal kayıtlara müdahale yok. Typecheck ve ilgili 4 test başarılı; yeni cihaz görsel kabulü bekleniyor.
+
+
+## 2 Ekim 2026 — Kırmızı cam silme kontrolü
+
+İnsan tercihi: Harcama düzenleme başlığındaki silme düğmesinde analiz seçicisine benzer kırmızı glassmorphism. AI uygulaması: Yarı saydam kırmızı yüzey, ince kırmızı çerçeve ve beyazdan kırmızıya ışık geçişi; koyu gölge kaldırıldı. Typecheck ve tam Jest 1185/1185 başarılı. Cihaz görünümü bu oturumda doğrulanmadı; kullanıcı kabulü açık.
+
+
+## 2 Ekim 2026 — Voucher formu animasyonu
+
+İnsan isteği: Kabul edilen artı/çarpı animasyonuna ek olarak formun profesyonel açılışı. AI uygulaması: Var olan Reanimated ölçülen yükseklik disclosure bileşeniyle form ve alttaki listeyi birlikte hareket ettirdi; giriş boşluğu animasyona dahil edildi. Kapalı form erişimi engellendi, kapanışta klavye/tarih seçicisi kapatıldı. Typecheck ve tam Jest 1185 test başarılı; cihaz görsel doğrulaması ve kullanıcı kabulü açık.
+
+
+## 2 Ekim 2026 — Nakit akışı kartlarında başlık ayrımı
+
+İnsan bildirimi: Borç/Ek gelir başlıkları alt açıklamadan ayırt edilmiyor. AI uygulaması: Başlığı daha büyük/kalın ve ana metin renginde; açıklamayı regular ikincil tonda, tutarı ayrı güçlü seviyede düzenledi. İkonlar ve metin blokları üst hizalı; metinler satır sınırına sıkıştırılmıyor. Typecheck ve ilgili 3 test geçti. Görsel cihaz kontrolü ve kullanıcı kabulü henüz yok.
+
+
+## 2 Ekim 2026 — Toast takılma koruması
+
+İnsan bildirimi hızlı finansal işlemler sırasında başarı pop-up’ının kapanmamasıydı. AI, ortak toast bileşeninde kesintiye uğrayan exit ve kayıp pressOut yollarını belirledi; kesin cihaz kök nedeni olarak sunulmadı. Bağımsız ömür/exit zamanlayıcıları, eski interaction callback koruması ve arka plana geçiş temizliği uygulandı. Native Modal eklenmedi, finansal işlemler değiştirilmedi. Typecheck ve tam Jest 1190/1190 geçti; gerçek cihaz stres doğrulaması ve kullanıcı kabulü bekleniyor.
+
+
+## 2 Ekim 2026 — Borcu öde kırmızı cam silme düğmesi
+
+İnsan isteği: Harcama düzenle ekranında kabul edilen kırmızı glassmorphism borcu öde başlığında da kullanılsın. `DebtSheet.tsx` başlık silme kontrolüne aynı yarı saydam kırmızı yüzey, ince kenar, tema duyarlı üst ışık ve basılı durum eklendi; 44 dp dokunma alanı ve erişilebilir düğme rolü var. Silme onay/DAO akışı korunuyor. Typecheck ve DebtSheet 7/7 test başarılı. Cihaz görsel kabulü açık.
+
+
+## 3 Ekim 2026 — Bilgi penceresi kapatma geri bildirimi
+
+İnsan isteği: i bilgi pencerelerinin Kapat düğmesine anlamlı renk ve basma geri bildirimi. AI kararı/uygulaması: Kapat yıkıcı eylem olmadığı için sabit kırmızı yerine seçili vurgu paleti; `SettingsInfoHint.tsx` ortak modalında hafif vurgu zemini/kenarı, basılıyken primaryAction dolgu ve onPrimary yazı. Minimum 48 dp yükseklik ve erişilebilir düğme rolü. Kapatma geciktirilmez. Typecheck ve tam Jest 151 suite/1190 test başarılı, diff temiz. Tema/vurgu paletleriyle gerçek cihaz görsel kabulü açık.
+
+## 3 Ekim 2026 — Ölü kod taraması ve doğrulanmış temizlik
+
+İnsan kararı: Ölü kod raporu mevcut depo üzerinde yeniden doğrulansın ve davranış
+değiştirmeden temizlensin; belirsiz veya cihazla doğrulanmamış alanlar otomatik
+silinmesin. AI doğrulaması: `SpendingTrend.tsx`, `cryptoService.ts` ve eski
+`pendingReceiptDraft` yazma/tüketme akışının app/src üretim grafiğinde çağrısı
+bulunmadı. `receipt-pending-edit` kimliği geçmiş kayıt uyumluluğu için
+`receiptNotifications.test.ts` içinde korunmuştur.
+
+AI uygulaması: Ulaşılmayan iki dosya kaldırıldı; scanner'ın güncel
+`processReceipt → /add-expense?id=...` akışı korunarak eski `fromScan` dalı,
+taslak servisi, test-only `getPrefillFromParsedReceipt` helper'ı ve taslak
+bildirim üretimi kaldırıldı. 20 unused TypeScript
+diagnostic temizlendi. Kullanılmayan yerel/analytics style property'leri ve
+doğrudan çağrısı olmayan DAO, hook, tema, para birimi ve notification wrapper
+exportları kaldırıldı. Dinamik Expo route'ları, test sözleşmeleri, generated
+locale dosyaları ve aktif dynamic import'lar korunmuştur.
+
+Doğrulama: `npm run typecheck`,
+`tsc --noEmit --noUnusedLocals --noUnusedParameters --pretty false`,
+`npm test -- --ci --coverage=false` (151 suite / 1188 test) ve
+`git diff --check` başarılı. Native davranış için cihaz doğrulaması yapılmadı;
+özel olarak tarama→düzenle, bildirim ve native SQLite yaşam döngüsü cihaz kabulü
+açık bırakıldı. Temizlik sırasında commit veya push yapılmadı.

@@ -748,3 +748,76 @@ alındı. Neden, `ios-simulator` profilinin `production` nesnesinin içine
 yerleştirilmesiydi. Profil `build` altında `production` ile aynı seviyeye taşındı;
 `eas.json` JSON doğrulaması ve `ios.simulator: true` kontrolü başarılı. Gerçek
 iPhone veya fiziksel iOS cihaz doğrulaması yapılmadı.
+
+
+## 2 Ekim 2026 — Kayan satıcı adının kesilmesi
+
+- Gereksinim: Dashboard sık gidilen yerlerde taşan adın tamamı kayarak okunmalı.
+- Karar/kod: `src/components/MarqueeText.tsx` kayan şeridi iki tam metin genişliği ve boşlukla boyutlandırır; kopyalar ölçülen genişliği korur, küçülmez ve ellipsis kullanmaz. Kırpma dış viewport sınırında kalır. Ortak bileşenin analiz kullanımı da aynı düzeltmeyi alır.
+- Test: Typecheck ve `MarqueeText.test.tsx` 2/2 başarılı; sığan metnin sabitliği, taşan metnin hareketi ve tam genişlikli kopyaları kontrol edildi.
+- Sınır: Jest native metin yerleşimini veya animasyon görüntüsünü doğrulamaz. Uzun adın sonunun Android/iOS üzerinde görünmesi ve analiz metninin kayması cihaz kabulünde açık; bu dar düzeltmede tam Jest paketi çalıştırılmadı.
+
+
+## 2 Ekim 2026 — Voucher alışveriş ödemesi (ADR-015)
+
+- İnsan gereksinimi: Ambalaj iadesi kuponu nakit/gelir değildir; alınması bütçeyi artırmamalı, alışverişte kart/nakit çıkışını azaltmalı. Yeni nakit iade eylemi istenmiyor.
+- Karar: `docs/decisions/ADR-015-voucher-purchase-payment.md`; eski cash kayıtları otomatik yeniden sınıflandırılmaz. Şema/backup sürümü değişmedi (v6).
+- Kod: `containerDepositDao` seçimli, tarih/para birimi/tutar doğrulamalı transactional bağlama; `deposit-wallet` → `add-expense` yönlendirmesi. `receiptParser` aynı sync yolunu kullanır. `expenseDao` net nakit toplamı/günlük seri; `useBudget`, `BudgetHistoryCard`, `budgetRolloverDao`, bütçe bildirimleri ve analiz projeksiyonu aynı hesabı izler. Fiş toplamı ve ürün indirimleri korunur; scanner/form/işlem satırı net ödemeyi ayrıca açıklar. Backup, fiş toplamını aşan voucher kullanımını reddeder.
+- Otomatik doğrulama: `npm run typecheck` başarılı; `npm test -- --ci --coverage=false` 151 suite, 1184 test başarılı; `git diff --check` temiz. Gerçek bellek-içi SQLite testleri 100/5/95 hesabını, farklı dönemde kazanmayı, kupon seçimi, tekrar kullanım rollback'i, düzenleme ve geçersiz tarih/para birimi/tutarı kapsar. Hook/işlem satırı/parser/backup testleri de geçti.
+- Açık cihaz kabulü: cüzdandan alışveriş aç→iptal (kupon kalmalı), kaydet (yalnız bir kez tüketilmeli), 100/5/95 görünümü, işlem düzenleme/silme, geçersiz tarih, yeniden açılış, gerçek AI fişi ve fiziksel backup restore. Bu değişiklik için APK/iPhone testi yapılmadı. Eski cash kayıtlarının doğru sınıflandırıldığı iddia edilmiyor.
+
+
+## 2 Ekim 2026 — İşlem satırında net ödeme önceliği
+
+İnsan gereksinimi: Sağdaki ana tutar bütçeden çıkan kart/nakit ödemesi olmalı; mağaza altındaki uzun açıklama kaldırılmalı. `TransactionRow.tsx` ana tutarı voucher sonrası net ödeme, ikincil sağ hizalı küçük satırı `Toplam` + basılı fiş değeri yapar. İkincil satır yalnız voucher kullanılan işlemde görünür, dört dilde mevcut `total` çevirisini ve tema tokenlarını kullanır. Typecheck, TransactionRow 4/4 ve diff kontrolü başarılı. Tam kupon ödemesinde ana tutar sıfır olarak test edildi. Bu görsel revizyon için cihaz kabulü açık; önceki ekran görüntüsü yalnız eski yerleşimi doğrular.
+
+
+## 2 Ekim 2026 — Harcama düzenleme silme düğmesi
+
+İstek: Kahverengimsi algılanan yüzey yerine analiz seçicisine benzer kırmızı cam yüzeyi. `app/add-expense.tsx`: yarı saydam semantik kırmızı zemin/kenar, SVG üst ışık yansıması ve alt kırmızı gradient; siyah gölge/elevation kaldırıldı. Tema bağımlı stiller memoize; dokunma hedefi 44 dp, basılı durum ve erişilebilir silme etiketi mevcut. Typecheck ve tam Jest 151 suite/1185 test başarılı; diff kontrolü temiz. Silme onay akışı değişmedi. Açık/koyu tema cihaz görsel kabulü bekleniyor.
+
+
+## 2 Ekim 2026 — Voucher formu yumuşak açılışı
+
+İstek: Artı/çarpı hareketi korunurken ekleme formu aniden belirmemeli. `app/deposit-wallet.tsx` mevcut ölçülen yükseklikli `BudgetDisclosure` bileşenini kullanır: 260 ms açılış, 200 ms kapanış ve opacity geçişi. Form aralığı ölçülen içerikte yer alır; kapalıyken fazladan boşluk bırakılmaz. Sistem azaltılmış hareket tercihi izlenir; kapalı kontroller dokunma/ekran okuyucudan çıkarılır, kapanış klavye ve tarih seçicisini kapatır. Typecheck ve tam Jest 151 suite/1185 test başarılı; native animasyon, hızlı aç/kapa, büyük yazı ve klavye açıkken kapanış cihaz kabulü bekliyor.
+
+
+## 2 Ekim 2026 — Dashboard borç/ek gelir tipografi hiyerarşisi
+
+İstek: Kart başlığı ve açıklaması ayırt edilmeli. `DashboardCashEntryTiles.tsx`: başlık 14/20 bold ve tema ana metni; açıklama 12/16 regular ve ikincil metin; mevcut tutar 17/24 semibold ve semantik renk. Aralıklar ve üst hizalama düzenlendi; sabit satır kırpması kaldırılarak uzun çeviriler/büyük yazının kartı büyütebilmesi sağlandı. Typecheck, ilgili 3 Jest testi ve diff kontrolü başarılı. Yeni stil için cihazdaki açık/koyu tema, dört dil ve büyük yazı kabulü açık; bu yalnız görsel düzeltmede tam Jest yeniden çalıştırılmadı.
+
+
+## 2 Ekim 2026 — Hızlı işlemlerde toast yaşam döngüsü
+
+İnsan bildirimi: Hızlı borç/ek gelir ekleme-silme sırasında alttaki başarı bildirimi takılı kaldı. Kod incelemesinde pressIn sırasında süre durdurulması ve yalnız finished=true animasyon callback’inde temizleme yolları risk olarak doğrulandı; fiziksel olay yeniden üretilmedi. `SparkToast.tsx` son show için 5000 ms bağımsız yaşam süresi sınırı, exit için 350 ms temizleme yedeği ve interaction/show generation koruması ekler. AppState foreground dışına çıktığında transient overlay temizlenir. Unmount host aboneliği, timer/frame ve animation temizliğini yapar. Aynı mesaj yaşam süresini yeniler; eski callback yeni mesajı temizleyemez. JS thread bloke veya OS tarafından askıya alınırsa zamanlayıcı duvar saati garantisi değildir.
+
+Typecheck ve tam Jest 151 suite/1190 test başarılı; toast için 8 test pressOut gelmemesi, native callback gelmemesi, exit sırasında yeni mesaj, karışık mesaj patlaması/iki host ve background temizliğini kapsar. Cihaz kabulü açık: hızlı borç/gelir işlemleri, sheet kapatma, sürükleme sırasında yeni mesaj ve arka plan→ön plan. Önceki cihaz kabulü bu düzeltmeyi doğrulamaz.
+
+
+## 2 Ekim 2026 — Borcu öde kırmızı cam silme düğmesi
+
+İnsan isteği: Harcama düzenle ekranında kabul edilen kırmızı glassmorphism borcu öde başlığında da kullanılsın. `DebtSheet.tsx` başlık silme kontrolüne aynı yarı saydam kırmızı yüzey, ince kenar, tema duyarlı üst ışık ve basılı durum eklendi; 44 dp dokunma alanı ve erişilebilir düğme rolü var. Silme onay/DAO akışı korunuyor. Typecheck ve DebtSheet 7/7 test başarılı. Cihaz görsel kabulü açık.
+
+
+## 3 Ekim 2026 — Bilgi penceresi kapatma geri bildirimi
+
+İnsan isteği: i bilgi pencerelerinin Kapat düğmesine anlamlı renk ve basma geri bildirimi. AI kararı/uygulaması: Kapat yıkıcı eylem olmadığı için sabit kırmızı yerine seçili vurgu paleti; `SettingsInfoHint.tsx` ortak modalında hafif vurgu zemini/kenarı, basılıyken primaryAction dolgu ve onPrimary yazı. Minimum 48 dp yükseklik ve erişilebilir düğme rolü. Kapatma geciktirilmez. Typecheck ve tam Jest 151 suite/1190 test başarılı, diff temiz. Tema/vurgu paletleriyle gerçek cihaz görsel kabulü açık.
+
+## 3 Ekim 2026 — Ölü kod temizliği
+
+- Gereksinim: Statik tarama raporundaki ölü kodlar yeniden doğrulansın; yalnızca
+  kanıtı olan, davranışı değiştirmeyen adaylar temizlensin.
+- Karar: Expo route'ları, dynamic import'lar, test/locale sözleşmeleri ve
+  geçmiş notification kimlikleri korunur. Eski fiş taslağı yolu, güncel scanner
+  akışı kullanılmadığı doğrulandıktan sonra birlikte kaldırılır; güncel
+  `processReceipt` ve kayıt ID'si ile düzenleme akışı değişmez.
+- Kod: `SpendingTrend.tsx`, `cryptoService.ts` ve
+  `pendingReceiptDraft.ts` kaldırıldı. `add-expense` içindeki `fromScan` yolu
+  ve `buildNotifications` içindeki sürekli null kalan taslak bildirimi çıkarıldı;
+  artık test-only olan `getPrefillFromParsedReceipt` helper'ı ve iki eski testi de
+  kaldırıldı.
+  Kullanılmayan TS binding/import'leri, style property'leri ve doğrudan üretim
+  çağrısı olmayan DAO/hook/theme/notification exportları temizlendi.
+- Kanıt: Standart typecheck, strict unused typecheck, tam Jest (151 suite,
+  1188 test) ve `git diff --check` başarılı. Fiziksel cihaz/APK doğrulaması bu
+  temizlik için yapılmadı; native ve eski kayıt uyumluluğu kabulü açık.
