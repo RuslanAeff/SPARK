@@ -58,16 +58,6 @@ export const GoalDao = {
     );
   },
 
-  /** Güncel birikim tutarını doğrudan değiştirir (negatifler 0'a kilitlenir). */
-  async setCurrentAmount(amount: number): Promise<void> {
-    const db = await getDatabase();
-    const normalized = Math.max(0, toFiniteNumber(amount));
-    await db.runAsync(
-      'UPDATE savings_goal SET current_amount = ? WHERE id = 1',
-      [normalized]
-    );
-  },
-
   /**
    * Hedefe bir katkı ekler veya çıkarır (delta negatif olabilir). Toplam asla
    * 0'ın altına düşmez. Hedef yoksa 0 döner.

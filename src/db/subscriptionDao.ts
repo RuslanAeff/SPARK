@@ -84,11 +84,6 @@ export const SubscriptionDao = {
     );
   },
 
-  async deleteForVendor(vendorId: number): Promise<void> {
-    const db = await getDatabase();
-    await db.runAsync('DELETE FROM subscriptions WHERE vendor_id = ?', [vendorId]);
-  },
-
   /** Tespit motoru için: artık aktif/aday olmayan satıcıların aktif kayıtlarını sil.
    *  Dismissed kayıtlar korunur (kullanıcı tekrar uyarılmasın diye). */
   async deactivateMissing(activeVendorIds: number[]): Promise<void> {
@@ -102,15 +97,4 @@ export const SubscriptionDao = {
     );
   },
 
-  /** Kullanıcının "abonelik değil" tepkilerini export/import için dön. */
-  async getDismissedVendorNames(): Promise<string[]> {
-    const db = await getDatabase();
-    const rows = await db.getAllAsync<{ name: string }>(
-      `SELECT v.name AS name
-         FROM subscriptions s
-         JOIN vendors v ON s.vendor_id = v.id
-        WHERE s.status = 'dismissed'`
-    );
-    return rows.map((r) => r.name);
-  },
 };

@@ -32,10 +32,6 @@ export async function getGoalFeaturePreferences(): Promise<GoalFeaturePreference
   }
 }
 
-export async function getGoalFeatureEnabled(): Promise<boolean> {
-  return (await getGoalFeaturePreferences()).enabled;
-}
-
 export async function setGoalFeatureEnabled(enabled: boolean): Promise<void> {
   const db = await getDatabase();
   await db.runAsync(`INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)`, [

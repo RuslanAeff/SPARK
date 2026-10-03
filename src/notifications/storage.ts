@@ -139,37 +139,9 @@ export function stripLegacyDevDemoNotifications(feed: InAppNotification[]): InAp
   return feed.filter((f) => !isLegacyDevDemoNotificationId(f.id));
 }
 
-export async function loadFeed(): Promise<InAppNotification[]> {
-  try {
-    return await loadFeedStrict();
-  } catch {
-    return [];
-  }
-}
-
 export async function saveFeed(feed: InAppNotification[]): Promise<void> {
   const trimmed = feed.slice(0, MAX_FEED);
   await setSetting(K_FEED, JSON.stringify(trimmed));
-}
-
-export async function loadRulesState(): Promise<RulesState> {
-  try {
-    return await loadRulesStateStrict();
-  } catch {
-    return {};
-  }
-}
-
-export async function saveRulesState(s: RulesState): Promise<void> {
-  await setSetting(K_RULES, JSON.stringify(s));
-}
-
-export async function loadMutes(): Promise<Partial<Record<NotificationMuteChannel, boolean>>> {
-  try {
-    return await loadMutesStrict();
-  } catch {
-    return {};
-  }
 }
 
 export async function saveMutes(m: Partial<Record<NotificationMuteChannel, boolean>>): Promise<void> {

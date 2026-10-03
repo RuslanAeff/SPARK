@@ -9,13 +9,6 @@ export const CategoryDao = {
     return db.getAllAsync<Category>('SELECT * FROM categories ORDER BY parent_id, name');
   },
 
-  async getRootCategories(): Promise<Category[]> {
-    const db = await getDatabase();
-    return db.getAllAsync<Category>(
-      'SELECT * FROM categories WHERE parent_id IS NULL ORDER BY name'
-    );
-  },
-
   async getChildren(parentId: number): Promise<Category[]> {
     const db = await getDatabase();
     return db.getAllAsync<Category>(
@@ -49,22 +42,6 @@ export const CategoryDao = {
       [safeName, safeIcon, safeColor, category.parent_id ?? null]
     );
     return result.lastInsertRowId;
-  },
-
-  async update(id: number, data: Partial<Category>): Promise<void> {
-    const db = await getDatabase();
-    const fields: string[] = [];
-    const values: any[] = [];
-    
-    if (data.name !== undefined) { fields.push('name = ?'); values.push(data.name); }
-    if (data.icon !== undefined) { fields.push('icon = ?'); values.push(data.icon); }
-    if (data.color !== undefined) { fields.push('color = ?'); values.push(data.color); }
-    if (data.parent_id !== undefined) { fields.push('parent_id = ?'); values.push(data.parent_id); }
-
-    if (fields.length > 0) {
-      values.push(id);
-      await db.runAsync(`UPDATE categories SET ${fields.join(', ')} WHERE id = ?`, values);
-    }
   },
 
   async delete(id: number): Promise<void> {

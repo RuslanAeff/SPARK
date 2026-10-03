@@ -86,16 +86,3 @@ export function useCurrency() {
   }
   return ctx;
 }
-
-/** Provider dışında (ör. saf util) için güvenli varsayılan */
-export function useCurrencySafe(): CurrencyContextType {
-  const ctx = useContext(CurrencyContext);
-  if (!ctx) {
-    return {
-      currency: 'PLN',
-      isLoaded: true,
-      setCurrency: async () => {},
-    };
-  }
-  return ctx;
-}

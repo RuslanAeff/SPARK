@@ -117,14 +117,6 @@ export function getAppThemeSnapshot(): AppColorScheme {
   return current.scheme;
 }
 
-export function getThemeAccentSnapshot(): ThemeAccent {
-  return current.accent;
-}
-
-export function getThemePaletteSnapshot(): ThemePalette {
-  return current.palette;
-}
-
 /** Colors proxy ve atomik başlangıç tüketicileri için tam snapshot. */
 export function getAppThemeStateSnapshot(): AppThemeStateSnapshot {
   return current;

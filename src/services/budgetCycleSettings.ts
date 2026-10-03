@@ -22,11 +22,3 @@ export async function getCycleStartDay(): Promise<number> {
     return DEFAULT_CYCLE_START_DAY;
   }
 }
-
-export async function setCycleStartDay(day: number): Promise<void> {
-  const db = await getDatabase();
-  await db.runAsync('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)', [
-    KEY,
-    String(normalizeCycleStartDay(day)),
-  ]);
-}

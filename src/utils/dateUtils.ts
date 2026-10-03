@@ -149,24 +149,6 @@ export function getDaysInMonth(date?: Date): number {
   return new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
 }
 
-export function getDayOfMonth(date?: Date): number {
-  return (date || new Date()).getDate();
-}
-
-export function getMonthsArray(count: number = 6, t?: TranslateFunc): { label: string; start: string; end: string }[] {
-  const result = [];
-  const now = new Date();
-  for (let i = count - 1; i >= 0; i--) {
-    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-    result.push({
-      label: getMonthShort(d.getMonth(), t).toLowerCase(),
-      start: getStartOfMonth(d),
-      end: getEndOfMonth(d),
-    });
-  }
-  return result;
-}
-
 export function isToday(dateStr: string): boolean {
   return dateStr === getToday();
 }

@@ -708,11 +708,3 @@ async function seedDefaultCategories(database: SQLite.SQLiteDatabase): Promise<v
     }
   }
 }
-
-export async function closeDatabase(): Promise<void> {
-  if (db) {
-    await db.closeAsync();
-    db = null;
-    initPromise = null;
-  }
-}

@@ -60,11 +60,6 @@ export const IncomeDao = {
     );
   },
 
-  async getById(id: number): Promise<ExtraIncome | null> {
-    const db = await getDatabase();
-    return db.getFirstAsync<ExtraIncome>('SELECT * FROM extra_incomes WHERE id = ?', [id]);
-  },
-
   async remove(id: number): Promise<void> {
     const db = await getDatabase();
     await db.runAsync('DELETE FROM extra_incomes WHERE id = ?', [id]);

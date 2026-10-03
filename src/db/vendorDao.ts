@@ -17,11 +17,6 @@ export const VendorDao = {
     return db.getAllAsync<Vendor>('SELECT * FROM vendors ORDER BY name');
   },
 
-  async getById(id: number): Promise<Vendor | null> {
-    const db = await getDatabase();
-    return db.getFirstAsync<Vendor>('SELECT * FROM vendors WHERE id = ?', [id]);
-  },
-
   async findByName(name: string): Promise<Vendor | null> {
     const db = await getDatabase();
     return db.getFirstAsync<Vendor>(
