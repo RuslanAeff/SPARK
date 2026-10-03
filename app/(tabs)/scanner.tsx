@@ -1,3 +1,4 @@
+import { subtractMoney } from '../../src/utils/moneyMath';
 import { removeReceiptCopy } from '../../src/services/temporaryFiles';
 import { confirmAiTransfer } from '../../src/utils/confirmAiTransfer';
 // S.P.A.R.K. — Receipt Scanner Screen
@@ -728,7 +729,7 @@ export default function ScannerScreen() {
                     <View style={styles.depositResultRow}>
                       <Text style={styles.depositResultLabel}>{t('deposit_voucher_used')}</Text>
                       <Text style={[styles.depositResultValue, { color: theme.primary }]}>
-                        {formatCurrency(result.container_voucher_used!, lineCurrency)}
+                        −{formatCurrency(result.container_voucher_used!, lineCurrency)}
                       </Text>
                     </View>
                   ) : null}
@@ -742,6 +743,12 @@ export default function ScannerScreen() {
                   {formatCurrency(result.total, lineCurrency)}
                 </Text>
               </View> : null}
+              {result.document_type !== 'container_return_voucher' && (result.container_voucher_used ?? 0) > 0 ? (
+                <View style={styles.totalRow}>
+                  <Text style={styles.totalLabel}>{t('deposit_cash_paid')}</Text>
+                  <Text style={styles.totalAmount}>{formatCurrency(Math.max(0, subtractMoney(result.total, result.container_voucher_used ?? 0)), lineCurrency)}</Text>
+                </View>
+              ) : null}
             </AnimatedCard>
 
             <View style={styles.resultActionsCol}>
@@ -1166,25 +1173,6 @@ const getStyles = (theme: typeof DarkTheme, isDark: boolean, language: Language)
     ...Typography.headlineMedium,
     color: theme.primary,
     fontFamily: FontFamily.bold,
-  },
-  actionRow: {
-    flexDirection: 'row',
-    gap: Spacing.md,
-    marginTop: Spacing.xl,
-  },
-  actionButton: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: Spacing.lg,
-    borderRadius: BorderRadius.lg,
-    gap: Spacing.sm,
-  },
-  actionText: {
-    ...Typography.labelLarge,
-    color: theme.textPrimary,
-    fontFamily: FontFamily.semiBold,
   },
   /** Fiş sonucu — şüşevar (Kaydet) + Düzenle */
   resultActionsCol: {

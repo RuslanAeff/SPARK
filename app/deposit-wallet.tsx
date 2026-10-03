@@ -1,10 +1,11 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Keyboard, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import Animated, {
   Easing,
+  ReduceMotion,
   interpolate,
   useAnimatedStyle,
   useSharedValue,
@@ -23,6 +24,7 @@ import { FontFamily, Typography } from '../src/theme/typography';
 import { formatCurrency } from '../src/utils/formatCurrency';
 import { formatDateFull, getToday } from '../src/utils/dateUtils';
 import { parseMoneyInput } from '../src/utils/moneyMath';
+import BudgetDisclosure from '../src/components/BudgetDisclosure';
 import CustomDatePicker from '../src/components/CustomDatePicker';
 import { SparkToast } from '../src/components/SparkToast';
 import { createSusevarStyles, susevarButtonPressed } from '../src/theme/susevar';
@@ -54,9 +56,17 @@ export default function DepositWalletScreen() {
   useEffect(() => {
     iconProgress.value = withTiming(adding ? 1 : 0, {
       duration: 220,
+      reduceMotion: ReduceMotion.System,
       easing: Easing.out(Easing.cubic),
     });
   }, [adding, iconProgress]);
+
+  useEffect(() => {
+    if (!adding) {
+      Keyboard.dismiss();
+      setDateTarget(null);
+    }
+  }, [adding]);
 
   const plusIconStyle = useAnimatedStyle(() => ({
     opacity: 1 - iconProgress.value,
@@ -112,22 +122,7 @@ export default function DepositWalletScreen() {
   };
 
   const redeem = (voucher: ContainerDepositVoucher) => {
-    Alert.alert(
-      t('deposit_mark_redeemed'),
-      t('deposit_mark_redeemed_message'),
-      [
-        { text: t('cancel'), style: 'cancel' },
-        {
-          text: t('confirm'),
-          onPress: () => {
-            void ContainerDepositDao.markRedeemed(voucher.id).then(async () => {
-              await load();
-              triggerRefresh();
-            }).catch(() => SparkToast.show(t('operation_failed'), 'error'));
-          },
-        },
-      ],
-    );
+    router.push({ pathname: '/add-expense', params: { voucherId: String(voucher.id) } });
   };
 
   return (
@@ -137,7 +132,9 @@ export default function DepositWalletScreen() {
           <MaterialCommunityIcons name="arrow-left" size={23} color={Colors.textPrimary} />
         </Pressable>
         <Text style={styles.title}>{t('deposit_wallet_title')}</Text>
-        <Pressable onPress={() => setAdding(value => !value)} style={styles.headerButton} accessibilityRole="button">
+        <Pressable onPress={() => setAdding(value => !value)} style={styles.headerButton}
+          accessibilityRole="button" accessibilityLabel={t(adding ? 'close' : 'deposit_add_voucher')}
+          accessibilityState={{ expanded: adding }}>
           <Animated.View pointerEvents="none" style={[styles.headerIconLayer, plusIconStyle]}>
             <MaterialCommunityIcons name="plus" size={23} color={Colors.primary} />
           </Animated.View>
@@ -148,11 +145,13 @@ export default function DepositWalletScreen() {
       </View>
 
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+        <View>
         <View style={styles.heroCard}>
           <View style={styles.heroIcon}>
             <MaterialCommunityIcons name="ticket-confirmation-outline" size={26} color={Colors.primary} />
           </View>
           <Text style={styles.heroLabel}>{t('deposit_available_vouchers')}</Text>
+          <Text style={styles.sectionHint}>{t('deposit_wallet_hint')}</Text>
           <Text style={styles.heroValue}>{formatCurrency(summary.availableVoucher, currency)}</Text>
           <View style={styles.summaryRow}>
             <View style={styles.summaryItem}>
@@ -169,7 +168,8 @@ export default function DepositWalletScreen() {
           </View>
         </View>
 
-        {adding ? (
+        <BudgetDisclosure open={adding}>
+          <View style={styles.formSpacing}>
           <View style={styles.formCard}>
             <Text style={styles.sectionTitle}>{t('deposit_add_voucher')}</Text>
             <Text style={styles.label}>{t('amount')}</Text>
@@ -207,7 +207,9 @@ export default function DepositWalletScreen() {
               <Text style={styles.saveButtonText}>{t('save')}</Text>
             </Pressable>
           </View>
-        ) : null}
+          </View>
+        </BudgetDisclosure>
+        </View>
 
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>{t('deposit_vouchers')}</Text>
@@ -236,7 +238,7 @@ export default function DepositWalletScreen() {
             {voucher.status === 'available' ? (
               <Pressable onPress={() => redeem(voucher)} style={styles.redeemButton}>
                 <MaterialCommunityIcons name="check-circle-outline" size={18} color={Colors.primary} />
-                <Text style={styles.redeemText}>{t('deposit_mark_redeemed')}</Text>
+                <Text style={styles.redeemText}>{t('deposit_use_purchase')}</Text>
               </Pressable>
             ) : null}
           </View>
@@ -281,6 +283,7 @@ const getStyles = () => {
     summaryDivider: { width: StyleSheet.hairlineWidth, backgroundColor: Colors.border },
     summaryLabel: { ...Typography.labelSmall, color: Colors.textMuted, textAlign: 'center' },
     summaryValue: { ...Typography.bodyMedium, color: Colors.textPrimary, fontFamily: FontFamily.semiBold },
+    formSpacing: { paddingTop: Spacing.lg },
     formCard: { padding: Spacing.lg, borderRadius: BorderRadius.xl, backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border, gap: Spacing.sm },
     sectionHeader: { gap: 3 },
     sectionTitle: { ...Typography.headlineSmall, color: Colors.textPrimary, fontFamily: FontFamily.semiBold },

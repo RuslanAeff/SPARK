@@ -107,7 +107,7 @@ export default function BudgetHistoryCard({
               budget.cycle_start_day ?? anchorDay,
             )
           : getCycleForKey(anchorDay, key);
-        const spent = await ExpenseDao.getTotalByDateRange(cycle.start, cycle.end);
+        const spent = await ExpenseDao.getCashSpentByDateRange(cycle.start, cycle.end);
         const periodKey = `${cycle.start}:${cycle.end}`;
         // Eski sürümlerde aynı ay için birden fazla active bütçe kalmış olabilir.
         // En yeni DAO satırını göster, aynı fiziksel dönemi ikinci kez üretme.
@@ -119,7 +119,7 @@ export default function BudgetHistoryCard({
         const borrowedIn = await DebtDao.getBorrowedTotalByDateRange(cycle.start, cycle.end);
         const repaidIn = await DebtDao.getRepaidTotalByDateRange(cycle.start, cycle.end);
         const extraIncomeIn = await IncomeDao.getTotalByDateRange(cycle.start, cycle.end);
-        const depositRecoveredIn = await ContainerDepositDao.getRecoveredByDateRange(
+        const depositRecoveredIn = await ContainerDepositDao.getCashRecoveredByDateRange(
           cycle.start, cycle.end, budget.currency,
         );
         const { effectiveBudget } = computeDebtAdjustedBudget({
@@ -154,7 +154,7 @@ export default function BudgetHistoryCard({
         if (withData.some((entry) => entry.cycle.start <= cycle.start && entry.cycle.end >= cycle.start)) {
           continue;
         }
-        const spent = await ExpenseDao.getTotalByDateRange(cycle.start, cycle.end);
+        const spent = await ExpenseDao.getCashSpentByDateRange(cycle.start, cycle.end);
         withData.push({
           key: cycle.key,
           renderKey: `spending:${cycle.start}:${cycle.end}`,
@@ -166,7 +166,7 @@ export default function BudgetHistoryCard({
         });
       }
       if (!withData.some((entry) => entry.isCurrent)) {
-        const spent = await ExpenseDao.getTotalByDateRange(current.start, current.end);
+        const spent = await ExpenseDao.getCashSpentByDateRange(current.start, current.end);
         withData.push({
           key: current.key,
           renderKey: `current:${current.start}:${current.end}`,

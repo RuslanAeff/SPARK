@@ -32,7 +32,6 @@ import {
   type PersonalInflationResult,
 } from '../../src/utils/personalInflation';
 
-import AnimatedCard from '../../src/components/AnimatedCard';
 import GlassSelectionIndicator from '../../src/components/GlassSelectionIndicator';
 import CustomDatePicker from '../../src/components/CustomDatePicker';
 import { ErrorBoundary } from '../../src/components/ErrorBoundary';
@@ -416,7 +415,7 @@ export default function AnalyticsScreen() {
     }
   }
 
-  function handleDragEnd(id: string) {
+  function handleDragEnd() {
     const drag = dragRef.current;
     if (!drag) { setActiveDrag(null); return; }
 
@@ -531,7 +530,7 @@ export default function AnalyticsScreen() {
   const { data: cycleDailyData, refresh: refreshCycleDaily } = useDailySpending(
     budget.periodStart || undefined,
     budget.periodEnd || undefined,
-    cycleQueryOptions,
+    { ...cycleQueryOptions, cashOnly: true },
   );
 
   const [comparisonTotals, setComparisonTotals] = useState<{
@@ -1261,7 +1260,7 @@ export default function AnalyticsScreen() {
     });
   }, [weekWeekend.length]);
 
-  const renderCard = (id: string, index: number) => {
+  const renderCard = (id: string) => {
     let content = null;
     if (id === 'spending_change') {
       content = <SpendingChangeCard key={`${timeframe}-${dateRange.start}-${dateRange.end}`} {...cardBase} state={spendingChange} />;
@@ -1629,9 +1628,9 @@ export default function AnalyticsScreen() {
             </View>
           ) : (
             <>
-              {cardOrder.map((id, index) => (
+              {cardOrder.map((id) => (
                 <View key={id}>
-                  {renderCard(id, index)}
+                  {renderCard(id)}
                 </View>
               ))}
             </>

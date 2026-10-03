@@ -1,5 +1,5 @@
 // S.P.A.R.K. — Add / Edit Expense Screen
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
   View, Text, TextInput, ScrollView, StyleSheet, Pressable, KeyboardAvoidingView, Platform,
 } from 'react-native';
@@ -8,6 +8,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useCallback } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Animated, { FadeInDown } from 'react-native-reanimated';
+import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
 
 import * as Haptics from 'expo-haptics';
 import { Colors } from '../src/theme/colors';
@@ -26,30 +27,28 @@ import { useCurrency, CURRENCY_META } from '../src/context/CurrencyContext';
 import { formatCurrency } from '../src/utils/formatCurrency';
 import { itemDisplayName } from '../src/utils/itemDisplayName';
 import { getVendorPlaceholderExamples } from '../src/utils/vendorPlaceholders';
-import { takePendingReceiptDraft } from '../src/services/pendingReceiptDraft';
-import { getPrefillFromParsedReceipt } from '../src/services/receiptParser';
 import { useRefreshActions } from '../src/context/RefreshContext';
 import { refreshReceiptSavedNotification } from '../src/notifications/receiptNotifications';
-import { formatMoneyInput, parseMoneyInput } from '../src/utils/moneyMath';
+import { subtractMoney, formatMoneyInput, parseMoneyInput } from '../src/utils/moneyMath';
 import {
   createSusevarStyles,
   susevarButtonMarginTop,
   susevarButtonPressed,
 } from '../src/theme/susevar';
-import { useThemeRevision } from '../src/theme/themeStore';
+import { useAppTheme, useThemeRevision } from '../src/theme/themeStore';
 import { getDatabase } from '../src/db/database';
 import { ContainerDepositDao } from '../src/db/containerDepositDao';
 
 export default function AddExpenseScreen() {
-  useThemeRevision();
-  const styles = getStyles();
+  const scheme = useAppTheme();
+  const revision = useThemeRevision();
+  const styles = useMemo(() => getStyles(), [scheme, revision]);
   const router = useRouter();
   const { t, tc } = useLanguage();
   const { currency: displayCurrency } = useCurrency();
   const { triggerRefresh } = useRefreshActions();
-  const { id, fromScan } = useLocalSearchParams<{ id?: string; fromScan?: string }>();
+  const { id, voucherId } = useLocalSearchParams<{ id?: string; voucherId?: string }>();
   const isEditing = !!id;
-  const scanPrefillAppliedRef = useRef(false);
 
   const [amount, setAmount] = useState('');
   const [recordCurrency, setRecordCurrency] = useState<string>(displayCurrency);
@@ -85,8 +84,25 @@ export default function AddExpenseScreen() {
   }, []);
 
   useEffect(() => {
-    if (!isEditing && fromScan !== '1') setRecordCurrency(displayCurrency);
-  }, [displayCurrency, fromScan, isEditing]);
+    if (!isEditing && !voucherId) setRecordCurrency(displayCurrency);
+  }, [displayCurrency, isEditing, voucherId]);
+
+  useEffect(() => {
+    if (!voucherId || isEditing) return;
+    let active = true;
+    void ContainerDepositDao.getById(Number(voucherId)).then(voucher => {
+      if (!active) return;
+      if (!voucher || voucher.status !== 'available' || (voucher.expires_on && voucher.expires_on < getToday())) {
+        SparkToast.show(t('deposit_voucher_unavailable'), 'error');
+        router.back();
+        return;
+      }
+      setRecordCurrency(voucher.currency);
+      setContainerVoucherUsed(formatMoneyInput(voucher.amount));
+      setDepositExpanded(true);
+    }).catch(() => { if (active) SparkToast.show(t('operation_failed'), 'error'); });
+    return () => { active = false; };
+  }, [voucherId, isEditing]);
 
   /**
    * Satıcı adı yazılırken (250ms debounce) bu satıcı için kayıtlı bir
@@ -128,16 +144,10 @@ export default function AddExpenseScreen() {
     }, 250);
   }, [vendorName, categories, isEditing, subCategoryId]);
 
-  useEffect(() => {
-    if (fromScan !== '1') {
-      scanPrefillAppliedRef.current = false;
-    }
-  }, [fromScan]);
-
   useFocusEffect(
     useCallback(() => {
       loadData();
-    }, [id, fromScan])
+    }, [id])
   );
 
   async function loadData() {
@@ -172,37 +182,6 @@ export default function AddExpenseScreen() {
       return;
     }
 
-    if (fromScan === '1' && !id && !scanPrefillAppliedRef.current) {
-      const receipt = takePendingReceiptDraft();
-      if (receipt) {
-        scanPrefillAppliedRef.current = true;
-        try {
-          const pre = await getPrefillFromParsedReceipt(receipt);
-          setAmount(pre.amount);
-          setRecordCurrency(pre.currency || displayCurrency);
-          setVendorName(pre.vendorName);
-          setDate(pre.date);
-          setNote(pre.note);
-          setContainerDepositPaid(pre.containerDepositPaid === '0.00' ? '' : pre.containerDepositPaid);
-          setContainerVoucherUsed(pre.containerVoucherUsed === '0.00' ? '' : pre.containerVoucherUsed);
-          setDepositExpanded(
-            Number(pre.containerDepositPaid) > 0 || Number(pre.containerVoucherUsed) > 0,
-          );
-          const cat = cats.find(c => c.id === pre.categoryId);
-          if (cat) {
-            if (cat.parent_id) {
-              setParentCategoryId(cat.parent_id);
-              setSubCategoryId(cat.id);
-            } else {
-              setParentCategoryId(cat.id);
-              setSubCategoryId(null);
-            }
-          }
-        } catch (e) {
-          console.warn('[add-expense] scan prefill', e);
-        }
-      }
-    }
   }
 
   // Effective category: sub if selected, otherwise parent
@@ -283,7 +262,7 @@ export default function AddExpenseScreen() {
             container_voucher_used: parsedVoucherUsed,
           });
         }
-        await ContainerDepositDao.syncPurchaseRecovery(savedExpenseId);
+        await ContainerDepositDao.syncPurchaseRecovery(savedExpenseId, voucherId ? Number(voucherId) : undefined);
       });
 
       if (isEditing && savedExpenseId > 0) {
@@ -350,7 +329,7 @@ export default function AddExpenseScreen() {
           container_deposit_paid: parsedDepositPaid,
           container_voucher_used: parsedVoucherUsed,
         });
-        await ContainerDepositDao.syncPurchaseRecovery(newId);
+        await ContainerDepositDao.syncPurchaseRecovery(newId, voucherId ? Number(voucherId) : undefined);
       });
 
       triggerRefresh();
@@ -408,7 +387,24 @@ export default function AddExpenseScreen() {
           </Pressable>
           <Text style={styles.title}>{isEditing ? t('edit_expense_title') : t('add_expense_title')}</Text>
           {isEditing && (
-            <Pressable onPress={handleDelete} style={styles.deleteButton}>
+            <Pressable
+              onPress={handleDelete}
+              accessibilityRole="button"
+              accessibilityLabel={t('delete')}
+              style={({ pressed }) => [styles.deleteButton, pressed && styles.deleteButtonPressed]}
+            >
+              <View pointerEvents="none" accessible={false} style={StyleSheet.absoluteFill}>
+                <Svg width="100%" height="100%">
+                  <Defs>
+                    <LinearGradient id="expense-delete-glass" x1="0" y1="0" x2="0.3" y2="1">
+                      <Stop offset="0" stopColor="#FFFFFF" stopOpacity={scheme === 'dark' ? 0.18 : 0.65} />
+                      <Stop offset="0.45" stopColor={Colors.danger} stopOpacity={0.06} />
+                      <Stop offset="1" stopColor={Colors.danger} stopOpacity={0.22} />
+                    </LinearGradient>
+                  </Defs>
+                  <Rect width="100%" height="100%" fill="url(#expense-delete-glass)" />
+                </Svg>
+              </View>
               <MaterialCommunityIcons name="trash-can-outline" size={20} color={Colors.danger} />
             </Pressable>
           )}
@@ -529,12 +525,16 @@ export default function AddExpenseScreen() {
                   <TextInput
                     style={styles.textInput}
                     value={containerVoucherUsed}
+                    editable={!voucherId}
                     onChangeText={setContainerVoucherUsed}
                     keyboardType="decimal-pad"
                     placeholder="0.00"
                     placeholderTextColor={Colors.textMuted}
                   />
                   <Text style={styles.depositHelp}>{t('deposit_voucher_used_hint')}</Text>
+                  <Text style={styles.fieldLabel}>
+                    {t('deposit_cash_paid')}: {formatCurrency(Math.max(0, subtractMoney(parseMoneyInput(amount) ?? 0, parseMoneyInput(containerVoucherUsed) ?? 0)), recordCurrency)}
+                  </Text>
                 </View>
               </Animated.View>
             ) : null}
@@ -722,23 +722,20 @@ const getStyles = () => StyleSheet.create({
     flex: 1,
   },
   deleteButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    flexShrink: 0,
+    overflow: 'hidden',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(255,51,51,0.12)',
+    backgroundColor: Colors.danger + '12',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.5)',
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.06,
-        shadowRadius: 3,
-      },
-      android: { elevation: 1 },
-    }),
+    borderColor: Colors.danger + '45',
+  },
+  deleteButtonPressed: {
+    backgroundColor: Colors.danger + '26',
+    transform: [{ scale: 0.96 }],
   },
   form: {
     paddingHorizontal: ScreenPadding.horizontal,
