@@ -1,10 +1,10 @@
-// S.P.A.R.K. — Analiz kartı: Ay sonu projeksiyonu (tahmini harcama + bütçe pisti)
+// S.P.A.R.K. — Analiz kartı: Ay sonu projeksiyonu (tahmini harcama ve bütçe karşılaştırması)
 import React from 'react';
 import { View, Text } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import AnimatedCard from '../AnimatedCard';
 import { Colors } from '../../theme/colors';
-import { useThemeRevision } from '../../theme/themeStore';
+import { useAppTheme, useThemeRevision } from '../../theme/themeStore';
 import { formatCurrency } from '../../utils/formatCurrency';
 import type { BaseCardProps, ProjectionInfo, Timeframe } from './shared';
 
@@ -14,6 +14,7 @@ interface ProjectionCardProps extends BaseCardProps {
 }
 
 function ProjectionCard({ styles, t, currency, projectionInfo, timeframe }: ProjectionCardProps) {
+  useAppTheme();
   useThemeRevision();
   // Yıllık analizde ay sonu projeksiyonu anlamlı bir kart değildir. Kart
   // yapılandırmasını koruyup yalnızca bu görünümde render etmeyiz.
@@ -26,8 +27,8 @@ function ProjectionCard({ styles, t, currency, projectionInfo, timeframe }: Proj
       <AnimatedCard delay={120} style={styles.section}>
         <View style={styles.projHeader}>
           <View style={styles.projHeaderLeft}>
-            <MaterialCommunityIcons name="crystal-ball" size={18} color={Colors.textSecondary} />
-            <Text style={styles.cardHeaderTitle}>{t('projection_title')}</Text>
+            <MaterialCommunityIcons name="chart-line" size={18} color={Colors.textSecondary} />
+            <Text style={styles.projTitle}>{t('projection_title')}</Text>
           </View>
         </View>
         <View style={styles.projEmptyWrap}>
@@ -48,18 +49,6 @@ function ProjectionCard({ styles, t, currency, projectionInfo, timeframe }: Proj
     status === 'safe' ? Colors.success :
     Colors.primary;
 
-  // Pist üzerinde işaretler — bütçe varsa bütçe = %100 gibi normalize edilir.
-  const refValue = Math.max(effectiveBudget, projected, currentSpent, 1);
-  const currentPct = Math.min(100, (currentSpent / refValue) * 100);
-  const projectedPct = Math.min(100, (projected / refValue) * 100);
-  const budgetPct = effectiveBudget > 0 ? Math.min(100, (effectiveBudget / refValue) * 100) : null;
-
-  // Outcome metni: yüzde yerine somut TL — kullanıcı için çok daha net.
-  const outcomeIcon =
-    status === 'over' ? 'alert-circle-outline' :
-    status === 'safe' ? 'shield-check-outline' :
-    status === 'warn' ? 'target' :
-    'wallet-plus-outline';
   let outcomeTitle: string;
   let outcomeSub: string;
   if (status === 'safe') {
@@ -79,85 +68,38 @@ function ProjectionCard({ styles, t, currency, projectionInfo, timeframe }: Proj
   }
 
   return (
-    <AnimatedCard delay={120} style={{ ...styles.section, ...styles.primaryCard }}>
+    <AnimatedCard delay={120} style={styles.section}>
       <View style={styles.projHeader}>
-        <View style={styles.projHeaderLeft}>
-          <View style={[styles.projHeaderIcon, { backgroundColor: accent + '1F' }]}>
-            <MaterialCommunityIcons name="crystal-ball" size={16} color={accent} />
-          </View>
-          <View style={styles.projHeaderTitleWrap}>
-            <Text style={styles.cardHeaderTitle}>{t(titleKey)}</Text>
-            {periodLabel && <Text style={styles.projPeriodLabel}>{periodLabel}</Text>}
-          </View>
-        </View>
-        <View style={[styles.projDaysChip, { backgroundColor: Colors.surfaceLight }]}>
-          <MaterialCommunityIcons name="calendar-blank-outline" size={12} color={Colors.textSecondary} />
-          <Text style={styles.projDaysChipText}>{t('projection_days_left', { days: daysLeft.toString() })}</Text>
+        <Text style={styles.projTitle}>{t(titleKey)}</Text>
+        <View style={styles.projMetaRow}>
+          {periodLabel ? <Text style={styles.projPeriodLabel}>{periodLabel}</Text> : null}
+          <Text style={styles.projDaysChipText}>{t('projection_days_left', { days: String(daysLeft) })}</Text>
         </View>
       </View>
 
       {/* Hero: tahmini ay sonu */}
       <Text style={styles.projHeroLabel}>{t(estimatedKey)}</Text>
-      <Text style={[styles.projHeroValue, { color: accent }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>
+      <Text style={styles.projHeroValue} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>
         {formatCurrency(projected, currency)}
       </Text>
       <Text style={styles.projPaceHint}>{t('projection_pace_hint')}</Text>
 
-      {/* Track — current ↔ projected ↔ budget */}
-      <View style={styles.projTrackWrap}>
-        <View style={styles.projTrack}>
-          <View style={styles.projTrackFillClip}>
-            <View style={[styles.projTrackCurrent, { width: `${currentPct}%`, backgroundColor: accent }]} />
-            <View
-              style={[
-                styles.projTrackProjected,
-                {
-                  left: `${currentPct}%`,
-                  width: `${Math.max(0, projectedPct - currentPct)}%`,
-                  backgroundColor: accent + '4D',
-                },
-              ]}
-            />
-          </View>
-          {/* Budget marker */}
-          {budgetPct !== null && (
-            <View testID="projection-budget-marker" style={[
-              styles.projTrackBudgetMarker,
-              { left: `${Math.max(1, Math.min(99, budgetPct))}%` },
-            ]} />
-          )}
+      <View style={styles.projMetrics}>
+        <View style={styles.projMetric}>
+          <Text style={styles.projMetricLabel}>{t('projection_so_far')}</Text>
+          <Text style={styles.projMetricValue}>{formatCurrency(currentSpent, currency)}</Text>
         </View>
-        <View style={styles.projTrackLegend}>
-          <View style={styles.projLegendItem}>
-            <View style={[styles.projLegendDot, { backgroundColor: accent }]} />
-            <Text style={styles.projLegendText}>{t('projection_so_far')}</Text>
-          </View>
-          <View style={styles.projLegendItem}>
-            <View style={[styles.projLegendDot, { backgroundColor: accent + '4D' }]} />
-            <Text style={styles.projLegendText}>{t(estimatedKey)}</Text>
-          </View>
-          {budgetPct !== null && (
-            <View style={styles.projLegendItem}>
-              <View style={[styles.projLegendDot, styles.projLegendDotBudget]} />
-              <Text style={styles.projLegendText}>{t('budget_overview').toLowerCase()}</Text>
-            </View>
-          )}
+        <View style={styles.projMetric}>
+          <Text style={styles.projMetricLabel}>{t('projection_budget_label')}</Text>
+          <Text style={styles.projMetricValue}>
+            {effectiveBudget > 0 ? formatCurrency(effectiveBudget, currency) : t('projection_no_budget')}
+          </Text>
         </View>
       </View>
 
-      {/* Outcome panel — tam genişlik, 2 satır, somut tutar */}
-      <View style={[styles.projOutcomePanel, { backgroundColor: accent + '14', borderColor: accent + '33' }]}>
-        <View style={[styles.projOutcomeIconWrap, { backgroundColor: accent + '22' }]}>
-          <MaterialCommunityIcons name={outcomeIcon as any} size={18} color={accent} />
-        </View>
-        <View style={styles.projOutcomeTextWrap}>
-          <Text style={[styles.projOutcomeTitle, { color: accent }]} numberOfLines={1}>
-            {outcomeTitle}
-          </Text>
-          <Text style={styles.projOutcomeSub} numberOfLines={2}>
-            {outcomeSub}
-          </Text>
-        </View>
+      <View style={[styles.projOutcomePanel, { borderLeftColor: accent }]}>
+        <Text style={[styles.projOutcomeTitle, { color: accent }]}>{outcomeTitle}</Text>
+        <Text style={styles.projOutcomeSub}>{outcomeSub}</Text>
       </View>
 
       {/* Pace satırı */}
@@ -169,11 +111,11 @@ function ProjectionCard({ styles, t, currency, projectionInfo, timeframe }: Proj
         <Text style={styles.projPaceValue}>{formatCurrency(dailyPace, currency, false)}</Text>
       </View>
 
-      {/* Aykırı değer notu: tek seferlik büyük harcama trimmed pace ile tahminden ayıklandı */}
+      {/* Günlük tempo düzeltmesi gerçek harcanan tutarı değiştirmez. */}
       {hasOutlier && (
         <View style={styles.projOutlierNote}>
           <MaterialCommunityIcons name="information-outline" size={12} color={Colors.textMuted} />
-          <Text style={styles.projOutlierNoteText} numberOfLines={2}>{t('projection_outlier_note')}</Text>
+          <Text style={styles.projOutlierNoteText}>{t('projection_outlier_note')}</Text>
         </View>
       )}
     </AnimatedCard>
