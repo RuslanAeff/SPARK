@@ -1,7 +1,7 @@
 // S.P.A.R.K. — Birikim hedefi + kategori limitleri (mevcut ay)
 import { useState, useEffect, useCallback } from 'react';
 import { GoalDao, SavingsGoalRow } from '../db/goalDao';
-import { CategoryLimitDao, CategoryLimitRow } from '../db/categoryLimitDao';
+import { CategoryLimitDao } from '../db/categoryLimitDao';
 import { CategoryDao } from '../db/categoryDao';
 import { ExpenseDao } from '../db/expenseDao';
 import { getStartOfMonth, getEndOfMonth } from '../utils/dateUtils';

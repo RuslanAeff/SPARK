@@ -1,7 +1,5 @@
 import React from 'react';
-import { StyleSheet } from 'react-native';
 import { fireEvent, render, waitFor } from '@testing-library/react-native';
-import * as Haptics from 'expo-haptics';
 
 import SettingsAiScreen from '../../../app/settings-ai';
 import { deleteApiKey } from '../../services/geminiService';

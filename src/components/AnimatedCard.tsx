@@ -1,6 +1,6 @@
 // S.P.A.R.K. — Glassmorphism Animated Card
 import React from 'react';
-import { View, StyleSheet, ViewStyle, Pressable, Platform, StyleProp } from 'react-native';
+import { StyleSheet, ViewStyle, Pressable, Platform, StyleProp } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { Colors } from '../theme/colors';
 import { BorderRadius, Spacing } from '../theme/spacing';

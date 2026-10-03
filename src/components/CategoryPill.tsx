@@ -6,7 +6,7 @@ import Svg, { Circle } from 'react-native-svg';
 import { Colors } from '../theme/colors';
 import { useAppTheme } from '../theme/themeStore';
 import { Typography, FontFamily } from '../theme/typography';
-import { Spacing, BorderRadius, IconSize } from '../theme/spacing';
+import { Spacing, BorderRadius } from '../theme/spacing';
 
 interface CategoryPillProps {
   name: string;

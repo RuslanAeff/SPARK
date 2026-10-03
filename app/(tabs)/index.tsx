@@ -59,7 +59,7 @@ export default function DashboardScreen() {
   const currentCycleKey = React.useMemo(() => getCurrentCycle(cycleAnchor).key, [cycleAnchor]);
   const selectedMonthKey = cycleOffset === 0 ? undefined : shiftCycleKey(currentCycleKey, cycleOffset);
 
-  const { budget, loading: budgetLoading, refresh: refreshBudget } = useBudget(selectedMonthKey);
+  const { budget, refresh: refreshBudget } = useBudget(selectedMonthKey);
 
   // Bütçe döngüsü tarihlerini tüm Dashboard hook'larına geçir.
   // budget.periodStart/End yüklenmeden (ilk render) hook'lar

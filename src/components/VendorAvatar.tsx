@@ -2,9 +2,8 @@ import { isLocalImageUri } from '../utils/localImageUri';
 // S.P.A.R.K. — Vendor Avatar Component
 import React, { useMemo } from 'react';
 import { View, Image, StyleSheet, Text } from 'react-native';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Colors } from '../theme/colors';
-import { IconSize, BorderRadius } from '../theme/spacing';
+import { IconSize } from '../theme/spacing';
 import { FontFamily } from '../theme/typography';
 import { useAppTheme, useThemeRevision } from '../theme/themeStore';
 
@@ -12,14 +11,12 @@ interface VendorAvatarProps {
   name: string;
   logoUri?: string | null;
   size?: number;
-  color?: string;
 }
 
 export default function VendorAvatar({
   name,
   logoUri,
   size = IconSize.logo,
-  color = Colors.primary,
 }: VendorAvatarProps) {
   const scheme = useAppTheme();
   const themeRevision = useThemeRevision();

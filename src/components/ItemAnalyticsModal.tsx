@@ -348,7 +348,7 @@ export default function ItemAnalyticsModal({
                       <MaterialCommunityIcons name="compare" size={14} color={Colors.textSecondary} />
                       {'  '}{t('vendor_comparison')}
                     </Text>
-                    {vendorPrices.map((vp, i) => {
+                    {vendorPrices.map((vp) => {
                       const isCheapest = vp.avgPrice === cheapestPrice;
                       const priceDiff = ((vp.avgPrice - cheapestPrice) / cheapestPrice) * 100;
                       return (

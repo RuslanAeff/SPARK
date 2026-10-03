@@ -1283,14 +1283,6 @@ const getStyles = (isDark: boolean) => {
       textAlign: 'center',
       fontFamily: FontFamily.semiBold,
     },
-    detailRoot: {
-      flex: 1,
-      justifyContent: 'flex-end',
-    },
-    detailBackdrop: {
-      ...StyleSheet.absoluteFillObject,
-      backgroundColor: isDark ? 'rgba(0,0,0,0.82)' : 'rgba(0,0,0,0.45)',
-    },
     detailSheet: {
       backgroundColor: Colors.cardSurface,
       borderTopLeftRadius: BorderRadius.xl,

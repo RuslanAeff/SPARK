@@ -1376,15 +1376,6 @@ const getStyles = (theme: ThemePalette) => StyleSheet.create({
   listIntro: { marginBottom: Spacing.sm },
   selectionHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   sectionTitle: { ...Typography.headlineSmall, color: theme.textPrimary, fontFamily: FontFamily.bold },
-  selectionCount: {
-    ...Typography.labelSmall,
-    color: theme.primary,
-    fontFamily: FontFamily.bold,
-    backgroundColor: theme.primarySoft,
-    borderRadius: BorderRadius.round,
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: Spacing.xxs,
-  },
   resultCount: { ...Typography.labelSmall, color: theme.textMuted, marginTop: 2 },
   sectionHint: { ...Typography.bodySmall, color: theme.textMuted, marginTop: Spacing.xs, marginBottom: Spacing.md },
   selectedBanner: {
@@ -1589,7 +1580,6 @@ const getStyles = (theme: ThemePalette) => StyleSheet.create({
     marginTop: Spacing.sm,
   },
   candidateActionText: { ...Typography.labelMedium, color: theme.primary, fontFamily: FontFamily.bold },
-  productList: { gap: Spacing.md },
   productCard: {
     backgroundColor: theme.cardSurface,
     borderRadius: BorderRadius.xl,

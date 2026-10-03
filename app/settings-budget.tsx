@@ -726,11 +726,6 @@ const getStyles = () => StyleSheet.create({
     marginBottom: Spacing.md,
     gap: Spacing.sm,
   },
-  cycleBoxHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.xs,
-  },
   cycleDayLabel: {
     ...Typography.labelMedium,
     color: Colors.textSecondary,
@@ -764,11 +759,6 @@ const getStyles = () => StyleSheet.create({
     ...Typography.labelSmall,
     color: Colors.textMuted,
     fontStyle: 'italic',
-  },
-  calendarExplanation: {
-    ...Typography.bodySmall,
-    color: Colors.textSecondary,
-    lineHeight: 20,
   },
   cyclePreview: {
     backgroundColor: Colors.surfaceLight,

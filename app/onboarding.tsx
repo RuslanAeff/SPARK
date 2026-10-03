@@ -19,7 +19,6 @@ import { BorderRadius, ScreenPadding, Spacing } from '../src/theme/spacing';
 import { FontFamily, Typography } from '../src/theme/typography';
 import { useLanguage } from '../src/i18n/LanguageContext';
 import { LANGUAGE_OPTIONS } from '../src/i18n/languageOptions';
-import type { Language } from '../src/i18n/translations';
 import { useCurrency, DISPLAY_CURRENCIES, DisplayCurrency } from '../src/context/CurrencyContext';
 import { useAppTheme, useThemeRevision } from '../src/theme/themeStore';
 import { createSusevarStyles, susevarButtonPressed } from '../src/theme/susevar';

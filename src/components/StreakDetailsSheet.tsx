@@ -9,7 +9,6 @@ import {
   View,
   Text,
   StyleSheet,
-  Pressable,
   ScrollView,
   Dimensions,
   Platform,
@@ -284,14 +283,6 @@ const getStyles = () => StyleSheet.create({
     borderTopRightRadius: 24,
     maxHeight: SCREEN_H * 0.82,
     paddingTop: Spacing.sm,
-  },
-  handleBar: {
-    width: 40,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: Colors.border,
-    alignSelf: 'center',
-    marginBottom: Spacing.sm,
   },
   header: {
     flexDirection: 'row',

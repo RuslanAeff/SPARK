@@ -17,8 +17,6 @@ import { useAppTheme } from '../theme/themeStore';
 import { buildDonutGeometry } from '../utils/donutGeometry';
 
 const AnimatedCircle = Animated.createAnimatedComponent(Circle);
-const AnimatedG = Animated.createAnimatedComponent(G);
-
 interface DonutSegment {
   value: number;
   color: string;

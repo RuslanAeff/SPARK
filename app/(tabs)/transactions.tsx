@@ -22,7 +22,7 @@ import { useFocusEffect, useRouter } from 'expo-router';
 import { useIsFocused } from '@react-navigation/native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import Animated, { FadeInDown, FadeIn } from 'react-native-reanimated';
+import Animated, { FadeIn } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
 
 import { Colors } from '../../src/theme/colors';
@@ -581,10 +581,6 @@ const getStyles = () => StyleSheet.create({
     height: 40,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  headerIconPlaceholder: {
-    width: 40,
-    height: 40,
   },
   title: {
     ...Typography.headlineLarge,

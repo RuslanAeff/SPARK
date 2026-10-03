@@ -419,20 +419,6 @@ export const getAnalyticsStyles = () => StyleSheet.create({
     ...Typography.bodyMedium,
     fontFamily: FontFamily.bold,
   },
-  /** "Tümünü göster / Daha az" satır içi genişletme butonu (iç scroll yerine) */
-  showMoreBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 4,
-    paddingVertical: Spacing.md,
-    marginTop: Spacing.xs,
-  },
-  showMoreText: {
-    ...Typography.labelMedium,
-    color: Colors.primary,
-    fontFamily: FontFamily.semiBold,
-  },
   // Vendor rows
   vendorCardHeader: {
     flexDirection: 'row',
@@ -510,18 +496,6 @@ export const getAnalyticsStyles = () => StyleSheet.create({
     color: '#FFF',
     letterSpacing: 0.5,
   },
-  vendorRowActive: {
-    backgroundColor: Colors.surfaceLight,
-    marginHorizontal: -Spacing.lg,
-    paddingHorizontal: Spacing.lg,
-    // Pressable + Android: borderRadius tek başına bazen kare zemin çizer;
-    // overflow: 'hidden' ile arka plan köşeleri kart estetiğiyle uyumlu kırpılır.
-    borderRadius: BorderRadius.xl,
-    overflow: 'hidden',
-  },
-  vendorRowActiveNoDivider: {
-    borderBottomWidth: 0,
-  },
   vendorInfo: {
     flex: 1,
     minWidth: 0,
@@ -561,17 +535,6 @@ export const getAnalyticsStyles = () => StyleSheet.create({
   vendorPercent: {
     ...Typography.labelSmall,
     color: Colors.textSecondary,
-  },
-  // Micro-analysis — no left margin so donut/legend fills full width
-  microAnalysis: {
-    backgroundColor: Colors.surfaceElevated,
-    borderRadius: BorderRadius.md,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.lg,
-    marginTop: Spacing.sm,
-    marginBottom: Spacing.lg,
-    borderWidth: 1,
-    borderColor: Colors.borderLight + '40',
   },
   microTitle: {
     ...Typography.labelSmall,
@@ -811,91 +774,6 @@ export const getAnalyticsStyles = () => StyleSheet.create({
   compareBarFill: {
     height: '100%',
     borderRadius: 3,
-  },
-  // ── A2: Budget Summary ──
-  budgetHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: Spacing.md,
-  },
-  budgetIcon: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  budgetPctBadge: {
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: 4,
-    borderRadius: BorderRadius.round,
-  },
-  budgetPctText: {
-    ...Typography.labelMedium,
-    fontFamily: FontFamily.bold,
-  },
-  budgetAmounts: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: Spacing.md,
-  },
-  budgetSmLabel: {
-    ...Typography.bodySmall,
-    color: Colors.textSecondary,
-    marginBottom: 4,
-  },
-  budgetAmountVal: {
-    ...Typography.headlineSmall,
-    fontFamily: FontFamily.bold,
-    color: Colors.textPrimary,
-    fontSize: 18,
-  },
-  budgetBarTrack: {
-    height: 8,
-    backgroundColor: Colors.surfaceLight,
-    borderRadius: 4,
-    overflow: 'hidden',
-    marginBottom: Spacing.md,
-  },
-  budgetBarFill: {
-    height: '100%',
-    borderRadius: 4,
-  },
-  budgetFooter: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingTop: Spacing.sm,
-    borderTopWidth: 1,
-    borderTopColor: Colors.divider,
-  },
-  budgetStat: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  budgetStatLabel: {
-    ...Typography.labelSmall,
-    color: Colors.textSecondary,
-  },
-  budgetStatVal: {
-    ...Typography.labelMedium,
-    fontFamily: FontFamily.semiBold,
-    color: Colors.textPrimary,
-  },
-  emptyBudget: {
-    alignItems: 'center',
-    paddingVertical: Spacing.xl,
-    gap: Spacing.sm,
-  },
-  emptyBudgetTitle: {
-    ...Typography.bodyLarge,
-    color: Colors.textSecondary,
-    fontFamily: FontFamily.medium,
-  },
-  emptyBudgetHint: {
-    ...Typography.bodySmall,
-    color: Colors.textMuted,
   },
   // ── A6: Price Watch (kompakt grid) ──
   priceHeader: {
@@ -1476,23 +1354,6 @@ export const getAnalyticsStyles = () => StyleSheet.create({
     fontFamily: FontFamily.bold,
     color: Colors.textPrimary,
   },
-  subsEmptyWrap: {
-    alignItems: 'center',
-    paddingVertical: Spacing.xl,
-    gap: Spacing.xs,
-  },
-  subsEmptyTitle: {
-    ...Typography.bodyLarge,
-    color: Colors.textSecondary,
-    fontFamily: FontFamily.medium,
-    marginTop: Spacing.xs,
-  },
-  subsEmptyHint: {
-    ...Typography.bodySmall,
-    color: Colors.textMuted,
-    textAlign: 'center',
-    paddingHorizontal: Spacing.lg,
-  },
 
   // ── A10: Category Limits Health ──
   limitsHeader: {
@@ -1720,23 +1581,6 @@ export const getAnalyticsStyles = () => StyleSheet.create({
     fontFamily: FontFamily.medium,
     flex: 1,
     lineHeight: 18,
-  },
-  goalEmptyWrap: {
-    alignItems: 'center',
-    paddingVertical: Spacing.xl,
-    gap: Spacing.xs,
-  },
-  goalEmptyTitle: {
-    ...Typography.bodyLarge,
-    color: Colors.textSecondary,
-    fontFamily: FontFamily.medium,
-    marginTop: Spacing.xs,
-  },
-  goalEmptyHint: {
-    ...Typography.bodySmall,
-    color: Colors.textMuted,
-    textAlign: 'center',
-    paddingHorizontal: Spacing.lg,
   },
 
   // ── A12: Time-of-day Heatmap ──

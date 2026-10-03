@@ -31,7 +31,7 @@ function TabNavigator() {
           Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
         },
       }}
-      screenOptions={({ route }) => ({
+      screenOptions={() => ({
         // Soğuk açılışta yalnız görünür sekmeyi mount et. Diğer sekmeler ilk
         // focus'ta güncel veriyi çeker; startup sırasında gizli analytics
         // sorguları/animasyonları ana ekranın ilk karesiyle yarışmaz.

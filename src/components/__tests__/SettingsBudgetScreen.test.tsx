@@ -94,7 +94,6 @@ jest.mock('../../db/budgetDao', () => ({
 
 jest.mock('../../services/budgetCycleSettings', () => ({
   getCycleStartDay: jest.fn().mockResolvedValue(1),
-  setCycleStartDay: jest.fn(),
 }));
 
 jest.mock('../../services/goalFeatureSettings', () => ({
