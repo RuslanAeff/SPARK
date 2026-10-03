@@ -1197,7 +1197,7 @@
   "deposit_and_voucher_hint": "Учитывайте залог за тару и возвратные ваучеры отдельно.",
   "deposit_paid": "Уплаченный залог за тару",
   "deposit_voucher_used": "Использованный депозитный ваучер",
-  "deposit_voucher_used_hint": "Это возврат ранее уплаченного залога, а не скидка на товар.",
+  "deposit_voucher_used_hint": "Введите итог чека до оплаты ваучером. Ваучер уменьшает платёж картой/наличными; это не скидка на товар и не доход.",
   "deposit_amount_invalid": "Сумма залога неверна или превышает сумму операции.",
   "deposit_recovered_budget_label": "Возвращённый залог",
   "deposit_available_vouchers": "Доступные ваучеры",
@@ -1263,5 +1263,10 @@
   "budget_calendar_info_accessibility": "Подробнее о бюджетном календаре",
   "budget_repair_start_picker": "Выбрать дату начала в календаре",
   "budget_repair_end_picker": "Выбрать дату окончания в календаре",
-  "budget_repair_blocked_day_hint": "Этот день уже используется другим бюджетным периодом."
+  "budget_repair_blocked_day_hint": "Этот день уже используется другим бюджетным периодом.",
+  "deposit_use_purchase": "Использовать при покупке",
+  "deposit_wallet_hint": "Баланс ваучеров — не наличные. При оплате ваучером вы тратите меньше собственных денег.",
+  "deposit_cash_paid": "Оплачено картой / наличными",
+  "deposit_legacy_cash_refund": "Прежний возврат наличными",
+  "deposit_voucher_unavailable": "Этот ваучер недоступен для выбранной покупки."
 }

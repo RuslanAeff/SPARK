@@ -2,6 +2,11 @@ export type Language = 'tr' | 'en' | 'az' | 'ru';
 
 export const translations = {
   tr: {
+    deposit_voucher_unavailable: "Bu kupon seçilen alışveriş için kullanılamıyor.",
+    deposit_legacy_cash_refund: "Önceki nakit iadesi",
+    deposit_cash_paid: "Kart / nakit ile ödenen",
+    deposit_wallet_hint: "Kupon bakiyesi nakit değildir. Bütçeniz, kuponu bir alışverişte kullandığınızda daha az azalır.",
+    deposit_use_purchase: "Alışverişte kullan",
     ai_transfer_title: "Google Gemini’ye veri aktarımı",
     ai_transfer_receipt: "Fiş fotoğrafı, üzerindeki satıcı, ürün, tarih, tutar ve kişisel bilgilerle birlikte fişi ayrıştırmak için Google Gemini’ye gönderilecek. İptal edip manuel kayıt kullanabilirsiniz. Ücretsiz Gemini katmanında Google bu içeriği insan incelemesi dahil hizmetlerini geliştirmek için kullanabilir; ücretli katmanda kullanmaz. Veriler Google’ın yurt dışındaki sunucularına aktarılır.",
     ai_transfer_products: "Seçili iki ürünün adı, markası, varyantı, paket tanımı ve ölçü birimi karşılaştırma önerisi için Google Gemini’ye gönderilecek. Tutar, satıcı ve fiyat geçmişi gönderilmez. İptal edip yerel eşleştirmeye devam edebilirsiniz. Ücretsiz Gemini katmanında Google bu içeriği insan incelemesi dahil hizmetlerini geliştirmek için kullanabilir. Veriler yurt dışındaki sunuculara aktarılır.",
@@ -26,7 +31,7 @@ export const translations = {
     deposit_and_voucher_hint: 'Şişe depozitosunu ve ödemede kullanılan iade kuponunu ayrı izle.',
     deposit_paid: 'Ödenen şişe depozitosu',
     deposit_voucher_used: 'Kullanılan depozito voucher’ı',
-    deposit_voucher_used_hint: 'Bu tutar indirim değil; daha önce ödediğiniz depozitonun geri dönüşüdür.',
+    deposit_voucher_used_hint: "İşlem tutarına kupon düşülmeden önceki fiş toplamını yazın. Kupon, kart/nakit ödemenizi azaltır; ürün indirimi veya gelir değildir.",
     deposit_amount_invalid: 'Depozito tutarı geçersiz veya işlem toplamından yüksek.',
     deposit_recovered_budget_label: 'Geri kazanılan depozito',
     deposit_available_vouchers: 'Kullanılabilir voucher',
@@ -1320,6 +1325,11 @@ export const translations = {
     month_short_09: 'Eyl', month_short_10: 'Eki', month_short_11: 'Kas', month_short_12: 'Ara',
   },
   en: {
+    deposit_voucher_unavailable: "This voucher is unavailable for the selected purchase.",
+    deposit_legacy_cash_refund: "Previous cash refund",
+    deposit_cash_paid: "Paid by card / cash",
+    deposit_wallet_hint: "Voucher balance is not cash. Using a voucher reduces the cash you spend on a purchase.",
+    deposit_use_purchase: "Use for a purchase",
     ai_transfer_title: "Send data to Google Gemini",
     ai_transfer_receipt: "The receipt photo, including its vendor, products, date, amounts and any personal information, will be sent to Google Gemini to extract receipt details. You can cancel and enter the expense manually. On the free Gemini tier Google may use this content, including human review, to improve its services; it does not on a paid tier. The data is transferred to Google servers abroad.",
     ai_transfer_products: "The names, brands, variants, package descriptions and measurement units of the two selected products will be sent to Google Gemini for comparison advice. Amounts, vendors and price history are not sent. You can cancel and continue matching locally. On the free Gemini tier Google may use this content, including human review, to improve its services. The data is transferred to servers abroad.",
@@ -1344,7 +1354,7 @@ export const translations = {
     deposit_and_voucher_hint: 'Track refundable container deposits and return vouchers separately.',
     deposit_paid: 'Container deposit paid',
     deposit_voucher_used: 'Deposit voucher used',
-    deposit_voucher_used_hint: 'This is recovered deposit value, not a product discount.',
+    deposit_voucher_used_hint: "Enter the receipt total before voucher payment. The voucher reduces your card/cash payment; it is not a product discount or income.",
     deposit_amount_invalid: 'The deposit amount is invalid or exceeds the transaction total.',
     deposit_recovered_budget_label: 'Deposit recovered',
     deposit_available_vouchers: 'Available vouchers',

@@ -1,0 +1,8 @@
+{
+  "deposit_use_purchase": "Alış-verişdə istifadə et",
+  "deposit_wallet_hint": "Vauçer balansı nağd pul deyil. Alış-verişdə vauçer istifadə etdikdə cibinizdən daha az pul çıxır.",
+  "deposit_cash_paid": "Kart / nağd ödənilən",
+  "deposit_legacy_cash_refund": "Əvvəlki nağd qaytarma",
+  "deposit_voucher_unavailable": "Bu vauçer seçilmiş alış-veriş üçün istifadə edilə bilmir.",
+  "deposit_voucher_used_hint": "Vauçer çıxılmadan əvvəlki qəbz cəmini daxil edin. Vauçer kart/nağd ödənişi azaldır; məhsul endirimi və ya gəlir deyil."
+}

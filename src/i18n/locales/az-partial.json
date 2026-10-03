@@ -1197,7 +1197,7 @@
   "deposit_and_voucher_hint": "Qab depozitlərini və geri qaytarma vauçerlərini ayrıca izlə.",
   "deposit_paid": "Ödənən qab depoziti",
   "deposit_voucher_used": "İstifadə olunan depozit vauçeri",
-  "deposit_voucher_used_hint": "Bu, məhsul endirimi deyil; əvvəl ödənmiş depozitin geri qaytarılmasıdır.",
+  "deposit_voucher_used_hint": "Vauçer çıxılmadan əvvəlki qəbz cəmini daxil edin. Vauçer kart/nağd ödənişi azaldır; məhsul endirimi və ya gəlir deyil.",
   "deposit_amount_invalid": "Depozit məbləği yanlışdır və ya əməliyyat cəmindən çoxdur.",
   "deposit_recovered_budget_label": "Geri alınan depozit",
   "deposit_available_vouchers": "İstifadə edilə bilən vauçerlər",
@@ -1263,5 +1263,10 @@
   "budget_calendar_info_accessibility": "Büdcə təqvimi haqqında əlavə məlumat",
   "budget_repair_start_picker": "Başlanğıc tarixini təqvimdən seç",
   "budget_repair_end_picker": "Bitiş tarixini təqvimdən seç",
-  "budget_repair_blocked_day_hint": "Bu gün başqa büdcə dövrü tərəfindən istifadə olunur."
+  "budget_repair_blocked_day_hint": "Bu gün başqa büdcə dövrü tərəfindən istifadə olunur.",
+  "deposit_use_purchase": "Alış-verişdə istifadə et",
+  "deposit_wallet_hint": "Vauçer balansı nağd pul deyil. Alış-verişdə vauçer istifadə etdikdə cibinizdən daha az pul çıxır.",
+  "deposit_cash_paid": "Kart / nağd ödənilən",
+  "deposit_legacy_cash_refund": "Əvvəlki nağd qaytarma",
+  "deposit_voucher_unavailable": "Bu vauçer seçilmiş alış-veriş üçün istifadə edilə bilmir."
 }

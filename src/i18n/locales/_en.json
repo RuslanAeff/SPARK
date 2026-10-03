@@ -1026,7 +1026,7 @@
   "deposit_and_voucher_hint": "Track refundable container deposits and return vouchers separately.",
   "deposit_paid": "Container deposit paid",
   "deposit_voucher_used": "Deposit voucher used",
-  "deposit_voucher_used_hint": "This is recovered deposit value, not a product discount.",
+  "deposit_voucher_used_hint": "Enter the receipt total before voucher payment. The voucher reduces your card/cash payment; it is not a product discount or income.",
   "deposit_amount_invalid": "The deposit amount is invalid or exceeds the transaction total.",
   "deposit_recovered_budget_label": "Deposit recovered",
   "deposit_available_vouchers": "Available vouchers",
@@ -1052,5 +1052,10 @@
   "receipt_pages_hint": "For long receipts, add the top and bottom sections in order. Up to 4 photos are supported.",
   "receipt_add_page_camera": "Capture next part",
   "receipt_add_page_gallery": "Add from gallery",
-  "receipt_analyze_pages": "Analyze {count} photos"
+  "receipt_analyze_pages": "Analyze {count} photos",
+  "deposit_use_purchase": "Use for a purchase",
+  "deposit_wallet_hint": "Voucher balance is not cash. Using a voucher reduces the cash you spend on a purchase.",
+  "deposit_cash_paid": "Paid by card / cash",
+  "deposit_legacy_cash_refund": "Previous cash refund",
+  "deposit_voucher_unavailable": "This voucher is unavailable for the selected purchase."
 }
