@@ -65,3 +65,7 @@ Harcama, borç alma, borç geri ödemesi ve geri ödeme yükümlülüğü olmaya
 ## Yeniden değerlendirme koşulları
 
 Çoklu hesap, faiz, taksit planı, alacak (`lent`) UX'i veya döviz dönüşümü eklenirse mevcut skaler formülün sınırları yeni ADR ile yeniden değerlendirilmelidir.
+
+## 2 Ekim 2026 — Voucher ödeme yorumu
+
+[ADR-015](ADR-015-voucher-purchase-payment.md) bütçe `totalSpent` değerini kart/nakit harcaması olarak özelleştirir: fiş toplamı eksi kullanılan depozito voucher tutarı. Fiş ve ürün analizlerinin brüt toplamı korunur; kupon etkin bütçeye ayrıca eklenmez. Eski nakit iade kayıtları kendi tarihlerinde korunur.

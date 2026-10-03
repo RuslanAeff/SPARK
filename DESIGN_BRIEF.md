@@ -201,9 +201,10 @@ AI sonucu doğrudan finansal gerçek kabul edilmez. Kullanıcı kontrol noktası
 
 İade edilebilir ambalaj depozitosu fişin parçası olarak harcamada kalır, ancak
 ürün fiyat analizlerine girmez. İade makinesinin verdiği voucher harcama değildir;
-tutar ve durumuyla depozito cüzdanına girer. Voucher alışverişte kullanıldığında
-veya nakde çevrildiğinde daha önce ödenmiş depozitonun geri kazanımı olarak bütçeye
-yansır. Bu olay ürün indirimi veya yeni ek gelir diye etiketlenmez.
+tutar ve durumuyla depozito cüzdanına girer. Voucher alışverişte kullanıldığında kart/nakit ödemesini azaltır; bütçeye
+ayrı bir artış yazılmaz. Cüzdandaki kullanım yeni işlem formuna yönlendirir;
+kaydetmeden çıkmak kuponu tüketmez. Eski nakit kayıtları korunur ancak yeni
+nakit iade eylemi sunulmaz. Bu olay ürün indirimi veya yeni ek gelir diye etiketlenmez.
 
 Tarama dili uygulamanın o anda seçili TR/EN/AZ/RU dilidir. Model basılı adı
 değiştirmeden ayrıca bu dilde okunabilir ürün adı üretir; kategori ise çevrilmiş
@@ -533,7 +534,7 @@ Bu kurallar ürün davranışıdır; uygulama ayrıntısı gibi sessizce değiş
 15. **Analiz güveni görünür ve karşılaştırma eş olmalıdır.** Harcama kaydı olmayan gün başarı etiketi değildir; kısa takip geçmişi başarı/seri üretmez ve kapsam sayısı kullanıcıya gösterilir. Devam eden harcama dönemi, önceki dönemin aynı sayıda tamamlanmış günüyle karşılaştırılır; bugün ve gelecek günler toplamlara katılmaz. Veri yükleme hatası ile geçerli `0 harcama` sonucu ayrıdır. İlgili veri bulunmayan opsiyonel analiz kartları boş yüzey olarak yer kaplamaz.
 16. **Ürün kimliği ölçüye bağlı ve geri düzeltilebilir olmalıdır.** Güvenli yazım farkları kalıcı canonical ürün ve aliaslarla toplanabilir; fuzzy benzerlik, ortak ürün ailesi veya AI önerisi kullanıcı onayı olmadan semantik merge yapamaz. Ham `name`/`turkish_name` korunur, kullanıcı etiketi ayrıdır ve merge/split hiçbir finansal gözlemi silmez.
 17. **Geçersiz AI çıktısı finansal kayıt değildir.** Seçili dil yalnız görünüm metnini değil fiş çeviri sözleşmesini belirler; kategori anahtarı dilden bağımsızdır. Eksik satıcı/tarih/kalem/tutar veya kanıtsız sıfır toplam kaydedilemez ve Detaylı Düzenle boş/sıfır bir harcamayı otomatik oluşturamaz. İşlem listesi her kaydın kendi para birimini gösterir.
-18. **Depozito geri kazanımı indirim veya yeni gelir değildir.** Ödenen ambalaj depozitosu fiş toplamında kalır; voucher oluşturulması bütçeyi artırmaz. Bütçe etkisi yalnız voucher kullanımı veya nakde çevirme tarihinde oluşur ve depozito satırları ürün fiyat analizlerine katılmaz.
+18. **Depozito geri kazanımı indirim veya yeni gelir değildir.** Ödenen ambalaj depozitosu fiş toplamında kalır; voucher oluşturulması bütçeyi artırmaz. Bütçe harcaması voucher kullanıldığı alışverişte kart/nakit ödemesidir ve depozito satırları ürün fiyat analizlerine katılmaz.
 
 Ayrıntılı teknik sözleşmeler için [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) ve karar kayıtları kullanılır.
 

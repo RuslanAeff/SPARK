@@ -170,7 +170,7 @@ oluşturmasına dayanmaz.
 | `debt_payments` | Borca bağlı kısmi veya tam geri ödeme olayları. |
 | `extra_incomes` | Geri ödeme yükümlülüğü olmadan harcanabilir nakdi artıran tek seferlik gelir. |
 | `container_deposit_vouchers` | Ambalaj iadesinden doğan, tutar tabanlı ve durumlu voucher cüzdanı; oluşturulması tek başına bütçe etkisi üretmez. |
-| `container_deposit_recoveries` | Voucher'ın alışverişte kullanıldığı veya nakde çevrildiği tarihte oluşan geri kazanım nakit akışı; opsiyonel voucher ve harcama bağlantısı taşır. |
+| `container_deposit_recoveries` | Alışverişte voucher kullanımının izlenebilirliği ve eski nakit iade kayıtları; yalnız legacy cash etkin bütçeye eklenir. |
 | `settings` | Yerel anahtar/değer tercihleri ve alt sistem durumu; gizli bilgiler burada tutulmaz. |
 
 Kolonlar, constraint'ler, index'ler ve silme davranışında [`src/db/schema.ts`](../src/db/schema.ts) içindeki SQL bildirimleri yetkilidir.
@@ -216,9 +216,10 @@ sheet bileşenini kullanır.
 - Borç veya geri ödemeyi modellemek için fiş görselleri ve kalemleri yapay harcamalara bölünmemelidir.
 - `financial_kind='container_deposit'` satırı fiş toplamında kalır; kanonik ürün,
   fiyat geçmişi, kişisel enflasyon ve sessiz harcama analizlerinden dışlanır.
-- Voucher cüzdanına ekleme bütçeyi değiştirmez. Yalnız
-  `container_deposit_recoveries` içindeki gerçek kullanım/nakde çevirme olayı
-  etkin bütçeyi artırır; bu kayıt `extra_incomes` değildir.
+- Voucher cüzdanına ekleme bütçeyi değiştirmez. `container_voucher_used`
+  işlem bazında bütçe harcamasından düşülür; basılı toplam korunur.
+  `purchase_voucher` recovery etkin bütçeye eklenmez. Yalnız eski `cash`
+  kayıtları kendi tarihlerinde nakit iade olarak korunur (ADR-015).
 
 ### Bütçe döngüleri
 

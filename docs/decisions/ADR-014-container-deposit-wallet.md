@@ -1,7 +1,7 @@
 # ADR-014 — İade edilebilir ambalaj depozitosu ayrı bir cüzdan ve nakit akışıdır
 
-**Durum:** Accepted · prospective  
-**Tarih:** 2026-09-30  
+**Durum:** Superseded — [ADR-015](ADR-015-voucher-purchase-payment.md), 2026-10-02
+**Tarih:** 2026-09-30
 **İlgili kararlar:** [ADR-003](ADR-003-financial-cash-flow-domain.md),
 [ADR-004](ADR-004-receipt-total-integrity.md),
 [ADR-012](ADR-012-ai-transfer-service-and-market-scope.md).
