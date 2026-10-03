@@ -222,3 +222,8 @@ Tüm görünür ürün metinleri Türkçe, İngilizce, Azerbaycanca ve Rusça ç
 Kalıcı sınırlar veya domain semantiği değiştiğinde [`ARCHITECTURE.md`](ARCHITECTURE.md), katkı akışları ya da kod kuralları değiştiğinde bu rehber, kalite kapısı, tehdit sınırı veya yayın doğrulama gereksinimi değiştiğinde [`QUALITY_AND_SECURITY.md`](QUALITY_AND_SECURITY.md) güncellenmelidir.
 
 Bu belgelere kesin bağımlılık patch sürümleri veya elle tutulan test sayıları eklemeyin; bunların çalıştırılabilir sahipleri yukarıda listelenmiştir.
+
+
+### Transient toast yaşam döngüsü
+
+`SparkToast` host’u kapanış için yalnız native animasyonun finished callback’ine güvenmez: son mesajdan 5000 ms ömür sınırı ve 350 ms exit fallback’i vardır. Dokunma normal sayacı durdurabilir ama güvenlik süresini durdurmaz. Eski animasyon/gesture callback’leri ID ve interaction generation ile korunur. Yeni mesaj bu süreyi yeniler; background/unmount timer, frame, animasyon ve host aboneliğini temizler. JS thread/OS askıya alınması durumunda milisaniye garantisi verilmez. Root ve modal host davranışı birlikte test edilmelidir.

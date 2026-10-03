@@ -6,6 +6,7 @@
 // root layout'ta olduğundan aynı React yüzeyinde absolute overlay olarak çizilir.
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import {
+  AppState,
   View,
   Text,
   StyleSheet,
@@ -39,6 +40,8 @@ const CONFIG: Record<ToastType, { icon: string; color: string }> = {
 };
 
 const DISMISS_MS = 3500;
+const MAX_LIFETIME_MS = 5000;
+const EXIT_FALLBACK_MS = 350;
 type ShowFn = (message: string, type?: ToastType, submessage?: string) => void;
 const mountedHosts = new Set<ShowFn>();
 
@@ -60,6 +63,11 @@ export function SparkToastContainer() {
   const { t } = useLanguage();
 
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lifetimeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const exitTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const showRevision = useRef(0);
+  const interactionRevision = useRef(0);
+  const clearCurrentRef = useRef<(id: number) => void>(() => {});
   const frameRef = useRef<number | null>(null);
   const nextIdRef = useRef(0);
   const activeIdRef = useRef<number | null>(null);
@@ -67,7 +75,7 @@ export function SparkToastContainer() {
   const phaseRef = useRef<'idle' | 'entering' | 'visible' | 'exiting'>('idle');
   // Render/effect callback'lerinin her zaman güncel toast'ı görmesi için ref.
   const toastRef = useRef<ToastData | null>(null);
-  toastRef.current = toast;
+
 
   const successY = useRef(new Animated.Value(280)).current;
   const successOpacity = useRef(new Animated.Value(1)).current;
@@ -86,6 +94,13 @@ export function SparkToastContainer() {
     if (!timerRef.current) return;
     clearTimeout(timerRef.current);
     timerRef.current = null;
+  };
+
+  const clearSafetyTimers = () => {
+    if (lifetimeTimerRef.current != null) clearTimeout(lifetimeTimerRef.current);
+    if (exitTimerRef.current != null) clearTimeout(exitTimerRef.current);
+    lifetimeTimerRef.current = null;
+    exitTimerRef.current = null;
   };
 
   const clearFrame = () => {
@@ -110,8 +125,16 @@ export function SparkToastContainer() {
       activeIdRef.current = null;
       activeKeyRef.current = null;
       phaseRef.current = 'idle';
+      interactionRevision.current += 1;
+      toastRef.current = null;
+      clearTimer();
+      clearSafetyTimers();
+      clearFrame();
+      stopAllAnimations();
       setToast(null);
     };
+
+    clearCurrentRef.current = clearIfCurrent;
 
     const scheduleDismiss = (id: number, delay = DISMISS_MS) => {
       clearTimer();
@@ -125,6 +148,10 @@ export function SparkToastContainer() {
       if (id == null || phaseRef.current === 'exiting') return;
       clearTimer();
       phaseRef.current = 'exiting';
+      interactionRevision.current += 1;
+      clearFrame();
+      // Native animation completion may be interrupted or never delivered.
+      exitTimerRef.current = setTimeout(() => clearIfCurrent(id), EXIT_FALLBACK_MS);
       const type = toastRef.current?.type;
 
       if (type === 'success') {
@@ -165,6 +192,7 @@ export function SparkToastContainer() {
 
     pauseRef.current = () => {
       if (toastRef.current?.type !== 'success' || phaseRef.current === 'exiting') return;
+      interactionRevision.current += 1;
       clearTimer();
       progress.stopAnimation();
     };
@@ -174,8 +202,9 @@ export function SparkToastContainer() {
       if (id == null || toastRef.current?.type !== 'success' || phaseRef.current === 'exiting') {
         return;
       }
+      const revision = ++interactionRevision.current;
       progress.stopAnimation((value) => {
-        if (activeIdRef.current !== id) return;
+        if (activeIdRef.current !== id || interactionRevision.current !== revision || phaseRef.current === 'exiting') return;
         const remaining = Math.max(0, value * DISMISS_MS);
         if (remaining < 32) {
           dismissRef.current();
@@ -195,6 +224,7 @@ export function SparkToastContainer() {
       dismissRef.current = () => {};
       pauseRef.current = () => {};
       resumeRef.current = () => {};
+      clearCurrentRef.current = () => {};
     };
   }, [
     successY,
@@ -212,6 +242,15 @@ export function SparkToastContainer() {
       type: ToastType = 'success',
       submessage?: string,
     ) => {
+      // A press without pressOut must never keep an overlay alive indefinitely.
+      interactionRevision.current += 1;
+      clearSafetyTimers();
+      const generation = ++showRevision.current;
+      lifetimeTimerRef.current = setTimeout(() => {
+        if (showRevision.current !== generation) return;
+        const currentId = activeIdRef.current;
+        if (currentId != null) clearCurrentRef.current(currentId);
+      }, MAX_LIFETIME_MS);
       const key = `${type}|${message}|${submessage ?? ''}`;
       const activeId = activeIdRef.current;
 
@@ -402,9 +441,19 @@ export function SparkToastContainer() {
       });
     };
     mountedHosts.add(show);
+    const appStateSubscription = AppState.addEventListener('change', state => {
+      if (state === 'active') return;
+      const id = activeIdRef.current;
+      if (id != null) clearCurrentRef.current(id);
+    });
 
     return () => {
       mountedHosts.delete(show);
+      appStateSubscription.remove();
+      activeIdRef.current = null;
+      toastRef.current = null;
+      interactionRevision.current += 1;
+      clearSafetyTimers();
       clearTimer();
       clearFrame();
       stopAllAnimations();
@@ -480,6 +529,7 @@ export function SparkToastContainer() {
             />
           </View>
           <Pressable
+            testID="spark-toast-body"
             style={successStyles.body}
             onPressIn={() => pauseRef.current()}
             onPressOut={() => resumeRef.current()}
