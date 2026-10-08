@@ -16,6 +16,16 @@
   <img src="https://img.shields.io/badge/Platform-iOS_%7C_Android-green?style=for-the-badge" alt="iOS and Android" />
 </p>
 
+<p align="center">
+  <a href="docs/screenshots/spark-app-preview.jpg">
+    <img src="docs/screenshots/spark-app-preview.jpg" width="100%" alt="S.P.A.R.K. dark-theme screens: dashboard, receipt scanner, spending analytics and settings" />
+  </a>
+</p>
+
+<p align="center">
+  <em>Dashboard · Receipt scanner · Spending analytics · Settings</em>
+</p>
+
 ## Overview
 
 S.P.A.R.K. is an offline-first React Native and Expo application for recording expenses, managing budget cycles, tracking savings, debts and additional income, and analysing spending. Financial records live in the device's SQLite database. Google Gemini receipt parsing is optional and is used only when the user configures an API key.
