@@ -89,8 +89,11 @@ async function writeSecureApiKey(apiKey: string): Promise<void> {
       [SQLITE_SETTINGS_KEY]
     );
   } catch {
-    // Temizleme başarısız olsa bile key SecureStore'a yazıldı
+    // Preserve the secure write, but never report incomplete cleanup as success.
+    _migrationDone = false;
+    throw new Error('SECURE_KEY_CLEANUP_FAILED');
   }
+  _migrationDone = true;
 }
 
 /**

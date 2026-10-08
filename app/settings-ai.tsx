@@ -42,7 +42,12 @@ export default function SettingsAiScreen() {
       SparkToast.show(t('api_key_empty'), 'error');
       return;
     }
-    await saveApiKey(apiKey.trim());
+    try {
+      await saveApiKey(apiKey.trim());
+    } catch {
+      SparkToast.show(t('unknown_error'), 'error');
+      return;
+    }
     setHasKey(true);
     setApiKey('');
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);

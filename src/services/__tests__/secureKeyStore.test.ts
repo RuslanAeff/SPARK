@@ -4,10 +4,29 @@ jest.mock('expo-secure-store', () => ({
 jest.mock('../../db/database', () => ({ getDatabase: jest.fn() }));
 import * as store from 'expo-secure-store';
 import { getDatabase } from '../../db/database';
-import { deleteSecureApiKey, getSecureApiKey } from '../secureKeyStore';
+import { deleteSecureApiKey, getSecureApiKey, setSecureApiKey } from '../secureKeyStore';
 
 let key: string | null;
 let legacy: string | null;
+it('reports incomplete legacy cleanup, preserves secure value and permits retry', async () => {
+  runAsync.mockRejectedValueOnce(new Error('synthetic private SQL detail'));
+  await expect(setSecureApiKey('replacement')).rejects.toThrow('SECURE_KEY_CLEANUP_FAILED');
+  expect(key).toBe('replacement');
+  expect(legacy).toBe('synthetic-legacy');
+  await setSecureApiKey('replacement');
+  expect(legacy).toBeNull();
+  expect(await getSecureApiKey()).toBe('replacement');
+});
+it('serializes save, read and delete without restoring the saved key', async () => {
+  const saving = setSecureApiKey('replacement');
+  const reading = getSecureApiKey();
+  const deleting = deleteSecureApiKey();
+  await saving;
+  expect(await reading).toBe('replacement');
+  await deleting;
+  expect(key).toBeNull();
+  expect(legacy).toBeNull();
+});
 const runAsync = jest.fn();
 beforeEach(() => {
   jest.clearAllMocks();

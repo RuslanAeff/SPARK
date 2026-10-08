@@ -22,6 +22,49 @@ import { getSecureApiKey } from '../secureKeyStore';
 
 const getSecureApiKeyMock = getSecureApiKey as jest.MockedFunction<typeof getSecureApiKey>;
 
+describe('Gemini log privacy', () => {
+  it.each([false, true])('does not log remote error bodies or thrown errors (development=%s)', async dev => {
+    const originalFetch = global.fetch;
+    const previous = __DEV__;
+    const logs = [jest.spyOn(console, 'log'), jest.spyOn(console, 'warn'), jest.spyOn(console, 'error')];
+    logs.forEach(log => log.mockImplementation(() => {}));
+    (globalThis as any).__DEV__ = dev;
+    getSecureApiKeyMock.mockResolvedValue('synthetic-key');
+    try {
+      for (const scenario of ['discovery', 'http', 'exception', 'invalid-json']) {
+        resetGeminiModelState();
+        global.fetch = jest.fn(async (url) => {
+          if (scenario === 'discovery') return { ok: false, status: 403, text: async () => 'SYNTHETIC_PRIVATE_MARKER' } as Response;
+          if (String(url).endsWith('/models')) return {
+            ok: true, status: 200, text: async () => JSON.stringify({ models: [{ name: 'models/gemini-2.5-flash', supportedGenerationMethods: ['generateContent'] }] }),
+          } as Response;
+          if (scenario === 'exception') throw new Error('SYNTHETIC_PRIVATE_MARKER');
+          return { ok: scenario === 'invalid-json', status: scenario === 'http' ? 403 : 200,
+            text: async () => 'SYNTHETIC_PRIVATE_MARKER' } as Response;
+        });
+        await expect(parseReceipt('synthetic-image', 'tr')).rejects.toBeDefined();
+      }
+      for (const log of logs) for (const args of log.mock.calls) {
+        expect(args.map(arg => String(arg)).join(' ')).not.toContain('SYNTHETIC_PRIVATE_MARKER');
+      }
+    } finally {
+      global.fetch = originalFetch;
+      (globalThis as any).__DEV__ = previous;
+      logs.forEach(log => log.mockRestore());
+      resetGeminiModelState();
+    }
+  });
+});
+
+// These fixtures describe JSON objects; production now consumes bounded text.
+function textResponseFetch(mock: jest.Mock): typeof fetch {
+  return (async (...args: Parameters<typeof fetch>) => {
+    const response = await mock(...args);
+    if (!response.text) response.text = async () => JSON.stringify(await response.json());
+    return response;
+  }) as typeof fetch;
+}
+
 describe('isUnsuitableForReceiptParsing', () => {
   it('görüntü/ses/gömme üreten modelleri eler', () => {
     ['gemini-3.1-flash-image', 'imagen-3.0', 'gemini-2.5-flash-tts', 'gemini-live-2.5-flash', 'text-embedding-004', 'veo-2.0']
@@ -317,7 +360,7 @@ describe('parseReceipt model kalite fallback', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     getSecureApiKeyMock.mockResolvedValue('test-api-key');
-    (global as typeof globalThis).fetch = fetchMock as typeof fetch;
+    (global as typeof globalThis).fetch = textResponseFetch(fetchMock);
     resetGeminiModelState();
   });
 
@@ -400,7 +443,7 @@ describe('suggestProductMatch', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     getSecureApiKeyMock.mockResolvedValue('test-api-key');
-    (global as typeof globalThis).fetch = fetchMock as typeof fetch;
+    (global as typeof globalThis).fetch = textResponseFetch(fetchMock);
     resetGeminiModelState();
   });
 
@@ -541,7 +584,7 @@ describe('Gemini model uyumluluğu (Eylül 2026)', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     getSecureApiKeyMock.mockResolvedValue('test-api-key');
-    (global as typeof globalThis).fetch = fetchMock as typeof fetch;
+    (global as typeof globalThis).fetch = textResponseFetch(fetchMock);
     resetGeminiModelState();
   });
 

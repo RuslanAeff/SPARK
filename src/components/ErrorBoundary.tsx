@@ -30,12 +30,12 @@ export class ErrorBoundary extends Component<Props, State> {
     return { hasError: true, error, errorInfo: null };
   }
 
-  public componentDidCatch(error: Error, errorInfo: ErrorInfo) {
+  public componentDidCatch(_error: Error, errorInfo: ErrorInfo) {
     // Kök başlangıç perdesi manuel tutuluyor olabilir. Kurtarma ekranının
     // sonsuza dek native splash arkasında kalmasına izin verme.
     void SplashScreen.hideAsync().catch(() => {});
     this.setState({ errorInfo });
-    console.error("Uncaught error:", error, errorInfo);
+    console.error('[UI] UNCAUGHT_RENDER_ERROR');
   }
 
   private handleReset = () => {

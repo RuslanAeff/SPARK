@@ -2,7 +2,7 @@ import React from 'react';
 import { fireEvent, render, waitFor } from '@testing-library/react-native';
 
 import SettingsAiScreen from '../../../app/settings-ai';
-import { deleteApiKey } from '../../services/geminiService';
+import { deleteApiKey, saveApiKey } from '../../services/geminiService';
 import { SparkToast } from '../SparkToast';
 
 const mockRouterPush = jest.fn();
@@ -71,4 +71,16 @@ it('preserves existing-key state and shows only error when deletion rejects', as
   await waitFor(() => expect(SparkToast.show).toHaveBeenCalledWith('unknown_error', 'error'));
   expect(screen.getByText('api_key_exists')).toBeTruthy();
   expect(SparkToast.show).not.toHaveBeenCalledWith('api_key_deleted', 'success');
+});
+
+it('keeps input available for retry and does not announce success on cleanup failure', async () => {
+  jest.clearAllMocks();
+  (saveApiKey as jest.Mock).mockRejectedValueOnce(new Error('SECURE_KEY_CLEANUP_FAILED'));
+  const screen = await render(<SettingsAiScreen />);
+  await waitFor(() => expect(screen.getByText('api_key_exists')).toBeTruthy());
+  await fireEvent.changeText(screen.getByPlaceholderText('enter_new_key'), 'synthetic-replacement');
+  await fireEvent.press(screen.getByLabelText('save'));
+  await waitFor(() => expect(SparkToast.show).toHaveBeenCalledWith('unknown_error', 'error'));
+  expect(screen.getByDisplayValue('synthetic-replacement')).toBeTruthy();
+  expect(SparkToast.show).not.toHaveBeenCalledWith('api_key_saved', 'success', 'api_key_ready');
 });

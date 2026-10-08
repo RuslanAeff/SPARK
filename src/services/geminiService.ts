@@ -1,5 +1,6 @@
 // S.P.A.R.K. — Gemini AI Service for Receipt Parsing
 import { getSecureApiKey, setSecureApiKey, hasSecureApiKey, deleteSecureApiKey } from './secureKeyStore';
+import { fetchBoundedText } from './boundedFetch';
 import { finalizeParsedReceipt } from './receiptLineMerge';
 import {
   extractFirstBalancedJsonObject,
@@ -94,25 +95,6 @@ export function resetGeminiModelState(): void {
   _cooldowns.clear();
 }
 
-function fetchWithTimeout(
-  url: string,
-  options?: RequestInit,
-  timeoutMs = FETCH_TIMEOUT_MS,
-  externalSignal?: AbortSignal,
-): Promise<Response> {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
-  const abortFromExternal = () => controller.abort();
-  // Dışarıdan iptal (ör. tarayıcıda "Durdur") → iç controller'ı da iptal et.
-  if (externalSignal) {
-    if (externalSignal.aborted) controller.abort();
-    else externalSignal.addEventListener('abort', abortFromExternal, { once: true });
-  }
-  return fetch(url, { ...options, signal: controller.signal }).finally(() => {
-    clearTimeout(timer);
-    externalSignal?.removeEventListener('abort', abortFromExternal);
-  });
-}
 
 function createAbortError(): Error {
   const error = new Error('Operation aborted');
@@ -165,12 +147,11 @@ async function _discoverModelsImpl(apiKey: string): Promise<string[]> {
     try {
       const url = `https://generativelanguage.googleapis.com/${ver}/models`;
       if (__DEV__) console.log(`[MODEL DISCOVERY] Querying models via ${ver}...`);
-      const res = await fetchWithTimeout(url, {
+      const res = await fetchBoundedText(url, {
         headers: { 'x-goog-api-key': apiKey },
       }, MODEL_DISCOVERY_TIMEOUT_MS);
       if (!res.ok) {
-        const body = await res.text().catch(() => '');
-        if (__DEV__) console.warn(`[MODEL DISCOVERY] ${ver} → HTTP ${res.status}: ${body.replace(/\s+/g, ' ').slice(0, 120)}`);
+        if (__DEV__) console.warn(`[MODEL DISCOVERY] ${ver} → HTTP ${res.status}`);
         // ListModels model seçmez: 400/401/403 burada anahtar/proje reddidir.
         failure = moreActionable(failure,
           res.status === 400 || res.status === 401 || res.status === 403 ? 'AI_KEY_REJECTED'
@@ -179,7 +160,7 @@ async function _discoverModelsImpl(apiKey: string): Promise<string[]> {
         continue;
       }
 
-      const data = await res.json();
+      const data = JSON.parse(res.body);
       const models: string[] = (data.models || [])
         .filter((m: any) =>
           m.supportedGenerationMethods?.includes('generateContent')
@@ -198,7 +179,7 @@ async function _discoverModelsImpl(apiKey: string): Promise<string[]> {
       }
       failure = moreActionable(failure, 'AI_MODEL_UNAVAILABLE');
     } catch (e) {
-      if (__DEV__) console.warn(`[MODEL DISCOVERY] ${ver} query failed:`, e);
+      if (__DEV__) console.warn(`[MODEL DISCOVERY] ${ver} query failed`);
       // Keşif isteği ağ hatası veya kendi zaman aşımıyla düştü.
       if (failure === null) failure = 'AI_NETWORK';
     }
@@ -398,7 +379,6 @@ function devLogGeminiHttpFailure(
   model: string,
   apiVersion: string,
   status: number,
-  errorBody: string,
 ): void {
   if (!__DEV__) return;
   if (status === 404) {
@@ -408,7 +388,7 @@ function devLogGeminiHttpFailure(
     return;
   }
   console.warn(
-    `[GEMINI] ${model} (${apiVersion}) → HTTP ${status}: ${errorBody.replace(/\s+/g, ' ').slice(0, 160)}`
+    `[GEMINI] ${model} (${apiVersion}) → HTTP ${status}`
   );
 }
 
@@ -422,7 +402,7 @@ async function callGeminiModel(
   requestBody: object,
   signal?: AbortSignal,
 ): Promise<{ ok: true; content: string; truncated: boolean } | { ok: false; status: number; body: string }> {
-  const response = await fetchWithTimeout(buildApiUrl(model, apiVersion), {
+  const response = await fetchBoundedText(buildApiUrl(model, apiVersion), {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -432,7 +412,7 @@ async function callGeminiModel(
   }, FETCH_TIMEOUT_MS, signal);
 
   if (response.ok) {
-    const data = await response.json();
+    const data = JSON.parse(response.body);
     const parts = data.candidates?.[0]?.content?.parts || [];
     const finishReason = data.candidates?.[0]?.finishReason as string | undefined;
     if (finishReason === 'MAX_TOKENS' && __DEV__) {
@@ -453,8 +433,8 @@ async function callGeminiModel(
     return { ok: true, content: text, truncated: finishReason === 'MAX_TOKENS' };
   }
 
-  const errorBody = await response.text();
-  devLogGeminiHttpFailure(model, apiVersion, response.status, errorBody);
+  const errorBody = response.body;
+  devLogGeminiHttpFailure(model, apiVersion, response.status);
   return { ok: false, status: response.status, body: errorBody };
 }
 
@@ -613,7 +593,7 @@ async function generateContentWithFallback(
       // fetch ağa ulaşamazsa TypeError verir: başka model denemek sonucu değiştirmez.
       if (error instanceof TypeError) throw new GeminiServiceError('AI_NETWORK');
       // Diğerleri (ör. okunamayan yanıt gövdesi) bu modele özgüdür.
-      if (__DEV__) console.warn(`[GEMINI] ${tag} yanıtı işlenemedi; sıradaki model deneniyor`, error);
+      if (__DEV__) console.warn(`[GEMINI] ${tag} yanıtı işlenemedi; sıradaki model deneniyor`);
       return 'AI_INVALID_RESPONSE';
     }
 
@@ -1059,8 +1039,7 @@ function cleanAndParseResponse(content: string): ParsedReceipt {
   if (parsed) return parsed;
 
   if (__DEV__) {
-    const preview = content.replace(/\s+/g, ' ').slice(0, 400);
-    console.warn('[GEMINI] JSON ayrıştırılamadı. Önizleme:', preview);
+    console.warn('[GEMINI] JSON ayrıştırılamadı.');
   }
 
   throw new Error('RECEIPT_INVALID_RESULT');
