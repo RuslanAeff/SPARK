@@ -101,14 +101,6 @@ const DANGEROUS_KEYS = new Set([
   '__lookupGetter__', '__lookupSetter__',
 ]);
 
-export function hasDangerousKeys(obj: unknown): boolean {
-  if (obj == null || typeof obj !== 'object') return false;
-  for (const key of Object.keys(obj as Record<string, unknown>)) {
-    if (DANGEROUS_KEYS.has(key)) return true;
-  }
-  return false;
-}
-
 /** Tehlikeli anahtarları nesne ve alt nesnelerden temizler (in-place). */
 export const MAX_JSON_DEPTH = 64;
 export const MAX_JSON_NODES = 250_000;

@@ -52,7 +52,6 @@ jest.mock('../../db/categoryLimitDao', () => ({
     getForMonthWithSpending: jest.fn(),
     upsert: jest.fn(),
     remove: jest.fn(),
-    deleteAll: jest.fn(),
   },
 }));
 
@@ -114,9 +113,6 @@ describe('GoalSettingsScreen goal deletion', () => {
   const getLimits = CategoryLimitDao.getForMonth as jest.MockedFunction<
     typeof CategoryLimitDao.getForMonth
   >;
-  const deleteAllLimits = CategoryLimitDao.deleteAll as jest.MockedFunction<
-    typeof CategoryLimitDao.deleteAll
-  >;
   const toastShow = SparkToast.show as jest.MockedFunction<typeof SparkToast.show>;
   const upsertLimit = CategoryLimitDao.upsert as jest.MockedFunction<typeof CategoryLimitDao.upsert>;
 
@@ -137,10 +133,9 @@ describe('GoalSettingsScreen goal deletion', () => {
 
     expect(screen.queryByTestId('goal-clear-button')).toBeNull();
     expect(goalClear).not.toHaveBeenCalled();
-    expect(deleteAllLimits).not.toHaveBeenCalled();
   });
 
-  it('removes only the persisted goal and keeps category limits', async () => {
+  it('removes only the persisted goal', async () => {
     goalGet.mockResolvedValue(goal);
     goalClear.mockResolvedValue(true);
     const screen = await render(<GoalSettingsScreen />);
@@ -149,7 +144,6 @@ describe('GoalSettingsScreen goal deletion', () => {
     await fireEvent.press(await screen.findByTestId('confirm-goal-delete'));
 
     await waitFor(() => expect(goalClear).toHaveBeenCalledTimes(1));
-    expect(deleteAllLimits).not.toHaveBeenCalled();
     expect(toastShow).toHaveBeenCalledWith('goal_removed', 'success');
     expect(mockTriggerRefresh).toHaveBeenCalledTimes(1);
     expect(mockSyncNotifications).toHaveBeenCalledTimes(1);
@@ -181,7 +175,6 @@ describe('GoalSettingsScreen goal deletion', () => {
     await waitFor(() =>
       expect(toastShow).toHaveBeenCalledWith('goal_clear_missing', 'info'),
     );
-    expect(deleteAllLimits).not.toHaveBeenCalled();
     expect(mockTriggerRefresh).not.toHaveBeenCalled();
     expect(mockBack).not.toHaveBeenCalled();
   });

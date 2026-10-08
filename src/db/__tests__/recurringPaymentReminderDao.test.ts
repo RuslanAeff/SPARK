@@ -104,15 +104,6 @@ describe('RecurringPaymentReminderDao', () => {
     expect(runAsync).not.toHaveBeenCalled();
   });
 
-  it('yalnız aktif ve vadesi gelen hatırlatıcıları kararlı sırayla listeler', async () => {
-    await RecurringPaymentReminderDao.listDue('2026-08-20');
-
-    const [sql, params] = getAllAsync.mock.calls[0];
-    expect(sql).toContain("status = 'active' AND next_due_date <= ?");
-    expect(sql).toContain('ORDER BY next_due_date ASC, id ASC');
-    expect(params).toEqual(['2026-08-20']);
-  });
-
   it('geçersiz ilerletme referansını transaction açmadan reddeder', async () => {
     await expect(RecurringPaymentReminderDao.advancePastDue('2026-02-30'))
       .rejects.toThrow('Invalid reference date');

@@ -302,24 +302,7 @@ export const Colors = new Proxy({} as ThemePalette, {
   },
 });
 
-// Kategori ve grafik renkleri kullanıcı vurgusundan bağımsız, veri anlamı sabit paletlerdir.
-export const CategoryColors: Record<string, string> = {
-  'Yeme-İçme': '#00FF66',
-  'Ulaşım': '#00CCFF',
-  'Alışveriş': '#FF00AA',
-  'Eğlence': '#9D00FF',
-  'Faturalar': '#FFCC00',
-  'Konut': '#8B7FC8',
-  'Ev Kirası': '#7B6FB8',
-  'Aidat': '#7366AE',
-  'Konut Kredisi': '#6B5DA4',
-  'Sağlık': '#33FF85',
-  'Medikal Ürün & Cihaz': '#1B9650',
-  'Eğitim': '#00FFFF',
-  'Finans': '#3E6B8C',
-  'Diğer': '#A0A0B0',
-};
-
+// Grafik renkleri kullanıcı vurgusundan bağımsız, veri anlamı sabit palettedir.
 export const ChartColorArray = [
   '#00FF66', '#00CCFF', '#FF00AA', '#CCFF00',
   '#9D00FF', '#33FF85', '#FFCC00', '#00FFFF',

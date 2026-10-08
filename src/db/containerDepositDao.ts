@@ -5,6 +5,7 @@ import type { ContainerDepositVoucher } from './schema';
 import { sanitizeAmount, sanitizeDate, sanitizeText } from '../utils/inputValidation';
 import { getToday } from '../utils/dateUtils';
 import { roundMoney, sumMoney } from '../utils/moneyMath';
+import { isVoucherDateRangeValid, matchesVoucherRedemption } from '../utils/containerVoucherRules';
 
 export interface ContainerDepositSummary {
   depositPaid: number;
@@ -30,7 +31,7 @@ export const ContainerDepositDao = {
     if (amount <= 0 || !issuedDate || (input.expiresOn && !expiresOn)) {
       throw new Error('INVALID_CONTAINER_VOUCHER');
     }
-    if (expiresOn && expiresOn < issuedDate) throw new Error('INVALID_CONTAINER_VOUCHER_EXPIRY');
+    if (!isVoucherDateRangeValid(issuedDate, expiresOn)) throw new Error('INVALID_CONTAINER_VOUCHER_EXPIRY');
     const db = await getDatabase();
     const result = await db.runAsync(
       `INSERT INTO container_deposit_vouchers
@@ -97,20 +98,6 @@ export const ContainerDepositDao = {
       recovered: roundMoney(Number(recovery?.recovered) || 0),
       availableVoucher: roundMoney(Number(voucher?.available) || 0),
     };
-  },
-
-  async getRecoveredByDateRange(start: string, end: string, currency: string): Promise<number> {
-    const safeStart = sanitizeDate(start);
-    const safeEnd = sanitizeDate(end);
-    if (!safeStart || !safeEnd || safeStart > safeEnd) return 0;
-    const db = await getDatabase();
-    const row = await db.getFirstAsync<{ total: number | null }>(
-      `SELECT SUM(amount) AS total
-         FROM container_deposit_recoveries
-        WHERE date BETWEEN ? AND ? AND currency = ?`,
-      [safeStart, safeEnd, safeCurrency(currency)],
-    );
-    return roundMoney(Number(row?.total) || 0);
   },
 
   async getById(id: number): Promise<ContainerDepositVoucher | null> {
@@ -197,8 +184,7 @@ export const ContainerDepositDao = {
     if (preferredId != null) {
       const preferred = await ContainerDepositDao.getById(preferredId);
       const valid = preferred && ['available', 'expired'].includes(preferred.status)
-        && preferred.currency === safeCurrency(expense.currency) && roundMoney(preferred.amount) === amount
-        && preferred.issued_date <= expense.date && (!preferred.expires_on || preferred.expires_on >= expense.date);
+        && matchesVoucherRedemption(preferred, { amount, currency: safeCurrency(expense.currency), date: expense.date });
       if (selectedVoucherId != null && !valid) throw new Error('CONTAINER_VOUCHER_NOT_AVAILABLE');
       if (valid) voucherId = preferredId;
     }

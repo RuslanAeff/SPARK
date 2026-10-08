@@ -479,14 +479,6 @@ const getStyles = () => StyleSheet.create({
     maxHeight: SCREEN_H * 0.85,
     paddingTop: Spacing.sm,
   },
-  handleBar: {
-    width: 40,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: Colors.border,
-    alignSelf: 'center',
-    marginBottom: Spacing.sm,
-  },
   scrollContent: {
     paddingHorizontal: ScreenPadding.horizontal,
     paddingBottom: 20,

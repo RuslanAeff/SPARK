@@ -315,14 +315,6 @@ const getStyles = () =>
       paddingBottom: Spacing.xl,
       maxHeight: '85%',
     },
-    handle: {
-      width: 40,
-      height: 4,
-      borderRadius: 2,
-      backgroundColor: Colors.border,
-      alignSelf: 'center',
-      marginBottom: Spacing.lg,
-    },
     header: {
       flexDirection: 'row',
       alignItems: 'center',

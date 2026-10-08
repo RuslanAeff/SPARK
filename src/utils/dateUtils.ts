@@ -144,15 +144,6 @@ export function getEndOfMonth(date?: Date): string {
   return toLocalYmd(lastDay);
 }
 
-export function getDaysInMonth(date?: Date): number {
-  const d = date || new Date();
-  return new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
-}
-
-export function isToday(dateStr: string): boolean {
-  return dateStr === getToday();
-}
-
 export function groupByDate<T extends { date: string }>(items: T[]): Record<string, T[]> {
   return items.reduce((acc, item) => {
     const key = item.date;

@@ -222,17 +222,6 @@ export const RecurringPaymentReminderDao = {
     );
   },
 
-  async listDue(onOrBefore: string): Promise<RecurringPaymentReminder[]> {
-    const cutoff = requireDate(onOrBefore, 'reminder cutoff date');
-    const db = await getDatabase();
-    return db.getAllAsync<RecurringPaymentReminder>(
-      `SELECT * FROM recurring_payment_reminders
-        WHERE status = 'active' AND next_due_date <= ?
-        ORDER BY next_due_date ASC, id ASC`,
-      [cutoff],
-    );
-  },
-
   /**
    * Vadesi geçmiş aktif planların imlecini, referans günündeki veya sonraki
    * ilk gerçek tekrar oluşumuna taşır. Referans gününde vadesi olan kayıtlar

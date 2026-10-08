@@ -154,14 +154,4 @@ describe('DebtDao reminder and repayment invariants', () => {
     );
   });
 
-  it('yalnız açık, etkin ve vadesi gelen borçları kararlı sırayla listeler', async () => {
-    await DebtDao.listDueReminders('2026-08-20');
-
-    const [sql, params] = getAllAsync.mock.calls[0];
-    expect(sql).toContain("status = 'open'");
-    expect(sql).toContain('reminder_enabled = 1');
-    expect(sql).toContain('due_date <= ?');
-    expect(sql).toContain('ORDER BY due_date ASC, id ASC');
-    expect(params).toEqual(['2026-08-20']);
-  });
 });

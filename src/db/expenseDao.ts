@@ -75,21 +75,6 @@ export const ExpenseDao = {
     );
   },
 
-  async getByDateRange(startDate: string, endDate: string): Promise<ExpenseWithDetails[]> {
-    const db = await getDatabase();
-    return db.getAllAsync<ExpenseWithDetails>(
-      `SELECT e.*, 
-              v.name as vendor_name, v.logo_uri as vendor_logo,
-              c.name as category_name, c.icon as category_icon, c.color as category_color
-       FROM expenses e
-       LEFT JOIN vendors v ON e.vendor_id = v.id
-       LEFT JOIN categories c ON e.category_id = c.id
-       WHERE e.date BETWEEN ? AND ?
-       ORDER BY e.date DESC, e.created_at DESC`,
-      [startDate, endDate]
-    );
-  },
-
   async getById(id: number): Promise<ExpenseWithDetails | null> {
     const db = await getDatabase();
     const expense = await db.getFirstAsync<ExpenseWithDetails>(

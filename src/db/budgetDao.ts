@@ -46,14 +46,6 @@ export const BudgetDao = {
     );
   },
 
-  // Fallback to latest active budget if current month has none
-  async getLatestActive(): Promise<Budget | null> {
-    const db = await getDatabase();
-    return db.getFirstAsync<Budget>(
-      'SELECT * FROM budgets WHERE active = 1 ORDER BY start_date DESC LIMIT 1'
-    );
-  },
-
   async getLatestAtOrBefore(date: string): Promise<Budget | null> {
     const db = await getDatabase();
     return db.getFirstAsync<Budget>(

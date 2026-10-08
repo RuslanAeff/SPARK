@@ -57,9 +57,6 @@ export const getAnalyticsStyles = () => StyleSheet.create({
     justifyContent: 'center',
     borderRadius: BorderRadius.round,
   },
-  tabActive: {
-    // The animated glass surface is rendered by GlassSelectionIndicator.
-  },
   tabText: {
     ...Typography.labelMedium,
     letterSpacing: 0,

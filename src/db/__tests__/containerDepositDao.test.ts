@@ -63,7 +63,6 @@ it('links one exact voucher to a purchase and reverses that link when the used a
     'SELECT status, redemption_expense_id FROM container_deposit_vouchers WHERE id = ?',
     [voucherId],
   )).toEqual({ status: 'redeemed', redemption_expense_id: expense.lastInsertRowId });
-  expect(await ContainerDepositDao.getRecoveredByDateRange('2026-09-01', '2026-09-30', 'PLN')).toBe(4);
 
   await db.runAsync('UPDATE expenses SET container_voucher_used = 0 WHERE id = ?', [expense.lastInsertRowId]);
   await db.withTransactionAsync(() => ContainerDepositDao.syncPurchaseRecovery(expense.lastInsertRowId));
@@ -71,7 +70,6 @@ it('links one exact voucher to a purchase and reverses that link when the used a
     'SELECT status, redemption_expense_id FROM container_deposit_vouchers WHERE id = ?',
     [voucherId],
   )).toEqual({ status: 'available', redemption_expense_id: null });
-  expect(await ContainerDepositDao.getRecoveredByDateRange('2026-09-01', '2026-09-30', 'PLN')).toBe(0);
 });
 
 it('does not guess a voucher link when two available vouchers have the same amount', async () => {
@@ -87,7 +85,6 @@ it('does not guess a voucher link when two available vouchers have the same amou
   expect(await db.getFirstAsync(
     "SELECT COUNT(*) AS count FROM container_deposit_vouchers WHERE status = 'redeemed'",
   )).toEqual({ count: 0 });
-  expect(await ContainerDepositDao.getRecoveredByDateRange('2026-09-01', '2026-09-30', 'PLN')).toBe(4);
 });
 
 

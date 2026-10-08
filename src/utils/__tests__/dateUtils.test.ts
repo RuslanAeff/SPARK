@@ -2,8 +2,6 @@ import {
   normalizeToYYYYMMDD,
   getStartOfMonth,
   getEndOfMonth,
-  getDaysInMonth,
-  isToday,
   getToday,
   parseLocalYYYYMMDD,
   formatDateFull,
@@ -93,19 +91,4 @@ describe('ay yardımcıları', () => {
     expect(getEndOfMonth(new Date(2026, 11, 1))).toBe('2026-12-31'); // Aralık
   });
 
-  it('getDaysInMonth ay uzunluğu (artık yıl Şubat dahil)', () => {
-    expect(getDaysInMonth(new Date(2026, 0, 1))).toBe(31); // Ocak
-    expect(getDaysInMonth(new Date(2026, 1, 1))).toBe(28); // Şubat 2026 normal
-    expect(getDaysInMonth(new Date(2024, 1, 1))).toBe(29); // Şubat 2024 artık
-  });
-});
-
-describe('isToday', () => {
-  it('bugünün tarihi true', () => {
-    expect(isToday(getToday())).toBe(true);
-  });
-
-  it('başka tarih false', () => {
-    expect(isToday('2020-01-01')).toBe(false);
-  });
 });

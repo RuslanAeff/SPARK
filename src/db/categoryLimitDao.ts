@@ -33,12 +33,6 @@ export const CategoryLimitDao = {
     await db.runAsync('DELETE FROM category_limits WHERE id = ?', [id]);
   },
 
-  /** Yalnız açıkça onaylanmış tam limit sıfırlaması için; hedef silmeden bağımsızdır. */
-  async deleteAll(): Promise<void> {
-    const db = await getDatabase();
-    await db.runAsync('DELETE FROM category_limits');
-  },
-
   /**
    * Analiz limit-sağlığı kartı için tek seferlik birleşik sorgu.
    * Her limit + kategori meta + alt kategoriler dahil aralık harcaması

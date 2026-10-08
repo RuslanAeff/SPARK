@@ -33,13 +33,3 @@ export function normalizeItemKey(name: string | null | undefined): string {
     .replace(/[\s\u00A0]+/g, ' ')        // tüm whitespace (non-breaking dahil) → tek boşluk
     .trim();
 }
-
-/**
- * İki ürün isminin aynı mantıksal ürüne karşılık gelip gelmediğini söyler.
- * Boş değerler asla eşleşmez.
- */
-export function isSameItemName(a: string | null | undefined, b: string | null | undefined): boolean {
-  const na = normalizeItemKey(a);
-  const nb = normalizeItemKey(b);
-  return na.length > 0 && na === nb;
-}

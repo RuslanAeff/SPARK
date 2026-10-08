@@ -11,7 +11,7 @@ const mockGoalGet: jest.Mock<Promise<SavingsGoalRow | null>, []> = jest.fn(async
 const mockBudgetGetContainingDate: jest.Mock<Promise<Budget | null>, [string]> = jest.fn(
   async (_date: string) => null,
 );
-const mockBudgetGetLatestActive: jest.Mock<Promise<Budget | null>, []> = jest.fn(async () => null);
+const mockBudgetGetLatestAtOrBefore: jest.Mock<Promise<Budget | null>, []> = jest.fn(async () => null);
 const mockGetCycleStartDay: jest.Mock<Promise<number>, []> = jest.fn(async () => 1);
 const mockLoadRulesState = jest.fn(async () => ({}));
 const mockIsReminderDismissed = jest.fn((_id?: string, _rules?: unknown) => false);
@@ -48,8 +48,7 @@ jest.mock('../../db/budgetRolloverDao', () => ({ BudgetRolloverDao: {
 jest.mock('../../db/budgetDao', () => ({
   BudgetDao: {
     getContainingDate: (date: string) => mockBudgetGetContainingDate(date),
-    getLatestActive: () => mockBudgetGetLatestActive(),
-    getLatestAtOrBefore: () => mockBudgetGetLatestActive(),
+    getLatestAtOrBefore: () => mockBudgetGetLatestAtOrBefore(),
   },
 }));
 
@@ -118,7 +117,7 @@ describe('future reminder scheduler orchestration', () => {
     mockRecurringListAll.mockResolvedValue([recurring]);
     mockGoalGet.mockResolvedValue(null);
     mockBudgetGetContainingDate.mockResolvedValue(null);
-    mockBudgetGetLatestActive.mockResolvedValue(null);
+    mockBudgetGetLatestAtOrBefore.mockResolvedValue(null);
     mockGetCycleStartDay.mockResolvedValue(1);
     mockIsReminderDismissed.mockImplementation(() => false);
   });

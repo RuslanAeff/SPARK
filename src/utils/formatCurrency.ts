@@ -27,18 +27,3 @@ export function formatCurrency(
   const formatted = getFormatter(currency, showDecimal).format(amount);
   return `${formatted} ${getCurrencySymbol(currency)}`;
 }
-
-export function formatCompactCurrency(amount: number, currency: string = 'PLN'): string {
-  if (amount >= 1000000) {
-    return `${(amount / 1000000).toFixed(1)}M ${currency}`;
-  }
-  if (amount >= 1000) {
-    return `${(amount / 1000).toFixed(1)}K ${currency}`;
-  }
-  return formatCurrency(amount, currency);
-}
-
-export function parseAmount(text: string): number {
-  const cleaned = text.replace(/[^\d.,\-]/g, '').replace(',', '.');
-  return parseFloat(cleaned) || 0;
-}

@@ -204,21 +204,6 @@ export const DebtDao = {
     );
   },
 
-  /** Belirtilen gün sonuna kadar hatırlatılması gereken açık borçlar. */
-  async listDueReminders(onOrBefore: string): Promise<Debt[]> {
-    if (!isSupportedYmd(onOrBefore)) throw new Error('Invalid reminder cutoff date');
-    const db = await getDatabase();
-    return db.getAllAsync<Debt>(
-      `SELECT * FROM debts
-        WHERE status = 'open'
-          AND reminder_enabled = 1
-          AND due_date IS NOT NULL
-          AND due_date <= ?
-        ORDER BY due_date ASC, id ASC`,
-      [onOrBefore],
-    );
-  },
-
   async getPayments(debtId: number): Promise<DebtPayment[]> {
     const db = await getDatabase();
     return db.getAllAsync<DebtPayment>(

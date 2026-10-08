@@ -1,4 +1,4 @@
-import { normalizeItemKey, isSameItemName } from '../itemNameNormalizer';
+import { normalizeItemKey } from '../itemNameNormalizer';
 
 describe('normalizeItemKey', () => {
   it('Lehçe diakritikleri kaldırır (Ó, Ś, Ł)', () => {
@@ -29,20 +29,5 @@ describe('normalizeItemKey', () => {
     expect(normalizeItemKey(null)).toBe('');
     expect(normalizeItemKey(undefined)).toBe('');
     expect(normalizeItemKey('')).toBe('');
-  });
-});
-
-describe('isSameItemName', () => {
-  it('aynı ürün farklı imlâ', () => {
-    expect(isSameItemName('Parówki', 'PARÓWKI')).toBe(true);
-  });
-
-  it('boşlar asla eşleşmez', () => {
-    expect(isSameItemName(null, null)).toBe(false);
-    expect(isSameItemName('', '')).toBe(false);
-  });
-
-  it('farklı ürünler false', () => {
-    expect(isSameItemName('Süt', 'Ekmek')).toBe(false);
   });
 });

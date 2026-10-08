@@ -1,5 +1,4 @@
 import {
-  CategoryColors,
   ChartColorArray,
   Colors,
   ThemeAccents,
@@ -63,10 +62,9 @@ describe('accent palette contract', () => {
   });
 
   it.each(['light', 'dark'] as const)(
-    'keeps neutral, semantic, category and chart meaning stable in %s mode',
+    'keeps neutral, semantic and chart meaning stable in %s mode',
     (scheme) => {
       const baseline = resolveTheme(scheme, 'green');
-      const categorySnapshot = { ...CategoryColors };
       const chartSnapshot = [...ChartColorArray];
 
       for (const accent of ThemeAccents) {
@@ -88,7 +86,6 @@ describe('accent palette contract', () => {
         });
       }
 
-      expect(CategoryColors).toEqual(categorySnapshot);
       expect(ChartColorArray).toEqual(chartSnapshot);
     },
   );

@@ -5,7 +5,6 @@ import {
   sanitizeText,
   sanitizeDate,
   sanitizeIdArray,
-  hasDangerousKeys,
   stripDangerousKeys,
   normalizeCanonicalUuid,
 } from '../inputValidation';
@@ -128,14 +127,6 @@ describe('normalizeCanonicalUuid', () => {
 describe('proto-pollution koruması', () => {
   // Not: `{ __proto__: x }` literal'i JS'te prototype'ı set eder, anahtar oluşturmaz.
   // Gerçek saldırı vektörü JSON.parse — bu, __proto__'yu **own property** yapar.
-  it('hasDangerousKeys JSON üzerinden true döner', () => {
-    const malicious = JSON.parse('{"__proto__":{"evil":1}}');
-    expect(hasDangerousKeys(malicious)).toBe(true);
-    const ctor = JSON.parse('{"constructor":{"prototype":{}}}');
-    expect(hasDangerousKeys(ctor)).toBe(true);
-    expect(hasDangerousKeys({ safe: 'value' })).toBe(false);
-  });
-
   it('stripDangerousKeys recursive temizler', () => {
     const obj = JSON.parse('{"ok":1,"nested":{"__proto__":{"evil":1},"ok":2}}');
     stripDangerousKeys(obj);
