@@ -43,6 +43,7 @@ import {
   stripDangerousKeys,
 } from '../utils/inputValidation';
 import { fromMinorUnits, roundMoney, toMinorUnits } from '../utils/moneyMath';
+import { isVoucherDateRangeValid, matchesVoucherRedemption } from '../utils/containerVoucherRules';
 import { isRecurringOccurrence } from '../utils/recurringSchedule';
 import { sanitizeMeasurementUnit } from '../utils/measurementUnit';
 
@@ -691,6 +692,50 @@ function validateV4ProductIdentityCollections(data: Record<string, unknown>): vo
   }
 }
 
+/** Range-limited exports may omit a redeemed voucher's expense/recovery. */
+function validateDepositRelations(
+  expenses: ExportedExpense[],
+  vouchers: ExportedContainerDepositVoucher[],
+  recoveries: ExportedContainerDepositRecovery[],
+): void {
+  const expenseById = new Map(expenses.map(e => [e.source_id, e]));
+  const voucherByUid = new Map(vouchers.map(v => [v.uid, v]));
+  const recoveredVouchers = new Set<string>();
+  const recoveredExpenses = new Set<number>();
+  for (const voucher of vouchers) {
+    if (!isVoucherDateRangeValid(voucher.issued_date, voucher.expires_on)
+      || (voucher.status === 'redeemed'
+        ? voucher.redeemed_date == null
+          || !matchesVoucherRedemption(voucher, { ...voucher, date: voucher.redeemed_date })
+        : voucher.redeemed_date != null || voucher.redemption_expense_source_id != null)) invalidFormat();
+  }
+  for (const recovery of recoveries) {
+    const expense = recovery.expense_source_id == null ? null : expenseById.get(recovery.expense_source_id);
+    if (recovery.expense_source_id != null) {
+      if (recoveredExpenses.has(recovery.expense_source_id)) invalidFormat();
+      recoveredExpenses.add(recovery.expense_source_id);
+    }
+    if (recovery.method === 'purchase_voucher') {
+      if (!expense || expense.currency !== recovery.currency || expense.date !== recovery.date
+        || toMinorUnits(expense.container_voucher_used ?? 0) !== toMinorUnits(recovery.amount)) invalidFormat();
+    } else if (expense) invalidFormat();
+    if (recovery.voucher_uid != null) {
+      const voucher = voucherByUid.get(recovery.voucher_uid);
+      if (!voucher || recoveredVouchers.has(voucher.uid)
+        || voucher.status !== 'redeemed' || voucher.redeemed_date !== recovery.date
+        || !matchesVoucherRedemption(voucher, recovery)
+        || voucher.redemption_expense_source_id !== recovery.expense_source_id) invalidFormat();
+      recoveredVouchers.add(voucher.uid);
+    }
+  }
+  for (const expense of expenses) {
+    if (Number(expense.container_voucher_used) > 0 && !recoveredExpenses.has(expense.source_id!)) invalidFormat();
+  }
+  for (const voucher of vouchers) {
+    if (voucher.redemption_expense_source_id != null && !recoveredVouchers.has(voucher.uid)) invalidFormat();
+  }
+}
+
 /** Dosya ve doğrudan import yollarının kullandığı tek runtime sözleşmesi. */
 export function validateAndNormalizeBackupPayload(input: unknown): NormalizedBackupPayload {
   const root = asRecord(input);
@@ -797,6 +842,11 @@ export function validateAndNormalizeBackupPayload(input: unknown): NormalizedBac
       }
       recoveryUids.add(uid);
     }
+    validateDepositRelations(
+      expenses,
+      data.container_deposit_vouchers as ExportedContainerDepositVoucher[],
+      data.container_deposit_recoveries as ExportedContainerDepositRecovery[],
+    );
   }
 
   return {
@@ -2013,6 +2063,7 @@ export async function importBackupPayload(inputPayload: BackupPayload): Promise<
       const existingVouchers = await db.getAllAsync<ContainerDepositVoucher>(
         'SELECT * FROM container_deposit_vouchers ORDER BY id ASC',
       );
+      const existingVoucherByUid = new Map(existingVouchers.map(v => [v.uid, v]));
       for (const voucher of existingVouchers) voucherIdByUid.set(voucher.uid, voucher.id);
       for (const voucher of payload.data.container_deposit_vouchers) {
       const uid = normalizeCanonicalUuid(voucher.uid)!;
@@ -2021,14 +2072,17 @@ export async function importBackupPayload(inputPayload: BackupPayload): Promise<
         : expenseIdBySource.get(voucher.redemption_expense_source_id) ?? null;
       const existingId = voucherIdByUid.get(uid);
       if (existingId != null) {
-        const existing = existingVouchers.find(row => row.id === existingId)!;
+        const existing = existingVoucherByUid.get(uid)!;
         if (toMinorUnits(existing.amount) !== toMinorUnits(voucher.amount)
           || existing.currency !== voucher.currency
           || existing.issued_date !== voucher.issued_date
           || existing.expires_on !== voucher.expires_on
           || existing.status !== voucher.status
           || existing.redeemed_date !== voucher.redeemed_date
-          || existing.note !== voucher.note) invalidFormat();
+          || existing.note !== voucher.note
+          || existing.created_at !== voucher.created_at
+          // A null link can mean the export deliberately omitted an out-of-range expense.
+          || (linkedExpenseId != null && existing.redemption_expense_id !== linkedExpenseId)) invalidFormat();
         summary.depositVouchersSkipped += 1;
         continue;
       }
@@ -2045,22 +2099,31 @@ export async function importBackupPayload(inputPayload: BackupPayload): Promise<
       summary.depositVouchersAdded += 1;
       }
 
-      const existingRecoveryUids = new Set(
-        (await db.getAllAsync<{ uid: string }>('SELECT uid FROM container_deposit_recoveries'))
-          .map(row => row.uid),
+      const existingRecoveries = new Map(
+        (await db.getAllAsync<ContainerDepositRecovery>('SELECT * FROM container_deposit_recoveries'))
+          .map(row => [row.uid, row] as const),
+      );
+      const usedVoucherIds = new Set(
+        [...existingRecoveries.values()].map(recovery => recovery.voucher_id).filter(id => id != null),
       );
       for (const recovery of payload.data.container_deposit_recoveries) {
       const uid = normalizeCanonicalUuid(recovery.uid)!;
-      if (existingRecoveryUids.has(uid)) {
-        summary.depositRecoveriesSkipped += 1;
-        continue;
-      }
       const voucherId = recovery.voucher_uid == null
         ? null
         : voucherIdByUid.get(recovery.voucher_uid) ?? null;
       const expenseId = recovery.expense_source_id == null
         ? null
         : expenseIdBySource.get(recovery.expense_source_id) ?? null;
+      const existing = existingRecoveries.get(uid);
+      if (existing) {
+        if (existing.voucher_id !== voucherId || existing.expense_id !== expenseId
+          || toMinorUnits(existing.amount) !== toMinorUnits(recovery.amount)
+          || existing.currency !== recovery.currency || existing.date !== recovery.date
+          || existing.method !== recovery.method || existing.created_at !== recovery.created_at) invalidFormat();
+        summary.depositRecoveriesSkipped += 1;
+        continue;
+      }
+      if (voucherId != null && usedVoucherIds.has(voucherId)) invalidFormat();
       await db.runAsync(
         `INSERT INTO container_deposit_recoveries
           (uid, voucher_id, expense_id, amount, currency, date, method, created_at)
@@ -2068,7 +2131,7 @@ export async function importBackupPayload(inputPayload: BackupPayload): Promise<
         [uid, voucherId, expenseId, sanitizeAmount(recovery.amount), recovery.currency,
           recovery.date, recovery.method, recovery.created_at],
       );
-      existingRecoveryUids.add(uid);
+      if (voucherId != null) usedVoucherIds.add(voucherId);
       summary.depositRecoveriesAdded += 1;
       }
     }

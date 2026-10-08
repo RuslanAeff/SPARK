@@ -184,6 +184,36 @@ const makeV6Payload = (): BackupPayload => {
 describe('backup payload version compatibility and validation', () => {
   beforeEach(() => jest.clearAllMocks());
 
+  it.each(['expiry', 'amount', 'currency', 'status', 'date', 'duplicate'])(
+    'rejects inconsistent v6 voucher relations (%s) before opening DB', async kind => {
+      const payload = makeV6Payload();
+      const voucher = payload.data.container_deposit_vouchers![0];
+      const recovery = payload.data.container_deposit_recoveries![0];
+      if (kind === 'expiry') voucher.expires_on = '2026-07-01';
+      if (kind === 'amount') recovery.amount = 50;
+      if (kind === 'currency') recovery.currency = 'USD';
+      if (kind === 'status') voucher.status = 'available';
+      if (kind === 'date') recovery.date = '2026-08-06';
+      if (kind === 'duplicate') payload.data.container_deposit_recoveries!.push({
+        ...recovery, uid: '723e4567-e89b-42d3-a456-426614174000', expense_source_id: null,
+      });
+      await expect(importBackupPayload(payload)).rejects.toThrow('INVALID_FORMAT');
+      expect(getDatabaseMock).not.toHaveBeenCalled();
+    },
+  );
+
+  it('preserves unlinked historical cash and out-of-range redeemed vouchers', () => {
+    const payload = makeV6Payload();
+    payload.data.expenses = [];
+    payload.data.debts = [];
+    payload.data.debt_payments = [];
+    payload.data.container_deposit_vouchers![0].redemption_expense_source_id = null;
+    Object.assign(payload.data.container_deposit_recoveries![0], {
+      voucher_uid: null, expense_source_id: null, method: 'cash',
+    });
+    expect(() => validateAndNormalizeBackupPayload(payload)).not.toThrow();
+  });
+
   it.each([1, 2])('normalizes a valid v%s payload without v3 collections', (version) => {
     const input: BackupPayload = {
       version,
