@@ -318,7 +318,17 @@ Güvenlik sınırları, kalite kapıları, native doğrulama gereksinimleri veya
 - Gemini aktarımı öncesi dört dilde alıcı/veri/amaç açıklaması ve yeni olumlu
   eylem gerekir. Onay, desteklenen pazar/hizmet koşulu kararının yerini tutmaz.
 
-Güncel bulgu durumları: [düzeltme kaydı](evidence/SECURITY_REMEDIATION_2026-09-16.md).
+Güncel bulgu durumları: [16 Eylül düzeltmeleri](evidence/SECURITY_REMEDIATION_2026-09-16.md)
+ve [3 Ekim doğrulaması](evidence/SECURITY_REMEDIATION_2026-10-03.md).
+
+- Anahtar kaydetmede de legacy temizliği tamamlanmadan UI başarı bildirmez;
+  SecureStore yazımı korunur ve başarısız temizlik yeniden denenebilir.
+- ErrorBoundary ve Gemini tanıları ham exception, HTTP hata gövdesi veya fiş
+  önizlemesini loglamaz; yalnız güvenli durum bilgisi kullanır.
+- V6 yedek ilişkilerinin tutar, para birimi, tarih ve durumu birlikte doğrulanır;
+  tarih aralığı dışındaki bağlantılar ve eski cash olayları korunur.
+- Gemini zaman aşımı gövde tüketimini kapsar; parse öncesi 2 MiB sınırı vardır.
+  Stream sunmayan native fetch'te bu sınır native tampon belleği garantisi değildir.
 
 ## Bütçe takvimi ve geçmiş onarımı — cihaz kabulü (25 Eylül 2026)
 

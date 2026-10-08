@@ -1,5 +1,18 @@
 # SPARK Akademik İzlenebilirlik Kaydı
 
+## 3 Ekim 2026 — Güvenlik sınırlarının güçlendirilmesi
+
+- Gereksinim: Güvenlik raporunu doğrulayıp finansal semantiği koruyarak uygula.
+- Karar: ADR-011 ve ADR-015 korunur; schema/backup sürümü değişmez.
+- Kod: backupService/containerVoucherRules, secureKeyStore/settings-ai,
+  ErrorBoundary/geminiService/boundedFetch, package.json/lockfile.
+- Kanıt: Gerçek bellek içi SQLite rollback/round-trip, anahtar hata enjeksiyonu,
+  log gizliliği ve ağ gövde sınırı testleri; 154 suite / 1202 test, sıkı typecheck,
+  Android Hermes export başarılı. Son audit 49 high / 3 moderate paket kaydı.
+- Açık sınır: Dört temel dependency duyurusu, native tepe bellek sınırı,
+  release APK/fiziksel cihaz ve kullanıcı kabulü. Ayrıntılı
+  [doğrulama kaydı](SECURITY_REMEDIATION_2026-10-03.md).
+
 ## 25 Eylül 2026 — Bütçe takvimi ve geçmiş dönem onarımı
 
 - **İstek:** Ürün sahibi, geçmiş bütçelerin düzeltilememesini, başlangıç günü değişikliğinin beklenmedik dönemler üretmesini ve aylar sonra dönüldüğünde sistemin onarılamamasını bildirdi; önce kod incelemesi, ardından önerilen güvenli planın uygulanmasını istedi.
