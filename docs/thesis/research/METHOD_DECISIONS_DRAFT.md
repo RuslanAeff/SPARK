@@ -1,6 +1,12 @@
-# Four methodological decisions — working draft v0.1
+# Four methodological decisions — working draft v0.2
 
 Prepared 2026-09-19. **Discussion draft. TD-004 terminology is student-approved; other methodological choices and supervisor acceptance remain pending.** Specific numbers and thresholds below are proposals for this study, not universal definitions from the literature. Do not use this document as a frozen codebook yet.
+
+Updated 2026-10-04 after a provisional source-based application to SPK-C01 in
+the [existing review packet](SUPERVISOR_REVIEW_DRAFT_2026-10-04.md#worked-visual-example--spk-c01-draft-4-october-2026).
+The student authorized preparation, not approval of every label. No independent
+review has occurred. v0.2 clarifies static versus dynamic evidence, baseline
+correction scope versus AI-output rework, and retrospective acceptance.
 
 ## 1. Make self-evaluation inspectable
 
@@ -38,7 +44,13 @@ Apply the accepted “student developer” terminology consistently across the t
 
 ## 3. Reduce depth of secondary cases without losing comparison
 
-Proposed starting target: **12 episodes — 8 SPARK, 2 SynCinema, 2 AutoSRT**, including the pilot if it meets the final rules. This is conditional on the evidence audit and the student's available time. It is not a quota to fill with weak evidence.
+Current sampling direction (student accepted, 4 October): select by evidence
+sufficiency and comparative relevance; no fixed total has been accepted.
+The expanded SPARK shortlist has eight candidates, not eight selected episodes.
+SynCinema's imported inventory has five candidates requiring source checks;
+AutoSRT has no established episode packet in this hub yet. These are not
+additive final sample counts. The earlier **12 (8+2+2)** suggestion is retained
+as planning history only, not the active target.
 
 The student reports an approximate July 2027 submission target. Weekly availability and the exact deadline are still unknown; the longer calendar window alone does not justify keeping an unnecessarily broad sample. An alternative under discussion is 14 episodes (10 SPARK + 2 + 2). Neither option has been adopted.
 
@@ -97,6 +109,30 @@ Illustrative examples only: adjusting an incorrect conditional within an otherwi
 Preserve E0–E4 from the submitted proposal, attaching them to claims and sources. E0 is narrative/reconstruction; E1 implementation; E2 automated checks; E3 identified runtime/device observation; E4 explicit human acceptance or release. Record multiple types where appropriate, with conditions and limitations. They are **not a single ladder of software quality**: acceptance does not substitute for tests, and tests do not prove physical-device behaviour.
 
 Use separate fields for acceptance, technical verification and unresolved risks. New checks carried out for the thesis receive their actual date; they cannot be backdated into the original development episode. AI-generated tests are evidence of their tested scenarios, not independent assurance that all requirements were tested.
+
+### v0.2 clarifications from the visual trial
+
+- A still image supports the displayed state. A dynamic failure (such as content
+  moving into another page) requires suitable runtime evidence or must remain
+  explicitly participant-reported. Screenshot file names alone are not test dates.
+- Code correction scope can be described from an identified before/after diff
+  even if AI-output rework remains UNKNOWN. Do not transfer the MINOR label
+  from the former to the latter without the relevant AI proposal and revision.
+- A later image with different data is not a controlled before/after test.
+  Record what is visibly improved and what cannot be isolated causally.
+- A retrospective acceptance statement receives its actual statement date,
+  scoped deliverable and unknown test environment. It does not turn earlier
+  silence into acceptance or fill missing E3 fields.
+- Preserve the Turkish source when used; label AI-assisted English translations
+  and distinguish translated quotations from analytical summaries. Missing
+  original artifacts remain a source-transfer gap, not something the summary fixes.
+
+Trial result: these rules allow SPK-C01 to describe visual feedback, implementation,
+new automated checks and retrospective acceptance without asserting a proven
+AI-authored defect or an exact iteration count. The initial classification and
+its alternatives are retained in the review packet. Human review, timing of a
+full coding exercise and a v1.0 freeze remain future steps; no measured pilot
+effort or independent reliability score is available.
 
 ## Proposed method wording for later revision
 

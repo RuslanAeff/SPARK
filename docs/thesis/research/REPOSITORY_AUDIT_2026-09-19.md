@@ -43,3 +43,72 @@ The [README](https://github.com/RuslanAeff/AutoSRT/blob/1739d828bce50af0eeec18cc
 The student's concern about sparse records is partly resolved for SynCinema: a substantial planning/implementation record exists remotely, although its claims need verification. AutoSRT has source and descriptive material, while the availability of development-process evidence remains uncertain. This is insufficient to decide the final episode count or to confirm a complete three-case dataset.
 
 Next: inspect a bounded set of relevant before/after revisions and original evidence for these leads; locate any saved conversations the student actually has; then decide comparative scope. The coordination templates are ready in the hub, but neither secondary repository has been changed or configured by this task.
+
+
+## Follow-up source check — 2026-10-04
+
+This dated addition supersedes the initial claim that AutoSRT has no established
+bounded leads; it does not rewrite the September snapshot. Read-only GitHub API
+retrieval checked selected historical commit patches, AutoSRT's current tree and
+first history page (12 entries returned with per_page=100), and SynCinema's tree
+at the imported packet revision. [Selected source extracts](sources/secondary-source-check-2026-10-04.json)
+retain exact revisions, URLs, patches, response hashes and limits. No dependency
+installation, tests, app launch, GPU run, database query or deployment performed.
+The cached GitHub landing page was not used to establish current commit counts.
+
+### SynCinema: narrowed comparative shortlist
+
+| Candidate | New source check | Eligibility recommendation / remaining gap |
+|---|---|---|
+| SYN-C01 microphone permission | API diff at `75d06fc337281cee73eb8f60ad345dabb2f925a1` confirms removal of mount-time refreshDevices; devicechange listener retained. | Priority comparison with SPARK: source inspection versus user-observed behaviour. Accept only the scoped implementation claim now. Imported browser check remains participant-reported with missing exact deployed revision and no retained artifact in the hub. No fresh browser observation. |
+| SYN-C04 transcription deployment failure | Patches `925f172835f43dfff966d79a7e1b3145b0ba1097` and `1d863f53a64b9275a90812ba8ccfa733818b11e5` independently retrieved. First adds upload fallback; later expands CSP connect-src to the API origin. | Priority candidate for a revision sequence. The implementation of two approaches is preserved; a failed first diagnosis and successful browser experiment remain narrated, not independently reproduced. Original failure and runtime outputs are absent. The first fallback may be useful independently, so its existence alone does not prove it was an AI error. |
+| SYN-C05 database permissions | Imported source index and handoff inspected; packet contains only two Markdown documents and manifest. Remote tree at packet revision has no evident CSV/screenshot evidence files. | Reserve pending original before/after query exports and runtime evidence. A narrative that captures exist is not the captures themselves. Do not repeat the packet's blanket 'broke nothing' conclusion as a hub finding. Database was not accessed. |
+| SYN-C02 test setup | Imported narrative describes an unsuccessful import attempt with no preserved intermediate artifact. | Reserve; weaker incremental comparative value while original error output is missing. No new code/test verification for this candidate. |
+| SYN-C03 fingerprint test environment | Imported account describes a window stub in tests and browser behaviour not observed. | Reserve; do not adopt the title 'real bug' as proven product failure. Distinguish an environment dependency from incorrect behaviour in the intended browser. No new code/test verification for this candidate. |
+
+Corrections to interpretation, without changing the imported archive:
+
+- Its 'four candidates' heading actually lists five. These are candidates, not
+  a selected dataset. The package's 'Keep' decisions are originating suggestions.
+- C04 claims both commits have AI coauthor trailers; neither retrieved full
+  commit message contains one. C01's retrieved message does contain an AI
+  trailer. Do not use the C04 assertion as verified attribution.
+- C05 says admin password correctness was never established, while V-06 later
+  describes a successful login after rotation. Preserve that internal conflict;
+  do not infer a failed or passed authentication check from this packet alone.
+- Statements such as 'no CI run has ever failed' exceed the evidence of eight
+  displayed runs. Screenshots and run IDs were not available in the hub, and
+  the Actions execution history was not queried in this follow-up.
+
+### AutoSRT: bounded implementation evidence exists
+
+The API tree still resolves to `1739d828bce50af0eeec18cce441121b75da221b`, with
+eight files and no dedicated test/CI/process-log artifacts in that snapshot.
+The returned 12-commit history spans 14–22 June 2026 (UTC), starting with an
+initial v1.2 release. This cannot recover development before that initial commit.
+Missing chat history therefore limits process attribution, not all code analysis.
+
+| New lead | Inspected change | Supported scope / missing evidence |
+|---|---|---|
+| AUTO-C01 model replacement memory lifecycle | `4ed927036b674de416141241e9ffece8da3cdf1d`: delete previous model reference, clear model/key and collect garbage before constructing replacement. | E1 evidence of changed loading order. Commit describes preventing low-VRAM exhaustion; no GPU measurement, failure log, runtime verification or original AI exchange obtained. Do not claim OOM eliminated or performance improved. |
+| AUTO-C02 cancel while subtitle editor is open | Cancellation portion of `780728cc2c4e23a8878c81f91d49204397a0f376`: timed wait checks cancellation, queues editor closure, tracks active editor callback. Exclude validation/sanitization in same commit from this boundary. | E1 evidence of a cancellation mechanism. It still waits for the GUI closure acknowledgement; 'no deadlock' is not established by diff inspection. Original requirement, AI attribution, execution and user acceptance unknown. |
+
+A third queue-card-height correction (`4d18fc8`) was found in commit metadata
+but its patch was not inspected; it is not promoted to the checked shortlist.
+No exact AI iteration count is recoverable from these commits alone.
+
+### Scope recommendation to discuss with the supervisor
+
+Retain SPARK as primary. Prioritize SYN-C01 and SYN-C04 for comparative source
+assembly. AutoSRT can support a narrower implementation/history comparison via
+AUTO-C01 or AUTO-C02, provided the thesis explicitly separates it from
+transcript-based process analysis. If the research question requires a complete
+AI request–response–correction sequence in every case, AutoSRT does not yet meet
+that threshold; propose reducing its role or using two core cases. This is an
+AI recommendation, not an approved redesign or a final episode count.
+
+Next useful requests, only if these claims are needed: original SynCinema
+browser/CSP output or permission-check record; C05 query exports if selecting
+that reserve case. No request to recover all lost AutoSRT conversations. A new
+prospective check could test current behaviour, but must receive its new date
+and cannot establish historical AI authorship or the original outcome.

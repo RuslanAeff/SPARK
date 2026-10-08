@@ -1,0 +1,25 @@
+{
+  "observedOn": "2026-10-04",
+  "baseCommit": "28d1e43117f312bb6ef6010f50d110416f782d4b",
+  "workingTree": "dirty; current execution, not a historical replay",
+  "exitCode": 0,
+  "suitesPassed": 4,
+  "testsPassed": 16,
+  "output": "verification-2026-10-04.txt",
+  "outputSha256": "f1a4971cdab4fa6f951c53d076dc7de99be76e4c5b3d959e1dd48ad5b0477bab",
+  "sources": {
+    "src/components/analytics/VendorsCard.tsx": "0a811380e255cc60f523c4aa51f71c7dfbd116225c72fa25f2805e2573a498e3",
+    "src/components/analytics/analyticsStyles.ts": "21f20aa8592a1b93efe8f2537bc2d858f6ef630b1904e82bfb070d9f56464f26",
+    "src/components/analytics/__tests__/VendorsCard.test.tsx": "5f69fcd76134f8a571ecf30cd33ef80a458b92397cf2d71117844d9ec042178d",
+    "src/components/TransactionRow.tsx": "2da3e0e3f606c13ab070178635f8775a67b6c4af96e8477c61b8110fdc213792",
+    "src/components/__tests__/TransactionRow.test.tsx": "369f2131400e104667d3e72ad5143ec4427b854bdda0a8d60d0a48a38702153f",
+    "src/components/ReceiptHolographicCarousel.tsx": "5ff807c500c26a1b168b271854d29e879a561a2da8de8054be651921d7161d93",
+    "src/components/__tests__/ReceiptHolographicCarousel.test.tsx": "3ecd43ef4fa7776b0fc8d47d7aca32001f821dfc88a7b6ae7b95ab31b0824665",
+    "modules/spark-bounded-file/android/build.gradle": "79f4e443d97377a147f5cd540c4cf2eca4033ff70700a250ff6b849a180bc623",
+    "modules/spark-bounded-file/__tests__/androidBuildConfig.test.ts": "ae2fd0d075fb923b17daa0d1350d02d3f53297ba67750b603d920323da61b3cd",
+    "package.json": "74fe23532990762f79bf99c774e5fc0b47cb099dd88182818a8773dc48186dcb",
+    "package-lock.json": "29afb489e03dd2f1203632615c6aed627d7db4bed3db0adb93f478ded624e6ae",
+    "scripts/run-jest.cjs": "4fe6e54012953a0152bd707ef5dc06aea2134f05b92d6647ec4b2d151438f4f9"
+  },
+  "limit": "Focused mocked/configuration tests only; no native build, physical device or historical AI authorship verification. Hashes identify selected files, not a complete reproducible environment."
+}

@@ -10,6 +10,9 @@ Observation base: commit `25ef86cb0bfa8f9030d5d51bf5e0426cd7aafd30` plus 58 unco
 
 ## 1. Evidence classes present in this repository
 
+The numbered survey below is historical (19 September). For the expanded current
+shortlist, see §8; five original leads were never a census of all episodes.
+
 | Class | Location | Earliest instance | Nature |
 |---|---|---|---|
 | Version history | Git history of this repository | commit `f72cdc8`, 2026-03-14 | Contemporaneous per commit. Commit messages summarise intent unevenly; 29 of 61 commits predate any process record. |
@@ -79,3 +82,47 @@ SPK-L05 is deliberately included: a case with only code evidence is what makes t
 ## 7. How to extend this index
 
 Add a row only after inspecting the source. Record: what it is, its original date or `UNKNOWN`, the date you inspected it, whether it is contemporaneous / retrospective / newly executed, the single claim it supports, and its limit. Do not upgrade a claim's evidence level because a different claim in the same document is well supported.
+
+## 8. Expanded source screening — 2026-10-04
+
+Base: `28d1e43` plus existing working-tree changes. Surveyed the headings of the
+AI collaboration log and traceability matrix and recent Git history; inspected
+selected detailed entries and code/test changes. This is targeted screening,
+not exhaustive formal coding. The eight rows below are a review shortlist, not
+an accepted sample size. Earlier L01–L05 remain historical leads, not additional
+episodes to add blindly to this list.
+
+Sources: [AI session summaries](../../evidence/AI_COLLABORATION_LOG.md),
+[traceability](../../evidence/TRACEABILITY.md). Search the identifiers/headings
+below rather than relying on shifting line numbers. Both documents can describe
+the same session; they are not independent confirmations. Git author metadata
+does not establish which AI wrote a change. Commit date and reported work date
+are recorded separately where they differ.
+
+| Candidate / episode boundary | Located sources and checked implementation | Supported claim and remaining limit |
+|---|---|---|
+| SPK-C01 — Analytics vendor-name overflow, including attempted correction | `AI-2026-09-15-VENDOR-OVERFLOW-001`; `SPK-UX-VENDOR-OVERFLOW-001`; diff `25ef86c` (15 Sep), `VendorsCard.tsx`, associated styles/tests | Code anchors the arrow, bounds page width and truncates text. Log reports an inadequate earlier fix and renewed user feedback; original exchange is not preserved in that log. Student supplied before/after screenshots and retrospective acceptance on 4 Oct. Current test covers width/anchoring/accessibility, not native text measurement. Separate from Dashboard marquee change `ce9a8b8`, which aims to display full names. |
+| SPK-C02 — Receipt processing carousel redesign, including badge refinements | Log headings “yatay …”, “perspektif …”, badge follow-ups around 30 Sep; traceability carousel entries; `66a87dc` (1 Oct), `ReceiptHolographicCarousel.tsx` and tests | Earlier/later layouts supplied in this conversation; student explicitly reports trying and accepting the final outcome. Code and tests support selection boundaries and haptic dispatch. Screenshots do not prove motion; no live demonstration observed. Horizontal/perspective/badge iterations form one candidate rather than several inflated counts. |
+| SPK-C03 — Transaction amount hierarchy | Log 2 Oct transaction net-amount entry; `b4c1eae` (3 Oct), `TransactionRow.tsx` and tests; student-supplied chat screenshot | Original request is visible in supplied screenshot. Diff makes cash/card outflow primary and receipt total secondary for voucher purchases; tests include full-voucher zero cash. This is a requirement/presentation refinement unless earlier contrary requirements are found, not automatically an AI calculation error. Final device acceptance for this particular change remains unknown. |
+| SPK-C04 — Sliding accent-coloured glass selection | Student-pasted request/reply; log/traceability 25 Sep glass entries; `49e3123`, analytics integration and `GlassSelectionIndicator.tsx` (component already introduced in `25ef86c`) | Implementation supports measured placement, accent surface and reduced-motion-aware animation. Supplied reply claims a historical full test pass, but raw output was not checked. Specific device acceptance and rapid switching/all-accent checks are not established. Do not date initial component creation to its later reuse. |
+| SPK-C05 — API-key deletion falsely reporting success | Existing SPK-L01 / [P-001 packet](pilot/SEC02_WORKED_EXAMPLE_DRAFT.md), [manifest](pilot/evidence-manifest.json), baseline snapshot and retained 19 Sep test output | Stronger technical evidence: preserved faulty source, reproduction and new regression execution. Original AI authorship unknown. Student's reported disappearing UI label confirms visible behaviour only, not SQLite erasure. Keep separate from October save/legacy-cleanup P-002. |
+| SPK-C06 — Android native-module build configuration repair | Log “Android Gradle …” (30 Sep); `8efc4eb` (1 Oct), module `build.gradle` and configuration test; recorded EAS run `d6974a69-e157-422e-87fb-314b669a9bb9` | Diff and current test confirm explicit module version fields. Successful remote build is reported in the AI log; original EAS output was not retrieved in this audit. Configuration test is not a native build. Obtain retained build output before calling the build result independently checked. |
+| SPK-C07 — Gemini compatibility correction reopened by runtime feedback | `AI-2026-09-24-GEMINI-MODEL-COMPAT-001`, subsequent runtime-feedback entries; `d347438` and `6bcc5bf` | Log records renewed failures after reported test passes and further parameter/quota changes. Commit file inventory locates implementation/tests; detailed causal reconstruction is pending. Valuable contrast with visual cases, but raw Metro messages/original conversation are needed to substantiate the intermediate failure sequence. External model-lifecycle claims were not reverified here. |
+| SPK-C08 — Toast remains visible after interrupted interaction | Log 2 Oct toast entry; `d1a9289`; `SparkToast.tsx` and `SparkToast.test.tsx` | Change/test inventory located. Existing tests target missing pressOut, interrupted completion, stale exits and background cleanup. Those simulated mechanisms do not establish the actual device root cause. Detailed diff review, dated run and final device observation remain pending. |
+
+### New verification, not historical confirmation
+
+On 4 October, ran the existing VendorsCard, TransactionRow,
+ReceiptHolographicCarousel and androidBuildConfig suites: **4 suites / 16 tests
+passed, exit 0**. Exact command/output: [retained output](sources/verification-2026-10-04.txt).
+[Manifest](sources/verification-2026-10-04.json) identifies the base commit,
+dirty-tree limitation and selected source/configuration hashes. No application
+code changed in this audit. No typecheck/full suite/native build was run here.
+
+For a first worked visual example, C01 has the richest currently supplied
+combination: issue image, correction diff, regression test, later image and
+explicit retrospective acceptance. This is an AI recommendation, not final
+selection or independent human coding. C05 remains the existing technical pilot.
+The next useful evidence request should target a specific missing source, such
+as the C07 runtime exchange or C06 build output, rather than ask the student to
+recount all events. Do not require new after-images for every historical change.

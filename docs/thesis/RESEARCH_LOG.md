@@ -4,6 +4,79 @@ Record opened: **2026-09-19**, Europe/Warsaw. Researcher: student/developer. Thi
 
 ## Current position
 
+**Latest secondary-case check — TS-2026-10-04-08:** retrieved selected public
+GitHub commit patches. SynCinema C01 and C04 are prioritized for comparative
+assembly; imported narrative/runtime claims remain separate. Two bounded
+AutoSRT implementation leads now exist (model replacement and editor cancellation),
+with no recovered transcripts or execution evidence. See the dated addition to
+[secondary-case audit](research/REPOSITORY_AUDIT_2026-09-19.md#follow-up-source-check--2026-10-04).
+Earlier statements that AutoSRT has no bounded leads are superseded; no final
+sample or two-case redesign has been approved. Next: present the narrowed
+comparison and choose only claim-specific missing sources, not a general
+request for the student's archive.
+
+**Latest preparation — TS-2026-10-04-07:** SPK-C01 is now a worked visual
+example inside the existing supervisor review packet, with six source locators,
+provisional labels, alternative explanations and a human-review procedure.
+Method draft v0.2 records the resulting clarifications. The student authorized
+this preparation; labels, final sample and codebook freeze are not approved.
+Next: student/reviewer assessment of the example, privacy-conscious transfer of
+selected original artifacts for review, and targeted secondary-case source
+checks. No need to ask again for the vendor after-image already viewed.
+
+**Current next action — 2026-10-04 (TS-2026-10-04-06):** existing project logs
+and Git history have now been screened rather than relying only on newly
+recounted examples. [Evidence index §8](research/EVIDENCE_INDEX.md#8-expanded-source-screening--2026-10-04)
+contains eight bounded candidates with claim-specific limits; this is not a
+selected sample or an accepted quota. Four focused suites / 16 tests passed in
+a new run, with output and source hashes retained. The vendor corrected image
+has been received and viewed; live animation has not been demonstrated. Older
+“next” statements below are session history and are superseded by this step:
+work C01 into a source-linked visual example alongside existing technical pilot
+C05, then investigate specific missing runtime/build sources. No need to ask
+the student to repeat their background or all visual feedback.
+
+**Latest visual-outcome confirmation, 2026-10-04:** student supplied two scanner
+layout images and one vendor-layout issue image, then explicitly confirmed
+trying and accepting the final outcomes of both examples. This is scoped,
+retrospective user acceptance, not independent runtime verification. Improved
+vendor screenshot was subsequently received on 4 October; the live animation
+demonstration remains unperformed. Silence in other conversations must not be recoded as
+acceptance. Details are in the current supervisor review packet.
+
+**Latest participant confirmation, 2026-10-04 (TS-2026-10-04-03):** student
+confirmed the description of their contribution, not technical correctness.
+Preventive reviews follow feature/design work; reports may be sent to another
+AI for verification and implementation. Student reports trying to read reports
+without personally changing/rejecting technical recommendations in this
+workflow. Usual visible checking starts in Expo Go via QR, followed by APK
+building if satisfactory. Exact environment/build/date for the specific
+deletion observation remains unestablished. The review packet now incorporates
+these statements. Next: one concrete example of feedback on a visible outcome;
+do not require or invent code-level human correction.
+
+**Latest clarification, 2026-10-04 (TS-2026-10-04-02):** the student explicitly
+accepts evidence-led sample size rather than a preset quota. They describe
+delegating technical implementation/review to AI, not personally reviewing
+the selected security code, and checking visible behaviour in Expo and APK use.
+The reported deletion UI observation is not verification of the separate
+save/legacy-cleanup fault. A short save-event pilot draft and revised supervisor
+reply are in [the review packet](research/SUPERVISOR_REVIEW_DRAFT_2026-10-04.md).
+Next action: student checks whether their own contribution is described fairly;
+then preserve original episode sources and complete eligibility screening.
+No technical sign-off or supervisor acceptance is implied by “tamam”.
+
+**Latest review, 2026-10-04:** the student supplied the original proposal and the
+same four-point supervisor feedback for reassessment and an English reply draft.
+The feedback's original date is not established by its being pasted again today.
+Read the supplied DOCX, current manuscript text, method draft, SEC-02 pilot and
+evidence records. TD-004 remains accepted; a 12-episode target (8+2+2), codebook
+freeze and independent-review arrangements remain proposals. No message has
+been sent and no supervisor approval has been inferred. Next: student reviews
+the proposed reply; assemble/review the pilot source packet and agree sampling
+rules/cutoff before main episode coding. Product development need not stop, but
+later evidence must not be backdated into an earlier episode.
+
 **Stage:** full-thesis writing has begun in a single Word manuscript; method refinement and evidence auditing continue before formal episode coding.
 
 **Completed:** submitted proposal read; supervisor feedback mapped to four decisions; continuity records created; draft operational rules written; one real SPARK episode worked through provisionally; current regression evidence captured for that example; cross-project handoff procedure, portable prompts and writing/figure roadmap prepared; initial read-only remote inventory of SynCinema and AutoSRT recorded; SPARK's own evidence surveyed and indexed, with its record boundary dated from commit metadata (U05).
@@ -179,7 +252,191 @@ The text extract preserves content for handover; its formatting and pagination a
 - **Next action:** obtain the relevant original source packet and resolve the above discrepancies; prioritize SYN-C01's status/verification distinction and SYN-C04's preserved intermediate change for source review without selecting them as the final sample. AutoSRT inventory may proceed separately under the previously supplied task; it need not wait for formal coding decisions.
 - **Sharing:** source documents downloaded read-only; hub records updated locally. No commit/push or supervisor message sent.
 
-## New session template
+### TS-2026-10-04-01 — Supervisor reply and feasibility reassessment
+
+- **Human request:** assess the four supervisor concerns against current project
+  evidence, explain whether SPARK has progressed too far, and draft a reply.
+- **Sources:** supplied `Refined Thesis Proposal.docx`; current `THESIS.docx`
+  text (read-only); hub decisions, method draft, SEC-02 pilot and evidence
+  manifest/index; local HEAD `28d1e43` plus existing uncommitted application work.
+  The 3 October security work is separate from the September deletion pilot;
+  it must not silently extend or rewrite that pilot's cutoff.
+- **Remote checks:** fetched SynCinema repository page and current evidence
+  index, and AutoSRT README read-only. These support source availability and
+  stated product scope, not fresh browser/GPU/CI verification. SynCinema's
+  previously noted count/attribution and observation limits remain unresolved.
+  No secondary application was executed or modified.
+- **Assessment:** software maturity does not preclude retrospective/longitudinal
+  episode analysis. The material is sufficient to develop the protocol and
+  pilot; it does not yet establish a fully selected, attributable three-case
+  dataset. Missing historical prompts/attempts stay unknown. New tests cannot
+  prove that historical tests ran. Developer learning must be part of the
+  timeline, not hidden under a constant novice label.
+- **Proposed response:** retain student-developer terminology and factual entry
+  profiles; pilot a versioned codebook before main coding; seek human review of
+  a small source-linked subset without claiming it is arranged; use delayed
+  recoding only as a non-independent fallback. Propose 12 episodes, 8 SPARK and
+  up to 2 per secondary case conditional on evidence, with the twelve fields
+  retained as a compact record rather than twelve scores. Distinguish documented
+  defects, AI attribution, underspecified prompts, changed requirements and
+  rework using existing draft criteria. A classification proposal is not an
+  accepted methodological decision.
+- **Output:** Turkish assessment and English supervisor-reply draft in the
+  conversation. The original proposal and thesis manuscript were not edited.
+  No product changes/tests, commit, push or supervisor communication in this
+  thesis-review turn. Previous test results were not rerun or re-dated.
+- **Next:** student reviews the reply; agree selection/cutoff and complete the
+  pilot/reviewer procedure before main coding. Preserve one active manuscript.
+
+### TS-2026-10-04-02 — Plain-language pilot and participant clarification
+
+- Human clarification: Ecology degree, Code Academy full-stack training and
+  current VIZJA Computer Science MSc; self-directed learning and low confidence
+  described in their own words. Low confidence is not an objective skill score.
+  The student did not review the selected security code. They generally check
+  visible changes in Expo and later use an APK.
+- Specific observation reported: Delete removes the existing-key label and
+  prompts a notification to add a key for receipt scanning. Date/build/device
+  are unspecified; this is a reported UI observation, not fully identified E3
+  storage verification. It does not establish the save-failure scenario.
+- Human decision: determine sample size from sufficient sources; no 12/14
+  quota. They plan supervisor review and another human reviewer if possible;
+  no completed review or reviewer agreement is established.
+- Work: inspected current key-save diff/tests, 3 October remediation record,
+  September pilot artifacts and the two existing candidate indexes. Prepared
+  one review packet with a simple P-002 save-event draft, eligibility overview
+  and revised English reply. P-001's historical cutoff was not rewritten.
+- Counts: ten old leads/candidates plus one new save candidate; not eleven
+  eligible episodes. SPK-L05 still lacks a narrow boundary; AutoSRT has no
+  established episode packet. Final count remains open.
+- Validation: document/link/whitespace inspection only; no application tests
+  rerun and no new runtime result asserted. No main Word edit, product edit,
+  external message, commit or push. Next: student reviews the personal-role
+  description; assemble source-linked episode packets before main coding.
+
+### TS-2026-10-04-03 — Review motivation and actual human oversight
+
+- Student confirmed that the pilot's personal-role description is correct.
+  Confirmation does not cover tests, security completeness or device behaviour.
+- Student described preventive reviews motivated by criticism of AI-generated
+  software quality and interest in improving models. Neither critic motives nor
+  increasing model capability were independently established.
+- They try to read reports, delegate technical recommendations, and sometimes
+  send reports to another AI to verify before implementation. Do not relabel
+  this as independent human review or student-authored technical diagnosis.
+- Their explanation that rejecting advice would conflict with their chosen
+  approach is a participant perspective, not a required research restriction.
+  Learning, questioning or rejecting future advice remains compatible with
+  observing the actual workflow.
+- General check sequence clarified: terminal `npx expo start`, QR in Expo Go,
+  then APK building if visible results meet expectations. The specific deletion
+  observation still has no identified build/date/device; save-failure device
+  verification remains unknown.
+- Updated the review packet and English reply draft only, plus this log.
+  No product/Word edits, tests, external sending or final sample decision.
+- Next: ask for one remembered visible-result feedback example, without
+  demanding dates, iteration counts or technical explanations not remembered.
+
+### TS-2026-10-04-04 — Visual examples and explicit retrospective acceptance
+
+- Sources: three user-attached screenshots viewed in the conversation and
+  subsequent direct user statements; no raw financial images copied to repo.
+- Scanner: visible shift from side-by-side cards to a central foreground card;
+  movement reported by student, not established by still images.
+- Vendor: visible right-side crowding/clipping in a long-name row; cross-page
+  spill described by student. Corrected screenshot not yet supplied.
+- Student explicitly confirmed both final outcomes were tried and satisfactory,
+  explaining why they did not report the issues again. Record this statement
+  on today's date, without inventing the original test date/build/environment.
+  It supports scoped human acceptance, not security correctness or release.
+- General practice: no separate approval message when satisfied, partly to
+  avoid token use. Mere silence elsewhere remains ambiguous.
+- Offered demonstration and corrected image are future evidence, not completed
+  independent review. Added notes to review packet; old pilot cutoff preserved.
+- No product changes, tests, Word edits, external messages or commits. Next:
+  optionally receive a redacted corrected vendor image and animation recording
+  or identified live observation; then link selected examples to code history.
+
+### TS-2026-10-04-05 — Sliding glass selector candidate
+
+- User supplied Turkish request and AI response as pasted text; original export
+  not provided. Request concerns design refinement, not a demonstrated AI error.
+- Inspected GlassSelectionIndicator and analytics integration: measured layouts,
+  accent gradient, Reanimated timing and system reduced-motion option present.
+  This is current implementation evidence, not historical runtime validation.
+- AI reply reports 147 suites/1157 tests and explicitly no physical-device
+  check. Raw historical run output was not inspected. Matching 25 September
+  traceability notes say tests should be run; do not treat them as run evidence.
+- Added candidate analysis and English summary to the existing review packet.
+  User acceptance for earlier visual examples is not inherited by this candidate.
+- No code/Word edits, tests or external sending. Next: clarify whether the
+  student tried this specific selector and accepted it or requested revision.
+
+### TS-2026-10-04-06 — Existing records audited and selected tests rerun
+
+- Student requested continuing the audit and strengthening evidence using
+  existing logs. No sample size or final coding rules were approved.
+- Inspected log/traceability headings, selected detailed records, recent Git
+  history and focused diffs. Expanded the existing evidence index with eight
+  candidates; merged carousel refinements and distinguished analytics overflow
+  from Dashboard marquee behaviour. The original five-lead survey remains a
+  dated snapshot, not the total available evidence.
+- New execution: VendorsCard, TransactionRow, ReceiptHolographicCarousel and
+  androidBuildConfig: 4 suites / 16 tests passed, exit 0. Saved raw output and
+  selected file hashes under research/sources/verification-2026-10-04.*.
+- Current tests support specific contracts, not historical execution, native
+  visual quality, original AI authorship or automatic user acceptance.
+- C01 is proposed for the visual worked example. C05 retains the preserved
+  technical pilot. C07 runtime follow-up and C06 build output are useful next
+  source-recovery targets. Their AI log summaries alone are not independent
+  proof. No application/manuscript edits, native build, external sending or
+  commit occurred. Existing unrelated working-tree changes were preserved.
+
+### TS-2026-10-04-07 — Worked visual example and criteria trial
+
+- Read current method/review packet, vendor log and traceability entry, retained
+  test manifest and selected imported SynCinema source-index material.
+- Completed SPK-C01 in the existing review packet rather than creating another
+  manuscript. Six source locators distinguish chat images/statements, AI summary,
+  committed diff and the already executed 4 October tests.
+- Provisional result: visible layout issue and subsequent displayed improvement;
+  retrospective scoped acceptance; initial AI authorship and exact rework/attempt
+  sequence UNKNOWN. Baseline correction scope is local, which does not establish
+  MINOR AI-output rework. Missing original exchange prevents confirming the
+  reported earlier unsupported success claim.
+- Revised method to v0.2 with trial-derived rules. Replaced obsolete active
+  quota wording with the student's accepted evidence-led sampling direction;
+  retained earlier numerical proposals as history. Updated stale after-image
+  status and sample wording in the supervisor reply draft.
+- Prepared source-first human-review procedure with disagreement recording;
+  no reviewer has performed it. Original chat/image transfer remains pending.
+- No new tests needed for these documentation-only changes; referenced the
+  existing 4-suite/16-test output without calling it a new run. No application,
+  Word manuscript, remote repository, commit or external message changes.
+- Next: assess example and obtain only specific missing artifacts; verify
+  secondary-case source packets before giving a final sample count. Teacher
+  response remains a draft, not sent or approved.
+
+### TS-2026-10-04-08 — Secondary repositories: historical patches checked
+
+- Read imported SynCinema index/handoff/manifest and September remote survey.
+  Public GitHub API was accessed read-only after sandbox DNS failure; no remote
+  mutation, credentials, deployment or database access.
+- Checked SynCinema microphone patch and two transcription patches. C04's
+  claimed AI coauthor trailers are absent from retrieved full commit messages;
+  source/runtime narrative must not be upgraded to independent execution proof.
+- AutoSRT tree has eight files at 1739d828; retrieved history page contains 12
+  commits. Checked VRAM replacement and editor-cancellation diffs; recorded
+  AUTO-C01/C02 as implementation leads, not complete AI-process episodes.
+- Saved selected public source extracts with revisions/URLs and response hashes;
+  omitted author email metadata. Updated existing repository audit rather than
+  creating a parallel plan. Imported archive preserved unchanged.
+- No tests/apps executed. No current runtime outcome or historical AI authorship
+  inferred. Recommendation: SPARK primary, SynCinema C01/C04 comparison priority,
+  AutoSRT limited role unless further source support becomes available. Final
+  scope remains a student/supervisor decision; no message sent.
+
+## New session template (copyable block)
 
 Copy this block when work actually occurs; do not pre-fill future dates.
 

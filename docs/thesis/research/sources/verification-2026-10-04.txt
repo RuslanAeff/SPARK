@@ -1,0 +1,14 @@
+
+> spark-finance@3.4.0 test
+> node scripts/run-jest.cjs --ci --coverage=false --runInBand --runTestsByPath src/components/analytics/__tests__/VendorsCard.test.tsx src/components/__tests__/TransactionRow.test.tsx src/components/__tests__/ReceiptHolographicCarousel.test.tsx modules/spark-bounded-file/__tests__/androidBuildConfig.test.ts
+
+PASS src/components/analytics/__tests__/VendorsCard.test.tsx
+PASS src/components/__tests__/ReceiptHolographicCarousel.test.tsx
+PASS src/components/__tests__/TransactionRow.test.tsx
+PASS modules/spark-bounded-file/__tests__/androidBuildConfig.test.ts
+
+Test Suites: 4 passed, 4 total
+Tests:       16 passed, 16 total
+Snapshots:   0 total
+Time:        0.849 s, estimated 2 s
+Ran all test suites within paths "src/components/analytics/__tests__/VendorsCard.test.tsx", "src/components/__tests__/TransactionRow.test.tsx", "src/components/__tests__/ReceiptHolographicCarousel.test.tsx", "modules/spark-bounded-file/__tests__/androidBuildConfig.test.ts".
