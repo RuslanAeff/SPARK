@@ -6,6 +6,8 @@ import {
   parseLocalYYYYMMDD,
   formatDateFull,
   formatPeriodRange,
+  getLocalDateMonthsAgo,
+  getLocalDateDaysAgo,
 } from '../dateUtils';
 
 describe('parseLocalYYYYMMDD', () => {
@@ -91,4 +93,28 @@ describe('ay yardımcıları', () => {
     expect(getEndOfMonth(new Date(2026, 11, 1))).toBe('2026-12-31'); // Aralık
   });
 
+});
+
+describe('yerel geriye dönük tarih yardımcıları (BUG-08)', () => {
+  afterEach(() => jest.useRealTimers());
+
+  it('ay sonunda taşmaz: 31 Mart − 1 ay = Şubat\'ın son günü', () => {
+    expect(getLocalDateMonthsAgo(1, new Date(2026, 2, 31))).toBe('2026-02-28');
+    expect(getLocalDateMonthsAgo(1, new Date(2024, 2, 31))).toBe('2024-02-29');
+    expect(getLocalDateMonthsAgo(1, new Date(2026, 4, 31))).toBe('2026-04-30');
+    expect(getLocalDateMonthsAgo(6, new Date(2026, 7, 31))).toBe('2026-02-28');
+    expect(getLocalDateMonthsAgo(1, new Date(2026, 0, 15))).toBe('2025-12-15');
+  });
+
+  it('yerel gece yarısından sonra UTC\'deki önceki güne kaymaz', () => {
+    jest.useFakeTimers().setSystemTime(new Date(2026, 10, 12, 0, 30)); // Varşova 00:30 = UTC 23:30 (11 Kasım)
+    expect(getToday()).toBe('2026-11-12');
+    expect(getLocalDateMonthsAgo(1)).toBe('2026-10-12');
+    expect(getLocalDateDaysAgo(1)).toBe('2026-11-11');
+  });
+
+  it('gün geriye sayımı yerel takvim günüyle yapılır', () => {
+    expect(getLocalDateDaysAgo(220, new Date(2026, 10, 11, 0, 30))).toBe('2026-04-05');
+    expect(getLocalDateDaysAgo(0, new Date(2026, 10, 11, 0, 30))).toBe('2026-11-11');
+  });
 });

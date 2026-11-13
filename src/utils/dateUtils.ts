@@ -133,6 +133,30 @@ export function normalizeToYYYYMMDD(dateStr: string): string {
   return getToday();
 }
 
+/**
+ * Yerel takvimde `months` ay öncesi (YYYY-MM-DD). Hedef ayda o gün yoksa ayın son
+ * gününe sabitlenir: `setMonth` gibi taşmaz (31 Mart − 1 ay → 28/29 Şubat, 3 Mart değil).
+ */
+export function getLocalDateMonthsAgo(months: number, from: Date = new Date()): string {
+  const target = new Date(from.getFullYear(), from.getMonth() - months, 1, 12);
+  const lastDay = new Date(target.getFullYear(), target.getMonth() + 1, 0).getDate();
+  target.setDate(Math.min(from.getDate(), lastDay));
+  return toLocalYmd(target);
+}
+
+/** Yerel takvimde `days` gün öncesi (YYYY-MM-DD); UTC'ye uğramaz. */
+export function getLocalDateDaysAgo(days: number, from: Date = new Date()): string {
+  const target = new Date(from.getFullYear(), from.getMonth(), from.getDate() - days, 12);
+  return toLocalYmd(target);
+}
+
+/** Yerel takvim günü + `days` (YYYY-MM-DD); geçersiz girişte `null`. */
+export function addLocalDays(ymd: string, days: number): string | null {
+  const base = parseLocalYYYYMMDD(ymd);
+  if (!base) return null;
+  return getLocalDateDaysAgo(-days, base);
+}
+
 export function getStartOfMonth(date?: Date): string {
   const d = date || new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`;

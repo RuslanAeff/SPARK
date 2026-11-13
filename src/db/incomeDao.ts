@@ -14,8 +14,7 @@
 import { getDatabase } from './database';
 import { ExtraIncome } from './schema';
 import { sanitizeAmount, sanitizeText, sanitizeDate } from '../utils/inputValidation';
-
-const todayYmd = (): string => new Date().toISOString().split('T')[0];
+import { getToday } from '../utils/dateUtils';
 
 export const IncomeDao = {
   /** Yeni ek gelir kaydı. Tutar <= 0 ise yazılmaz (hayalî/negatif para yok). */
@@ -31,7 +30,7 @@ export const IncomeDao = {
     if (safeAmount <= 0) return 0;
     const safeSource = sanitizeText(input.source ?? '', 200);
     const safeCurrency = sanitizeText(input.currency || 'PLN', 10);
-    const safeDate = sanitizeDate(input.date) ?? todayYmd();
+    const safeDate = sanitizeDate(input.date) ?? getToday();
     const safeNote = input.note ? sanitizeText(input.note, 1000) : null;
 
     const result = await db.runAsync(
