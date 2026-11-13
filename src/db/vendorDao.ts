@@ -1,7 +1,9 @@
 // S.P.A.R.K. — Vendor Data Access Object
 import { getDatabase } from './database';
+import { releaseVouchersRedeemedBy } from './containerDepositDao';
 import { Vendor } from './schema';
 import { sanitizeText } from '../utils/inputValidation';
+import { nameIdentityKey } from '../utils/searchText';
 
 function normalizeVendorIds(ids: readonly number[]): number[] {
   return Array.from(new Set(ids.filter(id => Number.isSafeInteger(id) && id > 0)));
@@ -17,12 +19,20 @@ export const VendorDao = {
     return db.getAllAsync<Vendor>('SELECT * FROM vendors ORDER BY name');
   },
 
+  /**
+   * BUG-14: ad harf farkına dayanıklı anahtarla aranır ("ŞOK" = "Şok").
+   * Anahtarı henüz olmayan eski satırlar da bulunur ve anahtarı yazılır.
+   */
   async findByName(name: string): Promise<Vendor | null> {
+    const key = nameIdentityKey(sanitizeText(name, 200));
+    if (!key) return null;
     const db = await getDatabase();
-    return db.getFirstAsync<Vendor>(
-      'SELECT * FROM vendors WHERE LOWER(name) = LOWER(?) LIMIT 1',
-      [name]
-    );
+    const byKey = await db.getFirstAsync<Vendor>('SELECT * FROM vendors WHERE name_key = ? LIMIT 1', [key]);
+    if (byKey) return byKey;
+    const legacy = await db.getAllAsync<Vendor>('SELECT * FROM vendors WHERE name_key IS NULL ORDER BY id');
+    const match = legacy.find(v => nameIdentityKey(v.name) === key) ?? null;
+    if (match) await db.runAsync('UPDATE vendors SET name_key = ? WHERE id = ?', [key, match.id]);
+    return match;
   },
 
   async create(vendor: {
@@ -34,8 +44,8 @@ export const VendorDao = {
     const safeName = sanitizeText(vendor.name, 200);
     if (!safeName) throw new Error('Vendor name cannot be empty');
     const result = await db.runAsync(
-      'INSERT INTO vendors (name, logo_uri, default_category_id) VALUES (?, ?, ?)',
-      [safeName, vendor.logo_uri || null, vendor.default_category_id ?? null]
+      'INSERT INTO vendors (name, name_key, logo_uri, default_category_id) VALUES (?, ?, ?, ?)',
+      [safeName, nameIdentityKey(safeName), vendor.logo_uri || null, vendor.default_category_id ?? null]
     );
     return result.lastInsertRowId;
   },
@@ -52,11 +62,6 @@ export const VendorDao = {
       name: safeName,
       default_category_id: opts?.defaultCategoryId ?? null,
     });
-  },
-
-  async updateLogo(id: number, logoUri: string): Promise<void> {
-    const db = await getDatabase();
-    await db.runAsync('UPDATE vendors SET logo_uri = ? WHERE id = ?', [logoUri, id]);
   },
 
   /** Satıcı için varsayılan kategoriyi günceller. `null` geçilirse varsayılan
@@ -110,6 +115,11 @@ export const VendorDao = {
     const placeholders = placeholdersFor(ids);
     let deletedVendorCount = 0;
     await db.withTransactionAsync(async () => {
+      await releaseVouchersRedeemedBy(
+        db,
+        `SELECT id FROM expenses WHERE vendor_id IN (${placeholders})`,
+        ids,
+      );
       await db.runAsync(
         `DELETE FROM expenses WHERE vendor_id IN (${placeholders})`,
         ids,
