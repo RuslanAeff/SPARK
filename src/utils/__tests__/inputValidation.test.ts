@@ -77,6 +77,38 @@ describe('sanitizeText', () => {
     expect(sanitizeText(null)).toBe('');
     expect(sanitizeText(undefined)).toBe('');
   });
+
+  describe('görünmez ve yön değiştiren karakterler (SEC-05)', () => {
+    it.each([
+      ['bidi embedding/override', 'Ż\u202Eabka', 'Żabka'],
+      ['bidi isolate', '\u2066Lidl\u2069', 'Lidl'],
+      ['LRM/RLM', 'Lid\u200El\u200F', 'Lidl'],
+      ['zero-width space/joiner', 'Bie\u200Bdron\u200Cka\u200D', 'Biedronka'],
+      ['BOM / word joiner', '\uFEFFAuchan\u2060', 'Auchan'],
+    ])('%s temizlenir', (_label, input, expected) => {
+      expect(sanitizeText(input)).toBe(expected);
+    });
+
+    it('temizlikten sonra kalan baş/son boşlukları da kırpar', () => {
+      expect(sanitizeText('\x00  Lidl  \u200B')).toBe('Lidl');
+      expect(sanitizeText(' \uFEFF Kaufland \x07 ')).toBe('Kaufland');
+    });
+
+    it('vekil çifti (emoji) ortadan bölmez ve UTF-16 sınırını aşmaz', () => {
+      const result = sanitizeText('ab😀cd', 3);
+      expect(result).toBe('ab');
+      expect(result.length).toBeLessThanOrEqual(3);
+      expect(sanitizeText('ab😀cd', 4)).toBe('ab😀');
+    });
+
+    it('kesmeden sonra kalan sondaki boşluğu da kırpar', () => {
+      expect(sanitizeText('abc def', 4)).toBe('abc');
+    });
+
+    it('normal Türkçe, Lehçe ve Kiril metne dokunmaz', () => {
+      expect(sanitizeText('Şarküteri – Żółć\tМолоко\nçay')).toBe('Şarküteri – Żółć\tМолоко\nçay');
+    });
+  });
 });
 
 describe('sanitizeDate', () => {

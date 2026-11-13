@@ -42,13 +42,27 @@ export function sanitizeUnitPrice(value: unknown, fallback: number = 0): number 
  * SQL injection riski yok (parameterized queries kullanılıyor) ama
  * depolama taşması ve görüntüleme sorunlarını önler.
  */
+// SEC-05: yön değiştirme (U+202A–U+202E, U+2066–U+2069, LRM/RLM) ve sıfır genişlikli
+// (U+200B–U+200D, U+2060, BOM) karakterler. AI yanıtı veya yedekten gelen bir ad
+// ekranda yanıltıcı görünebilir ya da yinelenen kayıt eşlemesini atlatabilirdi.
+// Bilinen bedel: ZWJ ile birleşik emoji (ör. aile) ayrı emojilere dönüşür.
+const INVISIBLE_OR_BIDI = /[\u200B-\u200F\u202A-\u202E\u2060\u2066-\u2069\uFEFF]/g;
+
 export function sanitizeText(value: unknown, maxLen: number = 500): string {
   if (value == null) return '';
-  let s = String(value).trim();
-  // Kontrol karakterlerini kaldır (tab ve newline hariç)
-  s = s.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '');
+  let s = String(value)
+    // Kontrol karakterlerini kaldır (tab ve newline hariç)
+    .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '')
+    .replace(INVISIBLE_OR_BIDI, '')
+    // Temizlikten SONRA kırp: silinen karakterlerin arkasında kalan boşluk da gitsin.
+    .trim();
   if (s.length > maxLen) {
+    // Sınır UTF-16 birimidir (yedek doğrulaması `.length` ile ölçer); yalnız
+    // yarım kalacak bir vekil çiftini (emoji) bırakmayız.
     s = s.substring(0, maxLen);
+    const last = s.charCodeAt(s.length - 1);
+    if (last >= 0xd800 && last <= 0xdbff) s = s.slice(0, -1);
+    s = s.trimEnd();
   }
   return s;
 }
