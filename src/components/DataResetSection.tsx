@@ -22,6 +22,7 @@ import { Typography, FontFamily } from '../theme/typography';
 import { Spacing, BorderRadius } from '../theme/spacing';
 import { useLanguage } from '../i18n/LanguageContext';
 import { useNotifications } from '../context/NotificationsContext';
+import { useRefreshActions } from '../context/RefreshContext';
 import { SettingsSection } from './SettingsList';
 import { SparkToast } from './SparkToast';
 import DataResetModal from './DataResetModal';
@@ -37,6 +38,7 @@ export default function DataResetSection() {
   const themeRevision = useThemeRevision();
   const styles = React.useMemo(() => getStyles(), [scheme, themeRevision]);
   const { sync } = useNotifications();
+  const { triggerRefresh } = useRefreshActions();
 
   const [promptOpen, setPromptOpen] = useState(false);
   const [summary, setSummary] = useState<UserDataSummary | null>(null);
@@ -62,6 +64,9 @@ export default function DataResetSection() {
     setBusy(true);
     try {
       await resetAllUserData();
+      // Aynı ekrandaki satıcı listesi gibi refreshKey'e bağlı görünümler silinmiş
+      // veriyi göstermeye devam etmesin (BUG-30).
+      triggerRefresh();
       // Silinen borç/planların native alarmları ancak uzlaştırma ile iptal
       // olur; istenen durum artık boş olduğu için sync hepsini temizler.
       await sync().catch(() => {});
@@ -74,7 +79,7 @@ export default function DataResetSection() {
     } finally {
       setBusy(false);
     }
-  }, [sync, t]);
+  }, [sync, t, triggerRefresh]);
 
   return (
     <SettingsSection testID="settings-data-danger-section" last>

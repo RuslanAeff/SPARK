@@ -7,7 +7,7 @@
 // artırır (useBudget → debtMath.extraIncomeIn); sonraki döngüye sarkmaz.
 // Harcama/fiş tablolarına dokunulmaz → tüketim analizi gelirden etkilenmez.
 // Tema kalıbı: useAppTheme + useMemo(getStyles) (P12). Birincil CTA = şüşevar.
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { View, Text, TextInput, StyleSheet, Pressable, ScrollView, Dimensions } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
@@ -22,6 +22,7 @@ import { Typography, FontFamily } from '../theme/typography';
 import { Spacing, ScreenPadding, BorderRadius } from '../theme/spacing';
 import { createSusevarStyles, susevarButtonPressed } from '../theme/susevar';
 import { formatCurrency } from '../utils/formatCurrency';
+import { parseMoneyInput } from '../utils/moneyMath';
 import { formatDayMonth, getToday } from '../utils/dateUtils';
 import { IncomeDao } from '../db/incomeDao';
 import { ExtraIncome } from '../db/schema';
@@ -42,8 +43,9 @@ interface IncomeSheetProps {
 
 type IncomeView = 'list' | 'add';
 
+/** Geçersiz veya belirsiz giriş 0 döner; çağıran `<= 0` ile `invalid_amount` gösterir. */
 function parseAmountInput(s: string): number {
-  return parseFloat(s.replace(',', '.')) || 0;
+  return parseMoneyInput(s) ?? 0;
 }
 
 export default function IncomeSheet({
@@ -60,6 +62,8 @@ export default function IncomeSheet({
   const [allIncomes, setAllIncomes] = useState<ExtraIncome[]>([]);
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
+  // DebtSheet ile aynı desen: ref aynı karedeki ikinci dokunuşu da durdurur (BUG-30).
+  const savingRef = useRef(false);
   const [datePickerVisible, setDatePickerVisible] = useState(false);
   const [deleteId, setDeleteId] = useState<number | null>(null);
 
@@ -116,6 +120,8 @@ export default function IncomeSheet({
       SparkToast.show(t('income_source_required'), 'error');
       return;
     }
+    if (savingRef.current) return;
+    savingRef.current = true;
     setSaving(true);
     try {
       await IncomeDao.create({
@@ -133,6 +139,7 @@ export default function IncomeSheet({
     } catch {
       SparkToast.show(t('error_saving_data'), 'error');
     } finally {
+      savingRef.current = false;
       setSaving(false);
     }
   }
