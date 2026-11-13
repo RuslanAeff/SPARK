@@ -14,6 +14,7 @@ import { Typography, FontFamily } from '../../src/theme/typography';
 import { Spacing, ScreenPadding, BorderRadius } from '../../src/theme/spacing';
 import { formatCurrency } from '../../src/utils/formatCurrency';
 import { formatPeriodRange } from '../../src/utils/dateUtils';
+import { createSerialQueue, runSequentially } from '../../src/utils/serialQueue';
 import { getCurrentCycle, shiftCycleKey } from '../../src/utils/budgetCycle';
 import { getCycleStartDay } from '../../src/services/budgetCycleSettings';
 import { useBudget } from '../../src/hooks/useBudget';
@@ -39,6 +40,7 @@ import { useExpenseDataRefresh } from '../../src/context/RefreshContext';
 import { useCurrency } from '../../src/context/CurrencyContext';
 import { useNotifications } from '../../src/context/NotificationsContext';
 import { getDashboardGoalPresentation } from '../../src/utils/dashboardGoalPresentation';
+import { logError } from '../../src/utils/logError';
 
 export default function DashboardScreen() {
   // İlk açılışta DB teması gelince tüm kartlar aynı React store'undan senkronlensin.
@@ -87,15 +89,14 @@ export default function DashboardScreen() {
   const { currency } = useCurrency();
   const { unreadCount, sync } = useNotifications();
 
-  const refreshAll = useCallback(() => {
-    refreshBudget();
-    refreshCats();
-    refreshVendors();
-    refreshTotal();
-    refreshGoal();
-    refreshLimits();
-    refreshGoalFeature();
-  }, [refreshBudget, refreshCats, refreshVendors, refreshTotal, refreshGoal, refreshLimits, refreshGoalFeature]);
+  // ADR-002 / BUG-12: yedi yenileme zinciri aynı SQLite bağlantısını kullanır.
+  // Odak, veri değişikliği ve çekip yenileme aynı anda tetiklense bile zincirler
+  // tek kuyrukta sırayla çalışır; bir zincirin hatası diğerlerini durdurmaz.
+  const refreshQueueRef = React.useRef(createSerialQueue());
+  const refreshAll = useCallback(() => refreshQueueRef.current(() => runSequentially(
+    [refreshBudget, refreshCats, refreshVendors, refreshTotal, refreshGoal, refreshLimits, refreshGoalFeature],
+    (error) => { logError('dashboard refresh step failed', error); },
+  )), [refreshBudget, refreshCats, refreshVendors, refreshTotal, refreshGoal, refreshLimits, refreshGoalFeature]);
 
   useFocusEffect(
     useCallback(() => {
@@ -117,16 +118,12 @@ export default function DashboardScreen() {
 
   const onRefresh = async () => {
     setRefreshing(true);
-    await Promise.all([
-      refreshBudget(),
-      refreshCats(),
-      refreshVendors(),
-      refreshTotal(),
-      refreshGoal(),
-      refreshLimits(),
-      refreshGoalFeature(),
-    ]);
-    setRefreshing(false);
+    try {
+      await refreshAll();
+    } finally {
+      // Hata olsa bile çekme göstergesi sonsuza dek dönmez.
+      setRefreshing(false);
+    }
   };
 
   const goalSurfacesReady = !goalLoading && !goalPreferencesLoading;
