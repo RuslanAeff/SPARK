@@ -71,8 +71,8 @@ describe('DonutCard davranış sınıflandırması bilgisi', () => {
 
 describe('DonutCard önceki/sonraki dilim gezinmesi', () => {
   const needsWants = [
-    { segment: 'needs', percentage: 70, total: 700, color: '#00a' },
-    { segment: 'wants', percentage: 30, total: 300, color: '#0a0' },
+    { key: 'needs' as const, segment: 'needs', percentage: 70, total: 700, color: '#00a' },
+    { key: 'wants' as const, segment: 'wants', percentage: 30, total: 300, color: '#0a0' },
   ];
   const weekWeekend = [
     { segment: 'weekday', percentage: 60, total: 600, color: '#a00' },
@@ -138,5 +138,33 @@ describe('DonutCard önceki/sonraki dilim gezinmesi', () => {
     expect(handleWWMove).toHaveBeenCalledWith(1);
     await fireEvent.press(screen.getByTestId('donut-ww-previous'));
     expect(handleWWMove).toHaveBeenCalledWith(-1);
+  });
+});
+
+describe('DonutCard ihtiyaç/istek açıklaması (BUG-16)', () => {
+  it('chooses the explanation by the language-independent key, not the visible label', async () => {
+    const screen = await render(
+      <DonutCard
+        styles={styles}
+        t={(key: string) => key}
+        tc={(key: string) => key}
+        currency="PLN"
+        needsWants={[
+          { key: 'wants', segment: 'İstəklər', percentage: 60, total: 600, color: '#0a0' },
+          { key: 'needs', segment: 'Потребности', percentage: 40, total: 400, color: '#00a' },
+        ]}
+        weekWeekend={[]}
+        nwSegments={[]}
+        wwSegments={[]}
+        selectedNWIdx={0}
+        selectedWWIdx={null}
+        handleNWSelect={jest.fn()}
+        handleWWSelect={jest.fn()}
+        handleNWMove={jest.fn()}
+        handleWWMove={jest.fn()}
+      />,
+    );
+    expect(screen.getByText('wants_analysis')).toBeTruthy();
+    expect(screen.queryByText('savings_other_analysis')).toBeNull();
   });
 });

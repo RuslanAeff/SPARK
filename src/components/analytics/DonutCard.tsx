@@ -102,9 +102,9 @@ function DonutCard({
                   <MaterialCommunityIcons name="chevron-left" size={20} color={Colors.textSecondary} />
                 </Pressable>
                 <Text style={[styles.donutAnalysisText, styles.donutAnalysisTextFlex]}>
-                  {nwItem.segment === t('needs')
+                  {nwItem.key === 'needs'
                      ? t('needs_analysis', { percentage: nwItem.percentage.toString() })
-                     : nwItem.segment === t('wants')
+                     : nwItem.key === 'wants'
                      ? t('wants_analysis', { percentage: nwItem.percentage.toString() })
                      : t('savings_other_analysis', { percentage: nwItem.percentage.toString() })}
                 </Text>

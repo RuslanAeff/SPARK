@@ -104,6 +104,8 @@ export interface DonutSegment {
 
 /** Davranışsal analiz segmenti (needs/wants, week/weekend donut'ları). */
 export interface BehaviorSegment {
+  /** Dil bağımsız grup (yalnız ihtiyaç/istek kartında; BUG-16). */
+  key?: 'needs' | 'wants' | 'other';
   segment: string;
   total: number;
   percentage: number;
