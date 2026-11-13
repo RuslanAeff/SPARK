@@ -13,7 +13,16 @@ for line in sys.stdin:
  try:
   req=json.loads(line)
   if req['kind']=='script':
-   db.executescript(req['sql']); result=None
+   # executescript açık transaction'ı örtük COMMIT eder; expo-sqlite execAsync etmez.
+   if db.in_transaction:
+    buf=''
+    for part in req['sql'].split(';'):
+     buf+=part+';'
+     if sqlite3.complete_statement(buf):
+      if buf.strip(' ;\\n\\t'): db.execute(buf)
+      buf=''
+   else: db.executescript(req['sql'])
+   result=None
   else:
    cur=db.execute(req['sql'],req.get('params',[]))
    if req['kind']=='all': result=[dict(row) for row in cur.fetchall()]
