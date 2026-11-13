@@ -5,6 +5,7 @@ import {
   getCycleProgress,
   shiftCycleKey,
   normalizeCycleStartDay,
+  cycleForDate,
 } from '../budgetCycle';
 
 describe('normalizeCycleStartDay', () => {
@@ -129,5 +130,31 @@ describe('getCycleProgress — geçen/kalan gün', () => {
     const c = getCurrentCycle(23, new Date(2026, 5, 22));
     const p = getCycleProgress(c, new Date(2026, 5, 22));
     expect(p.daysRemaining).toBe(0);
+  });
+});
+
+describe('cycleForDate (BUG-22: limitler için tek dönem kuralı)', () => {
+  it('döngü günü 23 iken 11 Kasım, 23 Ekim\'de başlayan döngüdedir', () => {
+    expect(cycleForDate(23, '2026-11-11')).toMatchObject({
+      key: '2026-10', start: '2026-10-23', end: '2026-11-22',
+    });
+  });
+
+  it('döngü günü 1 iken takvim ayıyla aynıdır', () => {
+    expect(cycleForDate(1, '2026-11-11')).toMatchObject({
+      key: '2026-11', start: '2026-11-01', end: '2026-11-30',
+    });
+  });
+
+  it('günü kapsayan bütçenin dondurulmuş sınırları ayardan önce gelir', () => {
+    const frozen = { period_start: '2026-11-01', period_end: '2026-11-30', cycle_start_day: 1 };
+    expect(cycleForDate(23, '2026-11-11', frozen)).toMatchObject({
+      key: '2026-11', start: '2026-11-01', end: '2026-11-30',
+    });
+  });
+
+  it('sınırları eksik eski bütçe satırında ayardan hesaplar', () => {
+    const legacy = { period_start: null, period_end: null, cycle_start_day: null };
+    expect(cycleForDate(23, '2026-11-11', legacy).key).toBe('2026-10');
   });
 });

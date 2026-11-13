@@ -41,7 +41,9 @@ jest.mock('../../db/goalDao', () => ({
     get: jest.fn(),
     upsert: jest.fn(),
     clear: jest.fn(),
+    saveSettings: jest.fn(),
   },
+  SAVINGS_GOAL_TITLE_MAX: 200,
 }));
 
 jest.mock('../../db/categoryDao', () => ({ CategoryDao: { getAll: jest.fn() } }));
@@ -53,6 +55,14 @@ jest.mock('../../db/categoryLimitDao', () => ({
     upsert: jest.fn(),
     remove: jest.fn(),
   },
+}));
+
+// BUG-22: döngü günü 23 → bugün (Kasım) Ekim'de başlayan döngüdedir.
+jest.mock('../../services/limitCycle', () => ({
+  resolveBudgetCycle: jest.fn(async () => ({
+    cycle: { key: '2026-10', start: '2026-10-23', end: '2026-11-22', totalDays: 31, startDay: 23 },
+    budget: null,
+  })),
 }));
 
 jest.mock('../../i18n/LanguageContext', () => ({
@@ -108,7 +118,7 @@ const goal = {
 describe('GoalSettingsScreen goal deletion', () => {
   const goalGet = GoalDao.get as jest.MockedFunction<typeof GoalDao.get>;
   const goalClear = GoalDao.clear as jest.MockedFunction<typeof GoalDao.clear>;
-  const goalUpsert = GoalDao.upsert as jest.MockedFunction<typeof GoalDao.upsert>;
+  const saveSettings = GoalDao.saveSettings as jest.MockedFunction<typeof GoalDao.saveSettings>;
   const getCategories = CategoryDao.getAll as jest.MockedFunction<typeof CategoryDao.getAll>;
   const getLimits = CategoryLimitDao.getForMonth as jest.MockedFunction<
     typeof CategoryLimitDao.getForMonth
@@ -197,7 +207,71 @@ describe('GoalSettingsScreen goal deletion', () => {
       fireEvent.press(screen.getByTestId('goal-settings-save'));
     });
 
-    await waitFor(() => expect(upsertLimit).toHaveBeenCalledWith(7, expect.any(String), 100));
-    expect(goalUpsert).not.toHaveBeenCalled();
+    // BUG-22: limit listesi takvim ayından (2026-11) değil, bütçe döngüsünün
+    // anahtarından okunur ve aynı anahtara yazılır.
+    expect(getLimits).toHaveBeenCalledWith('2026-10');
+    // BUG-09: hedef ve limitler tek atomik DAO çağrısıyla yazılır.
+    await waitFor(() => expect(saveSettings).toHaveBeenCalledWith({
+      goal: null,
+      month: '2026-10',
+      limits: [{ category_id: 7, limit_amount: 100 }],
+    }));
+    expect(upsertLimit).not.toHaveBeenCalled();
+  });
+
+  it('limit alanında ondalık ayraç yazılabilir: 12,5 → 12.5 kaydedilir (BUG-24)', async () => {
+    goalGet.mockResolvedValue(null);
+    getLimits.mockResolvedValue([]);
+    getCategories.mockResolvedValue([
+      { id: 7, name: 'Market', icon: 'cart-outline', color: '#00FF66', parent_id: null },
+    ] as any);
+    const screen = await render(<GoalSettingsScreen />);
+
+    await act(async () => {
+      fireEvent.press(await screen.findByText('goal_settings_add_limit'));
+    });
+    await act(async () => {
+      fireEvent.press(await screen.findByText('Market'));
+    });
+    const input = await screen.findByTestId('goal-limit-input-7');
+    // Tuş tuş yazım: her ara durum alanda aynen kalmalı.
+    for (const text of ['1', '12', '12,', '12,5']) {
+      await act(async () => {
+        fireEvent.changeText(input, text);
+      });
+      expect(screen.getByTestId('goal-limit-input-7').props.value).toBe(text);
+    }
+    await act(async () => {
+      fireEvent.press(screen.getByTestId('goal-settings-save'));
+    });
+
+    await waitFor(() => expect(saveSettings).toHaveBeenCalledWith(expect.objectContaining({
+      limits: [{ category_id: 7, limit_amount: 12.5 }],
+    })));
+  });
+
+  it('geçersiz limit girişinde hiçbir şey yazmaz (BUG-24)', async () => {
+    goalGet.mockResolvedValue(null);
+    getLimits.mockResolvedValue([]);
+    getCategories.mockResolvedValue([
+      { id: 7, name: 'Market', icon: 'cart-outline', color: '#00FF66', parent_id: null },
+    ] as any);
+    const screen = await render(<GoalSettingsScreen />);
+
+    await act(async () => {
+      fireEvent.press(await screen.findByText('goal_settings_add_limit'));
+    });
+    await act(async () => {
+      fireEvent.press(await screen.findByText('Market'));
+    });
+    await act(async () => {
+      fireEvent.changeText(await screen.findByTestId('goal-limit-input-7'), '1.500');
+    });
+    await act(async () => {
+      fireEvent.press(screen.getByTestId('goal-settings-save'));
+    });
+
+    await waitFor(() => expect(SparkToast.show).toHaveBeenCalledWith('invalid_amount', 'error'));
+    expect(saveSettings).not.toHaveBeenCalled();
   });
 });

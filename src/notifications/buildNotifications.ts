@@ -14,7 +14,7 @@ import { getScanSessionError } from '../services/scanSession';
 import { getCycleStartDay } from '../services/budgetCycleSettings';
 import {
   budgetCycleFromBounds,
-  getCurrentCycle,
+  cycleForDate,
   getCycleForKey,
   getCycleProgress,
   shiftCycleKey,
@@ -43,6 +43,7 @@ import {
 } from './reminderNotificationFeed';
 import { presentReminderNotification } from './reminderNotificationPresentation';
 import { getCurrentAttentionNotifications } from './attentionNativeSchedule';
+import { logError } from '../utils/logError';
 
 function daysToDate(isoDate: string): number {
   return getCalendarDayOffset(getToday(), isoDate) ?? Number.NaN;
@@ -147,9 +148,8 @@ export async function runNotificationSync(
   // anchor=1'de cycle = takvim ayı → tüm aşağıdaki bölümler eski davranışı korur.
   const anchor = await getCycleStartDay();
   const currentBudget = await BudgetDao.getContainingDate(todayIso());
-  const cycle = currentBudget?.period_start && currentBudget.period_end
-    ? budgetCycleFromBounds(currentBudget.period_start, currentBudget.period_end, currentBudget.cycle_start_day ?? anchor)
-    : getCurrentCycle(anchor);
+  // BUG-22: Dashboard, Analiz ve limit ayarıyla aynı dönem kuralı (cycleForDate).
+  const cycle = cycleForDate(anchor, todayIso(), currentBudget);
   const ym = cycle.key;
   const start = cycle.start;
   const end = cycle.end;
@@ -288,7 +288,7 @@ export async function runNotificationSync(
       else rules.budgetReviewLast = item.id;
     }
   } catch (e) {
-    if (__DEV__) console.warn('[notif] scheduled_attention', e);
+    logError('notif scheduled_attention', e);
   }
 
   // —— 4) API / tarama hatası ——
@@ -336,8 +336,8 @@ export async function runNotificationSync(
           meta.reminderInterval === 'weekly' ? 7 * 86400000 : 30 * 86400000;
         const lastReminded = rules.backupRemindedAt ?? 0;
         if (Date.now() - lastReminded >= intervalMs * 0.9) {
-          const dayCount = meta.lastAt
-            ? Math.max(1, Math.round((Date.now() - meta.lastAt) / 86400000))
+          const dayCount = meta.lastFullAt
+            ? Math.max(1, Math.round((Date.now() - meta.lastFullAt) / 86400000))
             : 0;
           const id = `backup-due-${Math.floor(Date.now() / (86400000 * 7))}`;
           feed = push(feed, id, 'info', 'notif_backup_due_t', 'notif_backup_due_b', {
@@ -348,7 +348,7 @@ export async function runNotificationSync(
         }
       }
     } catch (e) {
-      if (__DEV__) console.warn('[notif] backup_due', e);
+      logError('notif backup_due', e);
     }
   }
 
@@ -443,7 +443,7 @@ export async function runNotificationSync(
     rules.paymentPlanDueDismissed = reconciled.state.paymentPlanDueDismissed;
     reconciled.retiredIds.forEach((id) => retiredIds.add(id));
   } catch (e) {
-    if (__DEV__) console.warn('[notif] persisted_reminders', e);
+    logError('notif persisted_reminders', e);
   }
 
   // —— 9) Türetilmiş tekrar eden ödeme tahminleri ——
@@ -484,7 +484,7 @@ export async function runNotificationSync(
         if (rules.subscriptionDueLast[k] < today) delete rules.subscriptionDueLast[k];
       }
     } catch (e) {
-      if (__DEV__) console.warn('[notif] sub_due', e);
+      logError('notif sub_due', e);
     }
   }
 
@@ -541,7 +541,7 @@ export async function runNotificationSync(
         }
       }
     } catch (e) {
-      if (__DEV__) console.warn('[notif] month_summary', e);
+      logError('notif month_summary', e);
     }
   }
 

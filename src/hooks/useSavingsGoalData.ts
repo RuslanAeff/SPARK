@@ -1,11 +1,10 @@
-// S.P.A.R.K. — Birikim hedefi + kategori limitleri (mevcut ay)
-import { useState, useEffect, useCallback } from 'react';
+// S.P.A.R.K. — Birikim hedefi + kategori limitleri (bütçe döngüsü)
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { GoalDao, SavingsGoalRow } from '../db/goalDao';
 import { CategoryLimitDao } from '../db/categoryLimitDao';
-import { CategoryDao } from '../db/categoryDao';
-import { ExpenseDao } from '../db/expenseDao';
-import { getStartOfMonth, getEndOfMonth } from '../utils/dateUtils';
+import { resolveBudgetCycle } from '../services/limitCycle';
 import { getGoalFeaturePreferences } from '../services/goalFeatureSettings';
+import { logError } from '../utils/logError';
 
 export function useSavingsGoal() {
   const [goal, setGoal] = useState<SavingsGoalRow | null>(null);
@@ -39,58 +38,57 @@ export interface CategoryLimitProgress {
   over_by: number;
 }
 
-function monthKey(d = new Date()): string {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-}
-
+/**
+ * BUG-22: Limitler bütçe döngüsüne bağlıdır. Dashboard seçili döngünün
+ * dondurulmuş sınırlarını verir; anahtar = döngünün başladığı ay (start'ın
+ * YYYY-MM'i). Sınır verilmezse (ilk render) bugünü kapsayan döngü çözülür —
+ * takvim ayına düşülmez, yoksa limit ayarıyla farklı satır okunurdu.
+ */
 export function useCategoryLimitsProgress(startDate?: string, endDate?: string) {
   const [rows, setRows] = useState<CategoryLimitProgress[]>([]);
   const [loading, setLoading] = useState(true);
+  const mounted = useRef(true);
+  const refreshSequence = useRef(0);
 
-  const start = startDate || getStartOfMonth();
-  const end = endDate || getEndOfMonth();
+  useEffect(() => {
+    mounted.current = true;
+    return () => { mounted.current = false; };
+  }, []);
 
   const refresh = useCallback(async () => {
-    const m = monthKey();
+    const sequence = ++refreshSequence.current;
+    const isCurrent = () => mounted.current && sequence === refreshSequence.current;
     setLoading(true);
     try {
-      const limits = await CategoryLimitDao.getForMonth(m);
-
-      // P1: Tüm kategorileri tek sorguda ön-yükle → O(1) lookup
-      const allCategories = await CategoryDao.getAll();
-      const catMap = new Map(allCategories.map(c => [c.id, c]));
-
-      // Harcamaları paralel hesapla
-      const spentPromises = limits.map(lim =>
-        ExpenseDao.getSpentForCategoryInRange(lim.category_id, start, end)
-      );
-      const spentResults = await Promise.all(spentPromises);
-
-      const out: CategoryLimitProgress[] = [];
-      for (let i = 0; i < limits.length; i++) {
-        const lim = limits[i];
-        const cat = catMap.get(lim.category_id);
-        if (!cat) continue;
-        const spent = spentResults[i];
-        const over = Math.max(0, spent - lim.limit_amount);
-        const rem = Math.max(0, lim.limit_amount - spent);
-        out.push({
-          id: lim.id,
-          category_id: lim.category_id,
-          category_name: cat.name,
-          category_icon: cat.icon,
-          category_color: cat.color,
-          limit_amount: lim.limit_amount,
-          spent,
-          remaining: rem,
-          over_by: over,
-        });
+      // PERF-03: limit + kategori + aralık harcaması (alt kategoriler dahil) TEK
+      // sorguda; eskiden limit başına 2 sorgu + tüm kategoriler okunuyordu.
+      // Analiz ekranıyla aynı fonksiyon → aynı sayım kuralı.
+      let start = startDate;
+      let end = endDate;
+      if (!start || !end) {
+        ({ start, end } = (await resolveBudgetCycle()).cycle);
       }
-      setRows(out);
+      const limits = await CategoryLimitDao.getForMonthWithSpending(start.slice(0, 7), start, end);
+
+      const out: CategoryLimitProgress[] = limits.map(lim => ({
+        id: lim.id,
+        category_id: lim.category_id,
+        category_name: lim.category_name,
+        category_icon: lim.category_icon,
+        category_color: lim.category_color,
+        limit_amount: lim.limit_amount,
+        spent: lim.spent,
+        remaining: Math.max(0, lim.limit_amount - lim.spent),
+        over_by: Math.max(0, lim.spent - lim.limit_amount),
+      }));
+      if (isCurrent()) setRows(out);
+    } catch (error) {
+      // Yenileme çağıranlar beklemeden tetikliyor; reddi yutup son veriyi koruyoruz.
+      logError('useCategoryLimitsProgress refresh failed', error);
     } finally {
-      setLoading(false);
+      if (isCurrent()) setLoading(false);
     }
-  }, [start, end]);
+  }, [startDate, endDate]);
 
   useEffect(() => {
     refresh();

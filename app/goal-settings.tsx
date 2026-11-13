@@ -11,8 +11,9 @@ import * as Haptics from 'expo-haptics';
 import { Colors } from '../src/theme/colors';
 import { Typography, FontFamily } from '../src/theme/typography';
 import { Spacing, ScreenPadding, BorderRadius } from '../src/theme/spacing';
-import { GoalDao } from '../src/db/goalDao';
+import { GoalDao, SAVINGS_GOAL_TITLE_MAX } from '../src/db/goalDao';
 import { CategoryLimitDao, CategoryLimitRow } from '../src/db/categoryLimitDao';
+import { resolveBudgetCycle } from '../src/services/limitCycle';
 import { CategoryDao } from '../src/db/categoryDao';
 import { Category } from '../src/db/schema';
 import { useLanguage } from '../src/i18n/LanguageContext';
@@ -24,13 +25,13 @@ import { SparkToast } from '../src/components/SparkToast';
 import GlassDeleteModal from '../src/components/GlassDeleteModal';
 import CustomDatePicker from '../src/components/CustomDatePicker';
 import { getToday, normalizeToYYYYMMDD } from '../src/utils/dateUtils';
+import { parseMoneyInput, roundMoney } from '../src/utils/moneyMath';
 import { createSusevarStyles } from '../src/theme/susevar';
 import { useThemeRevision } from '../src/theme/themeStore';
+import { logError } from '../src/utils/logError';
 
-function monthKey(): string {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-}
+/** Limit satırı + kullanıcının yazdığı ham metin; sayı yalnız kaydederken üretilir (BUG-24). */
+type LimitDraft = CategoryLimitRow & { limit_text: string };
 
 export default function GoalSettingsScreen() {
   useThemeRevision();
@@ -45,7 +46,7 @@ export default function GoalSettingsScreen() {
   const [amountStr, setAmountStr] = useState('');
   const [currentAmountStr, setCurrentAmountStr] = useState('');
   const [targetDate, setTargetDate] = useState(getToday());
-  const [limits, setLimits] = useState<CategoryLimitRow[]>([]);
+  const [limits, setLimits] = useState<LimitDraft[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
   const [datePickerVisible, setDatePickerVisible] = useState(false);
@@ -56,25 +57,32 @@ export default function GoalSettingsScreen() {
   // null: DB okuması henüz tamamlanmadı; form metni hedef varlığı sayılmaz.
   const [persistedGoalExists, setPersistedGoalExists] = useState<boolean | null>(null);
   const clearInFlightRef = useRef(false);
+  const savingRef = useRef(false);
 
-  const m = monthKey();
+  // BUG-22: limitler bütçe döngüsüne bağlı (anahtar = döngünün başladığı ay).
+  // Ekran açılırken çözülür; kayıt aynı anahtara yazılır ki ekranda düzenlenen
+  // liste ile kaydedilen dönem farklı olmasın. null: henüz çözülmedi.
+  const [limitMonth, setLimitMonth] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
     setPersistedGoalExists(null);
     try {
-      const [g, cats, lim] = await Promise.all([
-        GoalDao.get(),
-        CategoryDao.getAll(),
-        CategoryLimitDao.getForMonth(m),
-      ]);
+      // ADR-002: aynı bağlantıda paralel sorgu yok; okumalar sırayla (BUG-12).
+      const g = await GoalDao.get();
+      const cats = await CategoryDao.getAll();
+      const { cycle } = await resolveBudgetCycle();
+      const lim = await CategoryLimitDao.getForMonth(cycle.key);
+      setLimitMonth(cycle.key);
       setCategories(cats);
-      setLimits(lim);
+      setLimits(lim.map(row => ({ ...row, limit_text: String(roundMoney(row.limit_amount)) })));
       setPersistedGoalExists(Boolean(g));
       if (g) {
         setTitle(g.title);
-        setAmountStr(String(g.target_amount));
-        setCurrentAmountStr(g.current_amount > 0 ? String(g.current_amount) : '');
+        // Eski kayıtlarda float artığı olabilir; forma kanonik 2 basamakla gelsin ki
+        // kullanıcı dokunmadan kaydettiğinde katı ayrıştırıcı reddetmesin.
+        setAmountStr(String(roundMoney(g.target_amount)));
+        setCurrentAmountStr(g.current_amount > 0 ? String(roundMoney(g.current_amount)) : '');
         setTargetDate(g.target_date);
       } else {
         setTitle('');
@@ -85,7 +93,7 @@ export default function GoalSettingsScreen() {
     } finally {
       setLoading(false);
     }
-  }, [m]);
+  }, []);
 
   useEffect(() => {
     load();
@@ -96,7 +104,7 @@ export default function GoalSettingsScreen() {
     return categories.filter(c => !used.has(c.id));
   }, [categories, limits]);
 
-  function removeLimit(row: CategoryLimitRow) {
+  function removeLimit(row: LimitDraft) {
     setLimits(prev => prev.filter(l => !(l.id === row.id && l.category_id === row.category_id)));
   }
 
@@ -106,8 +114,9 @@ export default function GoalSettingsScreen() {
       {
         id: -Date.now(),
         category_id: cat.id,
-        month: m,
+        month: limitMonth ?? '',
         limit_amount: 100,
+        limit_text: '100',
       },
     ]);
     setAddModal(false);
@@ -115,43 +124,57 @@ export default function GoalSettingsScreen() {
   }
 
   async function handleSave() {
-    const amt = parseFloat(amountStr.replace(',', '.'));
+    const amt = parseMoneyInput(amountStr);
     const hasGoalDraft = Boolean(title.trim() || amountStr.trim() || currentAmountStr.trim());
     if (hasGoalDraft && !title.trim()) {
       SparkToast.show(t('goal_title_required'), 'error');
       return;
     }
-    if (hasGoalDraft && (isNaN(amt) || amt <= 0)) {
+    if (hasGoalDraft && (amt == null || amt <= 0)) {
       SparkToast.show(t('invalid_amount'), 'error');
       return;
     }
 
-    const curRaw = parseFloat((currentAmountStr || '0').replace(',', '.'));
-    const current_amount = isFinite(curRaw) && curRaw > 0 ? curRaw : 0;
+    // Boş birikim alanı 0 demektir; dolu ama okunamayan giriş sessizce 0 olmaz.
+    const current_amount = currentAmountStr.trim() ? parseMoneyInput(currentAmountStr) : 0;
+    if (current_amount == null || current_amount < 0) {
+      SparkToast.show(t('invalid_amount'), 'error');
+      return;
+    }
 
+    // Tüm limitler yazmadan ÖNCE doğrulanır: tek hatalı satır hiçbir şeyi değiştirmez.
+    const parsedLimits: Array<{ category_id: number; limit_amount: number }> = [];
+    for (const row of limits) {
+      const value = parseMoneyInput(row.limit_text);
+      if (value == null || value <= 0) {
+        SparkToast.show(t('invalid_amount'), 'error');
+        return;
+      }
+      parsedLimits.push({ category_id: row.category_id, limit_amount: value });
+    }
+
+    if (!limitMonth) {
+      SparkToast.show(t('error_saving_data'), 'error');
+      return;
+    }
+    if (savingRef.current) return;
+    savingRef.current = true;
     setSaving(true);
     try {
-      if (hasGoalDraft) {
-        await GoalDao.upsert({
-          title: title.trim(),
-          target_amount: amt,
-          target_date: normalizeToYYYYMMDD(targetDate),
-          currency,
-          current_amount,
-        });
-      }
-
-      const existing = await CategoryLimitDao.getForMonth(m);
-      const kept = new Set(limits.map(l => l.category_id));
-      for (const e of existing) {
-        if (!kept.has(e.category_id)) {
-          await CategoryLimitDao.remove(e.id);
-        }
-      }
-
-      for (const l of limits) {
-        await CategoryLimitDao.upsert(l.category_id, m, l.limit_amount);
-      }
+      // Hedef + limit kümesi tek transaction: ortada hata olursa yarım kayıt kalmaz (BUG-09).
+      await GoalDao.saveSettings({
+        goal: hasGoalDraft
+          ? {
+            title: title.trim(),
+            target_amount: amt!,
+            target_date: normalizeToYYYYMMDD(targetDate),
+            currency,
+            current_amount,
+          }
+          : null,
+        month: limitMonth,
+        limits: parsedLimits,
+      });
 
       triggerRefresh();
       await syncNotificationsBestEffort(syncNotifications, 'goal-settings-save');
@@ -159,9 +182,10 @@ export default function GoalSettingsScreen() {
       SparkToast.show(t('goal_settings_saved'), 'success');
       router.back();
     } catch (e) {
-      console.warn(e);
+      logError('goal-settings save failed', e);
       SparkToast.show(t('error_saving_data'), 'error');
     } finally {
+      savingRef.current = false;
       setSaving(false);
     }
   }
@@ -230,6 +254,7 @@ export default function GoalSettingsScreen() {
             style={styles.input}
             value={title}
             onChangeText={setTitle}
+            maxLength={SAVINGS_GOAL_TITLE_MAX}
             placeholder={t('goal_settings_placeholder_title')}
             placeholderTextColor={Colors.textMuted}
           />
@@ -270,15 +295,13 @@ export default function GoalSettingsScreen() {
                 </View>
                 <Text style={styles.limitName} numberOfLines={1}>{tc(cat.name)}</Text>
                 <TextInput
+                  testID={`goal-limit-input-${row.category_id}`}
                   style={styles.limitInput}
                   keyboardType="decimal-pad"
-                  value={String(row.limit_amount)}
+                  value={row.limit_text}
                   onChangeText={txt => {
-                    const n = parseFloat(txt.replace(',', '.'));
                     setLimits(prev =>
-                      prev.map(l =>
-                        l.id === row.id ? { ...l, limit_amount: isNaN(n) ? 0 : Math.max(0, n) } : l
-                      )
+                      prev.map(l => (l.id === row.id ? { ...l, limit_text: txt } : l))
                     );
                   }}
                 />

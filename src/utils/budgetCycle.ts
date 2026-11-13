@@ -158,3 +158,32 @@ export function getCycleProgress(
   const daysRemaining = Math.max(0, cycle.totalDays - dayOfCycle);
   return { dayOfCycle, daysRemaining };
 }
+
+/** Bütçe satırının dondurulmuş dönem sınırları (yalnız gereken alanlar). */
+export interface FrozenBudgetBounds {
+  period_start: string | null;
+  period_end: string | null;
+  cycle_start_day: number | null;
+}
+
+/**
+ * BUG-22: Verilen günü (YYYY-MM-DD) kapsayan bütçe döngüsü — limitler, Dashboard,
+ * Analiz ve bildirimler için TEK kural. O günü kapsayan bir bütçe satırı varsa
+ * onun dondurulmuş sınırları geçerlidir (döngü günü sonradan değişse bile);
+ * yoksa ayarlı döngü gününden hesaplanır.
+ */
+export function cycleForDate(
+  anchorRaw: number,
+  ymd: string,
+  containingBudget?: FrozenBudgetBounds | null,
+): BudgetCycle {
+  if (containingBudget?.period_start && containingBudget.period_end) {
+    return budgetCycleFromBounds(
+      containingBudget.period_start,
+      containingBudget.period_end,
+      containingBudget.cycle_start_day ?? anchorRaw,
+    );
+  }
+  const [y, m, d] = ymd.split('-').map(Number);
+  return getCycleForYmd(anchorRaw, y, m - 1, d);
+}

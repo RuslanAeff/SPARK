@@ -15,9 +15,10 @@ import { ExpenseDao } from '../../src/db/expenseDao';
 import { SubscriptionDao } from '../../src/db/subscriptionDao';
 import { RecurringPaymentReminderDao } from '../../src/db/recurringPaymentReminderDao';
 import { CategoryLimitDao } from '../../src/db/categoryLimitDao';
+import { resolveBudgetCycle } from '../../src/services/limitCycle';
 import { GoalDao, type SavingsGoalRow } from '../../src/db/goalDao';
 import type { RecurringPaymentReminder, SubscriptionWithDetails } from '../../src/db/schema';
-import { getStartOfMonth, getEndOfMonth, getToday, formatMonthYear, formatDayMonth } from '../../src/utils/dateUtils';
+import { getToday, getLocalDateMonthsAgo, formatMonthYear, formatDayMonth } from '../../src/utils/dateUtils';
 import { getCurrentCycle, getCycleProgress } from '../../src/utils/budgetCycle';
 import {
   resolveAnalyticsDateRange,
@@ -77,6 +78,7 @@ import {
   hasActiveAnalyticsCard,
   resolveAnalyticsCardEditExit,
 } from '../../src/utils/analyticsCardConfig';
+import { logError } from '../../src/utils/logError';
 
 const SCREEN_HEIGHT = Dimensions.get('window').height;
 const AUTO_SCROLL_EDGE = 100;
@@ -276,11 +278,10 @@ export default function AnalyticsScreen() {
   const { setNestedHorizontalGestureActive } = useTabSwipe();
   // Faz 2: Kartların paylaştığı temel prop demeti — tek yerde memoize (P11).
   const cardBase = useMemo(() => ({ styles, t, tc, currency }), [styles, t, tc, currency]);
-  const [customStart, setCustomStart] = useState(() => {
-    const d = new Date(); d.setMonth(d.getMonth() - 1);
-    return d.toISOString().split('T')[0];
-  });
-  const [customEnd, setCustomEnd] = useState(() => new Date().toISOString().split('T')[0]);
+  // Yerel takvim: UTC'ye çevirmek gece yarısından sonra bir gün geri kaydırıyordu;
+  // setMonth ise ayın 31'inde taşıyordu (BUG-08).
+  const [customStart, setCustomStart] = useState(() => getLocalDateMonthsAgo(1));
+  const [customEnd, setCustomEnd] = useState(() => getToday());
   const [showStartPicker, setShowStartPicker] = useState(false);
   const [showEndPicker, setShowEndPicker] = useState(false);
   const { budget, loading: budgetLoading, refresh: refreshBudget } = useBudget();
@@ -741,11 +742,10 @@ export default function AnalyticsScreen() {
 
   async function loadCategoryLimits() {
     try {
-      const monthKey = getStartOfMonth().substring(0, 7);
-      const monthStart = getStartOfMonth();
-      const monthEnd = getEndOfMonth();
+      // BUG-22: limitler bütçe döngüsüne bağlı; Dashboard/bildirimlerle aynı dönem.
+      const { cycle } = await resolveBudgetCycle();
       // Tek SQL ile limit + kategori meta + aralık harcaması (alt kategoriler dahil)
-      const rows = await CategoryLimitDao.getForMonthWithSpending(monthKey, monthStart, monthEnd);
+      const rows = await CategoryLimitDao.getForMonthWithSpending(cycle.key, cycle.start, cycle.end);
       if (rows.length === 0) {
         setCategoryLimits([]);
         return;
@@ -1008,7 +1008,7 @@ export default function AnalyticsScreen() {
       );
       return true;
     } catch (e) {
-      console.error('Error saving card config:', e);
+      logError('Error saving card config', e);
       return false;
     }
   }
@@ -1116,7 +1116,7 @@ export default function AnalyticsScreen() {
       const mapped = raw.map(r => ({ label: r.year ? String(r.year) : t('unknown'), value: r.total }));
       setYearlyData(mapped);
     } catch (e) {
-      console.error('Error loading yearly data:', e);
+      logError('Error loading yearly data', e);
     }
   }
 
@@ -1135,7 +1135,7 @@ export default function AnalyticsScreen() {
       );
       if (sequence === vendorItemsSequence.current) setVendorItems(items as any[]);
     } catch (e) {
-      console.error('Error loading vendor items:', e);
+      logError('Error loading vendor items', e);
     } finally {
       if (sequence === vendorItemsSequence.current) setVendorItemsLoading(false);
     }
