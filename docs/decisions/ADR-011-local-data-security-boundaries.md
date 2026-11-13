@@ -16,7 +16,9 @@ anında yeterince göstermiyordu.
   Android content sağlayıcısında InputStream, Apple'da güvenlik kapsamlı URL ve
   FileHandle kullanılır. Sınır/hata durumunda kaynak kapanır; cache kopyası yoktur.
   Native modül yoksa işlemi durdur; sınırsız read/text fallback'i ekleme.
-- Şema/transaction modeli korunur. Restore görsel URI'lerini taşımaz. JSON
+- Şema/transaction modeli korunur. Restore görsel URI'lerini taşımaz; export
+  yerel dosya yollarını yazmaz. İsteğe bağlı parolalı şifreleme
+  [ADR-018](ADR-018-optional-backup-encryption.md)'dedir. JSON
   sanitizer iteratif çalışır ve tehlikeli prototype anahtarlarını temizler.
 - Gizli anahtar migration/okuma/yazma/silme işlemleri sırayla çalışır; legacy
   temizliği ve native silme tamamlanmadan başarı bildirilmez.

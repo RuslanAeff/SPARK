@@ -38,6 +38,7 @@ Expo Router ekranları (app/)
     |
     +--> SQLite (birincil yerel veri)
     +--> SecureStore (Gemini API anahtarı)
+    +--> belge klasöründe yerel hata günlüğü (ADR-016; ağ yok, kullanıcı paylaşır)
     +--> cihaz kamerası, galeri, dosya ve bildirim API'leri
     +--> Gemini API (isteğe bağlı fiş ayrıştırma ve açık kullanıcı eyleminde ürün eşleşme önerisi)
 ```
@@ -155,7 +156,7 @@ oluşturmasına dayanmaz.
 | Varlık | Rol ve değişmez |
 |---|---|
 | `categories` | İkon, renk ve sistem sahipliği metaverisi bulunan iki seviyeli kategori ağacı. |
-| `vendors` | Kanonik satıcı kaydı; manuel ve taranmış harcamalarda kullanılan varsayılan kategori tutabilir. |
+| `vendors` | Kanonik satıcı kaydı; manuel ve taranmış harcamalarda kullanılan varsayılan kategori tutabilir. `name_key` (büyük/küçük harf farkı olmayan, aksanı koruyan anahtar) tekildir; "ŞOK" ile "Şok" aynı satıcıdır (BUG-14). `logo_uri` yalnız `documentDirectory/vendor-logos/` altındaki kalıcı kopyayı gösterir (`vendorLogoStore`, BUG-27). |
 | `expenses` | Finansal işlem başlığı. Kaydedilmiş fiş toplamı tüketim toplamıdır; ayrıca fişte ödenen ambalaj depozitosu ile ödeme aracı olarak kullanılan depozito voucher tutarını ayrı taşır. |
 | `expense_items` | Harcamaya bağlı isteğe bağlı fiş satır ayrıntısı; ham `name`/`turkish_name`, ayrı kullanıcı görünüm etiketi, `measurement_unit`, `financial_kind` ve nullable kanonik ürün bağlantısını taşır; harcama silinince kalemler cascade ile silinir. |
 | `canonical_products` | Ölçü birimine bağlı, taşınabilir UID'li ürün kimliği ve kullanıcıya dönük kanonik ad/metaveri. Yerel eşleşme anahtarı kullanıcı etiketi değildir. |
@@ -163,7 +164,7 @@ oluşturmasına dayanmaz.
 | `budgets` | Takvim ayı olmak zorunda olmayan bütçe döngüsü anahtarıyla ilişkili planlanan tutar. |
 | `budget_rollovers` | Kapanmış bir dönemin kalanından bitişik sonraki döneme kullanıcı onayıyla aktarılan tutar. Harcama veya ek gelir değildir; kaynak dönem çifti başına tektir ve minor birimde saklanır (ADR-013). |
 | `savings_goal` | Tek aktif birikim hedefi ve mevcut katkı tutarı. |
-| `category_limits` | Döngü başına kategori harcama limitleri. |
+| `category_limits` | Döngü başına kategori harcama limitleri. `month` = bütçe döngüsünün başladığı ay; dönem yalnız `resolveBudgetCycle`/`cycleForDate` ile çözülür, yeni döngüye devralınmaz (BUG-22). |
 | `subscriptions` | Yerel harcama geçmişinden çıkarılan tekrarlayan satıcı ödeme tahminleri ve kullanıcının gizleme durumu; kullanıcı taahhüdü değildir. |
 | `recurring_payment_reminders` | Kullanıcının manuel tanımladığı veya bir tahminden açıkça onayladığı takvimli ödeme hatırlatıcıları. |
 | `debts` | Tüketimden ayrı izlenen alınan veya verilen borç anaparası; nakit-akışı tarihi ile opsiyonel vade birbirinden ayrıdır. |
@@ -456,7 +457,19 @@ edilen devrin dayanağı bilinemez. v5 doğrulaması bitişiklik, para birimi e�
 kaynak tekilliği ve her iki dönemin payload'daki tek bütçe satırıyla birebir
 eşleşmesini transaction başlamadan denetler; aynı kaynaktan farklı tutarlı ikinci
 bir kayıt tüm importu reddeder, böylece aynı para iki kez alacak yazılmaz.
-v1–v4 import desteği korunur ve bu sürümler devir koleksiyonunu boş kabul eder. Kalıcı bir varlık veya
+v1–v4 import desteği korunur ve bu sürümler devir koleksiyonunu boş kabul eder.
+Backup v7 ([ADR-017](decisions/ADR-017-backup-v7-identity-and-local-wins.md))
+harcama, borç, ödeme ve ek geliri kalıcı `uid` ile taşır ve önce onunla eşleştirir;
+kategoriyi üst adıyla taşır; birikim hedefini, kategori limitlerini ve döngü gününü
+içerir. v7 ile çakışma politikası değişti: aynı kayıt cihazda yedekten sonra
+değişmişse (yukarıdaki "reddet" kuralları dahil) cihazdaki hâl korunur, yedekteki
+atlanır ve içe aktarım sürer; yalnız biçimsel olarak bozuk dosya reddedilir.
+Para birimi etikettir ve içe aktarım sonunda cihazın para birimine çekilir.
+Export, ürettiği JSON'u teslim etmeden önce aynı import doğrulayıcısından ve
+25 MB sınırından geçirir; başarısızsa dosya üretilmez ve hata hangi koleksiyonda
+olduğunu (`section`) taşır. Yerel dosya yolları export'a yazılmaz. Kalemler
+aralık için tek sorguda okunur; import, yinelenen harcamaların mevcut kalemlerini
+yalnız eşleşebilecek harcamalar için tek seferde önceden okur. Kalıcı bir varlık veya
 alan eklemek; şema başlatma, DAO, export oluşturma, import uyumluluğu ve yedek
 format sürümünün birlikte incelenmesini gerektirir.
 

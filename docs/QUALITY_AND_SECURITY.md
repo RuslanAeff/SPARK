@@ -28,7 +28,7 @@ npm run typecheck
 npm test -- --ci --coverage=false
 ```
 
-CI bu kapıları çalıştırmadan önce lockfile üzerinden kurulum yapar. Yerel odaklı testler geliştirme sırasında yararlıdır ancak teslimden önce tam paketin yerini almaz.
+CI bu kapıları çalıştırmadan önce lockfile üzerinden kurulum yapar. İş akışı yalnız okuma yetkisiyle (`permissions: contents: read`) ve commit SHA ile sabitlenmiş action'larla çalışır; `npm audit --omit=dev --audit-level=high` adımı yalnız rapor verir (`continue-on-error`): kalan yüksek kayıtlar Expo SDK 55 zincirindedir ve erişilemezlikleri denetim raporunda (SEC-08) belgelidir; SDK yükseltmesinden sonra adım kırıcı yapılmalıdır. Yerel odaklı testler geliştirme sırasında yararlıdır ancak teslimden önce tam paketin yerini almaz.
 
 ### Test stratejisi
 
@@ -113,6 +113,7 @@ SPARK hassas kişisel finans verisini yerel olarak saklar. Kullanıcı tarafınd
 - Anahtarı URL query parametresi yerine `x-goog-api-key` request header ile gönderin.
 - Kopyalanan anahtar girdisini saklama ve kullanımdan önce trim edip doğrulayın.
 - UI tanılaması anahtarın varlığını bildirebilir; prefix, suffix, uzunluktan türeyen fingerprint veya header içerebilen tam hata payload'ını göstermemelidir.
+- İmzalama anahtarları (`*.jks`, `*.keystore`, `*.p8`, `*.p12`), hizmet kimlik dosyaları ve `.env.*` `.gitignore` kapsamındadır (`.env.example` hariç). EAS `projectId` gizli değildir; `app.json` içinde durur, `EAS_PROJECT_ID` ile ezilebilir.
 
 ### Dış ve kullanıcı kontrollü girdi
 
@@ -123,6 +124,7 @@ Aşağıdakilerin tümünü güvenilmez kabul edin:
 - Kullanıcının girdiği adlar, notlar, tarihler, tutarlar, miktarlar, para birimleri ve tanımlayıcı dizileri
 - Dosya ve görsel URI'ları
 - Eski uygulama sürümlerinden kalan kalıcı ayarlar
+- `spark://` ile gelen sistem bağlantıları: `app/+native-intent.tsx` yönlendiriciden önce `filterIncomingLink` ile aşırı uzun (2048+), kontrol karakterli veya bozuk yüzde kodlamalı adresleri düşürür (SEC-08). Bağlantıyla açılan ekran kendiliğinden yıkıcı işlem yapmaz.
 
 `src/utils/inputValidation.ts` içindeki merkezi sanitizer'ları kullanın. `__proto__`, `constructor` ve `prototype` gibi tehlikeli nesne anahtarları dış nesne ağaçlarından iteratif çıkarılmalıdır; derinlik 64, toplam düğüm 250.000 ile sınırlıdır. Koleksiyon boyutlarını ve metin uzunluklarını render veya kalıcılık öncesinde sınırlandırın.
 
@@ -133,6 +135,8 @@ Aşağıdakilerin tümünü güvenilmez kabul edin:
 - Production uyarıları kısa ve anonim alt sistem sinyalleri olmalıdır.
 - Production UI içinde stack trace veya hassas exception ayrıntısı göstermeyin.
 - Kök error boundary, ayrıntılı tanılamayı yalnız development ortamında tutarken kullanıcıya kurtarılabilir bir yüzey sunmalıdır.
+- Hata kaydı için yalnız `src/utils/logError.ts` kullanılır; ham `console.error/warn(e)` eklenmez. Yayın sürümü yalnız etiket yazar.
+- Yerel hata günlüğü ([ADR-016](decisions/ADR-016-local-error-journal.md)) yalnız cihazdadır ve kullanıcı paylaşmadıkça çıkmaz. Kayıtlar yazılmadan önce süzülür; finansal değer, ad ve dosya yolu taşımamalıdır. Yeni bir hata mesajı kalıbı eklendiğinde süzgeç testine örnek ekleyin.
 
 ### Ağ davranışı
 
@@ -154,8 +158,10 @@ Bildirim kurulumu Android sürüm davranışını ve Expo Go sınırlamalarını
 - WAL ve foreign-key enforcement etkin kalmalıdır.
 - Başlatma, yıkıcı olmayan bir bütünlük kontrolü yapar. Bozulma kullanıcı verisini sessizce silmeden veya yeniden oluşturmadan görünür kılınmalıdır.
 - İlişkili yazmalar atomiktir.
-- İlk kurulum seed ve migration işlemleri veritabanı hazır olarak sunulmadan önce tamamlanır.
-- Çakışabilen aynı bağlantı sorguları Expo SQLite shared-object yaşam döngüsünün gerektirdiği yerlerde serileştirilir.
+- İlk kurulum seed ve migration işlemleri veritabanı hazır olarak sunulmadan önce tamamlanır. Seed tek transaction'dır; kolon geçişleri `addColumnIfMissing` ile önce `PRAGMA table_info` bakar ve gerçek hatayı yutmaz.
+- Veri sıfırlama silme transaction'ından sonra `VACUUM` ve `PRAGMA wal_checkpoint(TRUNCATE)` çalıştırır; silinen satırlar veritabanı ve WAL dosyasının serbest sayfalarında okunur kalmaz. Bu adımın hatası sıfırlamayı başarısız saymaz.
+- Çakışabilen aynı bağlantı sorguları Expo SQLite shared-object yaşam döngüsünün gerektirdiği yerlerde serileştirilir. Ekran yenileme zincirleri `src/utils/serialQueue.ts` ile sıraya alınır; DB'ye dokunan `Promise.all` eklenmez.
+- `PRAGMA busy_timeout = 3000` ana bağlantıya açılışta, `withExclusiveTransactionAsync`'in açtığı geçici bağlantıya görevin başında uygulanır (`src/db/busyTimeout.ts`).
 - Silme davranışı foreign key'lere uymalı ve bağlı domain anlamını korumalıdır; örneğin bir harcamayı silmek borcu sessizce yeniden yorumlamamalıdır.
 - Finansal toplamları ham JavaScript `number` veya SQLite `SUM(REAL)` sonucuyla kullanıcıya taşımayın. Para toplam/indirimlerini integer minor-unit ile hesaplayın; DAO yazma sınırında iki ondalığa normalize edin ve düzenlenebilir alanları ham `.toString()` yerine kanonik para metniyle doldurun.
 
@@ -165,10 +171,20 @@ Bildirim kurulumu Android sürüm davranışını ve Expo Go sınırlamalarını
 - Restore, mutasyondan önce belgenin tamamını doğrular ve sanitize eder.
 - Import veritabanı transaction'ı içinde all-or-nothing çalışır.
 - Desteklenen payload'larda yeniden import idempotent olmalıdır.
+- Aynı kaydın cihazdaki hâli yedekten farklıysa cihaz kazanır; import ezmez ve
+  durmaz, aynı parayı iki kez saymaz (ADR-017). Yalnız bozuk dosya reddedilir.
 - Format sürümü artırımı, desteklenen eski sürümler için açık uyumluluk yolunu korumalıdır.
 - Saklanan URI mevcut olsa bile fiş dosya içerikleri taşınabilir kabul edilmez.
 - Görünüm şeması ve vurgu paleti cihaz-yerel UI tercihleridir; finansal backup
   payload'ına eklenmez ve tek başına backup format sürümü artışı gerektirmez.
+- Export, dosyayı teslim etmeden önce içe aktarım doğrulayıcısından ve 25 MB
+  sınırından geçirir; geçemezse dosya üretilmez ve "son yedek" güncellenmez.
+- Export yerel dosya yollarını (`receipt_uri`, `logo_uri`) yazmaz ve girintisiz JSON üretir.
+- İsteğe bağlı parolalı yedek: native PBKDF2-SHA256 + AES-256-GCM, başlık AAD'ye bağlı, parola
+  saklanmaz; zarfın içi düz yedekle aynı doğrulamadan geçer ve içe aktarım KDF
+  parametrelerini sınırlar (ADR-018).
+- DAO yazma sınırları (not 1000, para birimi 10, tarih `isSupportedYmd`) içe
+  aktarım sözleşmesiyle aynı tutulur; daha geniş değer yazmak yedeği bozar.
 
 ### Bildirim durumu
 
@@ -291,7 +307,7 @@ Güvenlik sınırları, kalite kapıları, native doğrulama gereksinimleri veya
 
 ## 16 Eylül güvenlik düzeltmelerinin kalıcı sınırları
 
-- Yedek v1–v6 görsel dosyası taşımaz. Restore, dış `logo_uri` ve `receipt_uri`
+- Yedek v1–v7 görsel dosyası taşımaz. Restore, dış `logo_uri` ve `receipt_uri`
   değerlerini temizler; mevcut yerel satıcı logosu korunur. Görsel sunucularına
   istek açmamak için satıcı render noktaları yalnız yerel picker URI şemalarını kabul eder.
 - SecureStore okuma/migration/yazma/silme aynı işlem kuyruğundadır. Silme legacy

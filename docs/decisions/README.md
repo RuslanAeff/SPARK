@@ -42,3 +42,6 @@ Bir kararı değiştirirken eski ADR sessizce yeniden yazılmaz. Yeni ADR oluşt
 - [ADR-012 — AI aktarımında hizmet katmanı ve pazar kapsamı](ADR-012-ai-transfer-service-and-market-scope.md): ücretsiz katman serbest, pazar global; canlı metin ve Play beyanı açık.
 
 - [ADR-015 — Voucher alışveriş ödemesi](ADR-015-voucher-purchase-payment.md): Accepted; kupon bütçeye gelir yazılmaz, kart/nakit harcamasını azaltır.
+- [ADR-016 — Yerel hata günlüğü](ADR-016-local-error-journal.md): Accepted; hatalar tek kapıdan geçer, günlük yalnız cihazda tutulur ve kullanıcı onayıyla paylaşılır; bulut servisi yok.
+- [ADR-018 — İsteğe bağlı yedek şifrelemesi](ADR-018-optional-backup-encryption.md): Accepted; parola → native PBKDF2-SHA256 600k tur, AES-256-GCM (expo-crypto), parola saklanmaz, unutulursa yedek açılamaz.
+- [ADR-017 — Yedek v7](ADR-017-backup-v7-identity-and-local-wins.md): Accepted; harcama/borç/ödeme/gelir kalıcı kimlik taşır, çakışmada cihaz kazanır ve içe aktarım sürer, hedef/limit/döngü günü yedeğe girer, varsayılan "Tüm veriler".

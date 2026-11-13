@@ -54,6 +54,22 @@ SPARK offline-first çalışır ve ana veriyi tek `spark.db` SQLite veritabanın
 - `src/notifications/__tests__/storage.test.ts`
 - `docs/history/DESIGN_BRIEF_LEGACY_2026-08-01.md` P6, P26, P27, P28, P29
 
+## 12 Kasım 2026 eki — kod denetimi bulguları (BUG-05, BUG-12)
+
+Karar değişmedi; uygulama sözleşmeye yeniden uyduruldu ve iki sınır eklendi:
+
+- Dashboard yenileme zincirleri, limit kartı, hedef ekranı ve yedek metaverisi
+  artık aynı bağlantıda `Promise.all` kullanmaz; ekran zincirleri
+  `src/utils/serialQueue.ts` ile sıraya alınır.
+- `PRAGMA busy_timeout = 3000` ana bağlantıya açılışta, `withExclusiveTransactionAsync`'in
+  her çağrıda açtığı geçici bağlantıya ise görevin başında uygulanır
+  (`src/db/busyTimeout.ts`); iki bağlantı yazarken ikincisi beklemeden hata almaz.
+- İç içe transaction riski açıktır: `withTransactionAsync` dışlayıcı değildir ve
+  çakışan ikinci `BEGIN`'in `ROLLBACK`'i ilk transaction'ı geri alabilir
+  (expo-sqlite 55 kaynağından çıkarım, cihazda yeniden üretilmedi). Process içi
+  yazma kuyruğu, cihazda yeniden üretim ve ayrı bir ADR güncellemesinden sonra
+  ele alınacaktır. Hata günlüğü bu nedenle SQLite'a yazmaz (ADR-016).
+
 ## Yeniden değerlendirme koşulları
 
 Expo SQLite sürümü connection pool/transaction izolasyonu için yeni, cihaz testleriyle doğrulanmış bir sözleşme sağlarsa seçili salt-okunur sorgular paralelleştirilebilir. Değişiklik önce stres testi ve yeni ADR gerektirir.

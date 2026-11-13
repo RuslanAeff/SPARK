@@ -64,6 +64,23 @@ Eski edit-before-save yolu yalnız header alanlarını formda dolduruyor ve ür�
 - Gemini/receipt/discount testleri
 - `docs/history/DESIGN_BRIEF_LEGACY_2026-08-01.md` §3.2, §3.3, P29
 
+## 12 Kasım 2026 eki — kalem düzenlemesinde onay (BUG-03, ürün kararı B)
+
+Ürün sahibi kararıyla madde 5 ve 8 şu iki kuralla genişletildi; madde 1–4 değişmedi.
+
+12. **Yalnız ad düzeltmesi** (`edit-items`'te miktar, birim, etiket fiyatı ve
+    indirim form metni düzenleme başlangıcındakiyle aynı) yalnız `user_label`
+    yazar (`ExpenseDao.updateItemLabel`). Para alanları yeniden hesaplanıp
+    yazılmaz, `syncExpenseTotal` çağrılmaz; basılı toplam ve satır kuruşları değişmez.
+13. Kalem ekleme, fiyat/miktar/indirim düzenleme veya silme **basılı toplamı
+    değiştirecekse** yazmadan önce kullanıcıya "Fiş toplamı X → Y olacak"
+    onayı sorulur; vazgeçilirse hiçbir şey yazılmaz. Silmede bu bilgi mevcut
+    silme onayının mesajına eklenir (tek pencere). Toplam değişmiyorsa onay sorulmaz.
+14. Basılı toplam ile kalem toplamı farklıysa `edit-items` farkı görünür kılar (madde 8).
+
+Doğrulama: `expenseDaoItemLabel` (gerçek SQLite; 68,80 basılı toplam korunur),
+`EditItemsScreen` (fark çubuğu, yalnız ad, onay/vazgeç). Cihazda doğrulanmadı.
+
 ## Yeniden değerlendirme koşulları
 
 OCR kaynağı basılı toplam için güven skorları sağlarsa veya kullanıcı header toplamını doğrudan doğrulayan yeni bir reconciliation ekranı eklenirse otorite/fallback sırası yeni ADR ile ele alınmalıdır.
