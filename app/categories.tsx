@@ -1,5 +1,5 @@
 // S.P.A.R.K. — Category Manager Screen
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useRef } from 'react';
 import {
   View, Text, ScrollView, StyleSheet, Pressable, TextInput, LayoutAnimation, Platform, UIManager,
 } from 'react-native';
@@ -30,6 +30,7 @@ import { CategoryWithChildren } from '../src/db/schema';
 import { useLanguage } from '../src/i18n/LanguageContext';
 import GlassDeleteModal from '../src/components/GlassDeleteModal';
 import { SparkToast } from '../src/components/SparkToast';
+import { logError } from '../src/utils/logError';
 
 export default function CategoriesScreen() {
   useThemeRevision();
@@ -41,13 +42,19 @@ export default function CategoriesScreen() {
   const [newCatName, setNewCatName] = useState('');
   const [addingTo, setAddingTo] = useState<number | null>(null); // null = root, id = sub
   const [showAdd, setShowAdd] = useState(false);
-  const [deleteTarget, setDeleteTarget] = useState<{ id: number; name: string } | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<{ id: number; name: string; usage: number } | null>(null);
+  const addingRef = useRef(false);
 
   useFocusEffect(useCallback(() => { loadTree(); }, []));
 
   async function loadTree() {
-    const data = await CategoryDao.getTree();
-    setTree(data);
+    try {
+      const data = await CategoryDao.getTree();
+      setTree(data);
+    } catch (error) {
+      logError('categories load failed', error);
+      SparkToast.show(t('operation_failed'), 'error');
+    }
   }
 
   function toggleExpand(id: number) {
@@ -61,32 +68,60 @@ export default function CategoriesScreen() {
   }
 
   async function handleAdd() {
-    if (!newCatName.trim()) return;
-    await CategoryDao.create({
-      name: newCatName.trim(),
-      parent_id: addingTo,
-    });
+    if (!newCatName.trim() || addingRef.current) return;
+    addingRef.current = true;
+    try {
+      await CategoryDao.create({
+        name: newCatName.trim(),
+        parent_id: addingTo,
+      });
+    } catch (error) {
+      // Eskiden yakalanmamış ret; kullanıcı hiçbir geri bildirim almıyordu (BUG-30).
+      if (error instanceof Error && error.message === 'CATEGORY_NAME_EXISTS') {
+        SparkToast.show(t('category_name_exists'), 'error');
+        return;
+      }
+      logError('categories add failed', error);
+      SparkToast.show(t('error_saving_data'), 'error');
+      return;
+    } finally {
+      addingRef.current = false;
+    }
     setNewCatName('');
     setShowAdd(false);
     setAddingTo(null);
     await loadTree();
   }
 
-  function handleDelete(id: number, name: string) {
+  async function handleDelete(id: number, name: string) {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    setDeleteTarget({ id, name });
+    // BUG-13 eki: kullanımdaysa onay penceresi "Diğer"e taşıyıp silmeyi önerir.
+    let usage = 0;
+    try {
+      usage = await CategoryDao.getUsageCount(id);
+    } catch (error) {
+      logError('categories usage count failed', error);
+    }
+    setDeleteTarget({ id, name, usage });
   }
 
   async function confirmDelete() {
     if (!deleteTarget) return;
     try {
-      await CategoryDao.delete(deleteTarget.id);
+      if (deleteTarget.usage > 0) await CategoryDao.deleteMovingUsageToOther(deleteTarget.id);
+      else await CategoryDao.delete(deleteTarget.id);
+      if (deleteTarget.usage > 0) {
+        SparkToast.show(t('category_moved_and_deleted', { count: deleteTarget.usage.toString(), other: tc('Diğer') }), 'success');
+      }
       setDeleteTarget(null);
       await loadTree();
     } catch (e) {
       setDeleteTarget(null);
       if (e instanceof Error && e.message === 'SYSTEM_CATEGORY_LOCKED') {
         SparkToast.show(t('category_system_locked'), 'error');
+      } else if (e instanceof Error && e.message === 'CATEGORY_IN_USE') {
+        // Sayımdan sonra yeni kullanım oluştu: pencereyi taşıma seçeneğiyle yeniden aç.
+        void handleDelete(deleteTarget.id, deleteTarget.name);
       } else {
         SparkToast.show(t('operation_failed'), 'error');
       }
@@ -211,7 +246,10 @@ export default function CategoriesScreen() {
 
       <GlassDeleteModal
         visible={deleteTarget !== null}
-        message={deleteTarget ? t('confirm_delete_category', { name: tc(deleteTarget.name) }) : ''}
+        title={deleteTarget && deleteTarget.usage > 0 ? t('category_in_use_title') : undefined}
+        message={!deleteTarget ? '' : deleteTarget.usage > 0
+          ? t('category_move_to_other_confirm', { name: tc(deleteTarget.name), count: deleteTarget.usage.toString(), other: tc('Diğer') })
+          : t('confirm_delete_category', { name: tc(deleteTarget.name) })}
         onCancel={() => setDeleteTarget(null)}
         onDelete={confirmDelete}
       />
