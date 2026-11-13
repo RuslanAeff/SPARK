@@ -1,4 +1,5 @@
 import * as Crypto from 'expo-crypto';
+import type { SQLiteBindValue, SQLiteDatabase } from 'expo-sqlite';
 
 import { getDatabase } from './database';
 import type { ContainerDepositVoucher } from './schema';
@@ -11,6 +12,28 @@ export interface ContainerDepositSummary {
   depositPaid: number;
   recovered: number;
   availableVoucher: number;
+}
+
+/**
+ * Silinecek harcamalarda kullanılmış kuponları yeniden kullanılabilir yapar.
+ * Harcama silen her yol bunu AYNI transaction içinde, DELETE'ten ÖNCE çağırmalı:
+ * FK `redemption_expense_id` alanını NULL yapar ama `status = 'redeemed'` kalır
+ * ve kupon kalıcı olarak öksüz kalır (BUG-02).
+ *
+ * `expenseIdSql` güvenilir, sabit bir SQL parçasıdır (yer tutucu veya alt sorgu);
+ * kullanıcı verisi yalnız `params` ile bağlanır.
+ */
+export async function releaseVouchersRedeemedBy(
+  db: Pick<SQLiteDatabase, 'runAsync'>,
+  expenseIdSql: string,
+  params: SQLiteBindValue[],
+): Promise<void> {
+  await db.runAsync(
+    `UPDATE container_deposit_vouchers
+        SET status = 'available', redeemed_date = NULL, redemption_expense_id = NULL
+      WHERE status = 'redeemed' AND redemption_expense_id IN (${expenseIdSql})`,
+    params,
+  );
 }
 
 function safeCurrency(value: string): string {
@@ -49,6 +72,20 @@ export const ContainerDepositDao = {
       ],
     );
     return Number(result.lastInsertRowId);
+  },
+
+  /**
+   * BUG-28 (ürün kararı A): kullanılmamış veya süresi dolmuş kupon silinebilir.
+   * Bir harcamaya bağlı (redeemed) kupon silinmez; o harcamanın ödeme kaydıdır.
+   */
+  async deleteVoucher(id: number): Promise<void> {
+    const db = await getDatabase();
+    const result = await db.runAsync(
+      `DELETE FROM container_deposit_vouchers
+        WHERE id = ? AND status IN ('available', 'expired') AND redemption_expense_id IS NULL`,
+      [id],
+    );
+    if (result.changes === 0) throw new Error('VOUCHER_NOT_DELETABLE');
   },
 
   async expirePastDue(today: string = getToday()): Promise<void> {

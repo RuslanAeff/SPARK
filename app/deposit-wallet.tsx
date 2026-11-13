@@ -27,6 +27,7 @@ import { parseMoneyInput } from '../src/utils/moneyMath';
 import BudgetDisclosure from '../src/components/BudgetDisclosure';
 import CustomDatePicker from '../src/components/CustomDatePicker';
 import { SparkToast } from '../src/components/SparkToast';
+import GlassDeleteModal from '../src/components/GlassDeleteModal';
 import { createSusevarStyles, susevarButtonPressed } from '../src/theme/susevar';
 
 const EMPTY_SUMMARY: ContainerDepositSummary = {
@@ -51,6 +52,7 @@ export default function DepositWalletScreen() {
   const [expiresOn, setExpiresOn] = useState<string | null>(null);
   const [dateTarget, setDateTarget] = useState<'issued' | 'expiry' | null>(null);
   const [saving, setSaving] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<ContainerDepositVoucher | null>(null);
   const iconProgress = useSharedValue(0);
 
   useEffect(() => {
@@ -88,7 +90,8 @@ export default function DepositWalletScreen() {
     const nextSummary = await ContainerDepositDao.getSummary(currency);
     const nextVouchers = await ContainerDepositDao.getAll();
     setSummary(nextSummary);
-    setVouchers(nextVouchers.filter(voucher => voucher.currency === currency));
+    // BUG-01 6b / BUG-28: para birimi etikettir; hiçbir kupon süzülüp gizlenmez.
+    setVouchers(nextVouchers);
   }, [currency]);
 
   useFocusEffect(useCallback(() => { void load(); }, [load]));
@@ -118,6 +121,21 @@ export default function DepositWalletScreen() {
       SparkToast.show(t('error_saving_data'), 'error');
     } finally {
       setSaving(false);
+    }
+  };
+
+  // BUG-28: yalnız kullanılmamış/süresi dolmuş kupon silinebilir (DAO da zorlar).
+  const confirmDeleteVoucher = async () => {
+    const target = deleteTarget;
+    setDeleteTarget(null);
+    if (!target) return;
+    try {
+      await ContainerDepositDao.deleteVoucher(target.id);
+      await load();
+      triggerRefresh();
+      SparkToast.show(t('deposit_voucher_deleted'), 'success');
+    } catch {
+      SparkToast.show(t('delete_failed'), 'error');
     }
   };
 
@@ -241,9 +259,29 @@ export default function DepositWalletScreen() {
                 <Text style={styles.redeemText}>{t('deposit_use_purchase')}</Text>
               </Pressable>
             ) : null}
+            {voucher.status !== 'redeemed' && voucher.redemption_expense_id == null ? (
+              <Pressable
+                testID={`voucher-delete-${voucher.id}`}
+                onPress={() => setDeleteTarget(voucher)}
+                style={styles.deleteVoucherButton}
+                accessibilityRole="button"
+                accessibilityLabel={t('deposit_voucher_delete')}
+                hitSlop={6}
+              >
+                <MaterialCommunityIcons name="trash-can-outline" size={16} color={Colors.danger} />
+                <Text style={styles.deleteVoucherText}>{t('deposit_voucher_delete')}</Text>
+              </Pressable>
+            ) : null}
           </View>
         ))}
       </ScrollView>
+
+      <GlassDeleteModal
+        visible={deleteTarget != null}
+        message={t('deposit_voucher_delete_confirm')}
+        onCancel={() => setDeleteTarget(null)}
+        onDelete={() => void confirmDeleteVoucher()}
+      />
 
       <CustomDatePicker
         visible={dateTarget != null}
@@ -309,5 +347,7 @@ const getStyles = () => {
     statusDotAvailable: { backgroundColor: Colors.success },
     redeemButton: { minHeight: 42, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: Spacing.xs, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: Colors.border, paddingTop: Spacing.sm },
     redeemText: { ...Typography.labelLarge, color: Colors.primary, fontFamily: FontFamily.semiBold },
+    deleteVoucherButton: { alignSelf: 'center', flexDirection: 'row', alignItems: 'center', gap: Spacing.xs, paddingVertical: Spacing.xs },
+    deleteVoucherText: { ...Typography.labelSmall, color: Colors.danger },
   });
 };
