@@ -132,7 +132,7 @@ describe('RecurringPaymentReminderForm', () => {
     expect(onSaved).toHaveBeenCalledTimes(1);
   });
 
-  it('algılanan öneriyi vendor ve para birimiyle ancak açık kayıtta oluşturur', async () => {
+  it('algılanan öneriyi vendor ve uygulamanın para birimiyle ancak açık kayıtta oluşturur (BUG-01)', async () => {
     const screen = await render(
       <RecurringPaymentReminderForm
         initialValue={detectedValue}
@@ -147,7 +147,7 @@ describe('RecurringPaymentReminderForm', () => {
       title: 'Internet Provider',
       vendorId: 8,
       expectedAmount: 79.9,
-      currency: 'PLN',
+      currency: 'EUR',
       source: 'detected',
       anchorDate: '2026-09-15',
       nextDueDate: '2026-09-15',
@@ -226,4 +226,18 @@ describe('RecurringPaymentReminderForm', () => {
     })));
   });
 
+
+  it('para birimi serbest yazılamaz; uygulamanın para birimi gösterilir (BUG-01)', async () => {
+    const screen = await render(
+      <RecurringPaymentReminderForm
+        initialValue={null}
+        defaultCurrency="EUR"
+        onClose={jest.fn()}
+        onSaved={jest.fn()}
+      />,
+    );
+    const currency = screen.getByTestId('recurring-plan-currency');
+    expect(currency).toHaveTextContent('EUR');
+    expect(currency.props.onChangeText).toBeUndefined();
+  });
 });

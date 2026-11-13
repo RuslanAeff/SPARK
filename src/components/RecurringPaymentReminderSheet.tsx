@@ -28,6 +28,7 @@ import { useAppTheme, useThemeRevision } from '../theme/themeStore';
 import { FontFamily, Typography } from '../theme/typography';
 import { createSusevarStyles, susevarButtonPressed } from '../theme/susevar';
 import { formatDateFull, getToday } from '../utils/dateUtils';
+import { logError } from '../utils/logError';
 
 export interface RecurringPaymentReminderFormValue {
   id?: number;
@@ -79,7 +80,6 @@ export default function RecurringPaymentReminderForm({
   const [datePickerVisible, setDatePickerVisible] = useState(false);
   const [title, setTitle] = useState('');
   const [amount, setAmount] = useState('');
-  const [currency, setCurrency] = useState(defaultCurrency);
   const [nextDueDate, setNextDueDate] = useState('');
   const [unit, setUnit] = useState<ReminderRecurrenceUnit>('month');
   const [interval, setInterval] = useState('1');
@@ -93,7 +93,6 @@ export default function RecurringPaymentReminderForm({
     setDatePickerVisible(false);
     setTitle(initialValue?.title ?? '');
     setAmount(initialValue?.expectedAmount == null ? '' : String(initialValue.expectedAmount));
-    setCurrency(initialValue?.currency ?? defaultCurrency);
     setNextDueDate(initialValue?.nextDueDate ?? '');
     setUnit(initialValue?.recurrenceUnit ?? 'month');
     setInterval(String(initialValue?.recurrenceInterval ?? 1));
@@ -119,7 +118,9 @@ export default function RecurringPaymentReminderForm({
     if (savingRef.current) return;
     const safeTitle = title.trim();
     const safeAmount = parseDecimal(amount);
-    const safeCurrency = currency.trim().toUpperCase();
+    // BUG-01 6b: uygulama tek para birimlidir; plan da uygulamanın para birimini
+    // taşır (algılanan önerinin eski etiketi veya serbest yazım kullanılmaz).
+    const safeCurrency = defaultCurrency.trim().toUpperCase();
     const safeInterval = Number(interval);
     const safeLeadDays = Number(leadDays);
     if (
@@ -174,7 +175,7 @@ export default function RecurringPaymentReminderForm({
       await onSaved();
       onClose();
     } catch (error) {
-      if (__DEV__) console.warn('[recurring-plan] save', error);
+      logError('recurring-plan save', error);
       SparkToast.show(t('recurring_plan_save_error'), 'error');
     } finally {
       savingRef.current = false;
@@ -225,15 +226,10 @@ export default function RecurringPaymentReminderForm({
           </View>
           <View style={styles.currencyField}>
             <Text style={styles.label}>{t('currency')}</Text>
-            <TextInput
-              testID="recurring-plan-currency"
-              style={[styles.input, styles.currencyInput]}
-              value={currency}
-              onChangeText={(value) => setCurrency(value.replace(/[^A-Za-z]/g, '').slice(0, 10))}
-              autoCapitalize="characters"
-              maxLength={10}
-              editable={!saving}
-            />
+            {/* Salt okunur: para birimi Ayarlar → Genel'den değişir (BUG-01). */}
+            <View style={[styles.input, styles.currencyValue]}>
+              <Text testID="recurring-plan-currency" style={styles.currencyText}>{defaultCurrency}</Text>
+            </View>
           </View>
         </View>
 
@@ -454,7 +450,8 @@ const getStyles = () => StyleSheet.create({
   row: { flexDirection: 'row', gap: Spacing.sm },
   amountField: { flex: 1, minWidth: 0 },
   currencyField: { width: 90 },
-  currencyInput: { textAlign: 'center', fontFamily: FontFamily.bold },
+  currencyValue: { justifyContent: 'center', alignItems: 'center' },
+  currencyText: { ...Typography.bodyMedium, color: Colors.textSecondary, fontFamily: FontFamily.bold },
   dateButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   dateText: { ...Typography.bodyMedium, color: Colors.textPrimary, flex: 1 },
   placeholder: { color: Colors.textMuted },

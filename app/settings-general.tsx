@@ -41,6 +41,8 @@ import {
   SettingsNavigationRow,
   SettingsSection,
 } from '../src/components/SettingsList';
+import { logError } from '../src/utils/logError';
+import ConfirmModal from '../src/components/ConfirmModal';
 
 export default function SettingsGeneralScreen() {
   const colorScheme = useAppTheme();
@@ -55,6 +57,8 @@ export default function SettingsGeneralScreen() {
   const [autoScheduleEnabled, setAutoScheduleEnabled] = useState(false);
   const [manualThemePref, setManualThemePref] = useState<'light' | 'dark'>('dark');
   const [langSheetOpen, setLangSheetOpen] = useState(false);
+  // BUG-01 6b: para birimi değişikliği tutarları çevirmez; önce açıkça onaylatılır.
+  const [pendingCurrency, setPendingCurrency] = useState<DisplayCurrency | null>(null);
   const [currencyInfoOpen, setCurrencyInfoOpen] = useState(false);
   const [themeInfoOpen, setThemeInfoOpen] = useState(false);
   const [accentInfoOpen, setAccentInfoOpen] = useState(false);
@@ -95,7 +99,7 @@ export default function SettingsGeneralScreen() {
       setAutoScheduleEnabled(next);
       SparkToast.show(t('theme_changed'), 'success', t('theme_restart'));
     } catch (e) {
-      if (__DEV__) console.warn('[Settings] auto appearance update failed', e);
+      logError('Settings auto appearance update failed', e);
       await syncAppearancePreferences();
       SparkToast.show(t('theme_change_failed'), 'error');
     } finally {
@@ -115,7 +119,7 @@ export default function SettingsGeneralScreen() {
       void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       SparkToast.show(t('theme_changed'), 'success', t('theme_restart'));
     } catch (e) {
-      if (__DEV__) console.warn('[Settings] manual appearance update failed', e);
+      logError('Settings manual appearance update failed', e);
       await syncAppearancePreferences();
       SparkToast.show(t('theme_change_failed'), 'error');
     } finally {
@@ -134,7 +138,7 @@ export default function SettingsGeneralScreen() {
       SparkToast.show(t('theme_accent_changed'), 'success', t('theme_restart'));
       return true;
     } catch (e) {
-      if (__DEV__) console.warn('[Settings] accent update failed', e);
+      logError('Settings accent update failed', e);
       SparkToast.show(t('theme_accent_change_failed'), 'error');
       return false;
     } finally {
@@ -212,10 +216,8 @@ export default function SettingsGeneralScreen() {
                   return (
                     <Pressable
                       key={code}
-                      onPress={async () => {
-                        await setCurrency(code);
-                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                        SparkToast.show(t('currency_changed'), 'success');
+                      onPress={() => {
+                        if (code !== currency) setPendingCurrency(code);
                       }}
                       style={[styles.currencyChip, active && styles.currencyChipActive]}
                     >
@@ -373,6 +375,27 @@ export default function SettingsGeneralScreen() {
         onClose={() => setAccentInfoOpen(false)}
         title={t('theme_accent_title')}
         paragraphs={[t('theme_accent_hint'), t('theme_accent_semantic_hint')]}
+      />
+      <ConfirmModal
+        visible={pendingCurrency != null}
+        title={t('currency_change_title')}
+        message={pendingCurrency ? t('currency_change_msg', { from: currency, to: pendingCurrency }) : ''}
+        confirmLabel={t('currency_change_confirm')}
+        cancelLabel={t('cancel')}
+        tone="warning"
+        icon="swap-horizontal"
+        onCancel={() => setPendingCurrency(null)}
+        onConfirm={async () => {
+          const next = pendingCurrency;
+          setPendingCurrency(null);
+          if (!next) return;
+          if (await setCurrency(next)) {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            SparkToast.show(t('currency_changed'), 'success');
+          } else {
+            SparkToast.show(t('error_saving_data'), 'error');
+          }
+        }}
       />
       <LanguagePickerSheet
         visible={langSheetOpen}

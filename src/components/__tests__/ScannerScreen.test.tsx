@@ -20,6 +20,7 @@ const mockHasApiKey = jest.fn();
 const mockProcessReceipt = jest.fn();
 const mockCompressImageToBase64 = jest.fn();
 const mockRouterPush = jest.fn();
+const mockCreateVoucher = jest.fn();
 
 function getPressHandler(instance: any): () => any {
   let node = instance;
@@ -100,6 +101,10 @@ jest.mock('../../services/receiptParser', () => ({
   processReceipt: (...args: unknown[]) => mockProcessReceipt(...args),
 }));
 
+jest.mock('../../db/containerDepositDao', () => ({
+  ContainerDepositDao: { createVoucher: (...args: unknown[]) => mockCreateVoucher(...args) },
+}));
+
 jest.mock('../../services/scanSession', () => ({
   setScanSessionError: jest.fn(),
 }));
@@ -107,6 +112,16 @@ jest.mock('../../services/scanSession', () => ({
 jest.mock('../../utils/imageCompressor', () => ({
   compressImageToBase64: (...args: unknown[]) => mockCompressImageToBase64(...args),
 }));
+
+jest.mock('../CustomDatePicker', () => {
+  const React = require('react');
+  const { Pressable, View } = require('react-native');
+  return ({ visible, onSelectDate, maximumDate }: any) => (visible
+    ? React.createElement(View, null, React.createElement(Pressable, {
+      testID: 'mock-pick-date', onPress: () => onSelectDate(maximumDate),
+    }))
+    : null);
+});
 
 jest.mock('../SparkToast', () => ({
   SparkToast: { show: jest.fn() },
@@ -479,5 +494,125 @@ describe('Scanner runtime theme', () => {
     });
 
     expect(screen.getByTestId('scanner-camera-action').props.accessibilityState.disabled).toBe(false);
+  });
+
+  it('shows a real save action for a container return voucher and hides edit (BUG-26)', async () => {
+    mockCreateVoucher.mockReset().mockResolvedValue(1);
+    mockParseReceipt.mockResolvedValue({
+      document_type: 'container_return_voucher',
+      vendor_name: 'Lidl',
+      date: '2026-08-23',
+      translation_language: 'en',
+      total: 0,
+      currency: 'PLN',
+      items: [],
+      voucher_issued: { amount: 2.5, expires_on: null },
+    });
+    mockRequestCameraPermissionsAsync.mockResolvedValue({ granted: true });
+    mockLaunchCameraAsync.mockResolvedValue({
+      canceled: false,
+      assets: [{ uri: 'file://voucher.jpg', width: 1000, height: 1600, type: 'image' }],
+    });
+    const screen = await render(<ScannerScreen />);
+
+    await fireEvent.press(screen.getByTestId('scanner-camera-action'));
+    await analyzeCollectedReceipt(screen);
+    const save = await screen.findByLabelText('save');
+    expect(screen.queryByLabelText('edit')).toBeNull();
+
+    await fireEvent.press(save);
+
+    await waitFor(() => expect(mockCreateVoucher).toHaveBeenCalledWith(expect.objectContaining({
+      amount: 2.5, currency: 'PLN', issuedDate: '2026-08-23',
+    })));
+    expect(mockProcessReceipt).not.toHaveBeenCalled();
+  });
+
+  it('blocks saving a receipt dated far in the future until the user fixes the date (BUG-17)', async () => {
+    const { addLocalDays, getToday } = jest.requireActual('../../utils/dateUtils');
+    mockParseReceipt.mockResolvedValue({ ...receipt, date: addLocalDays(getToday(), 30) });
+    mockRequestCameraPermissionsAsync.mockResolvedValue({ granted: true });
+    mockLaunchCameraAsync.mockResolvedValue({
+      canceled: false,
+      assets: [{ uri: 'file://future.jpg', width: 1000, height: 1600, type: 'image' }],
+    });
+    const screen = await render(<ScannerScreen />);
+
+    await fireEvent.press(screen.getByTestId('scanner-camera-action'));
+    await analyzeCollectedReceipt(screen);
+    await waitFor(() => expect(screen.getByTestId('scanner-future-date-warning')).toBeTruthy());
+
+    await act(async () => { fireEvent.press(screen.getByLabelText('save')); });
+    expect(mockProcessReceipt).not.toHaveBeenCalled();
+
+    await act(async () => { fireEvent.press(screen.getByTestId('scanner-fix-date')); });
+    await act(async () => { fireEvent.press(await screen.findByTestId('mock-pick-date')); });
+    expect(screen.queryByTestId('scanner-future-date-warning')).toBeNull();
+
+    await act(async () => { fireEvent.press(screen.getByLabelText('save')); });
+    await waitFor(() => expect(mockProcessReceipt).toHaveBeenCalledWith(expect.objectContaining({
+      date: addLocalDays(getToday(), 2),
+    })));
+  });
+
+  it('asks for the amount paid in the app currency before saving a foreign-currency receipt (BUG-01)', async () => {
+    mockParseReceipt.mockResolvedValue({ ...receipt, currency: 'EUR', total: 6 });
+    mockRequestCameraPermissionsAsync.mockResolvedValue({ granted: true });
+    mockLaunchCameraAsync.mockResolvedValue({
+      canceled: false,
+      assets: [{ uri: 'file://eur.jpg', width: 1000, height: 1600, type: 'image' }],
+    });
+    const screen = await render(<ScannerScreen />);
+
+    await fireEvent.press(screen.getByTestId('scanner-camera-action'));
+    await analyzeCollectedReceipt(screen);
+    await waitFor(() => expect(screen.getByTestId('scanner-currency-mismatch')).toBeTruthy());
+
+    await act(async () => { fireEvent.press(screen.getByLabelText('save')); });
+    expect(mockProcessReceipt).not.toHaveBeenCalled();
+
+    await act(async () => { fireEvent.changeText(screen.getByTestId('scanner-converted-amount'), '25,80'); });
+    await act(async () => { fireEvent.press(screen.getByLabelText('save')); });
+
+    await waitFor(() => expect(mockProcessReceipt).toHaveBeenCalledWith(expect.objectContaining({
+      currency: 'PLN',
+      total: 25.8,
+      original: { currency: 'EUR', total: 6 },
+    })));
+  });
+
+  it('saves a receipt in the app currency without asking (BUG-01)', async () => {
+    mockRequestCameraPermissionsAsync.mockResolvedValue({ granted: true });
+    mockLaunchCameraAsync.mockResolvedValue({
+      canceled: false,
+      assets: [{ uri: 'file://pln.jpg', width: 1000, height: 1600, type: 'image' }],
+    });
+    const screen = await render(<ScannerScreen />);
+
+    await fireEvent.press(screen.getByTestId('scanner-camera-action'));
+    await analyzeCollectedReceipt(screen);
+    await waitFor(() => expect(screen.getByLabelText('save')).toBeTruthy());
+    expect(screen.queryByTestId('scanner-currency-mismatch')).toBeNull();
+
+    await act(async () => { fireEvent.press(screen.getByLabelText('save')); });
+    await waitFor(() => expect(mockProcessReceipt).toHaveBeenCalledWith(expect.objectContaining({ currency: 'PLN', total: 6 })));
+  });
+
+  it('treats an unreadable receipt currency as the app currency instead of PLN (BUG-01)', async () => {
+    mockParseReceipt.mockResolvedValue({ ...receipt, currency: '' });
+    mockRequestCameraPermissionsAsync.mockResolvedValue({ granted: true });
+    mockLaunchCameraAsync.mockResolvedValue({
+      canceled: false,
+      assets: [{ uri: 'file://unknown.jpg', width: 1000, height: 1600, type: 'image' }],
+    });
+    const screen = await render(<ScannerScreen />);
+
+    await fireEvent.press(screen.getByTestId('scanner-camera-action'));
+    await analyzeCollectedReceipt(screen);
+    await waitFor(() => expect(screen.getByLabelText('save')).toBeTruthy());
+    expect(screen.queryByTestId('scanner-currency-mismatch')).toBeNull();
+
+    await act(async () => { fireEvent.press(screen.getByLabelText('save')); });
+    await waitFor(() => expect(mockProcessReceipt).toHaveBeenCalledWith(expect.objectContaining({ currency: 'PLN' })));
   });
 });

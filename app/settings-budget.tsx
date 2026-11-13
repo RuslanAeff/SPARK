@@ -53,6 +53,7 @@ import {
   SettingsNavigationRow,
   SettingsSection,
 } from '../src/components/SettingsList';
+import { logError } from '../src/utils/logError';
 
 /** Kilitli dönem uyarısı kullanıcıya özel; diğer yazma hataları genel mesajda kalır. */
 function budgetWriteErrorKey(error: unknown): string {
@@ -238,7 +239,7 @@ export default function SettingsBudgetScreen() {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       SparkToast.show(t('budget_deleted'), 'success');
     } catch (error) {
-      if (__DEV__) console.warn('[budget] delete failed', error);
+      logError('budget delete failed', error);
       setDeleteOpen(false);
       SparkToast.show(t(budgetWriteErrorKey(error)), 'error');
     }
@@ -260,7 +261,8 @@ export default function SettingsBudgetScreen() {
         await BudgetDao.updateBudgetAmount(selectedBudget.id, amount);
         setSelectedBudget({ ...selectedBudget, monthly_amount: amount });
       } else {
-        const targetCurrency = inheritedBudget?.currency ?? currency;
+        // BUG-01: yeni dönem her zaman uygulama para birimini kullanır (önceki satırın değil).
+        const targetCurrency = currency;
         const id = await BudgetDao.setBudgetForPeriod({
           amount,
           currency: targetCurrency,
@@ -281,7 +283,7 @@ export default function SettingsBudgetScreen() {
         t('budget_saved_desc', { amount: amount.toLocaleString(), currency: curLabel }),
       );
     } catch (error) {
-      if (__DEV__) console.warn('[budget] save failed', error);
+      logError('budget save failed', error);
       SparkToast.show(t(budgetWriteErrorKey(error)), 'error');
     }
   }
@@ -306,7 +308,7 @@ export default function SettingsBudgetScreen() {
       await syncNotificationsBestEffort(syncNotifications, 'budget-cycle-change');
       SparkToast.show(t('budget_cycle_change_saved'), 'success');
     } catch (error) {
-      if (__DEV__) console.warn('[budget] cycle change failed', error);
+      logError('budget cycle change failed', error);
       const key = error instanceof Error && [
         'budget_cycle_requires_budget',
         'budget_cycle_future_conflict',
@@ -325,7 +327,7 @@ export default function SettingsBudgetScreen() {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       SparkToast.show(t('goal_feature_saved'), 'success');
     } catch (e) {
-      console.warn('goal feature', e);
+      logError('goal feature', e);
       SparkToast.show(t('error_saving_data'), 'error');
     }
   }
@@ -338,7 +340,7 @@ export default function SettingsBudgetScreen() {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       SparkToast.show(t('goal_focus_saved'), 'success');
     } catch (e) {
-      console.warn('goal dashboard focus', e);
+      logError('goal dashboard focus', e);
       SparkToast.show(t('error_saving_data'), 'error');
     }
   }

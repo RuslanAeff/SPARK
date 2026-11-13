@@ -261,7 +261,7 @@ describe('SettingsBudgetScreen goal focus preference', () => {
     expect(screen.getByText('EUR')).toBeTruthy();
   });
 
-  it('shows an inherited plan explicitly and saves a period override in its currency', async () => {
+  it('shows an inherited plan explicitly and saves a period override in the app currency (BUG-01)', async () => {
     getPreferences.mockResolvedValue({ enabled: true, dashboardFocusEnabled: false });
     (BudgetDao.getForMonth as jest.Mock).mockResolvedValue(null);
     (BudgetDao.getLatestAtOrBefore as jest.Mock).mockResolvedValue({
@@ -274,8 +274,10 @@ describe('SettingsBudgetScreen goal focus preference', () => {
     await waitFor(() => expect(screen.getByTestId('budget-inherited-note')).toBeTruthy());
     expect(screen.getByPlaceholderText('5000').props.value).toBe('850.00');
     await fireEvent.press(screen.getByTestId('budget-save'));
+    // BUG-01 (tek para birimi): yeni dönem önceki satırın EUR'unu değil uygulama
+    // para birimini (PLN) alır; tutar şablonu devralınır.
     await waitFor(() => expect(BudgetDao.setBudgetForPeriod).toHaveBeenCalledWith(expect.objectContaining({
-      amount: 850, currency: 'EUR',
+      amount: 850, currency: 'PLN',
     })));
   });
 });

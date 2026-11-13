@@ -138,10 +138,21 @@ jest.mock('../../i18n/languageOptions', () => ({
   languageNativeLabel: () => 'Türkçe',
 }));
 
+const mockSetCurrency = jest.fn(async () => true);
+jest.mock('../ConfirmModal', () => {
+  const React = require('react');
+  const { Pressable, Text, View } = require('react-native');
+  return ({ visible, message, onConfirm, onCancel }: any) => (visible
+    ? React.createElement(View, null,
+      React.createElement(Text, null, message),
+      React.createElement(Pressable, { testID: 'currency-change-ok', onPress: onConfirm }),
+      React.createElement(Pressable, { testID: 'currency-change-cancel', onPress: onCancel }))
+    : null);
+});
 jest.mock('../../context/CurrencyContext', () => ({
-  useCurrency: () => ({ currency: 'PLN', setCurrency: jest.fn() }),
-  DISPLAY_CURRENCIES: ['PLN'],
-  CURRENCY_META: { PLN: { symbol: 'zł' } },
+  useCurrency: () => ({ currency: 'PLN', setCurrency: mockSetCurrency }),
+  DISPLAY_CURRENCIES: ['PLN', 'EUR'],
+  CURRENCY_META: { PLN: { symbol: 'zł' }, EUR: { symbol: '€' } },
 }));
 
 jest.mock('../../utils/themeSchedule', () => ({
@@ -347,5 +358,43 @@ describe('SettingsGeneralScreen theme personalization', () => {
 
     expect(screen.getByText('theme_accent_hint')).toBeTruthy();
     expect(screen.getByText('theme_accent_semantic_hint')).toBeTruthy();
+  });
+});
+
+describe('SettingsGeneralScreen currency change (BUG-01 6b)', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    (loadThemeSettings as jest.Mock).mockResolvedValue({ autoEnabled: true, manual: 'dark', accent: 'green' });
+  });
+
+  it('warns that amounts are not converted and changes nothing on cancel', async () => {
+    const screen = await render(<SettingsGeneralScreen />);
+
+    await fireEvent.press(await screen.findByText('EUR'));
+    expect(screen.getByText('currency_change_msg')).toBeTruthy();
+    await fireEvent.press(screen.getByTestId('currency-change-cancel'));
+
+    expect(mockSetCurrency).not.toHaveBeenCalled();
+  });
+
+  it('relabels after confirmation and reports success', async () => {
+    const screen = await render(<SettingsGeneralScreen />);
+
+    await fireEvent.press(await screen.findByText('EUR'));
+    await fireEvent.press(screen.getByTestId('currency-change-ok'));
+
+    await waitFor(() => expect(mockSetCurrency).toHaveBeenCalledWith('EUR'));
+    expect(SparkToast.show).toHaveBeenCalledWith('currency_changed', 'success');
+  });
+
+  it('reports a failed relabel instead of a fake success', async () => {
+    mockSetCurrency.mockResolvedValueOnce(false);
+    const screen = await render(<SettingsGeneralScreen />);
+
+    await fireEvent.press(await screen.findByText('EUR'));
+    await fireEvent.press(screen.getByTestId('currency-change-ok'));
+
+    await waitFor(() => expect(SparkToast.show).toHaveBeenCalledWith('error_saving_data', 'error'));
+    expect(SparkToast.show).not.toHaveBeenCalledWith('currency_changed', 'success');
   });
 });

@@ -1,10 +1,11 @@
-import { subtractMoney } from '../../src/utils/moneyMath';
+import { parseMoneyInput, subtractMoney } from '../../src/utils/moneyMath';
+import { convertReceiptToAppCurrency, receiptNeedsCurrencyConversion } from '../../src/utils/receiptCurrencyConversion';
 import { removeReceiptCopy } from '../../src/services/temporaryFiles';
 import { confirmAiTransfer } from '../../src/utils/confirmAiTransfer';
 // S.P.A.R.K. — Receipt Scanner Screen
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import {
-  View, Text, StyleSheet, Pressable, ActivityIndicator, ScrollView, Image, Platform, AppState,
+  View, Text, TextInput, StyleSheet, Pressable, ActivityIndicator, ScrollView, Image, Platform, AppState,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
@@ -41,6 +42,8 @@ import { compressImageToBase64 } from '../../src/utils/imageCompressor';
 import { formatMeasurementQuantity } from '../../src/utils/measurementUnit';
 import { canonicalReceiptCategoryName } from '../../src/utils/receiptCategory';
 import { ContainerDepositDao } from '../../src/db/containerDepositDao';
+import CustomDatePicker from '../../src/components/CustomDatePicker';
+import { isReceiptDateTooFarAhead, latestAllowedReceiptDate } from '../../src/utils/receiptDateRules';
 import {
   createSusevarStyles,
   susevarButtonPressed,
@@ -143,6 +146,9 @@ export default function ScannerScreen() {
   const [state, setState] = useState<ScanState>('idle');
   const [images, setImages] = useState<ImagePicker.ImagePickerAsset[]>([]);
   const [result, setResult] = useState<ParsedReceipt | null>(null);
+  const [resultDatePickerVisible, setResultDatePickerVisible] = useState(false);
+  // BUG-01: farklı para birimli fiş için kullanıcının ödediği uygulama para birimi tutarı.
+  const [convertedAmount, setConvertedAmount] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
   // Hata ekranının birincil eylemi: anahtar sorunlarında doğrudan Ayarlar.
   const [errorAction, setErrorAction] = useState<'settings' | 'retry'>('retry');
@@ -220,6 +226,7 @@ export default function ScannerScreen() {
       const parsed = await parseReceipt(base64, language, controller.signal);
       if (!isCurrent() || controller.signal.aborted) return;
       setResult(parsed);
+      setConvertedAmount('');
       setState('result');
     } catch (error) {
       if (!isCurrent()) return;
@@ -405,11 +412,40 @@ export default function ScannerScreen() {
     setImages([]);
   }
 
+  /** BUG-17: yapay zekânın okuduğu tarih çok ileriyse kaydetmeden önce düzelttir. */
+  function blockFutureDatedResult(): boolean {
+    if (!result || !isReceiptDateTooFarAhead(result.date)) return false;
+    SparkToast.show(t('scan_date_in_future', { date: result.date }), 'error');
+    return true;
+  }
+
+  /**
+   * BUG-01 (ürün kararı A): uygulama tek para birimlidir. Fiş başka para
+   * birimindeyse kullanıcının girdiği ödenen tutarla uygulama para birimine çevrilir.
+   */
+  function prepareReceiptForSave(): ParsedReceipt | null {
+    if (!result) return null;
+    if (!receiptNeedsCurrencyConversion(result, currency)) {
+      // Aynı veya okunamayan para birimi: kayıt her zaman uygulama para birimiyle.
+      return { ...result, currency };
+    }
+    const originalTotal = result.document_type === 'container_return_voucher' && result.voucher_issued
+      ? result.voucher_issued.amount
+      : result.total;
+    const paid = parseMoneyInput(convertedAmount);
+    if (paid == null || paid < 0 || (originalTotal > 0 && paid <= 0)) {
+      SparkToast.show(t('scan_currency_amount_required', { currency }), 'error');
+      return null;
+    }
+    return convertReceiptToAppCurrency(result, currency, paid);
+  }
+
   async function handleSave() {
-    if (!result || resultBusyRef.current) return;
+    if (!result || resultBusyRef.current || blockFutureDatedResult()) return;
+    const receiptToSave = prepareReceiptForSave();
+    if (!receiptToSave) return;
     resultBusyRef.current = true;
     setResultBusy(true);
-    const receiptToSave = result;
     try {
       if (receiptToSave.document_type === 'container_return_voucher' && receiptToSave.voucher_issued) {
         await ContainerDepositDao.createVoucher({
@@ -417,7 +453,9 @@ export default function ScannerScreen() {
           currency: receiptToSave.currency,
           issuedDate: receiptToSave.date,
           expiresOn: receiptToSave.voucher_issued.expires_on,
-          note: receiptToSave.vendor_name,
+          note: receiptToSave.original
+            ? `${receiptToSave.vendor_name} · ${receiptToSave.original.total.toFixed(2)} ${receiptToSave.original.currency}`
+            : receiptToSave.vendor_name,
         });
       } else {
         await processReceipt(receiptToSave);
@@ -449,14 +487,13 @@ export default function ScannerScreen() {
   }
 
   async function handleEditBeforeSave() {
-    if (!result || resultBusyRef.current) return;
-    if (result.document_type === 'container_return_voucher') {
-      await handleSave();
-      return;
-    }
+    // Kuponun düzenleme ekranı yok; düğme kupon sonucunda gösterilmez (BUG-26).
+    if (!result || resultBusyRef.current || result.document_type === 'container_return_voucher') return;
+    if (blockFutureDatedResult()) return;
+    const receiptToSave = prepareReceiptForSave();
+    if (!receiptToSave) return;
     resultBusyRef.current = true;
     setResultBusy(true);
-    const receiptToSave = result;
     try {
       // Düzenlemeden önce fişi (ÜRÜNLER DAHİL) kaydet, sonra edit modunda aç.
       // Eskiden yalnız başlık prefill ediliyordu → ürünler kayboluyordu.
@@ -646,8 +683,63 @@ export default function ScannerScreen() {
                     </View>
                   )}
                 </View>
-                <Text style={styles.resultDate}>{result.date}</Text>
+                <Pressable
+                  onPress={() => setResultDatePickerVisible(true)}
+                  disabled={resultBusy}
+                  accessibilityRole="button"
+                  accessibilityLabel={`${t('select_date')}: ${result.date}`}
+                  hitSlop={8}
+                >
+                  <Text style={styles.resultDate}>{result.date}</Text>
+                </Pressable>
               </View>
+              {receiptNeedsCurrencyConversion(result, currency) ? (
+                <View testID="scanner-currency-mismatch" style={styles.currencyMismatch}>
+                  <View style={styles.currencyMismatchRow}>
+                    <MaterialCommunityIcons name="swap-horizontal" size={18} color={theme.warning} />
+                    <Text style={styles.currencyMismatchText}>
+                      {t('scan_currency_mismatch', {
+                        receipt: result.currency,
+                        app: currency,
+                        amount: formatCurrency(
+                          result.document_type === 'container_return_voucher' && result.voucher_issued
+                            ? result.voucher_issued.amount
+                            : result.total,
+                          result.currency,
+                        ),
+                      })}
+                    </Text>
+                  </View>
+                  <TextInput
+                    testID="scanner-converted-amount"
+                    style={styles.currencyInput}
+                    value={convertedAmount}
+                    onChangeText={setConvertedAmount}
+                    keyboardType="decimal-pad"
+                    placeholder={`0.00 ${currency}`}
+                    placeholderTextColor={theme.textMuted}
+                    editable={!resultBusy}
+                    accessibilityLabel={t('scan_currency_amount_label', { currency })}
+                  />
+                  <Text style={styles.currencyHint}>{t('scan_currency_hint')}</Text>
+                </View>
+              ) : null}
+              {isReceiptDateTooFarAhead(result.date) ? (
+                <View testID="scanner-future-date-warning" style={styles.futureDateWarning}>
+                  <MaterialCommunityIcons name="calendar-alert" size={18} color={theme.danger} />
+                  <Text style={styles.futureDateText}>
+                    {t('scan_date_in_future', { date: result.date })}
+                  </Text>
+                  <Pressable
+                    testID="scanner-fix-date"
+                    onPress={() => setResultDatePickerVisible(true)}
+                    accessibilityRole="button"
+                    hitSlop={8}
+                  >
+                    <Text style={styles.futureDateAction}>{t('scan_fix_date')}</Text>
+                  </Pressable>
+                </View>
+              ) : null}
 
               <View style={styles.divider} />
 
@@ -752,7 +844,9 @@ export default function ScannerScreen() {
             </AnimatedCard>
 
             <View style={styles.resultActionsCol}>
-              {result.document_type !== 'container_return_voucher' ? <Pressable
+              {/* Kupon da dahil her sonuç doğrudan "Kaydet" ile kaydedilir. "Düzenle" yalnız
+                  kalemli alışveriş fişinde anlamlı; kuponda düzenleme ekranı yok (BUG-26). */}
+              <Pressable
                 onPress={handleSave}
                 disabled={resultBusy}
                 style={({ pressed }) => [
@@ -770,8 +864,8 @@ export default function ScannerScreen() {
                   </View>
                   <Text style={styles.savePillText}>{t('save')}</Text>
                 </View>
-              </Pressable> : null}
-              <Pressable
+              </Pressable>
+              {result.document_type !== 'container_return_voucher' ? <Pressable
                 onPress={handleEditBeforeSave}
                 disabled={resultBusy}
                 style={({ pressed }) => [
@@ -789,7 +883,7 @@ export default function ScannerScreen() {
                   </View>
                   <Text style={styles.editPillText}>{t('edit')}</Text>
                 </View>
-              </Pressable>
+              </Pressable> : null}
               <Pressable
                 onPress={() => { setState('idle'); setResult(null); replaceReceiptCopies([]); setImages([]); }}
                 disabled={resultBusy}
@@ -816,6 +910,18 @@ export default function ScannerScreen() {
 
         <View style={{ height: 100 }} />
       </ScrollView>
+      {result ? (
+        <CustomDatePicker
+          visible={resultDatePickerVisible}
+          onClose={() => setResultDatePickerVisible(false)}
+          initialDate={isReceiptDateTooFarAhead(result.date) ? latestAllowedReceiptDate() : result.date}
+          maximumDate={latestAllowedReceiptDate()}
+          onSelectDate={(date) => {
+            setResult(prev => (prev ? { ...prev, date } : prev));
+            setResultDatePickerVisible(false);
+          }}
+        />
+      ) : null}
     </SafeAreaView>
   );
 }
@@ -1077,6 +1183,57 @@ const getStyles = (theme: typeof DarkTheme, isDark: boolean, language: Language)
   resultDate: {
     ...Typography.bodySmall,
     color: theme.textSecondary,
+    textDecorationLine: 'underline',
+  },
+  currencyMismatch: {
+    gap: Spacing.sm,
+    marginTop: Spacing.sm,
+    padding: Spacing.sm,
+    borderRadius: BorderRadius.md,
+    backgroundColor: theme.warning + '1A',
+  },
+  currencyMismatchRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+  },
+  currencyMismatchText: {
+    ...Typography.bodySmall,
+    color: theme.textPrimary,
+    flex: 1,
+  },
+  currencyInput: {
+    ...Typography.bodyLarge,
+    color: theme.textPrimary,
+    backgroundColor: theme.surface,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    borderColor: theme.border,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+  },
+  currencyHint: {
+    ...Typography.labelSmall,
+    color: theme.textSecondary,
+  },
+  futureDateWarning: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    marginTop: Spacing.sm,
+    padding: Spacing.sm,
+    borderRadius: BorderRadius.md,
+    backgroundColor: theme.danger + '1A',
+  },
+  futureDateText: {
+    ...Typography.bodySmall,
+    color: theme.textPrimary,
+    flex: 1,
+  },
+  futureDateAction: {
+    ...Typography.labelLarge,
+    color: theme.primary,
+    fontFamily: FontFamily.semiBold,
   },
   divider: {
     height: 1,

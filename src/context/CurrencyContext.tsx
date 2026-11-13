@@ -15,6 +15,8 @@ import {
   isDisplayCurrency,
   type DisplayCurrency,
 } from '../utils/currencyMeta';
+import { logError } from '../utils/logError';
+import { setAppCurrency } from '../db/appCurrencyDao';
 
 const SETTINGS_KEY = 'display_currency';
 
@@ -28,7 +30,7 @@ interface CurrencyContextType {
   currency: DisplayCurrency;
   /** Kalıcı görüntüleme para birimi SQLite'dan okundu. */
   isLoaded: boolean;
-  setCurrency: (c: DisplayCurrency) => Promise<void>;
+  setCurrency: (c: DisplayCurrency) => Promise<boolean>;
 }
 
 const CurrencyContext = createContext<CurrencyContextType | undefined>(undefined);
@@ -49,23 +51,23 @@ export function CurrencyProvider({ children }: { children: ReactNode }) {
           setCurrencyState(row.value);
         }
       } catch (e) {
-        console.warn('[Currency] load failed', e);
+        logError('Currency load failed', e);
       } finally {
         setIsLoaded(true);
       }
     })();
   }, []);
 
-  const setCurrency = useCallback(async (c: DisplayCurrency) => {
+  // BUG-01 6b: para birimi bir etikettir; değişiklik bütün kayıtların etiketini
+  // tek transaction'da günceller. Başarısızlık sessiz başarı gibi görünmez.
+  const setCurrency = useCallback(async (c: DisplayCurrency): Promise<boolean> => {
     try {
-      const db = await getDatabase();
-      await db.runAsync(
-        'INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)',
-        [SETTINGS_KEY, c]
-      );
+      await setAppCurrency(c);
       setCurrencyState(c);
+      return true;
     } catch (e) {
-      console.warn('[Currency] save failed', e);
+      logError('Currency save failed', e);
+      return false;
     }
   }, []);
 
