@@ -1,6 +1,10 @@
 // S.P.A.R.K. — Database Initialization
 import * as SQLite from 'expo-sqlite';
 import * as Crypto from 'expo-crypto';
+import { applyBusyTimeout } from './busyTimeout';
+import { addRecordUidColumns, ensureRecordUids } from './recordUid';
+import { ensureVendorNameKeys } from './vendorIdentity';
+import { addColumnIfMissing } from './schemaColumns';
 import {
   CREATE_TABLES_SQL,
   CONTAINER_DEPOSIT_SCHEMA_SQL,
@@ -9,10 +13,12 @@ import {
   PRODUCT_IDENTITY_LINKS_SCHEMA_SQL,
   PRODUCT_IDENTITY_TABLES_SCHEMA_SQL,
 } from './schema';
-import { getCycleForKey, normalizeCycleStartDay } from '../utils/budgetCycle';
+import { cycleForDate, getCycleForKey, normalizeCycleStartDay } from '../utils/budgetCycle';
+import { getToday } from '../utils/dateUtils';
 import { canonicalizeProductLabel } from '../utils/productIdentity';
 import { sanitizeMeasurementUnit, type MeasurementUnit } from '../utils/measurementUnit';
 import { sanitizeText } from '../utils/inputValidation';
+import { logError } from '../utils/logError';
 
 let db: SQLite.SQLiteDatabase | null = null;
 let initPromise: Promise<SQLite.SQLiteDatabase> | null = null;
@@ -24,6 +30,8 @@ export const PAYMENT_REMINDER_VENDOR_DETACH_MIGRATION =
   'migration_payment_reminder_vendor_detach_v2';
 export const PRODUCT_IDENTITY_MIGRATION = 'migration_product_identity_v1';
 export const CONTAINER_DEPOSIT_MIGRATION = 'migration_container_deposit_v1';
+export const VOUCHER_EXPIRY_REPAIR_MIGRATION = 'migration_voucher_expiry_repair_v1';
+export const CATEGORY_LIMIT_CYCLE_MIGRATION = 'migration_category_limit_cycle_v1';
 
 interface SqliteTableInfoRow {
   name: string;
@@ -82,6 +90,94 @@ export async function migrateContainerDepositsOnce(
     await database.runAsync(
       'INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)',
       [CONTAINER_DEPOSIT_MIGRATION, '1'],
+    );
+  });
+}
+
+/**
+ * BUG-04 onarımı: alışveriş fişinden doğrulanmadan yazılmış kupon son kullanma
+ * tarihlerini (ör. "31.12.2026", "2026-02-31", fiş tarihinden önceki gün) NULL
+ * yapar. Bu satırlar yedek içe aktarım sözleşmesini ihlal ettiği için o andan
+ * sonra alınan tüm yedekleri geri yüklenemez yapıyordu. Yalnız bozuk tarih
+ * yüzünden "expired" olmuş kupon yeniden "available" olur; "redeemed" korunur.
+ */
+export async function repairVoucherExpiryOnce(
+  database: SQLite.SQLiteDatabase,
+): Promise<void> {
+  const applied = await database.getFirstAsync<{ value: string }>(
+    'SELECT value FROM settings WHERE key = ?',
+    [VOUCHER_EXPIRY_REPAIR_MIGRATION],
+  );
+  if (applied?.value === '1') return;
+
+  await database.withTransactionAsync(async () => {
+    await database.runAsync(`
+      UPDATE container_deposit_vouchers
+         SET status = CASE WHEN status = 'expired' THEN 'available' ELSE status END,
+             expires_on = NULL
+       WHERE expires_on IS NOT NULL
+         AND (date(expires_on) IS NULL
+              OR date(expires_on) <> expires_on
+              OR CAST(substr(expires_on, 1, 4) AS INTEGER) NOT BETWEEN 2000 AND 2100
+              OR expires_on < issued_date)
+    `);
+    await database.runAsync(
+      'INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)',
+      [VOUCHER_EXPIRY_REPAIR_MIGRATION, '1'],
+    );
+  });
+}
+
+/**
+ * BUG-22 geçişi: limitler eskiden bugünün TAKVİM ayı anahtarına yazılıyordu;
+ * artık bütçe döngüsünün başladığı ayın anahtarına yazılıp okunuyor. Döngü günü
+ * 1 değilse (ör. 23) iki anahtar farklıdır ve güncellemeden sonra kullanıcının
+ * mevcut limitleri ekranda kaybolurdu. Bir kez: güncel takvim ayındaki limitler,
+ * güncel döngünün anahtarında hiç limit yoksa oraya taşınır. Geçmiş aylara ve
+ * döngü günü 1 olan kurulumlara dokunulmaz (iki anahtar aynıdır).
+ */
+export async function migrateCategoryLimitsToCycleOnce(
+  database: SQLite.SQLiteDatabase,
+  today: string = getToday(),
+): Promise<void> {
+  const applied = await database.getFirstAsync<{ value: string }>(
+    'SELECT value FROM settings WHERE key = ?',
+    [CATEGORY_LIMIT_CYCLE_MIGRATION],
+  );
+  if (applied?.value === '1') return;
+
+  const anchorRow = await database.getFirstAsync<{ value: string }>(
+    "SELECT value FROM settings WHERE key = 'budget_cycle_start_day'",
+  );
+  const budget = await database.getFirstAsync<{
+    period_start: string | null;
+    period_end: string | null;
+    cycle_start_day: number | null;
+  }>(
+    `SELECT period_start, period_end, cycle_start_day FROM budgets
+      WHERE active = 1 AND period_start <= ? AND period_end >= ?
+      ORDER BY id DESC LIMIT 1`,
+    [today, today],
+  );
+  const cycleKey = cycleForDate(normalizeCycleStartDay(anchorRow?.value), today, budget).key;
+  const calendarKey = today.slice(0, 7);
+
+  await database.withTransactionAsync(async () => {
+    if (cycleKey !== calendarKey) {
+      const target = await database.getFirstAsync<{ n: number }>(
+        'SELECT COUNT(*) AS n FROM category_limits WHERE month = ?',
+        [cycleKey],
+      );
+      if (!target?.n) {
+        await database.runAsync(
+          'UPDATE category_limits SET month = ? WHERE month = ?',
+          [cycleKey, calendarKey],
+        );
+      }
+    }
+    await database.runAsync(
+      'INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)',
+      [CATEGORY_LIMIT_CYCLE_MIGRATION, '1'],
     );
   });
 }
@@ -405,10 +501,31 @@ export async function normalizeReceiptMoneyPrecisionOnce(
 export async function getDatabase(): Promise<SQLite.SQLiteDatabase> {
   if (db) return db;
   if (initPromise) return initPromise;
-  initPromise = (async () => {
+  const attempt = (async () => {
     const instance = await SQLite.openDatabaseAsync('spark.db');
+    try {
+      await prepareDatabase(instance);
+    } catch (error) {
+      // Yarım açılmış bağlantı açık kalmasın; yeniden denemede ikinci bağlantı oluşmasın.
+      try { await instance.closeAsync(); } catch { /* zaten kapalı */ }
+      throw error;
+    }
+    db = instance;
+    return instance;
+  })();
+  initPromise = attempt;
+  // BUG-07: reddedilen açılış önbellekte kalmaz; sonraki getDatabase() yeniden dener.
+  attempt.catch(() => {
+    if (initPromise === attempt) initPromise = null;
+  });
+  return attempt;
+}
+
+/** Açılış adımları: PRAGMA, bütünlük kontrolü, şema, migration'lar ve tohumlama. */
+async function prepareDatabase(instance: SQLite.SQLiteDatabase): Promise<void> {
     await instance.execAsync('PRAGMA journal_mode = WAL;');
     await instance.execAsync('PRAGMA foreign_keys = ON;');
+    await applyBusyTimeout(instance);
     // Bütünlük kontrolü (§7.5) — disk bozulmasını açılışta erken yakala. quick_check,
     // integrity_check'in hızlı varyantıdır; sağlamsa tek satır 'ok' döner. Hassas veri
     // loglanmaz (§7.6); auto-recovery yok — kullanıcı onayı olmadan veriye dokunulmaz.
@@ -416,167 +533,48 @@ export async function getDatabase(): Promise<SQLite.SQLiteDatabase> {
       const rows = await instance.getAllAsync<Record<string, string>>('PRAGMA quick_check;');
       const ok = rows.length === 1 && Object.values(rows[0])[0] === 'ok';
       if (!ok) {
-        console.warn('[DB] integrity check failed');
+        logError('DB integrity check failed');
       } else if (__DEV__) {
         console.log('[DB] integrity ok');
       }
     } catch (e) {
-      if (__DEV__) console.warn('[DB] integrity check error', e);
+      logError('DB integrity check error', e);
     }
+    // BUG-21: şema uid indeksini/tetikleyicisini kurar; eski tablolarda kolon önce eklenir.
+    await addRecordUidColumns(instance);
     await instance.execAsync(CREATE_TABLES_SQL);
     await migrateBudgetPeriodSnapshotsOnce(instance);
     await migratePaymentRemindersOnce(instance);
-    try {
-      await instance.execAsync('ALTER TABLE expense_items ADD COLUMN turkish_name TEXT;');
-    } catch (_) {
-      // Column already exists — ignore
-    }
-    try {
-      await instance.execAsync('ALTER TABLE expense_items ADD COLUMN line_discount REAL DEFAULT 0;');
-    } catch (_) {}
-    try {
-      await instance.execAsync('ALTER TABLE expense_items ADD COLUMN list_line_total_before_discount REAL;');
-    } catch (_) {}
+    // BUG-18: kolon geçişleri önce varlığı kontrol eder; gerçek hata açılışı durdurur.
+    await addColumnIfMissing(instance, 'expense_items', 'turkish_name', 'TEXT');
+    await addColumnIfMissing(instance, 'expense_items', 'line_discount', 'REAL DEFAULT 0');
+    await addColumnIfMissing(instance, 'expense_items', 'list_line_total_before_discount', 'REAL');
     await migrateContainerDepositsOnce(instance);
+    await repairVoucherExpiryOnce(instance);
     await migrateItemMeasurementUnitsOnce(instance);
     await migrateProductIdentityOnce(instance);
     await normalizeReceiptMoneyPrecisionOnce(instance);
-    try {
-      await instance.execAsync(`
-        CREATE TABLE IF NOT EXISTS savings_goal (
-          id INTEGER PRIMARY KEY CHECK (id = 1),
-          title TEXT NOT NULL DEFAULT '',
-          target_amount REAL NOT NULL DEFAULT 0,
-          target_date TEXT NOT NULL,
-          currency TEXT NOT NULL DEFAULT 'PLN'
-        );
-        CREATE TABLE IF NOT EXISTS category_limits (
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
-          category_id INTEGER NOT NULL REFERENCES categories(id) ON DELETE CASCADE,
-          month TEXT NOT NULL,
-          limit_amount REAL NOT NULL,
-          UNIQUE(category_id, month)
-        );
-        CREATE INDEX IF NOT EXISTS idx_category_limits_month ON category_limits(month);
-      `);
-    } catch (_) {
-      // Already applied
-    }
-    try {
-      await instance.execAsync(
-        'ALTER TABLE categories ADD COLUMN is_system INTEGER NOT NULL DEFAULT 0;'
-      );
-    } catch (_) {
-      // Column already exists
-    }
+    await migrateCategoryLimitsToCycleOnce(instance);
+    await addColumnIfMissing(instance, 'categories', 'is_system', 'INTEGER NOT NULL DEFAULT 0');
     // savings_goal.current_amount: kullanıcının o ana kadar biriktirdiği
     // tutarı tutar. 0 olabilir. Hedef ilerleme çubuğu bunu hedef tutara böler.
-    try {
-      await instance.execAsync(
-        'ALTER TABLE savings_goal ADD COLUMN current_amount REAL NOT NULL DEFAULT 0;'
-      );
-    } catch (_) {
-      // Column already exists
-    }
+    await addColumnIfMissing(instance, 'savings_goal', 'current_amount', 'REAL NOT NULL DEFAULT 0');
     // vendors.default_category_id: satıcı bazlı varsayılan kategori. Eklendiğinde
     // hem manuel harcama girişi hem fiş tarama bu kategoriyi otomatik seçer.
-    try {
-      await instance.execAsync(
-        'ALTER TABLE vendors ADD COLUMN default_category_id INTEGER REFERENCES categories(id) ON DELETE SET NULL;'
-      );
-    } catch (_) {
-      // Column already exists
-    }
-    // subscriptions: tekrar eden ödeme tespitinin sonuçları. CREATE_TABLES_SQL
-    // tarafından üretilir ama eski kurulumlar için ayrıca burada da garanti
-    // ediyoruz (bütçe / hedef tabloları gibi).
-    try {
-      await instance.execAsync(`
-        CREATE TABLE IF NOT EXISTS subscriptions (
-          id                  INTEGER PRIMARY KEY AUTOINCREMENT,
-          vendor_id           INTEGER NOT NULL REFERENCES vendors(id) ON DELETE CASCADE,
-          amount              REAL NOT NULL,
-          currency            TEXT NOT NULL,
-          period_days         INTEGER NOT NULL,
-          last_seen_date      TEXT NOT NULL,
-          next_expected_date  TEXT NOT NULL,
-          occurrences         INTEGER NOT NULL DEFAULT 0,
-          status              TEXT NOT NULL DEFAULT 'active',
-          updated_at          TEXT NOT NULL,
-          UNIQUE(vendor_id)
-        );
-        CREATE INDEX IF NOT EXISTS idx_subscriptions_vendor ON subscriptions(vendor_id);
-        CREATE INDEX IF NOT EXISTS idx_subscriptions_next ON subscriptions(next_expected_date);
-      `);
-    } catch (_) {
-      // Already applied
-    }
-    // debts / debt_payments: Borç Operasyonu tabloları. CREATE_TABLES_SQL bunları
-    // üretir; eski kurulumlar için (bütçe/abonelik tabloları gibi) burada da
-    // garanti ediyoruz. Saklama AYRI ama UX entegre; fiş bütünlüğü bozulmaz.
-    try {
-      await instance.execAsync(`
-        CREATE TABLE IF NOT EXISTS debts (
-          id                INTEGER PRIMARY KEY AUTOINCREMENT,
-          direction         TEXT NOT NULL DEFAULT 'borrowed',
-          counterparty      TEXT NOT NULL DEFAULT '',
-          amount            REAL NOT NULL,
-          remaining         REAL NOT NULL,
-          currency          TEXT NOT NULL DEFAULT 'PLN',
-          date              TEXT NOT NULL,
-          status            TEXT NOT NULL DEFAULT 'open',
-          due_date          TEXT,
-          reminder_enabled  INTEGER NOT NULL DEFAULT 0 CHECK(
-            reminder_enabled IN (0, 1)
-            AND (reminder_enabled = 0 OR due_date IS NOT NULL)
-          ),
-          reminder_days_before INTEGER NOT NULL DEFAULT 3 CHECK(reminder_days_before BETWEEN 0 AND 365),
-          reminder_time     TEXT NOT NULL DEFAULT '09:00' CHECK(
-            length(reminder_time) = 5
-            AND substr(reminder_time, 3, 1) = ':'
-            AND substr(reminder_time, 1, 2) GLOB '[0-2][0-9]'
-            AND CAST(substr(reminder_time, 1, 2) AS INTEGER) BETWEEN 0 AND 23
-            AND substr(reminder_time, 4, 2) GLOB '[0-5][0-9]'
-          ),
-          linked_expense_id INTEGER REFERENCES expenses(id) ON DELETE SET NULL,
-          note              TEXT,
-          created_at        TEXT NOT NULL
-        );
-        CREATE INDEX IF NOT EXISTS idx_debts_status ON debts(status);
-        CREATE INDEX IF NOT EXISTS idx_debts_date ON debts(date);
-        CREATE TABLE IF NOT EXISTS debt_payments (
-          id          INTEGER PRIMARY KEY AUTOINCREMENT,
-          debt_id     INTEGER NOT NULL REFERENCES debts(id) ON DELETE CASCADE,
-          amount      REAL NOT NULL,
-          date        TEXT NOT NULL,
-          created_at  TEXT NOT NULL
-        );
-        CREATE INDEX IF NOT EXISTS idx_debt_payments_debt ON debt_payments(debt_id);
-        CREATE INDEX IF NOT EXISTS idx_debt_payments_date ON debt_payments(date);
-      `);
-    } catch (_) {
-      // Already applied
-    }
-    // extra_incomes: Ek Gelir (banka bonusu, hediye, tek seferlik ek iş). Borç
-    // DEĞİLDİR — geri ödeme yok, "açık borç" rozetine girmez; yalnız düştüğü
-    // döngünün harcanabilir tutarını artırır. CREATE_TABLES_SQL bunu üretir;
-    // eski kurulumlar için burada da garanti ediyoruz (debts deseni).
-    try {
-      await instance.execAsync(`
-        CREATE TABLE IF NOT EXISTS extra_incomes (
-          id          INTEGER PRIMARY KEY AUTOINCREMENT,
-          source      TEXT NOT NULL DEFAULT '',
-          amount      REAL NOT NULL,
-          currency    TEXT NOT NULL DEFAULT 'PLN',
-          date        TEXT NOT NULL,
-          note        TEXT,
-          created_at  TEXT NOT NULL
-        );
-        CREATE INDEX IF NOT EXISTS idx_extra_incomes_date ON extra_incomes(date);
-      `);
-    } catch (_) {
-      // Already applied
-    }
+    await addColumnIfMissing(
+      instance,
+      'vendors',
+      'default_category_id',
+      'INTEGER REFERENCES categories(id) ON DELETE SET NULL',
+    );
+    // subscriptions, debts, debt_payments, extra_incomes, savings_goal ve
+    // category_limits tabloları CREATE_TABLES_SQL ile kurulur (BUG-18: hatası
+    // yutulan tekrar blokları kaldırıldı).
+    // BUG-14: satıcı adı harf farkına dayanıklı tekil anahtar; mevcut kopyalar birleşir.
+    await ensureVendorNameKeys(instance);
+    // BUG-21: harcama/borç/ödeme/ek gelir kalıcı kimliği (eski tablolara kolon +
+    // mevcut satırlara bir kez UUID + tekillik indeksi).
+    await ensureRecordUids(instance);
     // İlk kurulum tohumlaması init promise'in İÇİNDE: getDatabase() çağıran her
     // tüketici (onboarding/tema okuması vb.) tohumlama BİTENE kadar bekler.
     // Aksi halde seed transaction'ı (ensureDefaultCategoryTree) ile eşzamanlı bir
@@ -584,10 +582,6 @@ export async function getDatabase(): Promise<SQLite.SQLiteDatabase> {
     // yalnız TEMİZ kurulumda (seed yalnız o zaman çalışır), bu yüzden mevcut
     // veritabanlı cihazlarda görülmüyordu.
     await seedIfNeeded(instance);
-    db = instance;
-    return instance;
-  })();
-  return initPromise;
 }
 
 /** Varsayılan kategori ağacını tamamlar: eksik üst/alt kategoriler + is_system bayrağı.
@@ -661,7 +655,7 @@ export async function initializeDatabase(): Promise<void> {
   await getDatabase();
 }
 
-/** İlk kurulum tohumlaması (kategoriler + varsayılan bütçe), idempotent.
+/** İlk kurulum tohumlaması (yalnız kategori ağacı), idempotent.
  *  getDatabase() init promise'i İÇİNDE çağrılır → tohumlama sırasında başka
  *  hiçbir tüketici sorgu çalıştıramaz (eşzamanlı erişim çökmesi engellenir). */
 async function seedIfNeeded(database: SQLite.SQLiteDatabase): Promise<void> {
@@ -673,24 +667,19 @@ async function seedIfNeeded(database: SQLite.SQLiteDatabase): Promise<void> {
   }
 
   await ensureDefaultCategoryTree(database);
-
-  const budget = await database.getFirstAsync<{ count: number }>(
-    'SELECT COUNT(*) as count FROM budgets WHERE active = 1'
-  );
-  if (budget && budget.count === 0) {
-    const now = new Date();
-    const month = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-    const cycle = getCycleForKey(1, month);
-    await database.runAsync(
-      `INSERT INTO budgets
-        (monthly_amount, currency, start_date, period_start, period_end, cycle_start_day, active)
-       VALUES (?, ?, ?, ?, ?, ?, 1)`,
-      [5000, 'PLN', month, cycle.start, cycle.end, 1]
-    );
-  }
+  // BUG-23 (ürün kararı A): varsayılan bütçe tohumlanmaz. Bütçe yalnız kullanıcının
+  // onboarding'de veya Ayarlar'da girdiği değerdir; silinen bütçe açılışta geri gelmez.
 }
 
+/** BUG-18: 60 ekleme tek transaction'da; yarıda kalırsa hiçbiri yazılmaz ve
+ *  bir sonraki açılış tohumlamayı baştan yapar. */
 async function seedDefaultCategories(database: SQLite.SQLiteDatabase): Promise<void> {
+  await database.withTransactionAsync(async () => {
+    await insertDefaultCategories(database);
+  });
+}
+
+async function insertDefaultCategories(database: SQLite.SQLiteDatabase): Promise<void> {
   for (const cat of DEFAULT_CATEGORIES) {
     const parentResult = await database.runAsync(
       'INSERT INTO categories (name, icon, color, parent_id, is_system) VALUES (?, ?, ?, NULL, 1)',
