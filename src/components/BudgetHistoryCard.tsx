@@ -10,13 +10,11 @@ import { formatDayMonth, getToday } from '../utils/dateUtils';
 import { BudgetDao } from '../db/budgetDao';
 import { ExpenseDao } from '../db/expenseDao';
 import { BudgetRolloverDao } from '../db/budgetRolloverDao';
-import { DebtDao } from '../db/debtDao';
-import { IncomeDao } from '../db/incomeDao';
-import { ContainerDepositDao } from '../db/containerDepositDao';
 import { computeDebtAdjustedBudget } from '../utils/debtMath';
 import { fromMinorUnits, sumMoney, subtractMoney } from '../utils/moneyMath';
 import { Budget } from '../db/schema';
 import { getCycleStartDay } from '../services/budgetCycleSettings';
+import { loadPeriodTotals, periodTotalsKey } from '../services/budgetHistoryTotals';
 import { findShadowedBudgetIds } from '../utils/budgetPeriodConflicts';
 import {
   getCurrentCycle,
@@ -29,6 +27,7 @@ import { useLanguage } from '../i18n/LanguageContext';
 import { useCurrency } from '../context/CurrencyContext';
 import { useRefresh } from '../context/RefreshContext';
 import { useAppTheme, useThemeRevision } from '../theme/themeStore';
+import { logError } from '../utils/logError';
 
 export interface BudgetHistorySelection {
   key: string;
@@ -90,8 +89,8 @@ export default function BudgetHistoryCard({
 
       const current = getCurrentCycle(anchorDay);
       const today = getToday();
-      // Android / expo-sqlite: aynı DB üzerinde çok sayıda eşzamanlı sorgu prepareAsync
-      // hatasına (NativeStatement / released object) yol açabiliyor — sırayla yükle.
+      // PERF-10: önce gösterilecek dönemler belirlenir (kurallar sayıya bağlı
+      // değildir), sonra bütün dönem toplamları tablo başına tek sorguyla okunur.
       const withData: CycleEntry[] = [];
       const representedPeriods = new Set<string>();
       // Eski sürümlerden çakışan aktif dönem kalmış olabilir. Veri silinmez;
@@ -107,38 +106,18 @@ export default function BudgetHistoryCard({
               budget.cycle_start_day ?? anchorDay,
             )
           : getCycleForKey(anchorDay, key);
-        const spent = await ExpenseDao.getCashSpentByDateRange(cycle.start, cycle.end);
         const periodKey = `${cycle.start}:${cycle.end}`;
         // Eski sürümlerde aynı ay için birden fazla active bütçe kalmış olabilir.
         // En yeni DAO satırını göster, aynı fiziksel dönemi ikinci kez üretme.
         if (representedPeriods.has(periodKey)) continue;
         representedPeriods.add(periodKey);
         const shadowed = shadowedIds.has(budget.id);
-        const carryIn = sumMoney(rollovers.filter(r => r.target_start === cycle.start && r.target_end === cycle.end && r.currency === budget.currency).map(r => fromMinorUnits(r.amount_minor)));
-        const carryOut = sumMoney(rollovers.filter(r => r.source_start === cycle.start && r.source_end === cycle.end && r.currency === budget.currency).map(r => fromMinorUnits(r.amount_minor)));
-        const borrowedIn = await DebtDao.getBorrowedTotalByDateRange(cycle.start, cycle.end);
-        const repaidIn = await DebtDao.getRepaidTotalByDateRange(cycle.start, cycle.end);
-        const extraIncomeIn = await IncomeDao.getTotalByDateRange(cycle.start, cycle.end);
-        const depositRecoveredIn = await ContainerDepositDao.getCashRecoveredByDateRange(
-          cycle.start, cycle.end, budget.currency,
-        );
-        const { effectiveBudget } = computeDebtAdjustedBudget({
-          monthlyBudget: budget.monthly_amount,
-          totalSpent: spent,
-          borrowedIn,
-          repaidIn,
-          extraIncomeIn,
-          depositRecoveredIn,
-          carryIn,
-        });
         withData.push({
           key,
           renderKey: `budget:${periodKey}:${budget.id}`,
           cycle,
           budget,
-          spent,
-          effectiveBudget,
-          carryOut,
+          spent: 0,
           // Gölgelenen kayıt "MEVCUT" sayılmaz; aksi halde aynı gün için iki
           // mevcut rozeti çıkar ve ekranlar birbiriyle çelişir.
           isCurrent: !shadowed && cycle.start <= today && cycle.end >= today,
@@ -154,28 +133,52 @@ export default function BudgetHistoryCard({
         if (withData.some((entry) => entry.cycle.start <= cycle.start && entry.cycle.end >= cycle.start)) {
           continue;
         }
-        const spent = await ExpenseDao.getCashSpentByDateRange(cycle.start, cycle.end);
         withData.push({
           key: cycle.key,
           renderKey: `spending:${cycle.start}:${cycle.end}`,
           cycle,
           budget: null,
-          spent,
+          spent: 0,
           isCurrent: cycle.start <= today && cycle.end >= today,
           isShadowed: false,
         });
       }
       if (!withData.some((entry) => entry.isCurrent)) {
-        const spent = await ExpenseDao.getCashSpentByDateRange(current.start, current.end);
         withData.push({
           key: current.key,
           renderKey: `current:${current.start}:${current.end}`,
           cycle: current,
           budget: null,
-          spent,
+          spent: 0,
           isCurrent: true,
           isShadowed: false,
         });
+      }
+
+      const rangeOf = (entry: CycleEntry) => ({
+        start: entry.cycle.start,
+        end: entry.cycle.end,
+        currency: entry.budget?.currency ?? 'PLN',
+      });
+      const totals = await loadPeriodTotals(withData.map(rangeOf));
+      for (const entry of withData) {
+        const period = totals.get(periodTotalsKey(rangeOf(entry)));
+        if (!period) continue;
+        entry.spent = period.spent;
+        const budget = entry.budget;
+        if (!budget) continue;
+        const { start, end } = entry.cycle;
+        const carryIn = sumMoney(rollovers.filter(r => r.target_start === start && r.target_end === end && r.currency === budget.currency).map(r => fromMinorUnits(r.amount_minor)));
+        entry.carryOut = sumMoney(rollovers.filter(r => r.source_start === start && r.source_end === end && r.currency === budget.currency).map(r => fromMinorUnits(r.amount_minor)));
+        entry.effectiveBudget = computeDebtAdjustedBudget({
+          monthlyBudget: budget.monthly_amount,
+          totalSpent: period.spent,
+          borrowedIn: period.borrowedIn,
+          repaidIn: period.repaidIn,
+          extraIncomeIn: period.extraIncomeIn,
+          depositRecoveredIn: period.depositRecoveredIn,
+          carryIn,
+        }).effectiveBudget;
       }
       withData.sort((a, b) => b.cycle.start.localeCompare(a.cycle.start));
 
@@ -183,7 +186,7 @@ export default function BudgetHistoryCard({
         setEntries(withData);
       }
     } catch (e) {
-      console.error('BudgetHistory load error:', e);
+      logError('BudgetHistory load error', e);
     }
     if (mountedRef.current) setLoading(false);
   }

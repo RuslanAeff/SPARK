@@ -15,6 +15,17 @@ jest.mock('../../db/incomeDao', () => ({ IncomeDao: { getTotalByDateRange: jest.
 jest.mock('../../db/containerDepositDao', () => ({ ContainerDepositDao: {
   getCashRecoveredByDateRange: jest.fn(async () => 0),
 } }));
+jest.mock('../../services/budgetHistoryTotals', () => {
+  const actual = jest.requireActual('../../services/budgetHistoryTotals');
+  return {
+    periodTotalsKey: actual.periodTotalsKey,
+    loadPeriodTotals: jest.fn(async (ranges: Array<{ start: string; end: string; currency: string }>) => new Map(
+      ranges.map(range => [actual.periodTotalsKey(range), {
+        spent: 0, borrowedIn: 0, repaidIn: 0, extraIncomeIn: 0, depositRecoveredIn: 0,
+      }]),
+    )),
+  };
+});
 jest.mock('../../services/budgetCycleSettings', () => ({ getCycleStartDay: jest.fn(async () => 23) }));
 jest.mock('../../utils/dateUtils', () => ({ getToday: () => '2026-09-25', formatDayMonth: (v: string) => v }));
 jest.mock('../../theme/themeStore', () => ({ useAppTheme: () => 'dark', useThemeRevision: () => 0 }));
