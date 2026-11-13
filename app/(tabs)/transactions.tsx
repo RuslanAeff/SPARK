@@ -29,7 +29,7 @@ import { Colors } from '../../src/theme/colors';
 import { Typography, FontFamily } from '../../src/theme/typography';
 import { Spacing, ScreenPadding, BorderRadius } from '../../src/theme/spacing';
 import { ExpenseWithDetails } from '../../src/db/schema';
-import { usePaginatedExpenses } from '../../src/hooks/useExpenses';
+import { useExpenseSearch, usePaginatedExpenses } from '../../src/hooks/useExpenses';
 import { formatDate, groupByDate } from '../../src/utils/dateUtils';
 import TransactionRow from '../../src/components/TransactionRow';
 import { useLanguage } from '../../src/i18n/LanguageContext';
@@ -40,6 +40,7 @@ import {
 import GlassDeleteModal from '../../src/components/GlassDeleteModal';
 import { SparkToast } from '../../src/components/SparkToast';
 import { ExpenseDao } from '../../src/db/expenseDao';
+import { logError } from '../../src/utils/logError';
 
 type Row =
   | { kind: 'header'; date: string; key: string }
@@ -51,9 +52,28 @@ export default function TransactionsScreen() {
   // P10: StyleSheet sadece tema değiştiğinde yeniden oluşur.
   const styles = useMemo(() => getStyles(), [scheme, themeRevision]);
   const router = useRouter();
-  const { t } = useLanguage();
-  const { items: expenses, loadingMore, hasMore, loadMore, refresh } = usePaginatedExpenses(60);
+  const { t, tc } = useLanguage();
+  const paged = usePaginatedExpenses(60);
   const [searchQuery, setSearchQuery] = useState('');
+  // BUG-11: arama doluyken liste bütün kayıtlarda arayan ayrı kaynaktan gelir.
+  const search = useExpenseSearch(searchQuery, tc, 60);
+  const loadingMore = search.active ? search.loadingMore : paged.loadingMore;
+  const hasMore = search.active ? search.hasMore : paged.hasMore;
+  const loadMore = search.active ? search.loadMore : paged.loadMore;
+  const pagedRefresh = paged.refresh;
+  const searchRefresh = search.refresh;
+  const searchActive = search.active;
+  // ADR-002: aynı anda iki liste sorgusu başlatılmaz; yalnız görünen kaynak yenilenir.
+  const refresh = useCallback(
+    () => (searchActive ? searchRefresh() : pagedRefresh()),
+    [searchActive, searchRefresh, pagedRefresh],
+  );
+  // Arama kapanınca (silme/düzenleme arama sırasında olmuş olabilir) liste tazelenir.
+  const wasSearchingRef = useRef(false);
+  useEffect(() => {
+    if (wasSearchingRef.current && !searchActive) void pagedRefresh();
+    wasSearchingRef.current = searchActive;
+  }, [searchActive, pagedRefresh]);
   const [refreshing, setRefreshing] = useState(false);
   const { triggerRefresh } = useRefreshActions();
   const isFocused = useIsFocused();
@@ -259,16 +279,16 @@ export default function TransactionsScreen() {
     }
     setDeleting(true);
     try {
-      await ExpenseDao.deleteMany(ids);
+      const deletedCount = await ExpenseDao.deleteMany(ids);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       bulkDeleteToastRef.current = {
-        message: t('transactions_deleted_bulk', { count: ids.length.toString() }),
+        message: t('transactions_deleted_bulk', { count: deletedCount.toString() }),
         type: 'success',
       };
       triggerRefresh();
       exitSelection();
     } catch (e) {
-      console.error(e);
+      logError('transactions bulk delete failed', e);
       bulkDeleteToastRef.current = {
         message: t('delete_failed'),
         type: 'error',
@@ -279,15 +299,7 @@ export default function TransactionsScreen() {
     }
   }, [selectedIds, t, triggerRefresh, exitSelection]);
 
-  const filtered = useMemo(() => {
-    if (!searchQuery.trim()) return expenses;
-    const q = searchQuery.toLowerCase();
-    return expenses.filter(e =>
-      (e.vendor_name || '').toLowerCase().includes(q) ||
-      (e.category_name || '').toLowerCase().includes(q) ||
-      (e.note || '').toLowerCase().includes(q),
-    );
-  }, [expenses, searchQuery]);
+  const filtered = search.active ? search.items : paged.items;
 
   // P9: Tek boyutlu liste — FlatList virtualization'ı artık iç içe `.map` değil
   // gerçek satırlar üzerinde çalışır.
@@ -408,9 +420,8 @@ export default function TransactionsScreen() {
   }, [loadingMore, styles]);
 
   const handleEndReached = useCallback(() => {
-    // Arama açıkken liste sonuna yaklaşmak pratik olarak mümkün değildir; yine de
-    // hasMore true ise arka planda devamını çek ki arama sonuçları genişlesin.
-    if (hasMore) loadMore();
+    // Arama açıkken de sonuçlar sayfa sayfa genişler (BUG-11).
+    if (hasMore) void loadMore();
   }, [hasMore, loadMore]);
 
   // FlatList'e extraData vererek selectionMode/selectedIds değiştiğinde
@@ -534,11 +545,28 @@ export default function TransactionsScreen() {
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
           ListEmptyComponent={
-            <View style={styles.emptyState}>
-              <MaterialCommunityIcons name="receipt" size={64} color={Colors.textMuted} />
-              <Text style={styles.emptyTitle}>{t('no_transactions')}</Text>
-              <Text style={styles.emptySubtitle}>{t('no_transactions_subtitle')}</Text>
-            </View>
+            search.active ? (
+              // BUG-11: aramada "ilk harcamanı ekle" yerine aramaya özgü boş durum.
+              <View style={styles.emptyState} testID="transactions-search-empty">
+                {search.searching ? (
+                  <ActivityIndicator size="small" color={Colors.primary} />
+                ) : (
+                  <>
+                    <MaterialCommunityIcons name="magnify-close" size={64} color={Colors.textMuted} />
+                    <Text style={styles.emptyTitle}>{t('search_no_results_title')}</Text>
+                    <Text style={styles.emptySubtitle}>
+                      {t('search_no_results_desc', { query: searchQuery.trim() })}
+                    </Text>
+                  </>
+                )}
+              </View>
+            ) : (
+              <View style={styles.emptyState}>
+                <MaterialCommunityIcons name="receipt" size={64} color={Colors.textMuted} />
+                <Text style={styles.emptyTitle}>{t('no_transactions')}</Text>
+                <Text style={styles.emptySubtitle}>{t('no_transactions_subtitle')}</Text>
+              </View>
+            )
           }
         />
       </View>

@@ -1,8 +1,11 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { ExpenseDao, type TopTransactionSelection } from '../db/expenseDao';
 import { useLanguage } from '../i18n/LanguageContext';
+import { SPEND_SEGMENT_COLOR, SPEND_SEGMENT_LABEL_KEY, type SpendSegment } from '../utils/spendSegment';
 import { ExpenseWithDetails, CategorySpending, VendorSpending } from '../db/schema';
 import { getStartOfMonth, getEndOfMonth } from '../utils/dateUtils';
+import { logError } from '../utils/logError';
+import { matchesSearch } from '../utils/searchText';
 
 function useMounted() {
   const mounted = useRef(true);
@@ -34,8 +37,8 @@ function useAutoRefresh(
 
 // P9: İşlem listesinde tüm satırları tek seferde okuyup FlatList’e vermek yerine
 // sayfalı çekim. İlk sayfa anında görünür, kullanıcı listeyi aşağı kaydırınca
-// `loadMore` ile arka arkaya sayfalar eklenir. Arama, hâlihazırda yüklü satırlar
-// üzerinde çalışır; kullanıcı yeni satırlara ulaşmak için kaydırmaya devam eder.
+// `loadMore` ile arka arkaya sayfalar eklenir. Arama bütün kayıtlarda
+// `useExpenseSearch` ile yapılır (BUG-11).
 export function usePaginatedExpenses(pageSize: number = 60) {
   const [items, setItems] = useState<ExpenseWithDetails[]>([]);
   const [loading, setLoading] = useState(true);
@@ -51,12 +54,15 @@ export function usePaginatedExpenses(pageSize: number = 60) {
     busyRef.current = true;
     setLoading(true);
     try {
-      const page = await ExpenseDao.getAll(pageSize, 0);
+      // BUG-25: yenileme, kullanıcının o ana kadar yüklediği kadar satırı yeniden
+      // çeker; derindeki bir kaydı düzenleyip dönünce liste 60'a inmez.
+      const limit = Math.max(pageSize, itemsLenRef.current);
+      const page = await ExpenseDao.getAll(limit, 0);
       if (!mounted.current) return;
       setItems(page);
-      setHasMore(page.length >= pageSize);
+      setHasMore(page.length >= limit);
     } catch (e) {
-      console.error('[Expenses] refresh failed', e);
+      logError('Expenses refresh failed', e);
     } finally {
       busyRef.current = false;
       if (mounted.current) setLoading(false);
@@ -74,7 +80,7 @@ export function usePaginatedExpenses(pageSize: number = 60) {
       setItems(prev => (page.length > 0 ? [...prev, ...page] : prev));
       if (page.length < pageSize) setHasMore(false);
     } catch (e) {
-      console.error('[Expenses] loadMore failed', e);
+      logError('Expenses loadMore failed', e);
     } finally {
       busyRef.current = false;
       if (mounted.current) setLoadingMore(false);
@@ -84,6 +90,102 @@ export function usePaginatedExpenses(pageSize: number = 60) {
   useEffect(() => { refresh(); }, [refresh]);
 
   return { items, loading, loadingMore, hasMore, loadMore, refresh };
+}
+
+/**
+ * BUG-11: İşlem araması bütün kayıtlarda çalışır (eskiden yalnız yüklenmiş 60'lık
+ * sayfalarda). Eşleşen kimlikler hafif bir sorguyla bulunur, katlama dil
+ * bağımsızdır (`foldSearchText`); tam satırlar sayfa sayfa okunur.
+ * `categoryLabel` ekranda görünen (çevrilmiş) kategori adını verir; arama hem
+ * kayıtlı adda hem görünen adda yapılır.
+ */
+export function useExpenseSearch(
+  query: string,
+  categoryLabel: (name: string) => string,
+  pageSize: number = 60,
+) {
+  const [items, setItems] = useState<ExpenseWithDetails[]>([]);
+  const [searching, setSearching] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(false);
+  const mounted = useMounted();
+  const matchIdsRef = useRef<number[]>([]);
+  const sequenceRef = useRef(0);
+  const busyRef = useRef(false);
+  const itemsLenRef = useRef(0);
+  itemsLenRef.current = items.length;
+  const labelRef = useRef(categoryLabel);
+  labelRef.current = categoryLabel;
+  const trimmed = query.trim();
+
+  const run = useCallback(async (keepLoaded: boolean) => {
+    const sequence = ++sequenceRef.current;
+    if (!trimmed) {
+      matchIdsRef.current = [];
+      setItems([]);
+      setHasMore(false);
+      setSearching(false);
+      return;
+    }
+    setSearching(true);
+    try {
+      const index = await ExpenseDao.getSearchIndex();
+      if (sequence !== sequenceRef.current || !mounted.current) return;
+      const ids = index
+        .filter(row => matchesSearch([
+          row.vendor_name,
+          row.category_name,
+          row.category_name ? labelRef.current(row.category_name) : null,
+          row.note,
+        ], trimmed))
+        .map(row => row.id);
+      matchIdsRef.current = ids;
+      const count = keepLoaded ? Math.max(pageSize, itemsLenRef.current) : pageSize;
+      const page = await ExpenseDao.getByIdsInOrder(ids.slice(0, count));
+      if (sequence !== sequenceRef.current || !mounted.current) return;
+      setItems(page);
+      setHasMore(ids.length > count);
+    } catch (e) {
+      logError('Expense search failed', e);
+    } finally {
+      if (sequence === sequenceRef.current && mounted.current) setSearching(false);
+    }
+  }, [trimmed, pageSize]);
+
+  // Yazarken her tuşta veritabanı taranmasın.
+  useEffect(() => {
+    if (!trimmed) {
+      void run(false);
+      return;
+    }
+    const timer = setTimeout(() => { void run(false); }, 250);
+    return () => clearTimeout(timer);
+  }, [run, trimmed]);
+
+  const loadMore = useCallback(async () => {
+    if (busyRef.current || !hasMore) return;
+    busyRef.current = true;
+    setLoadingMore(true);
+    const sequence = sequenceRef.current;
+    try {
+      const offset = itemsLenRef.current;
+      const nextIds = matchIdsRef.current.slice(offset, offset + pageSize);
+      const page = await ExpenseDao.getByIdsInOrder(nextIds);
+      if (sequence !== sequenceRef.current || !mounted.current) return;
+      setItems(prev => [...prev, ...page]);
+      setHasMore(matchIdsRef.current.length > offset + nextIds.length);
+    } catch (e) {
+      logError('Expense search loadMore failed', e);
+    } finally {
+      busyRef.current = false;
+      if (mounted.current) setLoadingMore(false);
+    }
+  }, [hasMore, pageSize]);
+
+  /** Veri değişince (silme/düzenleme) yüklenmiş sonuç sayısını koruyarak yeniler. */
+  const refresh = useCallback(() => run(true), [run]);
+
+  return { active: trimmed.length > 0, items, searching, loadingMore, hasMore, loadMore, refresh };
 }
 
 export function useMonthlyTotal(startDate?: string, endDate?: string) {
@@ -100,7 +202,7 @@ export function useMonthlyTotal(startDate?: string, endDate?: string) {
       const t = await ExpenseDao.getTotalByDateRange(start, end);
       if (mounted.current) setTotal(t);
     } catch (e) {
-      console.error('Error loading total:', e);
+      logError('Error loading total', e);
     }
     if (mounted.current) setLoading(false);
   }, [start, end]);
@@ -148,7 +250,7 @@ export function useCategorySpending(
       }));
       if (mounted.current && sequence === refreshSequence.current) setData(mapped);
     } catch (e) {
-      console.error('Error loading category spending:', e);
+      logError('Error loading category spending', e);
     }
     if (mounted.current && sequence === refreshSequence.current) setLoading(false);
   }, [start, end, enabled]);
@@ -204,7 +306,7 @@ export function useSubcategorySpending(
       }));
       if (mounted.current && sequence === refreshSequence.current) setData(mapped);
     } catch (e) {
-      console.error('Error loading subcategory spending:', e);
+      logError('Error loading subcategory spending', e);
     }
     if (mounted.current && sequence === refreshSequence.current) setLoading(false);
   }, [parentId, start, end, enabled]);
@@ -251,7 +353,7 @@ export function useVendorSpending(
       }));
       if (mounted.current && sequence === refreshSequence.current) setData(mapped);
     } catch (e) {
-      console.error('Error loading vendor spending:', e);
+      logError('Error loading vendor spending', e);
     }
     if (mounted.current && sequence === refreshSequence.current) setLoading(false);
   }, [start, end, enabled]);
@@ -321,7 +423,7 @@ export function useDailySpending(
       
       if (mounted.current && sequence === refreshSequence.current) setData(result);
     } catch (e) {
-      console.error('Error loading daily spending:', e);
+      logError('Error loading daily spending', e);
     }
     if (mounted.current && sequence === refreshSequence.current) setLoading(false);
   }, [start, end, enabled, cashOnly]);
@@ -362,7 +464,7 @@ export function useTopTransactions(
       const raw = await ExpenseDao.getTopTransactions(start, end, limit, selection);
       if (mounted.current && sequence === refreshSequence.current) setData(raw);
     } catch (e) {
-      console.error('Error loading top transactions:', e);
+      logError('Error loading top transactions', e);
     }
     if (mounted.current && sequence === refreshSequence.current) setLoading(false);
   }, [start, end, limit, selection, enabled]);
@@ -377,7 +479,7 @@ export function useBehavioralAnalytics(
   endDate?: string,
   options: ExpenseQueryOptions = {},
 ) {
-  const [needsWants, setNeedsWants] = useState<{ segment: string; total: number; percentage: number; color: string }[]>([]);
+  const [needsWants, setNeedsWants] = useState<{ key: SpendSegment; segment: string; total: number; percentage: number; color: string }[]>([]);
   const [weekWeekend, setWeekWeekend] = useState<{ segment: string; total: number; percentage: number; color: string }[]>([]);
   const [loading, setLoading] = useState(true);
   const { t } = useLanguage();
@@ -405,19 +507,13 @@ export function useBehavioralAnalytics(
     try {
       const nwData = await ExpenseDao.getNeedsVsWants(start, end);
       const nwTotal = nwData.reduce((sum, item) => sum + item.total, 0);
-      const mappedNW = nwData.map(item => {
-        let localizedSegment = item.segment;
-        if (item.segment === 'Zorunlu İhtiyaçlar') localizedSegment = translate('needs');
-        if (item.segment === 'Keyfi Harcamalar') localizedSegment = translate('wants');
-        if (item.segment === 'Diğer Harcamalar') localizedSegment = translate('savings_other');
-
-        return {
-          ...item,
-          segment: localizedSegment,
-          percentage: nwTotal > 0 ? Math.round((item.total / nwTotal) * 100) : 0,
-          color: item.segment === 'Zorunlu İhtiyaçlar' ? '#FF6B6B' : item.segment === 'Keyfi Harcamalar' ? '#4ECDC4' : '#FFE66D'
-        };
-      });
+      const mappedNW = nwData.map(item => ({
+        key: item.segment,
+        segment: translate(SPEND_SEGMENT_LABEL_KEY[item.segment]),
+        total: item.total,
+        percentage: nwTotal > 0 ? Math.round((item.total / nwTotal) * 100) : 0,
+        color: SPEND_SEGMENT_COLOR[item.segment],
+      }));
       if (mounted.current && sequence === refreshSequence.current) setNeedsWants(mappedNW);
 
       const wwData = await ExpenseDao.getWeekdayVsWeekend(start, end);
@@ -436,7 +532,7 @@ export function useBehavioralAnalytics(
       });
       if (mounted.current && sequence === refreshSequence.current) setWeekWeekend(mappedWW);
     } catch (e) {
-      console.error('Error loading behavioral analytics:', e);
+      logError('Error loading behavioral analytics', e);
     }
     if (mounted.current && sequence === refreshSequence.current) setLoading(false);
   }, [start, end, enabled]);
