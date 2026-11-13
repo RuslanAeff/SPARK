@@ -71,6 +71,7 @@ jest.mock('../../i18n/LanguageContext', () => ({
 
 jest.mock('../../context/RefreshContext', () => ({
   useRefresh: () => ({ refreshKey: 0, triggerRefresh: jest.fn() }),
+  useRefreshActions: () => ({ triggerRefresh: jest.fn() }),
 }));
 
 jest.mock('../../db/vendorDao', () => ({
@@ -103,5 +104,13 @@ describe('SettingsDataScreen product identity route', () => {
 
     await fireEvent.press(screen.getByTestId('manage-product-matching'));
     expect(mockPush).toHaveBeenCalledWith('/product-matching');
+  });
+
+  it('opens the local error journal from Data & backup', async () => {
+    const screen = await render(<SettingsDataScreen />);
+    await waitFor(() => expect(VendorDao.getAll).toHaveBeenCalledTimes(1));
+
+    await fireEvent.press(screen.getByTestId('manage-error-journal'));
+    expect(mockPush).toHaveBeenCalledWith('/error-journal');
   });
 });

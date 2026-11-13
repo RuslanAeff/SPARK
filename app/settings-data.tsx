@@ -39,6 +39,8 @@ import {
   SettingsNavigationRow,
   SettingsSection,
 } from '../src/components/SettingsList';
+import { logError } from '../src/utils/logError';
+import { setVendorLogo, sweepOrphanVendorLogos } from '../src/services/vendorLogoStore';
 
 type BulkVendorDeletePrompt = {
   vendorIds: number[];
@@ -124,7 +126,14 @@ export default function SettingsDataScreen() {
       quality: 0.8,
     });
     if (result.canceled || !result.assets?.[0]) return;
-    await VendorDao.updateLogo(vendorId, result.assets[0].uri);
+    try {
+      // BUG-27: önbellekteki seçici kopyası kalıcı klasöre alınır; eski logo silinir.
+      await setVendorLogo(vendorId, result.assets[0].uri);
+    } catch (e) {
+      logError('settings-data vendor logo failed', e);
+      SparkToast.show(t('vendor_logo_failed'), 'error');
+      return;
+    }
     logoTimestamp.current = Date.now();
     await loadVendors();
     SparkToast.show(t('vendor_logo_updated'), 'success');
@@ -173,7 +182,7 @@ export default function SettingsDataScreen() {
         expenseCount,
       });
     } catch (e) {
-      console.warn(e);
+      logError('settings-data vendor impact count failed', e);
       SparkToast.show(t('delete_failed'), 'error');
     } finally {
       setBulkDeletePreparing(false);
@@ -187,12 +196,13 @@ export default function SettingsDataScreen() {
     deleteInFlight.current = true;
     try {
       await VendorDao.delete(vendor.id);
+      void sweepOrphanVendorLogos();
       await loadVendors();
       triggerRefresh();
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       SparkToast.show(t('vendor_deleted'), 'success', t('vendor_deleted_desc'));
     } catch (e) {
-      console.warn(e);
+      logError('settings-data vendor delete failed', e);
       SparkToast.show(t('delete_failed'), 'error');
     } finally {
       deleteInFlight.current = false;
@@ -206,6 +216,7 @@ export default function SettingsDataScreen() {
     deleteInFlight.current = true;
     try {
       const deletedCount = await VendorDao.deleteMany(prompt.vendorIds);
+      void sweepOrphanVendorLogos();
       await loadVendors();
       triggerRefresh();
       exitVendorSelection();
@@ -216,7 +227,7 @@ export default function SettingsDataScreen() {
         t('vendor_deleted_desc'),
       );
     } catch (e) {
-      console.warn(e);
+      logError('settings-data bulk vendor delete failed', e);
       SparkToast.show(t('delete_failed'), 'error');
     } finally {
       deleteInFlight.current = false;
@@ -582,6 +593,19 @@ export default function SettingsDataScreen() {
               }}
               accessibilityLabel={t('product_match_entry_title')}
               accessibilityHint={t('product_match_entry_hint')}
+            />
+            {/* Yerel, onaylı paylaşılan teknik hata raporu (ADR-016) */}
+            <SettingsNavigationRow
+              testID="manage-error-journal"
+              title={t('error_journal_entry_title')}
+              description={t('error_journal_entry_hint')}
+              icon="bug-outline"
+              onPress={() => {
+                Haptics.selectionAsync();
+                router.push('/error-journal');
+              }}
+              accessibilityLabel={t('error_journal_entry_title')}
+              accessibilityHint={t('error_journal_entry_hint')}
             />
           </Animated.View>
 

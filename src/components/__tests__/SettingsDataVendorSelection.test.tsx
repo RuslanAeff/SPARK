@@ -99,6 +99,7 @@ jest.mock('../../i18n/LanguageContext', () => ({
 
 jest.mock('../../context/RefreshContext', () => ({
   useRefresh: () => ({ refreshKey: 0, triggerRefresh: mockTriggerRefresh }),
+  useRefreshActions: () => ({ triggerRefresh: mockTriggerRefresh }),
 }));
 
 jest.mock('../../db/vendorDao', () => ({

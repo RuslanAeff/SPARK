@@ -1,4 +1,5 @@
 import { purgeBackupCopies } from '../src/services/temporaryFiles';
+import { maintainVendorLogos } from '../src/services/vendorLogoStore';
 import 'react-native-gesture-handler';
 import React, { useEffect, useRef, useState } from 'react';
 import { Stack, usePathname, useRouter } from 'expo-router';
@@ -8,7 +9,6 @@ import {
   Animated,
   Easing,
   Image,
-  Text,
   StyleSheet,
 } from 'react-native';
 import * as SplashScreen from 'expo-splash-screen';
@@ -17,11 +17,9 @@ import * as SystemUI from 'expo-system-ui';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { ThemeProvider as NavigationThemeProvider } from '@react-navigation/native';
 import ThemeScheduler from '../src/components/ThemeScheduler';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { DarkTheme } from '../src/theme/colors';
 import { useAppTheme, useThemePalette } from '../src/theme/themeStore';
-import { FontFamily } from '../src/theme/typography';
 import { useDatabase } from '../src/hooks/useDatabase';
+import DatabaseErrorScreen from '../src/components/DatabaseErrorScreen';
 import { SparkToastContainer } from '../src/components/SparkToast';
 import { ErrorBoundary } from '../src/components/ErrorBoundary';
 import {
@@ -42,6 +40,8 @@ import {
 } from '../src/services/androidNotificationsSetup';
 import { useOnboardingStatus } from '../src/hooks/useOnboardingStatus';
 import { createNavigationTheme } from '../src/theme/navigationTheme';
+import { logError } from '../src/utils/logError';
+import { installErrorJournal } from '../src/services/errorJournal';
 
 const BOOT_BACKGROUND = '#050505';
 
@@ -49,6 +49,8 @@ const BOOT_BACKGROUND = '#050505';
 // kapanmamalı. Global scope çağrısı Expo'nun önerdiği şekilde mümkün olan en
 // erken anda çalışır.
 void SplashScreen.preventAutoHideAsync().catch(() => {});
+// Yerel hata günlüğü ilk render'dan önce takılır; açılış hataları da kayda geçer.
+installErrorJournal();
 if (Constants.executionEnvironment !== ExecutionEnvironment.StoreClient) {
   SplashScreen.setOptions({ duration: 220, fade: true });
 }
@@ -73,7 +75,7 @@ function AndroidNotificationBootstrap({ enabled }: { enabled: boolean }) {
     void (async () => {
       const status = await ensureAndroidNotificationSetup(true, channelCopy);
       if (__DEV__ && status === 'error') {
-        console.warn('[notifications] Android setup failed');
+        logError('notifications Android setup failed');
       }
       if (disposed) return;
 
@@ -95,7 +97,7 @@ function AndroidNotificationBootstrap({ enabled }: { enabled: boolean }) {
         }
         unsubscribe = cleanup;
       } catch {
-        if (__DEV__) console.warn('[notifications] response observer failed');
+        logError('notifications response observer failed');
       }
 
       // Cold response varsa subscribe çağrısı onun tap-aware sync'ini bekler;
@@ -349,6 +351,14 @@ function AppShell({ onboardingLoading, onboardingCompleted }: AppShellProps) {
             }}
           />
           <Stack.Screen
+            name="error-journal"
+            options={{
+              presentation: 'card',
+              animation: 'slide_from_right',
+              contentStyle: { backgroundColor: theme.background },
+            }}
+          />
+          <Stack.Screen
             name="settings-ai"
             options={{
               presentation: 'card',
@@ -368,24 +378,23 @@ function AppShell({ onboardingLoading, onboardingCompleted }: AppShellProps) {
 function RootLayoutContent() {
   const scheme = useAppTheme();
   const theme = useThemePalette();
-  const styles = React.useMemo(() => getStyles(theme), [theme]);
-  const { isReady, error } = useDatabase();
+  const { isReady, failed: databaseFailed, retrying: databaseRetrying, retry: retryDatabase } = useDatabase();
   const {
     isLoading: onboardingLoading,
     completed: onboardingCompleted,
   } = useOnboardingStatus();
 
   useEffect(() => {
-    if (error) void SplashScreen.hideAsync().catch(() => {});
-  }, [error]);
+    if (databaseFailed) void SplashScreen.hideAsync().catch(() => {});
+  }, [databaseFailed]);
 
-  if (error) {
+  // BUG-07: ham hata metni yerine çevrilmiş açıklama ve "Yeniden dene".
+  if (databaseFailed) {
     return (
-      <View style={styles.center}>
+      <>
         <StatusBar style={scheme === 'light' ? 'dark' : 'light'} />
-        <MaterialCommunityIcons name="alert-circle" size={48} color={theme.danger} />
-        <Text style={styles.errorText}>{error}</Text>
-      </View>
+        <DatabaseErrorScreen onRetry={retryDatabase} retrying={databaseRetrying} palette={theme} />
+      </>
     );
   }
 
@@ -416,7 +425,11 @@ function RootLayoutContent() {
 }
 
 export default function RootLayout() {
-  useEffect(() => { void purgeBackupCopies(); }, []);
+  useEffect(() => {
+    void purgeBackupCopies();
+    // BUG-27: eski önbellek logolarını kalıcı klasöre taşı, sahipsiz dosyaları sil.
+    void maintainVendorLogos();
+  }, []);
   return (
     <GestureHandlerRootView style={bootStyles.root}>
       <ErrorBoundary>
@@ -445,21 +458,3 @@ const bootStyles = StyleSheet.create({
     height: 160,
   },
 });
-
-const getStyles = (theme: typeof DarkTheme) =>
-  StyleSheet.create({
-    center: {
-      flex: 1,
-      justifyContent: 'center',
-      alignItems: 'center',
-      backgroundColor: theme.background,
-      gap: 16,
-    },
-    errorText: {
-      color: theme.danger,
-      fontFamily: FontFamily.medium,
-      fontSize: 14,
-      textAlign: 'center',
-      paddingHorizontal: 32,
-    },
-  });
