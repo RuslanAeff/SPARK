@@ -20,7 +20,16 @@ const FileSystemLegacy: any = require('expo-file-system/legacy');
 import * as Sharing from 'expo-sharing';
 import * as DocumentPicker from 'expo-document-picker';
 import { Platform } from 'react-native';
+import { relabelCurrencyRowsToAppCurrency } from '../db/appCurrencyDao';
 import { getDatabase } from '../db/database';
+import { getToday } from '../utils/dateUtils';
+import { nameIdentityKey } from '../utils/searchText';
+import {
+  BACKUP_WRONG_PASSWORD,
+  decryptBackupEnvelope,
+  encryptBackupJson,
+  isEncryptedBackupEnvelope,
+} from './backupEncryption';
 import {
   CanonicalProduct,
   Category,
@@ -44,8 +53,10 @@ import {
 } from '../utils/inputValidation';
 import { fromMinorUnits, roundMoney, toMinorUnits } from '../utils/moneyMath';
 import { isVoucherDateRangeValid, matchesVoucherRedemption } from '../utils/containerVoucherRules';
+import { safeCategoryColor, safeCategoryIcon } from '../utils/categoryAppearance';
 import { isRecurringOccurrence } from '../utils/recurringSchedule';
 import { sanitizeMeasurementUnit } from '../utils/measurementUnit';
+import { logError } from '../utils/logError';
 
 /** Mevcut yedek formatı sürümü.
  *  v1 → ilk sürüm
@@ -54,10 +65,12 @@ import { sanitizeMeasurementUnit } from '../utils/measurementUnit';
  *  v4 → UUID tabanlı kanonik ürünler, alias kararları ve kalem bağlantıları
  *  v5 → bütçe devirleri
  *  v6 → şişe depozitoları, voucher'lar ve geri kazanım olayları
+ *  v7 → harcama/borç/ödeme/ek gelir kalıcı kimliği (uid) ve kategori üst adı
+ *       (BUG-21); birikim hedefi, kategori limitleri ve döngü günü (BUG-31)
  *
  * Yeni alanlar v1-v3 importunda boş dizilere normalize edilir. Eski uygulamalar
  * v4 dosyasını `UNSUPPORTED_VERSION` ile bilinçli biçimde reddeder. */
-export const BACKUP_FORMAT_VERSION = 6;
+export const BACKUP_FORMAT_VERSION = 7;
 
 const MIN_BACKUP_FORMAT_VERSION = 1;
 const MAX_BACKUP_ROWS_PER_COLLECTION = 100_000;
@@ -79,6 +92,8 @@ interface ExportedExpenseItem
   /** v4+: yerel canonical_product_id yerine taşınabilir ürün kimliği. */
   canonical_product_uid?: string | null;
   category_name?: string | null;
+  /** v7+: aynı adlı alt kategorileri ayırmak için üst kategori adı (kökte null). */
+  category_parent_name?: string | null;
 }
 
 interface ExportedCanonicalProduct {
@@ -105,6 +120,8 @@ interface ExportedProductAlias {
 interface ExportedExpense {
   /** v3+: yalnız bu payload içindeki FK eşlemeleri için; hedef DB PK'si değildir. */
   source_id?: number;
+  /** v7+: taşınabilir kalıcı kimlik; tekrar içe aktarımda önce bununla eşleşir. */
+  uid?: string;
   /** v3+: aynı dosyanın tekrar importunda meşru özdeş işlemleri ayırmaya yardım eder. */
   created_at?: string;
   date: string;
@@ -116,6 +133,8 @@ interface ExportedExpense {
   container_voucher_used?: number;
   vendor_name: string | null;
   category_name: string | null;
+  /** v7+: üst kategori adı (kökte null). */
+  category_parent_name?: string | null;
   items: ExportedExpenseItem[];
 }
 
@@ -160,6 +179,8 @@ interface ExportedDismissedSubscription {
 
 interface ExportedDebt {
   source_id: number;
+  /** v7+ */
+  uid?: string;
   linked_expense_source_id: number | null;
   /**
    * `true` yalnız kaynak borcun bir harcamaya bağlı olduğu, fakat harcamanın
@@ -182,6 +203,8 @@ interface ExportedDebt {
 
 interface ExportedDebtPayment {
   source_id: number;
+  /** v7+ */
+  uid?: string;
   debt_source_id: number;
   amount: number;
   date: string;
@@ -190,6 +213,8 @@ interface ExportedDebtPayment {
 
 interface ExportedExtraIncome {
   source_id: number;
+  /** v7+ */
+  uid?: string;
   source: string;
   amount: number;
   currency: string;
@@ -217,6 +242,23 @@ interface ExportedRecurringPaymentReminder {
   updated_at: string;
 }
 
+/** v7+: tek birikim hedefi (BUG-31). */
+interface ExportedSavingsGoal {
+  title: string;
+  target_amount: number;
+  target_date: string;
+  currency: string;
+  current_amount: number;
+}
+
+/** v7+: bütçe döngüsü anahtarına (döngünün başladığı ay) bağlı kategori limiti (BUG-22/31). */
+interface ExportedCategoryLimit {
+  category_name: string;
+  category_parent_name: string | null;
+  month: string;
+  limit_amount: number;
+}
+
 export interface BackupPayload {
   version: number;
   app: 'S.P.A.R.K.';
@@ -242,6 +284,12 @@ export interface BackupPayload {
     /** v6: refundable-container voucher wallet and realized recoveries. */
     container_deposit_vouchers?: ExportedContainerDepositVoucher[];
     container_deposit_recoveries?: ExportedContainerDepositRecovery[];
+    /** v7 (BUG-31): aralıktan bağımsız tek hedef; yoksa null. */
+    savings_goal?: ExportedSavingsGoal | null;
+    /** v7 (BUG-31): aralıkla kesişen döngülerin limitleri. */
+    category_limits?: ExportedCategoryLimit[];
+    /** v7 (BUG-31): kullanıcı ayarladıysa bütçe döngüsü başlangıç günü. */
+    budget_cycle_start_day?: number | null;
   };
 }
 
@@ -272,6 +320,8 @@ export interface ExportResult {
   recordCount: number;
   sizeBytes: number;
   destination: ExportDestination;
+  /** SEC-01: dosya parolayla şifrelendi mi. */
+  encrypted?: boolean;
 }
 
 export interface ImportSummary {
@@ -301,6 +351,19 @@ export interface ImportSummary {
   depositVouchersSkipped: number;
   depositRecoveriesAdded: number;
   depositRecoveriesSkipped: number;
+  /**
+   * BUG-20 (ürün kararı A): aynı kimlikli kayıt cihazda yedekten sonra değişmişse
+   * (kupon süresi doldu, hatırlatıcı vadesi ilerledi, ürün yeniden adlandırıldı,
+   * kalem düzenlendi...) cihazdaki hâli korunur ve içe aktarım sürer. Bu sayaç o
+   * kayıtları sayar; ayrıca ilgili "Skipped" sayacında da yer alırlar.
+   */
+  keptLocal: number;
+  /** v7 (BUG-31): cihazda hedef yokken yedekteki hedef yüklendi (0/1). */
+  savingsGoalAdded: number;
+  categoryLimitsAdded: number;
+  categoryLimitsSkipped: number;
+  /** v7 (BUG-31): cihazda döngü günü ayarı yokken yedekteki yüklendi (0/1). */
+  cycleDayRestored: number;
 }
 
 /** `YYYY-MM-DD` doğrulaması + başlangıç <= son kuralı. */
@@ -341,11 +404,79 @@ type NormalizedBackupPayload = BackupPayload & {
     budget_rollovers: BudgetRollover[];
     container_deposit_vouchers: ExportedContainerDepositVoucher[];
     container_deposit_recoveries: ExportedContainerDepositRecovery[];
+    savings_goal: ExportedSavingsGoal | null;
+    category_limits: ExportedCategoryLimit[];
+    budget_cycle_start_day: number | null;
   };
 };
 
+/** Doğrulayıcının o an denetlediği koleksiyon; hata mesajını zenginleştirir (BUG-19). */
+export type BackupValidationSection =
+  | 'root'
+  | 'expenses'
+  | 'categories'
+  | 'vendors'
+  | 'budgets'
+  | 'dismissed_subscriptions'
+  | 'debts'
+  | 'debt_payments'
+  | 'extra_incomes'
+  | 'recurring_payment_reminders'
+  | 'canonical_products'
+  | 'product_aliases'
+  | 'budget_rollovers'
+  | 'container_deposit_vouchers'
+  | 'container_deposit_recoveries'
+  | 'savings_goal'
+  | 'category_limits'
+  | 'budget_cycle_start_day';
+
+// Doğrulama tamamen senkron olduğu için modül düzeyi durum güvenlidir.
+let validationSection: BackupValidationSection = 'root';
+
+function section(name: BackupValidationSection): void {
+  validationSection = name;
+}
+
+/** Mesaj her zaman `INVALID_FORMAT` kalır; `section` yalnız tanılama içindir. */
 function invalidFormat(): never {
-  throw new Error('INVALID_FORMAT');
+  throw Object.assign(new Error('INVALID_FORMAT'), { section: validationSection });
+}
+
+/** Dışa aktarım öz denetimi hata kodları (BUG-19). */
+export const BACKUP_EXPORT_INVALID = 'BACKUP_EXPORT_INVALID';
+export const BACKUP_EXPORT_TOO_LARGE = 'BACKUP_EXPORT_TOO_LARGE';
+
+function utf8ByteLength(value: string): number {
+  let bytes = 0;
+  for (let i = 0; i < value.length; i++) {
+    const code = value.charCodeAt(i);
+    if (code < 0x80) bytes += 1;
+    else if (code < 0x800) bytes += 2;
+    else if (code >= 0xd800 && code <= 0xdbff && i + 1 < value.length) {
+      bytes += 4;
+      i++;
+    } else bytes += 3;
+  }
+  return bytes;
+}
+
+/**
+ * Dışa aktarılacak JSON'u, içe aktarımın uyguladığı aynı sözleşmeden geçirir.
+ * Geri yüklenemeyecek bir dosyanın "yedek alındı" gibi görünmesini engeller:
+ * veritabanı Google yedeğine girmediği için bu dosya çoğu zaman tek yedektir.
+ */
+export function assertBackupJsonRestorable(json: string): void {
+  if (utf8ByteLength(json) > MAX_BACKUP_FILE_BYTES) {
+    throw new Error(BACKUP_EXPORT_TOO_LARGE);
+  }
+  try {
+    validateAndNormalizeBackupPayload(JSON.parse(json));
+  } catch (error) {
+    const failedSection = (error as { section?: BackupValidationSection } | null)?.section ?? 'root';
+    if (__DEV__) console.warn('[backup] export self-check failed', failedSection, error);
+    throw Object.assign(new Error(BACKUP_EXPORT_INVALID), { section: failedSection });
+  }
 }
 
 function asRecord(value: unknown): Record<string, unknown> {
@@ -374,10 +505,25 @@ function isStrictTime(value: unknown): value is string {
   return !!match && Number(match[1]) <= 23 && Number(match[2]) <= 59;
 }
 
+// SQLite `datetime('now')` ("2026-11-11 10:00:00") ve JS `toISOString()` biçimleri.
+// `Date.parse` boşluk ayraçlı biçimi her JS motorunda (ör. Hermes) garanti etmediği
+// için önce motordan bağımsız düzenli ifade denenir; eski yol yedek olarak kalır.
+const TIMESTAMP_PATTERN =
+  /^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2}):(\d{2})(?:\.\d{1,9})?(?:Z|[+-]\d{2}:?\d{2})?$/;
+
+function isStructuredTimestamp(value: string): boolean {
+  const match = TIMESTAMP_PATTERN.exec(value);
+  if (!match) return false;
+  return isStrictDate(`${match[1]}-${match[2]}-${match[3]}`)
+    && Number(match[4]) <= 23
+    && Number(match[5]) <= 59
+    && Number(match[6]) <= 59;
+}
+
 function isIsoTimestamp(value: unknown): value is string {
   return typeof value === 'string'
     && value.length <= 64
-    && Number.isFinite(Date.parse(value));
+    && (isStructuredTimestamp(value) || Number.isFinite(Date.parse(value)));
 }
 
 function numeric(value: unknown): number | null {
@@ -429,12 +575,14 @@ function takePoolCandidate(
 }
 
 function validateBaseCollections(data: Record<string, unknown>): void {
+  section('root');
   const expenses = asBoundedArray(data.expenses);
   const categories = asBoundedArray(data.categories);
   const vendors = asBoundedArray(data.vendors);
   const budgets = asBoundedArray(data.budgets);
   let itemCount = 0;
 
+  section('expenses');
   for (const raw of expenses) {
     const expense = asRecord(raw);
     if (!isStrictDate(expense.date) || !isNonNegativeMoney(expense.total_amount)) invalidFormat();
@@ -466,6 +614,7 @@ function validateBaseCollections(data: Record<string, unknown>): void {
     }
   }
 
+  section('categories');
   for (const raw of categories) {
     const category = asRecord(raw);
     if (!isBoundedString(category.name, 100, false)
@@ -473,6 +622,7 @@ function validateBaseCollections(data: Record<string, unknown>): void {
       || !isBoundedString(category.color, 20, false)
       || !isNullableBoundedString(category.parent_name, 100)) invalidFormat();
   }
+  section('vendors');
   for (const raw of vendors) {
     const vendor = asRecord(raw);
     if (!isBoundedString(vendor.name, 200, false)
@@ -480,6 +630,7 @@ function validateBaseCollections(data: Record<string, unknown>): void {
       || (vendor.default_category_name != null
         && !isBoundedString(vendor.default_category_name, 100))) invalidFormat();
   }
+  section('budgets');
   for (const raw of budgets) {
     const budget = asRecord(raw);
     if (!isNonNegativeMoney(budget.monthly_amount)
@@ -494,6 +645,7 @@ function validateBaseCollections(data: Record<string, unknown>): void {
   }
 
   if (data.dismissed_subscriptions != null) {
+    section('dismissed_subscriptions');
     for (const raw of asBoundedArray(data.dismissed_subscriptions)) {
       const dismissed = asRecord(raw);
       if (!isBoundedString(dismissed.vendor_name, 200, false)) invalidFormat();
@@ -514,6 +666,7 @@ function validateV3Collections(data: Record<string, unknown>): void {
   );
 
   const expenseIds = new Set<number>();
+  section('expenses');
   for (const expense of expenses) {
     if (!isPositiveInteger(expense.source_id)
       || expenseIds.has(expense.source_id)
@@ -523,6 +676,7 @@ function validateV3Collections(data: Record<string, unknown>): void {
 
   const debtIds = new Set<number>();
   const debtAmountMinor = new Map<number, number>();
+  section('debts');
   for (const raw of debts) {
     const debt = asRecord(raw);
     if (!isPositiveInteger(debt.source_id) || debtIds.has(debt.source_id)) invalidFormat();
@@ -552,6 +706,7 @@ function validateV3Collections(data: Record<string, unknown>): void {
   }
 
   const paymentIds = new Set<number>();
+  section('debt_payments');
   const paidMinor = new Map<number, number>();
   for (const raw of payments) {
     const payment = asRecord(raw);
@@ -580,6 +735,7 @@ function validateV3Collections(data: Record<string, unknown>): void {
   }
 
   const incomeIds = new Set<number>();
+  section('extra_incomes');
   for (const raw of incomes) {
     const income = asRecord(raw);
     if (!isPositiveInteger(income.source_id) || incomeIds.has(income.source_id)) invalidFormat();
@@ -593,6 +749,7 @@ function validateV3Collections(data: Record<string, unknown>): void {
   }
 
   const reminderUids = new Set<string>();
+  section('recurring_payment_reminders');
   for (const raw of reminders) {
     const reminder = asRecord(raw);
     const normalizedUid = normalizeCanonicalUuid(reminder.uid);
@@ -638,6 +795,7 @@ function validateV4ProductIdentityCollections(data: Record<string, unknown>): vo
   const aliases = asBoundedArray(data.product_aliases);
   const productByUid = new Map<string, { measurementUnit: string }>();
 
+  section('canonical_products');
   for (const raw of products) {
     const product = asRecord(raw);
     const uid = normalizeCanonicalUuid(product.uid);
@@ -655,6 +813,7 @@ function validateV4ProductIdentityCollections(data: Record<string, unknown>): vo
   }
 
   const aliasKeys = new Set<string>();
+  section('product_aliases');
   for (const raw of aliases) {
     const alias = asRecord(raw);
     const uid = normalizeCanonicalUuid(alias.canonical_product_uid);
@@ -677,6 +836,7 @@ function validateV4ProductIdentityCollections(data: Record<string, unknown>): vo
 
   const itemSourceIds = new Set<number>();
   const expenses = data.expenses as Record<string, unknown>[];
+  section('expenses');
   for (const expense of expenses) {
     for (const raw of expense.items as unknown[]) {
       const item = asRecord(raw);
@@ -702,6 +862,7 @@ function validateDepositRelations(
   const voucherByUid = new Map(vouchers.map(v => [v.uid, v]));
   const recoveredVouchers = new Set<string>();
   const recoveredExpenses = new Set<number>();
+  section('container_deposit_vouchers');
   for (const voucher of vouchers) {
     if (!isVoucherDateRangeValid(voucher.issued_date, voucher.expires_on)
       || (voucher.status === 'redeemed'
@@ -709,6 +870,7 @@ function validateDepositRelations(
           || !matchesVoucherRedemption(voucher, { ...voucher, date: voucher.redeemed_date })
         : voucher.redeemed_date != null || voucher.redemption_expense_source_id != null)) invalidFormat();
   }
+  section('container_deposit_recoveries');
   for (const recovery of recoveries) {
     const expense = recovery.expense_source_id == null ? null : expenseById.get(recovery.expense_source_id);
     if (recovery.expense_source_id != null) {
@@ -731,6 +893,7 @@ function validateDepositRelations(
   for (const expense of expenses) {
     if (Number(expense.container_voucher_used) > 0 && !recoveredExpenses.has(expense.source_id!)) invalidFormat();
   }
+  section('container_deposit_vouchers');
   for (const voucher of vouchers) {
     if (voucher.redemption_expense_source_id != null && !recoveredVouchers.has(voucher.uid)) invalidFormat();
   }
@@ -738,6 +901,87 @@ function validateDepositRelations(
 
 /** Dosya ve doğrudan import yollarının kullandığı tek runtime sözleşmesi. */
 export function validateAndNormalizeBackupPayload(input: unknown): NormalizedBackupPayload {
+  try {
+    return validateAndNormalizeBackupPayloadUnchecked(input);
+  } finally {
+    // Import'un sonraki çakışma hataları eski bölüm adını taşımasın.
+    section('root');
+  }
+}
+
+/**
+ * BUG-21: v7'de harcama, borç, ödeme ve ek gelir zorunlu, dosya içinde tekil
+ * bir UUID taşır; kategori üst adı isteğe bağlıdır. UID küçük harfe normalize edilir.
+ */
+function validateV7RecordIdentity(data: Record<string, unknown>): void {
+  const collections: Array<[BackupValidationSection, unknown]> = [
+    ['expenses', data.expenses],
+    ['debts', data.debts],
+    ['debt_payments', data.debt_payments],
+    ['extra_incomes', data.extra_incomes],
+  ];
+  for (const [name, rows] of collections) {
+    section(name);
+    const seen = new Set<string>();
+    for (const raw of asBoundedArray(rows)) {
+      const row = asRecord(raw);
+      const uid = normalizeCanonicalUuid(row.uid);
+      if (!uid || seen.has(uid)) invalidFormat();
+      seen.add(uid);
+      row.uid = uid;
+    }
+  }
+  section('expenses');
+  for (const raw of data.expenses as unknown[]) {
+    const expense = asRecord(raw);
+    if (!isNullableBoundedString(expense.category_parent_name, 100)) invalidFormat();
+    for (const rawItem of asBoundedArray(expense.items)) {
+      if (!isNullableBoundedString(asRecord(rawItem).category_parent_name, 100)) invalidFormat();
+    }
+  }
+}
+
+/**
+ * BUG-31: v7 hedef, kategori limitleri ve döngü günü. Alanlar isteğe bağlıdır
+ * (yoksa "yedekte yok" sayılır); varsa canlı yazma yollarıyla aynı sınırlar.
+ */
+function validateV7Settings(data: Record<string, unknown>): void {
+  section('savings_goal');
+  if (data.savings_goal != null) {
+    const goal = asRecord(data.savings_goal);
+    if (!isBoundedString(goal.title, 200, false) || !String(goal.title).trim()
+      || !isPositiveMoney(goal.target_amount)
+      || !isStrictDate(goal.target_date)
+      || !isBoundedString(goal.currency, 10, false)
+      || !isNonNegativeMoney(goal.current_amount)) invalidFormat();
+  }
+  section('category_limits');
+  if (data.category_limits != null) {
+    const seen = new Set<string>();
+    for (const raw of asBoundedArray(data.category_limits)) {
+      const limit = asRecord(raw);
+      if (!isBoundedString(limit.category_name, 100, false)
+        || !isNullableBoundedString(limit.category_parent_name, 100)
+        || !isMonthKey(limit.month)
+        || !isPositiveMoney(limit.limit_amount)) invalidFormat();
+      const key = JSON.stringify([
+        String(limit.category_name).trim().toLowerCase(),
+        limit.category_parent_name == null ? null : String(limit.category_parent_name).trim().toLowerCase(),
+        limit.month,
+      ]);
+      if (seen.has(key)) invalidFormat();
+      seen.add(key);
+    }
+  }
+  section('budget_cycle_start_day');
+  if (data.budget_cycle_start_day != null
+    && (!Number.isInteger(data.budget_cycle_start_day)
+      || Number(data.budget_cycle_start_day) < 1
+      || Number(data.budget_cycle_start_day) > 31)) invalidFormat();
+}
+
+function validateAndNormalizeBackupPayloadUnchecked(input: unknown): NormalizedBackupPayload {
+  section('root');
   const root = asRecord(input);
   if (root.app !== 'S.P.A.R.K.'
     || typeof root.version !== 'number'
@@ -764,6 +1008,7 @@ export function validateAndNormalizeBackupPayload(input: unknown): NormalizedBac
     validateV4ProductIdentityCollections(data);
   }
   if (root.version >= 5) {
+    section('budget_rollovers');
     const seen = new Set<string>();
     const sources = new Set<string>();
     const budgets = data.budgets as ExportedBudget[];
@@ -791,6 +1036,7 @@ export function validateAndNormalizeBackupPayload(input: unknown): NormalizedBac
     }
   }
   if (root.version >= 6) {
+    section('expenses');
     const expenses = data.expenses as ExportedExpense[];
     const expenseIds = new Set(expenses.map(expense => expense.source_id));
     for (const expense of expenses) {
@@ -802,6 +1048,7 @@ export function validateAndNormalizeBackupPayload(input: unknown): NormalizedBac
       }
     }
     const voucherUids = new Set<string>();
+    section('container_deposit_vouchers');
     for (const raw of asBoundedArray(data.container_deposit_vouchers)) {
       const voucher = asRecord(raw);
       const uid = normalizeCanonicalUuid(voucher.uid);
@@ -821,6 +1068,7 @@ export function validateAndNormalizeBackupPayload(input: unknown): NormalizedBac
       voucherUids.add(uid);
     }
     const recoveryUids = new Set<string>();
+    section('container_deposit_recoveries');
     for (const raw of asBoundedArray(data.container_deposit_recoveries)) {
       const recovery = asRecord(raw);
       const uid = normalizeCanonicalUuid(recovery.uid);
@@ -847,6 +1095,11 @@ export function validateAndNormalizeBackupPayload(input: unknown): NormalizedBac
       data.container_deposit_vouchers as ExportedContainerDepositVoucher[],
       data.container_deposit_recoveries as ExportedContainerDepositRecovery[],
     );
+  }
+
+  if (root.version >= 7) {
+    validateV7RecordIdentity(data);
+    validateV7Settings(data);
   }
 
   return {
@@ -876,6 +1129,15 @@ export function validateAndNormalizeBackupPayload(input: unknown): NormalizedBac
       container_deposit_recoveries: root.version >= 6
         ? data.container_deposit_recoveries as ExportedContainerDepositRecovery[]
         : [],
+      savings_goal: root.version >= 7
+        ? (data.savings_goal as ExportedSavingsGoal | null | undefined) ?? null
+        : null,
+      category_limits: root.version >= 7
+        ? (data.category_limits as ExportedCategoryLimit[] | undefined) ?? []
+        : [],
+      budget_cycle_start_day: root.version >= 7
+        ? (data.budget_cycle_start_day as number | null | undefined) ?? null
+        : null,
     },
   };
 }
@@ -889,14 +1151,15 @@ export async function buildBackupPayload(range: BackupDateRange): Promise<Backup
   const rolloversOut = allRollovers.filter(r => r.source_start >= range.start && r.target_end <= range.end);
 
   const expenses = await db.getAllAsync<
-    Expense & { vendor_name: string | null; category_name: string | null }
+    Expense & { vendor_name: string | null; category_name: string | null; category_parent_name: string | null }
   >(
-    `SELECT e.id, e.vendor_id, e.category_id, e.total_amount, e.currency, e.note, e.receipt_uri,
+    `SELECT e.id, e.uid, e.vendor_id, e.category_id, e.total_amount, e.currency, e.note, e.receipt_uri,
             e.container_deposit_paid, e.container_voucher_used, e.date, e.created_at,
-            v.name AS vendor_name, c.name AS category_name
+            v.name AS vendor_name, c.name AS category_name, cp.name AS category_parent_name
        FROM expenses e
        LEFT JOIN vendors v ON e.vendor_id = v.id
        LEFT JOIN categories c ON e.category_id = c.id
+       LEFT JOIN categories cp ON c.parent_id = cp.id
       WHERE e.date BETWEEN ? AND ?
       ORDER BY e.date ASC, e.id ASC`,
     [range.start, range.end]
@@ -906,23 +1169,38 @@ export async function buildBackupPayload(range: BackupDateRange): Promise<Backup
   const categoryIds = new Set<number>();
   const canonicalProductUids = new Set<string>();
 
+  // PERF-02: aralıktaki tüm kalemler TEK sorguda; eskiden harcama başına bir
+  // sorgu çalışıyordu (3000 harcama = 3000 sorgu). Harcama filtresi yukarıdaki
+  // sorguyla aynı olduğu için kapsam birebir aynıdır.
+  type RawExportItem = ExpenseItem & {
+    category_name?: string | null;
+    category_parent_name?: string | null;
+    canonical_product_uid?: string | null;
+  };
+  const itemsByExpense = new Map<number, RawExportItem[]>();
+  for (const item of await db.getAllAsync<RawExportItem>(
+    `SELECT i.*, c.name AS category_name, cp.name AS category_parent_name,
+            p.uid AS canonical_product_uid
+       FROM expense_items i
+       JOIN expenses e ON e.id = i.expense_id
+       LEFT JOIN categories c ON i.category_id = c.id
+       LEFT JOIN categories cp ON c.parent_id = cp.id
+       LEFT JOIN canonical_products p ON i.canonical_product_id = p.id
+      WHERE e.date BETWEEN ? AND ?
+      ORDER BY i.expense_id ASC, i.id ASC`,
+    [range.start, range.end]
+  )) {
+    const bucket = itemsByExpense.get(item.expense_id);
+    if (bucket) bucket.push(item);
+    else itemsByExpense.set(item.expense_id, [item]);
+  }
+
   const expensesOut: ExportedExpense[] = [];
   for (const exp of expenses) {
     if (exp.vendor_name) vendorNames.add(exp.vendor_name);
     if (exp.category_id != null) categoryIds.add(exp.category_id);
 
-    const rawItems = await db.getAllAsync<ExpenseItem & {
-      category_name?: string | null;
-      canonical_product_uid?: string | null;
-    }>(
-      `SELECT i.*, c.name AS category_name, p.uid AS canonical_product_uid
-         FROM expense_items i
-         LEFT JOIN categories c ON i.category_id = c.id
-         LEFT JOIN canonical_products p ON i.canonical_product_id = p.id
-        WHERE i.expense_id = ?
-        ORDER BY i.id ASC`,
-      [exp.id]
-    );
+    const rawItems = itemsByExpense.get(exp.id) ?? [];
 
     const items: ExportedExpenseItem[] = rawItems.map(it => {
       if (it.category_id != null) categoryIds.add(it.category_id);
@@ -941,21 +1219,25 @@ export async function buildBackupPayload(range: BackupDateRange): Promise<Backup
         list_line_total_before_discount: it.list_line_total_before_discount ?? null,
         financial_kind: it.financial_kind === 'container_deposit' ? 'container_deposit' : 'product',
         category_name: it.category_name ?? null,
+        category_parent_name: it.category_name != null ? it.category_parent_name ?? null : null,
       };
     });
 
     expensesOut.push({
       source_id: exp.id,
+      uid: exp.uid!,
       created_at: exp.created_at,
       date: exp.date,
       total_amount: exp.total_amount,
       currency: exp.currency,
       note: exp.note,
-      receipt_uri: exp.receipt_uri,
+      // SEC-01: yerel dosya yolu dışa aktarılmaz; içe aktarım bu alanı zaten NULL yapar.
+      receipt_uri: null,
       container_deposit_paid: exp.container_deposit_paid ?? 0,
       container_voucher_used: exp.container_voucher_used ?? 0,
       vendor_name: exp.vendor_name ?? null,
       category_name: exp.category_name ?? null,
+      category_parent_name: exp.category_name != null ? exp.category_parent_name ?? null : null,
       items,
     });
   }
@@ -1059,6 +1341,7 @@ export async function buildBackupPayload(range: BackupDateRange): Promise<Backup
   // borç ve ona ait tüm ödeme geçmişi birlikte taşınır.
   const debtRows = await db.getAllAsync<{
     id: number;
+    uid: string;
     direction: 'borrowed' | 'lent';
     counterparty: string;
     amount: number;
@@ -1074,7 +1357,7 @@ export async function buildBackupPayload(range: BackupDateRange): Promise<Backup
     note: string | null;
     created_at: string;
   }>(
-    `SELECT d.id, d.direction, d.counterparty, d.amount, d.remaining,
+    `SELECT d.id, d.uid, d.direction, d.counterparty, d.amount, d.remaining,
             d.currency, d.date, d.status,
             d.due_date, d.reminder_enabled, d.reminder_days_before,
             d.reminder_time, d.linked_expense_id, d.note, d.created_at
@@ -1090,6 +1373,7 @@ export async function buildBackupPayload(range: BackupDateRange): Promise<Backup
   const exportedExpenseIds = new Set(expenses.map(expense => expense.id));
   const debtsOut: ExportedDebt[] = debtRows.map(debt => ({
     source_id: debt.id,
+    uid: debt.uid,
     linked_expense_source_id:
       debt.linked_expense_id != null && exportedExpenseIds.has(debt.linked_expense_id)
         ? debt.linked_expense_id
@@ -1114,12 +1398,13 @@ export async function buildBackupPayload(range: BackupDateRange): Promise<Backup
 
   const paymentRows = await db.getAllAsync<{
     id: number;
+    uid: string;
     debt_id: number;
     amount: number;
     date: string;
     created_at: string;
   }>(
-    `SELECT p.id, p.debt_id, p.amount, p.date, p.created_at
+    `SELECT p.id, p.uid, p.debt_id, p.amount, p.date, p.created_at
        FROM debt_payments p
        JOIN debts d ON d.id = p.debt_id
       WHERE d.date BETWEEN ? AND ?
@@ -1132,6 +1417,7 @@ export async function buildBackupPayload(range: BackupDateRange): Promise<Backup
   );
   const debtPaymentsOut: ExportedDebtPayment[] = paymentRows.map(payment => ({
     source_id: payment.id,
+    uid: payment.uid,
     debt_source_id: payment.debt_id,
     amount: payment.amount,
     date: payment.date,
@@ -1140,6 +1426,7 @@ export async function buildBackupPayload(range: BackupDateRange): Promise<Backup
 
   const incomeRows = await db.getAllAsync<{
     id: number;
+    uid: string;
     source: string;
     amount: number;
     currency: string;
@@ -1147,7 +1434,7 @@ export async function buildBackupPayload(range: BackupDateRange): Promise<Backup
     note: string | null;
     created_at: string;
   }>(
-    `SELECT id, source, amount, currency, date, note, created_at
+    `SELECT id, uid, source, amount, currency, date, note, created_at
        FROM extra_incomes
       WHERE date BETWEEN ? AND ?
       ORDER BY date ASC, id ASC`,
@@ -1155,6 +1442,7 @@ export async function buildBackupPayload(range: BackupDateRange): Promise<Backup
   );
   const extraIncomesOut: ExportedExtraIncome[] = incomeRows.map(income => ({
     source_id: income.id,
+    uid: income.uid,
     source: income.source,
     amount: income.amount,
     currency: income.currency,
@@ -1217,10 +1505,43 @@ export async function buildBackupPayload(range: BackupDateRange): Promise<Backup
     if (vendor.default_category_id != null) categoryIds.add(vendor.default_category_id);
     vendorsOut.push({
       name: vendor.name,
-      logo_uri: vendor.logo_uri,
+      // SEC-01: yerel dosya yolu dışa aktarılmaz; içe aktarım bu alanı zaten NULL yapar.
+      logo_uri: null,
       default_category_name: vendor.default_category_name ?? null,
     });
   }
+
+  // BUG-31: birikim hedefi, aralıkla kesişen döngülerin kategori limitleri ve
+  // döngü günü. Yeni cihaza geri yüklemede bunlar kaybolmasın.
+  const goalRow = await db.getFirstAsync<ExportedSavingsGoal>(
+    `SELECT title, target_amount, target_date, currency, current_amount
+       FROM savings_goal WHERE id = 1`,
+  );
+  const savingsGoalOut: ExportedSavingsGoal | null = goalRow && goalRow.title && goalRow.target_amount > 0
+    ? {
+      title: goalRow.title,
+      target_amount: goalRow.target_amount,
+      target_date: goalRow.target_date,
+      currency: goalRow.currency,
+      current_amount: goalRow.current_amount ?? 0,
+    }
+    : null;
+  const limitRows = await db.getAllAsync<{
+    category_id: number; month: string; limit_amount: number;
+  }>(
+    `SELECT category_id, month, limit_amount FROM category_limits
+      WHERE month BETWEEN ? AND ? AND limit_amount > 0
+      ORDER BY month ASC, id ASC`,
+    [range.start.slice(0, 7), range.end.slice(0, 7)],
+  );
+  for (const limit of limitRows) categoryIds.add(limit.category_id);
+  const cycleDayRow = await db.getFirstAsync<{ value: string }>(
+    "SELECT value FROM settings WHERE key = 'budget_cycle_start_day'",
+  );
+  const cycleDayValue = cycleDayRow?.value != null ? Number(cycleDayRow.value) : null;
+  const budgetCycleStartDayOut = cycleDayValue != null
+    && Number.isInteger(cycleDayValue) && cycleDayValue >= 1 && cycleDayValue <= 31
+    ? cycleDayValue : null;
 
   // Referans verilen kategoriler + üstleri (parent zincirini tam almak için).
   const allCats = await db.getAllAsync<Category>('SELECT * FROM categories');
@@ -1249,6 +1570,18 @@ export async function buildBackupPayload(range: BackupDateRange): Promise<Backup
       icon: category.icon,
       color: category.color,
       parent_name: parent?.name ?? null,
+    });
+  }
+  const categoryLimitsOut: ExportedCategoryLimit[] = [];
+  for (const limit of limitRows) {
+    const category = catById.get(limit.category_id);
+    if (!category) continue;
+    const parent = category.parent_id != null ? catById.get(category.parent_id) ?? null : null;
+    categoryLimitsOut.push({
+      category_name: category.name,
+      category_parent_name: parent?.name ?? null,
+      month: limit.month,
+      limit_amount: limit.limit_amount,
     });
   }
 
@@ -1298,8 +1631,36 @@ export async function buildBackupPayload(range: BackupDateRange): Promise<Backup
       budget_rollovers: rolloversOut,
       container_deposit_vouchers: depositVouchersOut,
       container_deposit_recoveries: depositRecoveriesOut,
+      savings_goal: savingsGoalOut,
+      category_limits: categoryLimitsOut,
+      budget_cycle_start_day: budgetCycleStartDayOut,
     },
   };
+}
+
+/**
+ * BUG-31: "Tüm veriler" ön ayarı. Başlangıç = en eski kaydın tarihi (harcama,
+ * borç, ödeme, ek gelir, bütçe dönemi, kupon, limit döngüsü); bitiş = bugün ya da
+ * daha ileri tarihli son kayıt (fiş tarihi en çok 2 gün ileri olabilir). Hiç kayıt
+ * yoksa bugün–bugün.
+ */
+export async function getAllDataRange(today: string = getToday()): Promise<BackupDateRange> {
+  const db = await getDatabase();
+  const row = await db.getFirstAsync<{ start: string | null; end: string | null }>(
+    `SELECT MIN(first_day) AS start, MAX(last_day) AS end FROM (
+       SELECT MIN(date) AS first_day, MAX(date) AS last_day FROM expenses
+       UNION ALL SELECT MIN(date), MAX(date) FROM debts
+       UNION ALL SELECT MIN(date), MAX(date) FROM debt_payments
+       UNION ALL SELECT MIN(date), MAX(date) FROM extra_incomes
+       UNION ALL SELECT MIN(period_start), NULL FROM budgets WHERE active = 1
+       UNION ALL SELECT MIN(issued_date), MAX(issued_date) FROM container_deposit_vouchers
+       UNION ALL SELECT MIN(month) || '-01', NULL FROM category_limits
+     )`,
+  );
+  const start = sanitizeDate(row?.start ?? '') ?? today;
+  const lastRecord = sanitizeDate(row?.end ?? '');
+  const end = lastRecord && lastRecord > today ? lastRecord : today;
+  return { start: start < end ? start : end, end };
 }
 
 /**
@@ -1318,12 +1679,32 @@ export async function buildBackupPayload(range: BackupDateRange): Promise<Backup
  * Paylaşılan kopya alıcı için tutulur; 24 saatten sonra açılış/export temizliğine girer.
  * ExportResult.fileUri geçici bir adrestir; kalıcı dosya garantisi vermez.
  */
-export async function exportBackupToFile(range: BackupDateRange): Promise<ExportResult> {
+export async function exportBackupToFile(
+  range: BackupDateRange,
+  options: {
+    dialogTitle?: string;
+    /** SEC-01: verilirse dosya bu parolayla şifrelenir (ADR-018). Saklanmaz. */
+    password?: string;
+  } = {},
+): Promise<ExportResult> {
   await purgeBackupCopies();
   const payload = await buildBackupPayload(range);
-  const json = JSON.stringify(payload, null, 2);
+  // Girintisiz: tipik fiş verisinde ~%37 daha küçük dosya (ölçüm: kalem başına
+  // ~580 → ~370 bayt) ve daha düşük tepe bellek;
+  // 25 MB içe aktarım sınırına daha geç ulaşılır (PERF-02, BUG-19).
+  const plainJson = JSON.stringify(payload);
+  // Dosya oluşturulmadan ve paylaşılmadan önce: geri yüklenemeyecek yedek üretme.
+  assertBackupJsonRestorable(plainJson);
+  const encrypted = options.password != null;
+  const json = encrypted ? await encryptBackupJson(plainJson, options.password!) : plainJson;
+  // Şifreli zarf base64 olduğu için ~%33 büyür; okuma sınırına sığmalı.
+  if (encrypted && utf8ByteLength(json) > MAX_BACKUP_FILE_BYTES) {
+    throw new Error(BACKUP_EXPORT_TOO_LARGE);
+  }
 
-  const fileName = `spark-backup_${payload.range.start}_${payload.range.end}.json`;
+  const fileName = encrypted
+    ? `spark-backup_${payload.range.start}_${payload.range.end}_encrypted.json`
+    : `spark-backup_${payload.range.start}_${payload.range.end}.json`;
   const fileNameNoExt = fileName.replace(/\.json$/i, '');
 
   const file = new File(Paths.cache, fileNameNoExt + '_' + Date.now() + '-' + Math.random().toString(36).slice(2) + '.json');
@@ -1366,6 +1747,7 @@ export async function exportBackupToFile(range: BackupDateRange): Promise<Export
         + (payload.data.budget_rollovers?.length ?? 0) + depositVoucherCount + depositRecoveryCount,
       sizeBytes: file.size ?? json.length,
       destination: 'cancelled',
+      encrypted,
     };
 
     // Android — SAF ile doğrudan klasöre yaz. Kullanıcı iptal ederse paylaşıma düş.
@@ -1385,7 +1767,7 @@ export async function exportBackupToFile(range: BackupDateRange): Promise<Export
           return result;
         }
       } catch (e) {
-        if (__DEV__) console.warn('SAF save failed, falling back to share', e);
+        logError('SAF save failed, falling back to share', e);
       }
     }
 
@@ -1394,7 +1776,8 @@ export async function exportBackupToFile(range: BackupDateRange): Promise<Export
       shared = true;
       await Sharing.shareAsync(file.uri, {
         mimeType: 'application/json',
-        dialogTitle: 'S.P.A.R.K. backup',
+        // Servis i18n'e erişmez; çevrilmiş başlığı çağıran ekran verir (BUG-30).
+        dialogTitle: options.dialogTitle ?? 'S.P.A.R.K. backup',
         UTI: 'public.json',
       });
       result.destination = 'shared';
@@ -1409,10 +1792,10 @@ export async function exportBackupToFile(range: BackupDateRange): Promise<Export
   }
 }
 
-export interface ParsedBackup {
-  payload: BackupPayload;
-  fileName: string;
-}
+export type ParsedBackup =
+  | { encrypted: false; payload: BackupPayload; fileName: string }
+  /** SEC-01: parolayla açılması gereken zarf; henüz doğrulanmadı. */
+  | { encrypted: true; envelope: unknown; fileName: string };
 
 /** DocumentPicker ile JSON seçtirir; okur, parse eder ve şema doğrulaması yapar. */
 export async function pickAndParseBackupFile(): Promise<ParsedBackup | null> {
@@ -1427,7 +1810,14 @@ export async function pickAndParseBackupFile(): Promise<ParsedBackup | null> {
     throw new Error('INVALID_FORMAT');
   }
   const raw = await readBoundedBackup(asset.uri);
+  const fileName = asset.name ?? 'backup.json';
+  const parsed = parseBackupJson(raw);
+  // SEC-01: şifreli zarf; payload parolayla açılınca doğrulanır.
+  if (isEncryptedBackupEnvelope(parsed)) return { encrypted: true, envelope: parsed, fileName };
+  return { encrypted: false, payload: validateAndNormalizeBackupPayload(parsed), fileName };
+}
 
+function parseBackupJson(raw: string): unknown {
   let parsed: unknown;
   try {
     parsed = JSON.parse(raw);
@@ -1437,9 +1827,17 @@ export async function pickAndParseBackupFile(): Promise<ParsedBackup | null> {
   if (parsed && typeof parsed === 'object') {
     stripDangerousKeys(parsed as Record<string, unknown>);
   }
-  const payload = validateAndNormalizeBackupPayload(parsed);
+  return parsed;
+}
 
-  return { payload, fileName: asset.name ?? 'backup.json' };
+/**
+ * SEC-01: şifreli yedeği parolayla açar ve doğrulanmış payload döndürür.
+ * Yanlış parola `BACKUP_WRONG_PASSWORD`; açılan içerik düz yedekle aynı
+ * doğrulamadan geçer.
+ */
+export async function openEncryptedBackup(envelope: unknown, password: string): Promise<BackupPayload> {
+  const plain = await decryptBackupEnvelope(envelope, password);
+  return validateAndNormalizeBackupPayload(parseBackupJson(plain));
 }
 
 /**
@@ -1480,6 +1878,11 @@ export async function importBackupPayload(inputPayload: BackupPayload): Promise<
     depositVouchersSkipped: 0,
     depositRecoveriesAdded: 0,
     depositRecoveriesSkipped: 0,
+    keptLocal: 0,
+    savingsGoalAdded: 0,
+    categoryLimitsAdded: 0,
+    categoryLimitsSkipped: 0,
+    cycleDayRestored: 0,
   };
 
   await db.withTransactionAsync(async () => {
@@ -1501,8 +1904,8 @@ export async function importBackupPayload(inputPayload: BackupPayload): Promise<
       const key = catKey(name, null);
       let id = byKey.get(key);
       if (!id) {
-        const icon = sanitizeText(c.icon || 'tag-outline', 100);
-        const color = sanitizeText(c.color || '#7C6BFF', 20);
+        const icon = safeCategoryIcon(sanitizeText(c.icon, 100));
+        const color = safeCategoryColor(sanitizeText(c.color, 20));
         const r = await db.runAsync(
           'INSERT INTO categories (name, icon, color, parent_id, is_system) VALUES (?, ?, ?, NULL, 0)',
           [name, icon, color]
@@ -1524,8 +1927,8 @@ export async function importBackupPayload(inputPayload: BackupPayload): Promise<
       const key = catKey(name, existingRootId);
       let id = byKey.get(key);
       if (!id) {
-        const icon = sanitizeText(c.icon || 'tag-outline', 100);
-        const color = sanitizeText(c.color || '#7C6BFF', 20);
+        const icon = safeCategoryIcon(sanitizeText(c.icon, 100));
+        const color = safeCategoryColor(sanitizeText(c.color, 20));
         const r = await db.runAsync(
           'INSERT INTO categories (name, icon, color, parent_id, is_system) VALUES (?, ?, ?, ?, 0)',
           [name, icon, color, existingRootId]
@@ -1554,18 +1957,41 @@ export async function importBackupPayload(inputPayload: BackupPayload): Promise<
       }
     }
 
+    // BUG-21 (v7): aynı adlı alt kategoriler (ör. iki ayrı "Diğer") üst adıyla
+    // ayrılır. v6 ve öncesinde veya üst adla bulunamazsa eski ad eşlemesi geçerli.
+    const categoryIdByPath = new Map<string, number>();
+    const refreshedById = new Map(refreshed.map(c => [c.id, c] as const));
+    for (const c of refreshed) {
+      const parent = c.parent_id != null ? refreshedById.get(c.parent_id) : undefined;
+      const path = `${(c.name || '').trim().toLowerCase()}::${(parent?.name ?? '').trim().toLowerCase()}`;
+      if (!categoryIdByPath.has(path)) categoryIdByPath.set(path, c.id);
+    }
+    const resolveCategoryId = (
+      name: string | null | undefined,
+      parentName: string | null | undefined,
+    ): number | null => {
+      if (!name) return null;
+      const lowered = name.trim().toLowerCase();
+      if (payload.version >= 7 && parentName !== undefined) {
+        const byPath = categoryIdByPath.get(`${lowered}::${(parentName ?? '').trim().toLowerCase()}`);
+        if (byPath != null) return byPath;
+      }
+      return nameToId.get(lowered) ?? null;
+    };
+
     // Vendors — default_category_name v2+ için
     const vendorIdByName = new Map<string, number>();
     const existingVendors = await db.getAllAsync<Vendor>(
       'SELECT id, name, logo_uri, default_category_id, created_at FROM vendors'
     );
     for (const v of existingVendors) {
-      vendorIdByName.set(v.name.trim().toLowerCase(), v.id);
+      // BUG-14: canlı yolla aynı anahtar ("ŞOK" = "Şok").
+      vendorIdByName.set(nameIdentityKey(v.name), v.id);
     }
     for (const v of payload.data.vendors || []) {
       const name = sanitizeText(v.name, 200);
       if (!name) continue;
-      const key = name.toLowerCase();
+      const key = nameIdentityKey(name);
       const defaultCatId = v.default_category_name
         ? nameToId.get(v.default_category_name.trim().toLowerCase()) ?? null
         : null;
@@ -1581,8 +2007,9 @@ export async function importBackupPayload(inputPayload: BackupPayload): Promise<
         continue;
       }
       const r = await db.runAsync(
-        'INSERT INTO vendors (name, logo_uri, default_category_id) VALUES (?, ?, ?)',
-        [name, v.logo_uri ?? null, defaultCatId]
+        // Logo yolu bu cihaza ait bir dosyaya işaret etmez; yedekten asla yazılmaz (ADR-011, BUG-27).
+        'INSERT INTO vendors (name, name_key, logo_uri, default_category_id) VALUES (?, ?, NULL, ?)',
+        [name, key, defaultCatId]
       );
       vendorIdByName.set(key, Number(r.lastInsertRowId));
       summary.vendorsAdded += 1;
@@ -1638,7 +2065,9 @@ export async function importBackupPayload(inputPayload: BackupPayload): Promise<
       const byUidId = canonicalProductIdByStoredUid.get(uid);
       if (byUidId != null) {
         const existing = existingCanonicalProducts.find(row => row.id === byUidId);
-        if (!existing || !exactProductMetadata(existing, normalizedProduct)) invalidFormat();
+        if (!existing) invalidFormat();
+        // BUG-20: ürün yeniden adlandırılmış/birleştirilmiş olabilir; cihaz kazanır.
+        if (!exactProductMetadata(existing, normalizedProduct)) summary.keptLocal += 1;
         canonicalProductIdByPayloadUid.set(uid, existing.id);
         summary.canonicalProductsSkipped += 1;
         continue;
@@ -1690,7 +2119,8 @@ export async function importBackupPayload(inputPayload: BackupPayload): Promise<
       const key = `${alias.measurement_unit}::${normalizedAlias}`;
       const existing = aliasByKey.get(key);
       if (existing) {
-        if (existing.canonical_product_id !== canonicalProductId) invalidFormat();
+        // BUG-20: eşleştirme cihazda değiştirilmişse kullanıcının son kararı kalır.
+        if (existing.canonical_product_id !== canonicalProductId) summary.keptLocal += 1;
         summary.productAliasesSkipped += 1;
         continue;
       }
@@ -1736,8 +2166,9 @@ export async function importBackupPayload(inputPayload: BackupPayload): Promise<
       created_at: string;
       container_deposit_paid: number;
       container_voucher_used: number;
+      uid?: string | null;
     }>(
-      `SELECT id, vendor_id, category_id, total_amount, currency, note, date, created_at,
+      `SELECT id, uid, vendor_id, category_id, total_amount, currency, note, date, created_at,
               container_deposit_paid, container_voucher_used
          FROM expenses ORDER BY id ASC`,
     );
@@ -1755,8 +2186,10 @@ export async function importBackupPayload(inputPayload: BackupPayload): Promise<
         containerVoucherUsed?: number;
       },
     ): string => version >= 6
+      // BUG-01 6b: para birimi yalnız etikettir; kullanıcı yedekten sonra para
+      // birimini değiştirdiyse aynı harcama yine tanınmalı. Anahtara girmez.
       ? JSON.stringify([
-          value.createdAt, value.date, toMinorUnits(value.total), value.currency,
+          value.createdAt, value.date, toMinorUnits(value.total),
           value.vendorId, value.categoryId, value.note ?? '',
           toMinorUnits(value.containerDepositPaid ?? 0),
           toMinorUnits(value.containerVoucherUsed ?? 0),
@@ -1766,7 +2199,6 @@ export async function importBackupPayload(inputPayload: BackupPayload): Promise<
           value.createdAt,
           value.date,
           toMinorUnits(value.total),
-          value.currency,
           value.vendorId,
           value.categoryId,
           value.note ?? '',
@@ -1778,7 +2210,13 @@ export async function importBackupPayload(inputPayload: BackupPayload): Promise<
           value.note ?? '',
         ]);
     const existingExpensePools = new Map<string, number[]>();
+    // BUG-21: v7 dosyasında harcama önce kalıcı kimliğiyle tanınır; yedekten sonra
+    // tutarı/notu/kategorisi değişen harcama böylece ikinci kez eklenmez.
+    const existingExpenseIdByUid = new Map<string, number>();
+    const existingExpenseKeyById = new Map<number, string>();
+    const consumedExpenseIds = new Set<number>();
     for (const existing of existingExpenses) {
+      if (existing.uid) existingExpenseIdByUid.set(existing.uid, existing.id);
       const key = expenseKey(payload.version, {
         vendorId: existing.vendor_id,
         categoryId: existing.category_id,
@@ -1790,6 +2228,7 @@ export async function importBackupPayload(inputPayload: BackupPayload): Promise<
         containerDepositPaid: existing.container_deposit_paid,
         containerVoucherUsed: existing.container_voucher_used,
       });
+      existingExpenseKeyById.set(existing.id, key);
       const pool = existingExpensePools.get(key) ?? [];
       pool.push(existing.id);
       existingExpensePools.set(key, pool);
@@ -1833,20 +2272,88 @@ export async function importBackupPayload(inputPayload: BackupPayload): Promise<
       value.listBefore == null ? null : toMinorUnits(value.listBefore),
       value.financialKind ?? 'product',
     ]);
+    /**
+     * Imported expense header → content fields + duplicate key. Ön tarama ile asıl
+     * döngü AYNI fonksiyonu kullanır; böylece önceden okunan kalem kümesi döngünün
+     * eşleştireceği harcamaları kesin kapsar.
+     */
+    const prepareImportedExpense = (exp: ExportedExpense) => {
+      const date = sanitizeDate(exp.date);
+      if (!date) return null;
+      const total = sanitizeAmount(exp.total_amount);
+      const currency = sanitizeText(exp.currency || 'PLN', 10);
+      const note = exp.note ? sanitizeText(exp.note, 1000) : null;
+      const receiptUri = exp.receipt_uri && typeof exp.receipt_uri === 'string'
+        ? sanitizeText(exp.receipt_uri, 2000) : null;
+      const containerDepositPaid = payload.version >= 6
+        ? sanitizeAmount(exp.container_deposit_paid ?? 0) : 0;
+      const containerVoucherUsed = payload.version >= 6
+        ? sanitizeAmount(exp.container_voucher_used ?? 0) : 0;
+      const vendorId = exp.vendor_name
+        ? vendorIdByName.get(nameIdentityKey(exp.vendor_name)) ?? null
+        : null;
+      const categoryId = resolveCategoryId(exp.category_name, exp.category_parent_name);
+      const key = expenseKey(payload.version, {
+        vendorId,
+        categoryId,
+        total,
+        currency,
+        note,
+        date,
+        createdAt: exp.created_at ?? null,
+        containerDepositPaid,
+        containerVoucherUsed,
+      });
+      return {
+        date, total, currency, note, receiptUri,
+        containerDepositPaid, containerVoucherUsed, vendorId, categoryId, key,
+      };
+    };
+
+    // PERF-09: yinelenen harcamaların mevcut kalemleri, harcama başına ayrı sorgu
+    // yerine tek seferde (400'lük parçalarla) okunur. Yalnız dosyadaki bir
+    // harcamayla anahtar olarak eşleşebilecek mevcut harcamalar okunur; büyük
+    // veritabanına küçük yedek yüklerken tüm kalem tablosu çekilmez.
+    // Bu anlık görüntü güvenlidir: içe aktarım mevcut bir harcamanın kalemlerini
+    // yalnız o harcamanın kendi karşılaştırmasında günceller ve her mevcut
+    // harcama havuzdan en fazla bir kez alınır.
+    const existingItemsByExpense = new Map<number, ExistingImportItem[]>();
+    if (payload.version >= 4) {
+      const candidateIds = new Set<number>();
+      for (const exp of payload.data.expenses || []) {
+        const prepared = prepareImportedExpense(exp);
+        for (const id of prepared ? existingExpensePools.get(prepared.key) ?? [] : []) {
+          candidateIds.add(id);
+        }
+        const byUid = payload.version >= 7 && exp.uid ? existingExpenseIdByUid.get(exp.uid) : undefined;
+        if (byUid != null) candidateIds.add(byUid);
+      }
+      const ids = [...candidateIds].sort((a, b) => a - b);
+      for (let i = 0; i < ids.length; i += 400) {
+        const chunk = ids.slice(i, i + 400);
+        const rows = await db.getAllAsync<ExistingImportItem & { expense_id: number }>(
+          `SELECT id, expense_id, name, turkish_name, user_label, quantity, measurement_unit,
+                  canonical_product_id, unit_price, total_price, category_id,
+                  line_discount, list_line_total_before_discount
+                  , financial_kind
+             FROM expense_items
+            WHERE expense_id IN (${chunk.map(() => '?').join(', ')})
+            ORDER BY expense_id ASC, id ASC`,
+          chunk,
+        );
+        for (const row of rows) {
+          const bucket = existingItemsByExpense.get(row.expense_id);
+          if (bucket) bucket.push(row);
+          else existingItemsByExpense.set(row.expense_id, [row]);
+        }
+      }
+    }
+
     const reconcileDuplicateExpenseItems = async (
       targetExpenseId: number,
       importedItems: ExportedExpenseItem[],
     ): Promise<void> => {
-      const existingItems = await db.getAllAsync<ExistingImportItem>(
-        `SELECT id, name, turkish_name, user_label, quantity, measurement_unit,
-                canonical_product_id, unit_price, total_price, category_id,
-                line_discount, list_line_total_before_discount
-                , financial_kind
-           FROM expense_items
-          WHERE expense_id = ?
-          ORDER BY id ASC`,
-        [targetExpenseId],
-      );
+      const existingItems = existingItemsByExpense.get(targetExpenseId) ?? [];
       const pools = new Map<string, ExistingImportItem[]>();
       for (const existing of existingItems) {
         const key = itemFingerprint({
@@ -1873,9 +2380,7 @@ export async function importBackupPayload(inputPayload: BackupPayload): Promise<
       for (const item of importedItems) {
         const itemName = sanitizeText(item.name, 500) || 'Ürün';
         const itemTurkish = item.turkish_name ? sanitizeText(item.turkish_name, 500) : null;
-        const itemCategoryId = item.category_name
-          ? nameToId.get(item.category_name.trim().toLowerCase()) ?? null
-          : null;
+        const itemCategoryId = resolveCategoryId(item.category_name, item.category_parent_name);
         const quantity = sanitizeQuantity(item.quantity);
         const measurementUnit = sanitizeMeasurementUnit(item.measurement_unit);
         const unitPrice = sanitizeUnitPrice(item.unit_price);
@@ -1897,7 +2402,12 @@ export async function importBackupPayload(inputPayload: BackupPayload): Promise<
           financialKind: item.financial_kind === 'container_deposit' ? 'container_deposit' : 'product',
         });
         const existing = pools.get(key)?.shift();
-        if (!existing) invalidFormat();
+        if (!existing) {
+          // BUG-20: harcama cihazda zaten var ve kalemi yedekten sonra düzenlenmiş
+          // (ad, fiyat, kategori...). Cihazdaki kalem listesi geçerlidir.
+          summary.keptLocal += 1;
+          continue;
+        }
 
         const canonicalUid = item.canonical_product_uid == null
           ? null
@@ -1906,14 +2416,15 @@ export async function importBackupPayload(inputPayload: BackupPayload): Promise<
           ? null
           : canonicalProductIdByPayloadUid.get(canonicalUid) ?? null;
         if (canonicalUid != null && canonicalProductId == null) invalidFormat();
-        if (canonicalProductId != null
-          && existing.canonical_product_id != null
-          && existing.canonical_product_id !== canonicalProductId) invalidFormat();
-
         const rawUserLabel = item.user_label == null ? null : sanitizeText(item.user_label, 500);
         const userLabel = rawUserLabel || null;
-        if (userLabel != null && existing.user_label != null && existing.user_label !== userLabel) {
-          invalidFormat();
+        // BUG-20: cihazda farklı ürüne bağlanmış veya etiketi değişmiş kalemde
+        // cihazdaki karar korunur; yalnız boş alanlar yedekten doldurulur.
+        if ((canonicalProductId != null
+          && existing.canonical_product_id != null
+          && existing.canonical_product_id !== canonicalProductId)
+          || (userLabel != null && existing.user_label != null && existing.user_label !== userLabel)) {
+          summary.keptLocal += 1;
         }
 
         const fields: string[] = [];
@@ -1938,39 +2449,25 @@ export async function importBackupPayload(inputPayload: BackupPayload): Promise<
     };
 
     const expenseIdBySource = new Map<number, number>();
+    /** Bu içe aktarımda eklenen harcamalar; diğerleri cihazda zaten vardı. */
+    const addedExpenseIds = new Set<number>();
     for (const exp of payload.data.expenses || []) {
-      const date = sanitizeDate(exp.date);
-      if (!date) { summary.expensesSkipped += 1; continue; }
-      const total = sanitizeAmount(exp.total_amount);
-      const currency = sanitizeText(exp.currency || 'PLN', 10);
-      const note = exp.note ? sanitizeText(exp.note, 1000) : null;
-      const receiptUri = exp.receipt_uri && typeof exp.receipt_uri === 'string'
-        ? sanitizeText(exp.receipt_uri, 2000) : null;
-      const containerDepositPaid = payload.version >= 6
-        ? sanitizeAmount(exp.container_deposit_paid ?? 0) : 0;
-      const containerVoucherUsed = payload.version >= 6
-        ? sanitizeAmount(exp.container_voucher_used ?? 0) : 0;
-
-      const vendorId = exp.vendor_name
-        ? vendorIdByName.get(exp.vendor_name.trim().toLowerCase()) ?? null
-        : null;
-      const categoryId = exp.category_name
-        ? nameToId.get(exp.category_name.trim().toLowerCase()) ?? null
-        : null;
-
-      const key = expenseKey(payload.version, {
-        vendorId,
-        categoryId,
-        total,
-        currency,
-        note,
-        date,
-        createdAt: exp.created_at ?? null,
-        containerDepositPaid,
-        containerVoucherUsed,
-      });
-      const duplicatePool = existingExpensePools.get(key);
-      const duplicateId = duplicatePool?.shift();
+      const prepared = prepareImportedExpense(exp);
+      if (!prepared) { summary.expensesSkipped += 1; continue; }
+      const {
+        date, total, currency, note, receiptUri,
+        containerDepositPaid, containerVoucherUsed, vendorId, categoryId, key,
+      } = prepared;
+      let duplicateId: number | null = null;
+      const byUid = payload.version >= 7 && exp.uid ? existingExpenseIdByUid.get(exp.uid) : undefined;
+      if (byUid != null && !consumedExpenseIds.has(byUid)) {
+        duplicateId = byUid;
+        consumedExpenseIds.add(byUid);
+        // Aynı harcama cihazda yedekten sonra düzenlenmiş: cihaz kazanır (BUG-20).
+        if (existingExpenseKeyById.get(byUid) !== key) summary.keptLocal += 1;
+      } else {
+        duplicateId = takePoolCandidate(existingExpensePools, key, consumedExpenseIds);
+      }
       if (duplicateId != null) {
         if (exp.source_id != null) expenseIdBySource.set(exp.source_id, duplicateId);
         if (payload.version >= 4) {
@@ -1980,7 +2477,16 @@ export async function importBackupPayload(inputPayload: BackupPayload): Promise<
         continue;
       }
 
-      const ins = payload.version >= 6
+      const ins = payload.version >= 7
+        ? await db.runAsync(
+            `INSERT INTO expenses
+               (uid, vendor_id, category_id, total_amount, currency, note, receipt_uri, date, created_at,
+                container_deposit_paid, container_voucher_used)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [exp.uid!, vendorId, categoryId, total, currency, note, receiptUri, date, exp.created_at!,
+              containerDepositPaid, containerVoucherUsed],
+          )
+        : payload.version >= 6
         ? await db.runAsync(
             `INSERT INTO expenses
                (vendor_id, category_id, total_amount, currency, note, receipt_uri, date, created_at,
@@ -2004,6 +2510,7 @@ export async function importBackupPayload(inputPayload: BackupPayload): Promise<
           );
       const expenseId = Number(ins.lastInsertRowId);
       if (exp.source_id != null) expenseIdBySource.set(exp.source_id, expenseId);
+      addedExpenseIds.add(expenseId);
       summary.expensesAdded += 1;
 
       for (const it of exp.items || []) {
@@ -2019,9 +2526,7 @@ export async function importBackupPayload(inputPayload: BackupPayload): Promise<
         const ld = it.line_discount != null ? sanitizeAmount(it.line_discount) : 0;
         const lb = it.list_line_total_before_discount != null
           ? sanitizeAmount(it.list_line_total_before_discount) : null;
-        const itemCatId = it.category_name
-          ? nameToId.get(it.category_name.trim().toLowerCase()) ?? null
-          : null;
+        const itemCatId = resolveCategoryId(it.category_name, it.category_parent_name);
         const canonicalUid = payload.version < 4 || it.canonical_product_uid == null
           ? null
           : normalizeCanonicalUuid(it.canonical_product_uid);
@@ -2073,8 +2578,9 @@ export async function importBackupPayload(inputPayload: BackupPayload): Promise<
       const existingId = voucherIdByUid.get(uid);
       if (existingId != null) {
         const existing = existingVoucherByUid.get(uid)!;
+        // BUG-20: süresi dolan, kullanılan veya silinip geri gelen kuponda cihaz
+        // kazanır. Para birimi etikettir (BUG-01 6b) ve karşılaştırılmaz.
         if (toMinorUnits(existing.amount) !== toMinorUnits(voucher.amount)
-          || existing.currency !== voucher.currency
           || existing.issued_date !== voucher.issued_date
           || existing.expires_on !== voucher.expires_on
           || existing.status !== voucher.status
@@ -2082,7 +2588,9 @@ export async function importBackupPayload(inputPayload: BackupPayload): Promise<
           || existing.note !== voucher.note
           || existing.created_at !== voucher.created_at
           // A null link can mean the export deliberately omitted an out-of-range expense.
-          || (linkedExpenseId != null && existing.redemption_expense_id !== linkedExpenseId)) invalidFormat();
+          || (linkedExpenseId != null && existing.redemption_expense_id !== linkedExpenseId)) {
+          summary.keptLocal += 1;
+        }
         summary.depositVouchersSkipped += 1;
         continue;
       }
@@ -2118,12 +2626,22 @@ export async function importBackupPayload(inputPayload: BackupPayload): Promise<
       if (existing) {
         if (existing.voucher_id !== voucherId || existing.expense_id !== expenseId
           || toMinorUnits(existing.amount) !== toMinorUnits(recovery.amount)
-          || existing.currency !== recovery.currency || existing.date !== recovery.date
-          || existing.method !== recovery.method || existing.created_at !== recovery.created_at) invalidFormat();
+          || existing.date !== recovery.date
+          || existing.method !== recovery.method || existing.created_at !== recovery.created_at) {
+          summary.keptLocal += 1;
+        }
         summary.depositRecoveriesSkipped += 1;
         continue;
       }
-      if (voucherId != null && usedVoucherIds.has(voucherId)) invalidFormat();
+      // BUG-20: harcama cihazda zaten vardıysa onun depozito kaydı cihazdakidir
+      // (harcama her kaydedildiğinde kayıt yeni kimlikle yeniden yazılır); kupon
+      // cihazda başka bir alışverişte kullanıldıysa iki kez sayılmaz.
+      if ((expenseId != null && !addedExpenseIds.has(expenseId))
+        || (voucherId != null && usedVoucherIds.has(voucherId))) {
+        summary.keptLocal += 1;
+        summary.depositRecoveriesSkipped += 1;
+        continue;
+      }
       await db.runAsync(
         `INSERT INTO container_deposit_recoveries
           (uid, voucher_id, expense_id, amount, currency, date, method, created_at)
@@ -2142,7 +2660,7 @@ export async function importBackupPayload(inputPayload: BackupPayload): Promise<
     if (dismissed.length > 0) {
       const nowIso = new Date().toISOString();
       for (const entry of dismissed) {
-        const vendorName = entry.vendor_name.trim().toLowerCase();
+        const vendorName = nameIdentityKey(entry.vendor_name);
         if (!vendorName) continue;
         const vendorId = vendorIdByName.get(vendorName);
         if (!vendorId) continue;
@@ -2180,7 +2698,6 @@ export async function importBackupPayload(inputPayload: BackupPayload): Promise<
       value.direction,
       value.counterparty,
       toMinorUnits(value.amount),
-      value.currency,
       value.date,
       value.dueDate,
       value.reminderEnabled ? 1 : 0,
@@ -2205,8 +2722,9 @@ export async function importBackupPayload(inputPayload: BackupPayload): Promise<
       linked_expense_id: number | null;
       note: string | null;
       created_at: string;
+      uid?: string | null;
     }>(
-      `SELECT id, direction, counterparty, amount, remaining, currency, date,
+      `SELECT id, uid, direction, counterparty, amount, remaining, currency, date,
               status, due_date,
               reminder_enabled, reminder_days_before, reminder_time,
               linked_expense_id, note, created_at
@@ -2215,7 +2733,12 @@ export async function importBackupPayload(inputPayload: BackupPayload): Promise<
     const debtExactPools = new Map<string, number[]>();
     const debtWithoutLinkPools = new Map<string, number[]>();
     const consumedDebtIds = new Set<number>();
+    // BUG-21: tamamen ödenen (hatırlatıcısı kapanan) veya vadesi değişen borç v7
+    // kimliğiyle tanınır; eski yedek onu "açık" ikinci bir borç olarak eklemez.
+    const existingDebtIdByUid = new Map<string, number>();
+    const existingDebtKeyById = new Map<number, string>();
     for (const existing of existingDebts) {
+      if (existing.uid) existingDebtIdByUid.set(existing.uid, existing.id);
       const canonical = {
         createdAt: existing.created_at,
         direction: existing.direction,
@@ -2234,6 +2757,7 @@ export async function importBackupPayload(inputPayload: BackupPayload): Promise<
         note: existing.note,
       };
       addPoolCandidate(debtExactPools, debtKey(canonical, true), existing.id);
+      existingDebtKeyById.set(existing.id, debtKey(canonical, false));
       addPoolCandidate(debtWithoutLinkPools, debtKey(canonical, false), existing.id);
     }
     for (const debt of payload.data.debts) {
@@ -2262,11 +2786,19 @@ export async function importBackupPayload(inputPayload: BackupPayload): Promise<
       const relationIsExact = !debt.linked_expense_relation_omitted;
       const key = debtKey(canonical, relationIsExact);
 
-      let targetDebtId = takePoolCandidate(
-        relationIsExact ? debtExactPools : debtWithoutLinkPools,
-        key,
-        consumedDebtIds,
-      );
+      const debtByUid = payload.version >= 7 && debt.uid ? existingDebtIdByUid.get(debt.uid) : undefined;
+      let targetDebtId: number | null = null;
+      if (debtByUid != null && !consumedDebtIds.has(debtByUid)) {
+        targetDebtId = debtByUid;
+        consumedDebtIds.add(debtByUid);
+        if (existingDebtKeyById.get(debtByUid) !== debtKey(canonical, false)) summary.keptLocal += 1;
+      } else {
+        targetDebtId = takePoolCandidate(
+          relationIsExact ? debtExactPools : debtWithoutLinkPools,
+          key,
+          consumedDebtIds,
+        );
+      }
       if (targetDebtId != null) {
         summary.debtsSkipped += 1;
       } else {
@@ -2274,8 +2806,8 @@ export async function importBackupPayload(inputPayload: BackupPayload): Promise<
           `INSERT INTO debts
              (direction, counterparty, amount, remaining, currency, date, status,
               linked_expense_id, note, created_at, due_date, reminder_enabled,
-              reminder_days_before, reminder_time)
-           VALUES (?, ?, ?, ?, ?, ?, 'open', ?, ?, ?, ?, ?, ?, ?)`,
+              reminder_days_before, reminder_time, uid)
+           VALUES (?, ?, ?, ?, ?, ?, 'open', ?, ?, ?, ?, ?, ?, ?, ?)`,
           [
             debt.direction,
             counterparty,
@@ -2290,6 +2822,7 @@ export async function importBackupPayload(inputPayload: BackupPayload): Promise<
             debt.reminder_enabled ? 1 : 0,
             debt.reminder_days_before,
             debt.reminder_time,
+            payload.version >= 7 ? debt.uid! : null,
           ],
         );
         targetDebtId = Number(inserted.lastInsertRowId);
@@ -2340,12 +2873,16 @@ export async function importBackupPayload(inputPayload: BackupPayload): Promise<
       amount: number;
       date: string;
       created_at: string;
+      uid?: string | null;
     }>(
-      `SELECT id, debt_id, amount, date, created_at
+      `SELECT id, uid, debt_id, amount, date, created_at
          FROM debt_payments ORDER BY id ASC`,
     );
     const paymentPools = new Map<string, number[]>();
+    const consumedPaymentIds = new Set<number>();
+    const existingPaymentIdByUid = new Map<string, number>();
     for (const existing of existingPayments) {
+      if (existing.uid) existingPaymentIdByUid.set(existing.uid, existing.id);
       addPoolCandidate(paymentPools, paymentKey({
         debtId: existing.debt_id,
         createdAt: existing.created_at,
@@ -2359,16 +2896,36 @@ export async function importBackupPayload(inputPayload: BackupPayload): Promise<
       const amount = sanitizeAmount(payment.amount);
       const createdAt = sanitizeText(payment.created_at, 64);
       const key = paymentKey({ debtId, createdAt, amount, date: payment.date });
-      if (takePoolCandidate(paymentPools, key) != null) {
+      const paymentByUid = payload.version >= 7 && payment.uid
+        ? existingPaymentIdByUid.get(payment.uid) : undefined;
+      if (paymentByUid != null && !consumedPaymentIds.has(paymentByUid)) {
+        consumedPaymentIds.add(paymentByUid);
+        summary.debtPaymentsSkipped += 1;
+        continue;
+      }
+      if (takePoolCandidate(paymentPools, key, consumedPaymentIds) != null) {
         summary.debtPaymentsSkipped += 1;
         continue;
       }
       const nextPaidMinor = (paidMinorByTarget.get(debtId) ?? 0) + toMinorUnits(amount);
-      if (nextPaidMinor > (debtAmountMinorByTarget.get(debtId) ?? 0)) invalidFormat();
-      await db.runAsync(
-        'INSERT INTO debt_payments (debt_id, amount, date, created_at) VALUES (?, ?, ?, ?)',
-        [debtId, amount, payment.date, createdAt],
-      );
+      if (nextPaidMinor > (debtAmountMinorByTarget.get(debtId) ?? 0)) {
+        // BUG-20: cihazdaki ödeme geçmişi yedekten sonra değişmiş (ödeme silinip
+        // yenisi girilmiş); borcu anaparadan fazla ödenmiş göstermek yerine cihaz kazanır.
+        summary.keptLocal += 1;
+        summary.debtPaymentsSkipped += 1;
+        continue;
+      }
+      if (payload.version >= 7) {
+        await db.runAsync(
+          'INSERT INTO debt_payments (uid, debt_id, amount, date, created_at) VALUES (?, ?, ?, ?, ?)',
+          [payment.uid!, debtId, amount, payment.date, createdAt],
+        );
+      } else {
+        await db.runAsync(
+          'INSERT INTO debt_payments (debt_id, amount, date, created_at) VALUES (?, ?, ?, ?)',
+          [debtId, amount, payment.date, createdAt],
+        );
+      }
       paidMinorByTarget.set(debtId, nextPaidMinor);
       summary.debtPaymentsAdded += 1;
     }
@@ -2403,7 +2960,6 @@ export async function importBackupPayload(inputPayload: BackupPayload): Promise<
       value.createdAt,
       value.source,
       toMinorUnits(value.amount),
-      value.currency,
       value.date,
       value.note,
     ]);
@@ -2415,12 +2971,25 @@ export async function importBackupPayload(inputPayload: BackupPayload): Promise<
       date: string;
       note: string | null;
       created_at: string;
+      uid?: string | null;
     }>(
-      `SELECT id, source, amount, currency, date, note, created_at
+      `SELECT id, uid, source, amount, currency, date, note, created_at
          FROM extra_incomes ORDER BY id ASC`,
     );
     const incomePools = new Map<string, number[]>();
+    const consumedIncomeIds = new Set<number>();
+    const existingIncomeIdByUid = new Map<string, number>();
+    const existingIncomeKeyById = new Map<number, string>();
     for (const existing of existingIncomes) {
+      if (existing.uid) existingIncomeIdByUid.set(existing.uid, existing.id);
+      existingIncomeKeyById.set(existing.id, incomeKey({
+        createdAt: existing.created_at,
+        source: existing.source,
+        amount: existing.amount,
+        currency: existing.currency,
+        date: existing.date,
+        note: existing.note,
+      }));
       addPoolCandidate(incomePools, incomeKey({
         createdAt: existing.created_at,
         source: existing.source,
@@ -2444,15 +3013,31 @@ export async function importBackupPayload(inputPayload: BackupPayload): Promise<
         date: income.date,
         note,
       });
-      if (takePoolCandidate(incomePools, key) != null) {
+      const incomeByUid = payload.version >= 7 && income.uid
+        ? existingIncomeIdByUid.get(income.uid) : undefined;
+      if (incomeByUid != null && !consumedIncomeIds.has(incomeByUid)) {
+        consumedIncomeIds.add(incomeByUid);
+        if (existingIncomeKeyById.get(incomeByUid) !== key) summary.keptLocal += 1;
         summary.extraIncomesSkipped += 1;
         continue;
       }
-      await db.runAsync(
-        `INSERT INTO extra_incomes (source, amount, currency, date, note, created_at)
-         VALUES (?, ?, ?, ?, ?, ?)`,
-        [source, amount, currency, income.date, note, createdAt],
-      );
+      if (takePoolCandidate(incomePools, key, consumedIncomeIds) != null) {
+        summary.extraIncomesSkipped += 1;
+        continue;
+      }
+      if (payload.version >= 7) {
+        await db.runAsync(
+          `INSERT INTO extra_incomes (uid, source, amount, currency, date, note, created_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?)`,
+          [income.uid!, source, amount, currency, income.date, note, createdAt],
+        );
+      } else {
+        await db.runAsync(
+          `INSERT INTO extra_incomes (source, amount, currency, date, note, created_at)
+           VALUES (?, ?, ?, ?, ?, ?)`,
+          [source, amount, currency, income.date, note, createdAt],
+        );
+      }
       summary.extraIncomesAdded += 1;
     }
 
@@ -2463,7 +3048,7 @@ export async function importBackupPayload(inputPayload: BackupPayload): Promise<
       const uid = normalizeCanonicalUuid(reminder.uid);
       if (!uid) invalidFormat();
       const vendorId = reminder.vendor_name
-        ? vendorIdByName.get(reminder.vendor_name.trim().toLowerCase()) ?? null
+        ? vendorIdByName.get(nameIdentityKey(reminder.vendor_name)) ?? null
         : null;
       const title = sanitizeText(reminder.title, 200);
       const expectedAmount = reminder.expected_amount == null
@@ -2503,7 +3088,6 @@ export async function importBackupPayload(inputPayload: BackupPayload): Promise<
             ? expectedAmount == null
             : expectedAmount != null
               && toMinorUnits(existingByUid.expected_amount) === toMinorUnits(expectedAmount))
-          && existingByUid.currency === currency
           && existingByUid.anchor_date === reminder.anchor_date
           && existingByUid.next_due_date === reminder.next_due_date
           && existingByUid.recurrence_unit === reminder.recurrence_unit
@@ -2515,7 +3099,9 @@ export async function importBackupPayload(inputPayload: BackupPayload): Promise<
           && (existingByUid.note ?? null) === note
           && existingByUid.created_at === createdAt
           && existingByUid.updated_at === updatedAt;
-        if (!exact) invalidFormat();
+        // BUG-20: vade ilerlemiş, duraklatılmış veya düzenlenmiş hatırlatıcıda
+        // cihaz kazanır. Para birimi etikettir ve karşılaştırmaya girmez.
+        if (!exact) summary.keptLocal += 1;
         summary.remindersSkipped += 1;
         continue;
       }
@@ -2525,7 +3111,12 @@ export async function importBackupPayload(inputPayload: BackupPayload): Promise<
             WHERE source = 'detected' AND vendor_id = ? LIMIT 1`,
           [vendorId],
         );
-        if (existingDetected) invalidFormat();
+        if (existingDetected) {
+          // Aynı satıcı için cihaz kendi tespitini zaten üretmiş; ikincisi eklenmez.
+          summary.keptLocal += 1;
+          summary.remindersSkipped += 1;
+          continue;
+        }
       }
       await db.runAsync(
         `INSERT INTO recurring_payment_reminders
@@ -2585,19 +3176,23 @@ export async function importBackupPayload(inputPayload: BackupPayload): Promise<
       );
       summary.budgetsAdded += 1;
     }
-    // Collision must roll back the entire import: never silently overwrite a
-    // user's transfer or credit the same source a second time.
+    // BUG-20: devir cihazdaki bütçe dönemleriyle birebir uyuşmuyorsa (dönem
+    // cihazda farklı sınırlarla kurulmuş) veya aynı kaynak dönem için cihazda
+    // zaten bir devir varsa cihaz kazanır: aynı kaynak asla iki kez aktarılmaz ve
+    // kullanıcının devri ezilmez. Para birimi etikettir ve karşılaştırılmaz.
     for (const r of payload.data.budget_rollovers) {
+      let periodsMatch = true;
       for (const [start, end] of [[r.source_start, r.source_end], [r.target_start, r.target_end]]) {
-        const matches = await db.getAllAsync<{ period_start: string; period_end: string; currency: string }>(
-          'SELECT period_start, period_end, currency FROM budgets WHERE active = 1 AND period_start <= ? AND period_end >= ?', [end, start]);
-        if (matches.length !== 1 || matches[0].period_start !== start || matches[0].period_end !== end || matches[0].currency !== r.currency) throw new Error('INVALID_FORMAT');
+        const matches = await db.getAllAsync<{ period_start: string; period_end: string }>(
+          'SELECT period_start, period_end FROM budgets WHERE active = 1 AND period_start <= ? AND period_end >= ?', [end, start]);
+        if (matches.length !== 1 || matches[0].period_start !== start || matches[0].period_end !== end) periodsMatch = false;
       }
       const existing = await db.getFirstAsync<BudgetRollover>('SELECT * FROM budget_rollovers WHERE uid = ? OR (source_start = ? AND source_end = ?)',
         [r.uid, r.source_start, r.source_end]);
-      if (existing) {
-        if (existing.source_start !== r.source_start || existing.source_end !== r.source_end || existing.target_start !== r.target_start
-          || existing.target_end !== r.target_end || existing.currency !== r.currency || existing.amount_minor !== r.amount_minor) throw new Error('INVALID_FORMAT');
+      if (existing || !periodsMatch) {
+        if (!existing || existing.source_start !== r.source_start || existing.source_end !== r.source_end
+          || existing.target_start !== r.target_start || existing.target_end !== r.target_end
+          || existing.amount_minor !== r.amount_minor) summary.keptLocal += 1;
         summary.rolloversSkipped += 1;
         continue;
       }
@@ -2605,18 +3200,113 @@ export async function importBackupPayload(inputPayload: BackupPayload): Promise<
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`, [r.uid, r.source_start, r.source_end, r.target_start, r.target_end, r.currency, r.amount_minor, r.created_at, r.updated_at]);
       summary.rolloversAdded += 1;
     }
+
+    // BUG-31 (v7): hedef, limitler ve döngü günü. Kural BUG-20 ile aynı: cihazda
+    // varsa cihazdaki korunur, yoksa yedekteki yüklenir; hiçbir şey ezilmez.
+    const backupGoal = payload.data.savings_goal;
+    if (backupGoal) {
+      const localGoal = await db.getFirstAsync<{
+        title: string; target_amount: number; target_date: string; current_amount: number;
+      }>('SELECT title, target_amount, target_date, current_amount FROM savings_goal WHERE id = 1');
+      if (!localGoal) {
+        await db.runAsync(
+          `INSERT INTO savings_goal (id, title, target_amount, target_date, currency, current_amount)
+           VALUES (1, ?, ?, ?, ?, ?)`,
+          [
+            sanitizeText(backupGoal.title, 200),
+            roundMoney(sanitizeAmount(backupGoal.target_amount)),
+            backupGoal.target_date,
+            sanitizeText(backupGoal.currency, 10) || 'PLN',
+            roundMoney(sanitizeAmount(backupGoal.current_amount)),
+          ],
+        );
+        summary.savingsGoalAdded = 1;
+      } else if (localGoal.title !== backupGoal.title
+        || toMinorUnits(localGoal.target_amount) !== toMinorUnits(backupGoal.target_amount)
+        || localGoal.target_date !== backupGoal.target_date
+        || toMinorUnits(localGoal.current_amount ?? 0) !== toMinorUnits(backupGoal.current_amount)) {
+        summary.keptLocal += 1;
+      }
+    }
+
+    for (const limit of payload.data.category_limits) {
+      const categoryId = resolveCategoryId(limit.category_name, limit.category_parent_name ?? null);
+      if (categoryId == null) {
+        summary.categoryLimitsSkipped += 1;
+        continue;
+      }
+      const amount = roundMoney(sanitizeAmount(limit.limit_amount));
+      const existing = await db.getFirstAsync<{ limit_amount: number }>(
+        'SELECT limit_amount FROM category_limits WHERE category_id = ? AND month = ?',
+        [categoryId, limit.month],
+      );
+      if (existing) {
+        if (toMinorUnits(existing.limit_amount) !== toMinorUnits(amount)) summary.keptLocal += 1;
+        summary.categoryLimitsSkipped += 1;
+        continue;
+      }
+      await db.runAsync(
+        'INSERT INTO category_limits (category_id, month, limit_amount) VALUES (?, ?, ?)',
+        [categoryId, limit.month, amount],
+      );
+      summary.categoryLimitsAdded += 1;
+    }
+
+    if (payload.data.budget_cycle_start_day != null) {
+      const localCycleDay = await db.getFirstAsync<{ value: string }>(
+        "SELECT value FROM settings WHERE key = 'budget_cycle_start_day'",
+      );
+      if (!localCycleDay) {
+        await db.runAsync(
+          "INSERT INTO settings (key, value) VALUES ('budget_cycle_start_day', ?)",
+          [String(payload.data.budget_cycle_start_day)],
+        );
+        summary.cycleDayRestored = 1;
+      } else if (Number(localCycleDay.value) !== payload.data.budget_cycle_start_day) {
+        summary.keptLocal += 1;
+      }
+    }
+
+    // BUG-01 6b: uygulama tek para birimlidir; para birimi etikettir. Yedekten
+    // gelen kayıtlar cihazın para birimi etiketini alır (tutarlar değişmez).
+    // Ayar yoksa uygulamanın gösterdiği varsayılan (PLN) geçerlidir.
+    await relabelCurrencyRowsToAppCurrency(db);
   });
 
   return summary;
 }
 
 /** Kolaylaştırıcı: dosyayı seç + parse et + import et. */
-export async function pickAndImportBackup(): Promise<{
+export async function pickAndImportBackup(
+  /**
+   * SEC-01: dosya şifreliyse parola istenir. `lastAttemptWrong` önceki parola
+   * yanlışsa true'dur. null dönerse kullanıcı vazgeçmiştir; hiçbir şey yazılmaz.
+   */
+  requestPassword?: (lastAttemptWrong: boolean) => Promise<string | null>,
+): Promise<{
   summary: ImportSummary;
   fileName: string;
 } | null> {
   const parsed = await pickAndParseBackupFile();
   if (!parsed) return null;
-  const summary = await importBackupPayload(parsed.payload);
+  let payload: BackupPayload;
+  if (parsed.encrypted) {
+    if (!requestPassword) throw new Error(BACKUP_WRONG_PASSWORD);
+    let lastAttemptWrong = false;
+    for (;;) {
+      const password = await requestPassword(lastAttemptWrong);
+      if (password == null) return null;
+      try {
+        payload = await openEncryptedBackup(parsed.envelope, password);
+        break;
+      } catch (error) {
+        if (!(error instanceof Error) || error.message !== BACKUP_WRONG_PASSWORD) throw error;
+        lastAttemptWrong = true;
+      }
+    }
+  } else {
+    payload = parsed.payload;
+  }
+  const summary = await importBackupPayload(payload);
   return { summary, fileName: parsed.fileName };
 }

@@ -47,7 +47,7 @@ it('accepts an export that omits an out-of-range redemption and preserves the lo
 });
 
 it.each(['recovery-content', 'voucher-link', 'second-recovery'])(
-  'rolls back earlier writes when existing deposit data conflicts (%s)', async kind => {
+  'keeps local deposit data that changed after the backup and continues the import (%s, BUG-20)', async kind => {
     const payload = await buildBackupPayload({ start: '2026-10-01', end: '2026-10-03' });
     payload.data.categories.push({ name: 'Synthetic rollback category', icon: 'circle', color: '#112233', parent_name: null });
     if (kind === 'recovery-content') {
@@ -58,8 +58,10 @@ it.each(['recovery-content', 'voucher-link', 'second-recovery'])(
       payload.data.container_deposit_recoveries!.find(r => r.method === 'purchase_voucher')!.uid =
         '223e4567-e89b-42d3-a456-426614174000';
     }
-    await expect(importBackupPayload(payload)).rejects.toThrow('INVALID_FORMAT');
-    expect(await db.getAllAsync('SELECT * FROM categories')).toEqual([]);
+    const summary = await importBackupPayload(payload);
+    expect(summary.keptLocal).toBe(1);
+    // İçe aktarım sürer (kategori eklendi) ama depozito kaydı ne ezilir ne çoğalır.
+    expect(await db.getAllAsync('SELECT name FROM categories')).toEqual([{ name: 'Synthetic rollback category' }]);
     expect(await db.getAllAsync('SELECT amount FROM container_deposit_recoveries ORDER BY amount')).toEqual([{ amount: 2 }, { amount: 5 }]);
   },
 );

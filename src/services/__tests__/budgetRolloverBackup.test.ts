@@ -36,7 +36,7 @@ it('exports complete linked periods and restores them on a new database without 
   expect(payload.data.expenses).toHaveLength(1);
   expect(payload.data.budgets).toHaveLength(2);
   expect(payload.data.budget_rollovers).toHaveLength(1);
-  expect(validateAndNormalizeBackupPayload(payload).version).toBe(6);
+  expect(validateAndNormalizeBackupPayload(payload).version).toBe(7);
   await db.close(); await open();
   expect((await importBackupPayload(payload)).rolloversAdded).toBe(1);
   expect((await importBackupPayload(payload)).rolloversSkipped).toBe(1);
@@ -58,13 +58,15 @@ it('rejects corrupted or incomplete transfer payloads before writing', async () 
   expect((await BudgetRolloverDao.list())[0].amount_minor).toBe(2000);
 });
 
-it('rolls back other imported records if an existing carryover conflicts', async () => {
+it('keeps the local carryover when it changed after the backup and imports the rest (BUG-20)', async () => {
   const payload = await buildBackupPayload({ start: '2026-09-01', end: '2026-09-30' });
   await BudgetRolloverDao.save(1, 2, 15);
-  payload.data.extra_incomes!.push({ source_id: 1, source: 'new gift', amount: 10, currency: 'PLN', date: '2026-08-15', note: null, created_at: '2026-08-15T12:00:00Z' });
-  await expect(importBackupPayload(payload)).rejects.toThrow('INVALID_FORMAT');
-  expect(await db.getFirstAsync('SELECT COUNT(*) AS n FROM extra_incomes')).toEqual({ n: 0 });
-  expect((await BudgetRolloverDao.list())[0].amount_minor).toBe(1500);
+  payload.data.extra_incomes!.push({ source_id: 1, uid: '823e4567-e89b-42d3-a456-426614174000', source: 'new gift', amount: 10, currency: 'PLN', date: '2026-08-15', note: null, created_at: '2026-08-15T12:00:00Z' });
+  const summary = await importBackupPayload(payload);
+  expect(summary).toMatchObject({ rolloversAdded: 0, rolloversSkipped: 1, keptLocal: 1 });
+  expect(await db.getFirstAsync('SELECT COUNT(*) AS n FROM extra_incomes')).toEqual({ n: 1 });
+  // Aynı kaynak dönem iki kez aktarılmaz; kullanıcının devri ezilmez.
+  expect((await BudgetRolloverDao.list()).map(r => r.amount_minor)).toEqual([1500]);
 });
 
 it('accepts v4 without inventing carryovers', async () => {

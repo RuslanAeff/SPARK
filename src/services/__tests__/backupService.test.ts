@@ -464,13 +464,13 @@ describe('buildBackupPayload v4 relational closure', () => {
         },
       ];
       if (sql.includes("WHERE s.status = 'dismissed'")) return [{ vendor_name: 'Dismissed vendor' }];
-      if (sql.includes('SELECT d.id, d.direction')) return [{
+      if (sql.includes('SELECT d.id, d.uid, d.direction')) return [{
         id: 7, direction: 'borrowed', counterparty: 'Bank', amount: 100,
         remaining: 50, currency: 'PLN', date: '2026-01-10', status: 'open', due_date: null,
         reminder_enabled: 0, reminder_days_before: 3, reminder_time: '09:00',
         linked_expense_id: 1, note: null, created_at: '2026-01-10T10:00:00.000Z',
       }];
-      if (sql.includes('SELECT p.id, p.debt_id')) return [
+      if (sql.includes('SELECT p.id, p.uid, p.debt_id')) return [
         { id: 70, debt_id: 7, amount: 20, date: '2026-02-01', created_at: '2026-02-01T10:00:00.000Z' },
         { id: 71, debt_id: 7, amount: 30, date: '2026-08-12', created_at: '2026-08-12T10:00:00.000Z' },
       ];
@@ -496,13 +496,15 @@ describe('buildBackupPayload v4 relational closure', () => {
       if (sql.includes('FROM budget_rollovers')) return [];
       if (sql.includes('FROM container_deposit_vouchers')) return [];
       if (sql.includes('FROM container_deposit_recoveries')) return [];
+      if (sql.includes('FROM category_limits')) return [];
       throw new Error(`Unexpected query: ${sql}`);
     });
-    getDatabaseMock.mockResolvedValue({ getAllAsync } as any);
+    const getFirstAsync = jest.fn(async () => null);
+    getDatabaseMock.mockResolvedValue({ getAllAsync, getFirstAsync } as any);
 
     const payload = await buildBackupPayload({ start: '2026-08-01', end: '2026-08-31' });
 
-    expect(payload.version).toBe(6);
+    expect(payload.version).toBe(BACKUP_FORMAT_VERSION);
     expect(payload.data.debts).toHaveLength(1);
     expect(payload.data.debt_payments?.map(payment => payment.source_id)).toEqual([70, 71]);
     expect(payload.data.extra_incomes).toHaveLength(1);
@@ -558,7 +560,9 @@ function createFakeDatabase() {
     }
     if (query.includes('FROM product_aliases')) return [...state.aliases];
     if (query.includes('FROM expense_items') && query.includes('WHERE expense_id')) {
-      return state.items.filter(item => item.expense_id === Number(params[0]));
+      // PERF-09: tek sorguda birden çok harcamanın kalemleri (expense_id IN (...)).
+      const ids = new Set(params.map(Number));
+      return state.items.filter(item => ids.has(item.expense_id));
     }
     if (query.includes('FROM expenses ORDER BY id ASC')) return state.expenses;
     if (query.includes('FROM debts ORDER BY id ASC')) return state.debts;
@@ -624,7 +628,8 @@ function createFakeDatabase() {
   const runAsync = jest.fn(async (sql: string, params: any[] = []) => {
     const query = normalizedSql(sql);
     if (query.startsWith('INSERT INTO vendors')) {
-      const row = { id: nextId++, name: params[0], logo_uri: params[1], default_category_id: params[2], created_at: exportedAt };
+      // BUG-14/27: (name, name_key, default_category_id); logo_uri her zaman NULL
+      const row = { id: nextId++, name: params[0], name_key: params[1], logo_uri: null, default_category_id: params[2], created_at: exportedAt };
       state.vendors.push(row);
       return { lastInsertRowId: row.id, changes: 1 };
     }
@@ -727,6 +732,8 @@ function createFakeDatabase() {
       return { lastInsertRowId: row.id, changes: 1 };
     }
     if (query.startsWith('UPDATE vendors')) return { lastInsertRowId: 0, changes: 1 };
+    // BUG-01 6b: içe aktarım sonunda etiketler uygulama para birimine çekilir.
+    if (/^UPDATE \w+ SET currency = COALESCE/.test(query)) return { lastInsertRowId: 0, changes: 0 };
     throw new Error(`Unexpected runAsync: ${query}`);
   });
 
@@ -924,7 +931,7 @@ describe('importBackupPayload v3 mapping and idempotency', () => {
     expect(fake.state.debts[1].linked_expense_id).toBeNull();
   });
 
-  it('rejects a merged local-plus-backup payment history that would overpay', async () => {
+  it('keeps the local payment history instead of overpaying the debt (BUG-20)', async () => {
     const fake = createFakeDatabase();
     getDatabaseMock.mockResolvedValue(fake.db as any);
     const payload = makeV3Payload();
@@ -946,19 +953,23 @@ describe('importBackupPayload v3 mapping and idempotency', () => {
       created_at: '2026-08-21T10:00:00.000Z',
     };
 
-    await expect(importBackupPayload(conflicting)).rejects.toThrow('INVALID_FORMAT');
+    const summary = await importBackupPayload(conflicting);
+    expect(summary).toMatchObject({ debtPaymentsAdded: 0, keptLocal: 1 });
     expect(fake.state.payments).toHaveLength(2);
   });
 
-  it('rejects a conflicting payload that reuses an existing reminder UID', async () => {
+  it('keeps the local reminder when the same UID differs in the backup (BUG-20)', async () => {
     const fake = createFakeDatabase();
     getDatabaseMock.mockResolvedValue(fake.db as any);
     await importBackupPayload(makeV3Payload());
+    const localTitle = fake.state.reminders[0].title;
     const conflicting = makeV3Payload();
     conflicting.data.recurring_payment_reminders![0].title = 'Changed title';
 
-    await expect(importBackupPayload(conflicting)).rejects.toThrow('INVALID_FORMAT');
+    const summary = await importBackupPayload(conflicting);
+    expect(summary).toMatchObject({ remindersAdded: 0, remindersSkipped: 1, keptLocal: 1 });
     expect(fake.state.reminders).toHaveLength(1);
+    expect(fake.state.reminders[0].title).toBe(localTitle);
   });
 
   it('rejects a different detected UID for the same vendor', async () => {
@@ -974,7 +985,9 @@ describe('importBackupPayload v3 mapping and idempotency', () => {
       source: 'detected',
     };
 
-    await expect(importBackupPayload(conflicting)).rejects.toThrow('INVALID_FORMAT');
+    // BUG-20: cihaz bu satıcı için kendi tespitini zaten üretmiş; ikincisi eklenmez.
+    const summary = await importBackupPayload(conflicting);
+    expect(summary).toMatchObject({ remindersAdded: 0, remindersSkipped: 1, keptLocal: 1 });
     expect(fake.state.reminders).toHaveLength(1);
   });
 });
@@ -1077,7 +1090,7 @@ describe('importBackupPayload v4 product identity', () => {
     });
   });
 
-  it('rejects a target alias conflict and rolls the whole transaction back', async () => {
+  it('keeps the local alias decision and continues the import (BUG-20)', async () => {
     const fake = createFakeDatabase();
     fake.state.products.push({
       id: 90,
@@ -1102,15 +1115,15 @@ describe('importBackupPayload v4 product identity', () => {
     });
     getDatabaseMock.mockResolvedValue(fake.db as any);
 
-    await expect(importBackupPayload(makeV4Payload())).rejects.toThrow('INVALID_FORMAT');
+    const summary = await importBackupPayload(makeV4Payload());
 
-    expect(fake.state.products).toHaveLength(1);
+    expect(summary).toMatchObject({ productAliasesSkipped: 1, keptLocal: 1, expensesAdded: 1 });
     expect(fake.state.aliases).toHaveLength(1);
-    expect(fake.state.expenses).toHaveLength(0);
-    expect(fake.state.vendors).toHaveLength(0);
+    expect(fake.state.aliases[0].canonical_product_id).toBe(90);
+    expect(fake.state.expenses).toHaveLength(1);
   });
 
-  it('rejects a conflicting canonical link on an otherwise duplicate item', async () => {
+  it('keeps the local canonical link on an otherwise duplicate item (BUG-20)', async () => {
     const fake = createFakeDatabase();
     getDatabaseMock.mockResolvedValue(fake.db as any);
     const first = makeV4Payload();
@@ -1132,9 +1145,11 @@ describe('importBackupPayload v4 product identity', () => {
     };
     conflicting.data.expenses[0].items[0].canonical_product_uid = otherUid;
 
-    await expect(importBackupPayload(conflicting)).rejects.toThrow('INVALID_FORMAT');
+    const summary = await importBackupPayload(conflicting);
 
-    expect(fake.state.products).toHaveLength(existingProductCount);
+    // Farklı UID'li ürün yeni bir üründür ve eklenir; kalemin bağlantısı cihazdaki kalır.
+    expect(summary.keptLocal).toBe(1);
+    expect(fake.state.products).toHaveLength(existingProductCount + 1);
     expect(fake.state.expenses).toHaveLength(1);
     expect(fake.state.items[0].canonical_product_id).toBe(fake.state.products[0].id);
   });

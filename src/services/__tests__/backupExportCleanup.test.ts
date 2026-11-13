@@ -12,7 +12,10 @@ it.each(['unavailable', 'shared', 'share-error'])('cleans or retains the cache a
   const file = { uri: 'file:///cache/synthetic.json', exists: false, size: 12,
     create: jest.fn(() => { file.exists = true; }), write: jest.fn(), delete: remove };
   (File as unknown as jest.Mock).mockImplementation(() => file);
-  (getDatabase as jest.Mock).mockResolvedValue({ getAllAsync: jest.fn().mockResolvedValue([]) });
+  (getDatabase as jest.Mock).mockResolvedValue({
+    getAllAsync: jest.fn().mockResolvedValue([]),
+    getFirstAsync: jest.fn().mockResolvedValue(null),
+  });
   (Sharing.isAvailableAsync as jest.Mock).mockResolvedValue(state !== 'unavailable');
   (Sharing.shareAsync as jest.Mock).mockImplementation(async () => { if (state === 'share-error') throw new Error('synthetic'); });
   const pending = exportBackupToFile({ start: '2026-09-01', end: '2026-09-16' });
