@@ -6,16 +6,35 @@ jest.mock('../../db/database', () => ({ getDatabase: jest.fn() }));
 function mockDb() {
   const runAsync = jest.fn().mockResolvedValue({ changes: 1 });
   const getFirstAsync = jest.fn().mockResolvedValue({ value: 3 });
+  const events: string[] = [];
+  const execAsync = jest.fn(async (sql: string) => { events.push(sql); });
   const database = {
     runAsync,
     getFirstAsync,
-    withTransactionAsync: jest.fn(async (operation: () => Promise<void>) => operation()),
+    execAsync,
+    withTransactionAsync: jest.fn(async (operation: () => Promise<void>) => {
+      events.push('BEGIN');
+      await operation();
+      events.push('COMMIT');
+    }),
   };
   (getDatabase as jest.Mock).mockResolvedValue(database);
-  return { database, runAsync, getFirstAsync };
+  return { database, runAsync, getFirstAsync, execAsync, events };
 }
 
 describe('resetAllUserData', () => {
+  it('scrubs freed pages after the wipe commits: VACUUM, then WAL truncate (SEC-03)', async () => {
+    const { events } = mockDb();
+    await resetAllUserData();
+    expect(events).toEqual(['BEGIN', 'COMMIT', 'VACUUM;', 'PRAGMA wal_checkpoint(TRUNCATE);']);
+  });
+
+  it('keeps the reset successful when the scrub step fails (SEC-03)', async () => {
+    const { execAsync } = mockDb();
+    execAsync.mockRejectedValueOnce(new Error('database is locked'));
+    await expect(resetAllUserData()).resolves.toBeUndefined();
+  });
+
   it('bütün finansal tabloları tek transaction içinde boşaltır', async () => {
     const { database, runAsync } = mockDb();
 

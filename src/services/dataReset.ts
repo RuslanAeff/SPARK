@@ -1,4 +1,5 @@
 import { purgeBackupCopies } from './temporaryFiles';
+import { sweepOrphanVendorLogos } from './vendorLogoStore';
 // S.P.A.R.K. — Tüm finansal verilerin sıfırlanması
 //
 // Geri alınamaz tek yıkıcı işlem burada tanımlıdır. Kapsam BİLİNÇLİ olarak
@@ -20,6 +21,8 @@ import { purgeBackupCopies } from './temporaryFiles';
 // bildirim senkronunu tetikler → istenen durum boş olduğu için uzlaştırıcı
 // alarmların hepsini iptal eder.
 import { getDatabase } from '../db/database';
+import { clearErrorJournal } from './errorJournal';
+import { logError } from '../utils/logError';
 
 export interface UserDataSummary {
   expenses: number;
@@ -116,6 +119,24 @@ export async function summarizeUserData(): Promise<UserDataSummary> {
 }
 
 /**
+ * SEC-03: `DELETE` satırı yalnız "boş" işaretler; içerik veritabanı dosyasının
+ * serbest sayfalarında ve WAL günlüğünde kalabilir. Sıfırlamadan sonra `VACUUM`
+ * dosyayı yalnız canlı verilerle yeniden yazar, `wal_checkpoint(TRUNCATE)` WAL'ı
+ * ana dosyaya işleyip sıfır boyuta indirir (VACUUM da WAL'dan geçtiği için en
+ * sonda). Silme zaten tamamlandığından buradaki hata sıfırlamayı başarısız
+ * saymaz; yalnız günlüğe yazılır. Flash bellekte fiziksel blok silinmesini
+ * uygulama garanti edemez (işletim sistemi/denetleyici).
+ */
+async function scrubFreedPages(db: Awaited<ReturnType<typeof getDatabase>>): Promise<void> {
+  try {
+    await db.execAsync('VACUUM;');
+    await db.execAsync('PRAGMA wal_checkpoint(TRUNCATE);');
+  } catch (error) {
+    logError('data reset scrub failed', error);
+  }
+}
+
+/**
  * Kullanıcının bütün finansal verisini tek transaction içinde siler. Ya hepsi
  * gider ya hiçbiri: yarım silinmiş bir defter, silinmemiş defterden kötüdür.
  *
@@ -134,5 +155,10 @@ export async function resetAllUserData(): Promise<void> {
       await db.runAsync('DELETE FROM settings WHERE key = ?', [key]);
     }
   });
+  await scrubFreedPages(db);
   await purgeBackupCopies(true);
+  // Satıcılar gittiği için kalıcı logo dosyaları da sahipsiz kalır (BUG-27).
+  await sweepOrphanVendorLogos();
+  // Teknik hata günlüğü de kullanıcı verisinin parçası sayılır (ADR-016).
+  clearErrorJournal();
 }
