@@ -25,7 +25,6 @@ import { processReceipt } from '../../src/services/receiptParser';
 import AnimatedCard from '../../src/components/AnimatedCard';
 import { SparkToast } from '../../src/components/SparkToast';
 import { useLanguage } from '../../src/i18n/LanguageContext';
-import type { Language } from '../../src/i18n/translations';
 import { useRefreshActions } from '../../src/context/RefreshContext';
 import { useCurrency } from '../../src/context/CurrencyContext';
 import { setScanSessionError } from '../../src/services/scanSession';
@@ -137,8 +136,8 @@ export default function ScannerScreen() {
   const theme = useThemePalette();
   const { t, tc, language } = useLanguage();
   const styles = React.useMemo(
-    () => getStyles(theme, scheme === 'dark', language),
-    [scheme, theme, language],
+    () => getStyles(theme, scheme === 'dark'),
+    [scheme, theme],
   );
   const router = useRouter();
   const { triggerRefresh } = useRefreshActions();
@@ -845,7 +844,9 @@ export default function ScannerScreen() {
 
             <View style={styles.resultActionsCol}>
               {/* Kupon da dahil her sonuç doğrudan "Kaydet" ile kaydedilir. "Düzenle" yalnız
-                  kalemli alışveriş fişinde anlamlı; kuponda düzenleme ekranı yok (BUG-26). */}
+                  kalemli alışveriş fişinde anlamlı; kuponda düzenleme ekranı yok (BUG-26).
+                  Üç düğme "Tümünü Güncelle" ile aynı şüşevar dilini kullanır: aynı hap
+                  geometrisi, ikonsuz ortalı metin, aynı yazı stili; yalnız renk rolü farklı. */}
               <Pressable
                 onPress={handleSave}
                 disabled={resultBusy}
@@ -858,12 +859,7 @@ export default function ScannerScreen() {
                 accessibilityLabel={t('save')}
                 accessibilityState={{ disabled: resultBusy, busy: resultBusy }}
               >
-                <View style={styles.resultActionInner}>
-                  <View style={styles.resultActionIconSlot}>
-                    <MaterialCommunityIcons name="check-bold" size={20} color={theme.onPrimary} />
-                  </View>
-                  <Text style={styles.savePillText}>{t('save')}</Text>
-                </View>
+                <Text style={styles.savePillText}>{t('save')}</Text>
               </Pressable>
               {result.document_type !== 'container_return_voucher' ? <Pressable
                 onPress={handleEditBeforeSave}
@@ -877,12 +873,7 @@ export default function ScannerScreen() {
                 accessibilityLabel={t('edit')}
                 accessibilityState={{ disabled: resultBusy, busy: resultBusy }}
               >
-                <View style={styles.resultActionInner}>
-                  <View style={styles.resultActionIconSlot}>
-                    <MaterialCommunityIcons name="pencil" size={19} color={theme.primary} />
-                  </View>
-                  <Text style={styles.editPillText}>{t('edit')}</Text>
-                </View>
+                <Text style={styles.editPillText}>{t('edit')}</Text>
               </Pressable> : null}
               <Pressable
                 onPress={() => { setState('idle'); setResult(null); replaceReceiptCopies([]); setImages([]); }}
@@ -896,12 +887,7 @@ export default function ScannerScreen() {
                 accessibilityLabel={t('cancel')}
                 accessibilityState={{ disabled: resultBusy }}
               >
-                <View style={styles.resultActionInner}>
-                  <View style={styles.resultActionIconSlot}>
-                    <MaterialCommunityIcons name="close-thick" size={17} color={theme.danger} />
-                  </View>
-                  <Text style={styles.cancelGhostText}>{t('cancel')}</Text>
-                </View>
+                <Text style={styles.cancelGhostText}>{t('cancel')}</Text>
               </Pressable>
             </View>
           </Animated.View>
@@ -926,16 +912,10 @@ export default function ScannerScreen() {
   );
 }
 
-const getStyles = (theme: typeof DarkTheme, isDark: boolean, language: Language) => {
+const getStyles = (theme: typeof DarkTheme, isDark: boolean) => {
   const susevar = createSusevarStyles(theme);
   // Etiket genişlikleri dile göre değiştiği için ikon–metin optik boşluğu
   // ayrı ayarlanır. AZ düzeni mevcut kabul edilen ölçülerde korunur.
-  const actionTextPadding = {
-    tr: { save: 28, edit: 28, cancel: 12 },
-    en: { save: 8, edit: 8, cancel: 8 },
-    az: { save: 28, edit: 44, cancel: 28 },
-    ru: { save: 40, edit: 32, cancel: 16 },
-  }[language];
   return StyleSheet.create({
   container: {
     flex: 1,
@@ -1348,14 +1328,12 @@ const getStyles = (theme: typeof DarkTheme, isDark: boolean, language: Language)
    * Kart yüzeyi ile aynı düz dolgu + tam opak vurgu çerçevesi, gölge yok.
    */
   editPill: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: Spacing.lg,
-    paddingHorizontal: Spacing.xxl,
+    ...susevar.button,
     backgroundColor: theme.cardSurface,
-    borderRadius: BorderRadius.round,
     borderWidth: 1.5,
     borderColor: theme.primary,
+    shadowOpacity: 0,
+    elevation: 0,
   },
   pillPressed: {
     opacity: 0.9,
@@ -1363,53 +1341,19 @@ const getStyles = (theme: typeof DarkTheme, isDark: boolean, language: Language)
   resultActionDisabled: {
     opacity: 0.5,
   },
-  savePillText: {
-    ...susevar.text,
-    flex: 1,
-    textAlign: 'center',
-    paddingLeft: actionTextPadding.save,
-    fontFamily: FontFamily.extraBold,
-    fontSize: language === 'ru' ? 17 : 18,
-    lineHeight: language === 'ru' ? 22 : 23,
-    letterSpacing: 0.7,
-  },
+  /** "Tümünü Güncelle" ile birebir: şüşevar metni. */
+  savePillText: susevar.text,
   editPillText: {
     ...susevar.text,
-    flex: 1,
-    textAlign: 'center',
-    paddingLeft: actionTextPadding.edit,
     color: theme.primary,
-    fontFamily: FontFamily.semiBold,
-    fontSize: 17,
-    lineHeight: 22,
-    letterSpacing: 0.5,
   },
   cancelGhost: {
-    minHeight: 50,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: Spacing.xxl,
-    borderRadius: BorderRadius.round,
+    ...susevar.button,
+    backgroundColor: theme.danger + '12',
     borderWidth: 1.5,
     borderColor: theme.danger,
-    backgroundColor: theme.danger + '12',
-  },
-  resultActionInner: {
-    width: 200,
-    minHeight: 24,
-    position: 'relative',
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  resultActionIconSlot: {
-    position: 'absolute',
-    left: 40,
-    width: 24,
-    height: 24,
-    alignItems: 'center',
-    justifyContent: 'center',
-    flexShrink: 0,
+    shadowOpacity: 0,
+    elevation: 0,
   },
   cancelGhostPressed: {
     opacity: 0.82,
@@ -1417,14 +1361,7 @@ const getStyles = (theme: typeof DarkTheme, isDark: boolean, language: Language)
   },
   cancelGhostText: {
     ...susevar.text,
-    flex: 1,
-    textAlign: 'center',
-    paddingLeft: actionTextPadding.cancel,
     color: theme.danger,
-    fontFamily: FontFamily.medium,
-    fontSize: 16,
-    lineHeight: 21,
-    letterSpacing: 0.4,
   },
   });
 };
