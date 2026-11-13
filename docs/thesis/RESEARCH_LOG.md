@@ -4,6 +4,55 @@ Record opened: **2026-09-19**, Europe/Warsaw. Researcher: student/developer. Thi
 
 ## Current position
 
+**Latest attachment update — TS-2026-10-10-02:** expanded the same
+`SPARK_Pilot_Inflation_for_Supervisor.docx` in place to six pages. It now includes
+two separate worked examples: inflation help and donut-panel movement. The
+donut section embeds the earlier problem collage, correction conversation and
+new selected-state screenshot, and records the student's explicit report that
+the panel moved down and reduced usable space. The student confirms correction;
+the still image supports the shown state, not the full movement sequence.
+All six pages were rendered and visually checked. Next: student review and
+supervisor feedback; no external message has been sent.
+
+**Latest illustrated example — TS-2026-10-10-01:** prepared
+[personal inflation pilot](research/pilot/SPARK_Pilot_Inflation_for_Supervisor.docx)
+as the proposed attachment for the supervisor reply. It contains the original
+before/after UI images, conversation screenshot, English explanation and a
+rule/evidence/decision table. The earlier vendor pilot remains preserved.
+The student confirms the inflation text and donut-panel corrections and reports
+using AI to write all application code. This workflow account is distinguished
+from direct evidence of a particular original faulty output. No need to ask
+again whether these visible outcomes were accepted. Next: student may send the
+attachment and reply; supervisor feedback, final sampling and independent review
+remain pending. No message has been sent by the assistant.
+
+**Supervisor attachment — TS-2026-10-08-03:** following the student's correction
+that the Markdown draft did not embed images, created
+[SPARK pilot for supervisor](research/pilot/SPARK_Pilot_for_Supervisor.docx).
+This is a supporting review attachment with both original images, the worked
+rule/decision table and code/test source references, not a parallel manuscript.
+The rewritten email refers to this actual attachment. Analytical labels and
+independent human review remain pending. Nothing has been sent externally.
+
+**Latest participant clarification — TS-2026-10-08-02:** the student reattached
+both vendor images and confirmed noticing overflow, asking AI to fix it and
+accepting the visible correction. They did not inspect the code changes.
+Recorded as V07 in the pilot, now draft 0.2. This confirms their account and
+scoped visual acceptance, not every analytical label or independent review.
+Do not ask for the same confirmation again. Next: explain the proposed labels
+and prepare human review; code changes remain inspectable through V03 even
+though the student did not personally examine them.
+
+**Latest student-review draft — TS-2026-10-08-01:** the student requested a
+pilot file in A2–B1 English and will review it before approval. Prepared
+[SPK-C01 student review draft](research/pilot/SPK-C01_STUDENT_REVIEW_DRAFT.md)
+from the existing visual trial, checked code diff and retained test output.
+This is a plain-language review copy of the same case, not a new episode or
+parallel manuscript. No additional information was needed to prepare the draft.
+Next: student checks the account of their role and the scoped acceptance;
+labels, method freeze and external review remain pending. No fresh device or
+test result is claimed.
+
 **Latest secondary-case check — TS-2026-10-04-08:** retrieved selected public
 GitHub commit patches. SynCinema C01 and C04 are prioritized for comparative
 assembly; imported narrative/runtime claims remain separate. Two bounded
@@ -435,6 +484,94 @@ The text extract preserves content for handover; its formatting and pagination a
   inferred. Recommendation: SPARK primary, SynCinema C01/C04 comparison priority,
   AutoSRT limited role unless further source support becomes available. Final
   scope remains a student/supervisor decision; no message sent.
+
+### TS-2026-10-08-01 — Simple-English visual pilot for student review
+
+- Human request: prepare a pilot file using A2–B1 English; student will inspect
+  it before approval. Preparation is authorized, final classification is not.
+- Read the hub instructions, current decisions, method v0.2 and existing C01
+  review. Checked the scoped September commit diff and retained October test
+  output/manifest. Conversation images remain sources outside the repository.
+- Created `research/pilot/SPK-C01_STUDENT_REVIEW_DRAFT.md`, a simple-English
+  review copy with source links, proposed labels, reasons and review fields.
+- Preserved UNKNOWN for original AI authorship, exact attempts and AI-output
+  rework. Did not transfer the local correction scope into a MINOR rework label.
+- No new app tests, device checks, independent review or source-image transfer.
+  No Word manuscript changes, external message, commit or push.
+- Next: student reviews the description and identifies corrections. Do not
+  treat authorization to draft as approval of its content or method rules.
+
+### TS-2026-10-08-02 — Participant confirms the visual case
+
+- Student reattached the earlier and later vendor-card images. Both were
+  viewed in the conversation; no raw financial images were copied into Git.
+- Student directly confirmed the overflow report, instruction to AI to correct
+  it, and satisfactory visible result. They report not knowing the code changes.
+- Updated the pilot to draft 0.2 with V07 and scoped participant confirmation.
+  Kept historical device/build identity, exact attempts and original defect
+  authorship unknown. Git evidence remains separate from participant knowledge.
+- Clarified that AI-prepared labels require the student's understanding and
+  review; assistance does not count as independent human assessment.
+- No application changes, tests, Word edits, external sharing or commits.
+  Next: discuss classification reasons, then prepare human review. Do not
+  request the same images or personal-role confirmation again.
+
+### TS-2026-10-08-03 — Illustrated Word attachment requested
+
+- Student explicitly requested a Word file with the screenshots for supervisor
+  sharing and a rewritten reply. Earlier statements implying that an illustrated
+  file already existed were inaccurate; the earlier artifact was Markdown.
+- Created `research/pilot/SPARK_Pilot_for_Supervisor.docx` with original images
+  embedded unchanged, simple-English narrative, explicit coding rules and
+  claim-specific decisions, source references and reviewer questions.
+- The attachment preserves unknown AI authorship and iteration/rework sequence;
+  code changes are described from Git, not as the student's code review.
+- Used the document skill to render and visually check the three-page Word
+  layout. No new app tests or historical/device claims. The attachment includes
+  user-supplied financial screenshots for the requested supervisor review;
+  no Git staging, commit, push or external sending was performed.
+- Main THESIS.docx and earlier case records preserved. Next: student reads the
+  illustrated attachment and sends it with the reply when ready; supervisor
+  acceptance and any independent coding review must be recorded separately.
+
+### TS-2026-10-10-01 — Conversation and visual evidence for inflation help
+
+- Student supplied a preserved correction exchange and before/after screenshots
+  for personal inflation help, and confirmed its correction. They also confirmed
+  the preceding donut-panel height correction; that is a separate episode.
+- New attachment embeds the three inflation sources unchanged. It separates
+  literal placeholder display from the request for clearer wording. Original
+  Turkish source, AI-assisted English summary/translation and provisional
+  analytical decisions remain identifiable.
+- Checked current `inflation_info_basket` and `inflation_info_coverage` text,
+  PersonalInflationCard consumption and the matching log/traceability entries.
+  The 1,027-test statement remains a historical AI report, not a newly verified
+  run. Source screenshots do not establish all-language correctness or an
+  identified historical device/build. File-name dates are not execution dates.
+- Created `SPARK_Pilot_Inflation_for_Supervisor.docx`; rendered and inspected
+  all three pages. This is a supporting supervisor attachment, not a second
+  thesis manuscript. Old vendor DOCX and user changes preserved.
+- No application changes, tests, commits, push or external messages. Final
+  answer supplies a new plain-English supervisor reply. Next: student review
+  and voluntary sending; do not mark reviewer agreement or formal approval.
+
+### TS-2026-10-10-02 — Donut-panel evidence added to the same attachment
+
+- Student requested an in-place update and supplied the corrected selected-state
+  image. Preserved the inflation example and added a separate donut episode,
+  including all three original images unchanged and simple English explanations.
+- Explicitly recorded the student's report that selection moved the panel down
+  and reduced usable space. The old collage shows two states of the problem,
+  not a before/after repair comparison. The later screenshot uses different
+  merchant data; participant confirmation and the visible state are distinguished.
+- Checked current VendorAnalyticsSheet height handling, VendorsCard regression
+  test and matching collaboration record. Referenced the retained 4 October
+  run of four suites / 16 tests separately from the AI's historical 1,027-test
+  claim. No tests were newly executed; not all 16 tests concern this defect.
+- Rendered and inspected all six pages after correcting image placement.
+  Original inflation evidence and earlier vendor attachment remain preserved.
+- No application or main thesis changes, Git staging, commits, push or external
+  messages. Analytical labels remain proposed; supervisor review is pending.
 
 ## New session template (copyable block)
 
