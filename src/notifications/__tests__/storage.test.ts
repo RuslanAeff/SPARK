@@ -5,6 +5,7 @@ const transactionWrites: Array<{ key: string; value: string }> = [];
 let failReadKey: string | null = null;
 let failWriteKey: string | null = null;
 let webTransactionSettings: Map<string, string> | null = null;
+const transactionLog: string[] = [];
 
 const readSetting = jest.fn(async (_sql: string, args?: unknown[]) => {
   const key = String(args?.[0] ?? '');
@@ -30,6 +31,7 @@ const mockDatabase = {
       task: (transaction: {
         getFirstAsync: typeof readSetting;
         runAsync: typeof writeSetting;
+        execAsync: (sql: string) => Promise<void>;
       }) => Promise<void>,
     ) => {
       const staged = new Map(settings);
@@ -49,8 +51,17 @@ const mockDatabase = {
       });
 
       await task({
-        getFirstAsync: transactionRead as typeof readSetting,
-        runAsync: transactionWrite as typeof writeSetting,
+        getFirstAsync: (async (sql: string, args?: unknown[]) => {
+          transactionLog.push('read');
+          return transactionRead(sql, args);
+        }) as typeof readSetting,
+        runAsync: (async (sql: string, args?: unknown[]) => {
+          transactionLog.push('write');
+          return transactionWrite(sql, args);
+        }) as typeof writeSetting,
+        execAsync: async (sql: string) => {
+          transactionLog.push(sql);
+        },
       });
       settings.clear();
       for (const [key, value] of staged) settings.set(key, value);
@@ -103,7 +114,18 @@ describe('notification storage mutations', () => {
     failReadKey = null;
     failWriteKey = null;
     webTransactionSettings = null;
+    transactionLog.length = 0;
     jest.clearAllMocks();
+  });
+
+  it('sets busy_timeout on the separate exclusive-transaction connection before any query (BUG-05)', async () => {
+    settings.set('notif_feed_v1', JSON.stringify([makeNotification('one', false, 1)]));
+    settings.set('notif_rules_state_v1', JSON.stringify({}));
+
+    await dismissFeedItems(['one']);
+
+    expect(transactionLog[0]).toBe('PRAGMA busy_timeout = 3000;');
+    expect(transactionLog.slice(1)).toContain('write');
   });
 
   it('removes unique existing IDs with one atomic feed write', async () => {

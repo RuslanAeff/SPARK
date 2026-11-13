@@ -1,5 +1,6 @@
 import { Platform } from 'react-native';
 import { getDatabase } from '../db/database';
+import { applyBusyTimeout } from '../db/busyTimeout';
 import type { InAppNotification, RulesState, NotificationMuteChannel } from './types';
 
 const K_FEED = 'notif_feed_v1';
@@ -371,7 +372,10 @@ export async function saveAndroidReminderScheduleSnapshot(
   if (Platform.OS === 'web') {
     await db.withTransactionAsync(async () => task(db));
   } else {
-    await db.withExclusiveTransactionAsync(task);
+    await db.withExclusiveTransactionAsync(async (txn) => {
+      await applyBusyTimeout(txn);
+      await task(txn);
+    });
   }
 }
 
@@ -445,7 +449,10 @@ export async function saveNotificationSnapshot(
   if (Platform.OS === 'web') {
     await db.withTransactionAsync(async () => task(db));
   } else {
-    await db.withExclusiveTransactionAsync(task);
+    await db.withExclusiveTransactionAsync(async (txn) => {
+      await applyBusyTimeout(txn);
+      await task(txn);
+    });
   }
 }
 
@@ -541,7 +548,10 @@ export async function dismissFeedItems(
   if (Platform.OS === 'web') {
     await db.withTransactionAsync(async () => task(db));
   } else {
-    await db.withExclusiveTransactionAsync(task);
+    await db.withExclusiveTransactionAsync(async (txn) => {
+      await applyBusyTimeout(txn);
+      await task(txn);
+    });
   }
 
   if (!result) {
