@@ -299,6 +299,8 @@ export interface ParsedReceipt {
   container_deposit_paid?: number;
   container_voucher_used?: number;
   voucher_issued?: { amount: number; expires_on: string | null } | null;
+  /** BUG-01: uygulama para birimine çevrildiyse fişin orijinal para birimi ve toplamı. */
+  original?: { currency: string; total: number };
   _modelUsed?: string;
 }
 
@@ -714,11 +716,21 @@ export async function parseReceipt(
     },
   };
 
+  // PERF-08: doğrulama sırasında ayrıştırılan sonuç saklanır; kabul edilen içerik
+  // aynı metinse ikinci kez ayrıştırılmaz (her model denemesi kendi metnini yazar).
+  let validated: { content: string; receipt: ParsedReceipt } | null = null;
   const generated = await generateContentWithFallback(apiKey, requestBody, signal, {
-    validateContent: (content) => tryJsonToReceipt(content) !== null,
+    validateContent: (content) => {
+      const receipt = tryJsonToReceipt(content);
+      validated = receipt ? { content, receipt } : null;
+      return receipt !== null;
+    },
     invalidCode: 'RECEIPT_INVALID_RESULT',
   });
-  const parsed = cleanAndParseResponse(generated.content);
+  const reused = validated as { content: string; receipt: ParsedReceipt } | null;
+  const parsed = reused && reused.content === generated.content
+    ? reused.receipt
+    : cleanAndParseResponse(generated.content);
   // Model alanı atlasa bile veri, çağrıyı başlatan seçili dile etiketlenir.
   parsed.translation_language = language;
   parsed._modelUsed = generated.tag;
@@ -750,15 +762,20 @@ function toFiniteNumber(v: unknown, fallback: number): number {
   return fallback;
 }
 
+/**
+ * Okunamayan para birimi boş döner (BUG-01): "PLN" varsaymak, uygulaması başka
+ * para birimi olan kullanıcının fişini yanlış etiketliyordu. Tarayıcı boş değeri
+ * uygulama para birimiyle doldurur.
+ */
 function normalizeReceiptCurrency(value: unknown): string {
   const raw = sanitizeText(value, 10).toUpperCase().replace(/\s/g, '');
-  if (!raw) return 'PLN';
+  if (!raw) return '';
   if (raw === 'ZŁ' || raw === 'ZL' || raw === 'PLN') return 'PLN';
   if (raw === '₺' || raw === 'TL' || raw === 'TRY') return 'TRY';
   if (raw === '₼' || raw === 'MANAT' || raw === 'AZN') return 'AZN';
   if (raw === '$') return 'USD';
   if (raw === '€') return 'EUR';
-  return /^[A-Z]{3}$/.test(raw) ? raw : 'PLN';
+  return /^[A-Z]{3}$/.test(raw) ? raw : '';
 }
 
 function sanitizeIdentityText(value: unknown, maxLength: number): string | null {

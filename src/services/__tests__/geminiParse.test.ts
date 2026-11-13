@@ -132,7 +132,8 @@ describe('coerceParsedReceipt', () => {
       items: [{ name: 'A', quantity: 1, unit_price: 3, total_price: 3 }],
     })!;
     expect(out.vendor_name).toBe('Bilinmiyor');
-    expect(out.currency).toBe('PLN');
+    // BUG-01: okunamayan para birimi PLN varsayılmaz; tarayıcı uygulama para birimini yazar.
+    expect(out.currency).toBe('');
   });
 
   it('depozito satırını ayrı işaretler ve ödenen depozitoyu satırlardan türetir', () => {
@@ -404,6 +405,34 @@ describe('parseReceipt model kalite fallback', () => {
     expect(receipt.translation_language).toBe('az');
     expect(receipt._modelUsed).toContain('gemini-2.5-pro');
     expect(fetchMock).toHaveBeenCalledTimes(3);
+  });
+
+  it('kabul edilen fiş metnini yalnız bir kez ayrıştırır (PERF-08)', async () => {
+    const content = JSON.stringify({
+      vendor_name: 'Market', date: '2026-08-23', translation_language: 'tr',
+      currency: 'PLN', total: 5,
+      items: [{ name: 'Chleb', localized_name: 'Ekmek', quantity: 1, unit_price: 5, total_price: 5, category_key: 'market' }],
+    });
+    fetchMock.mockImplementation(async (input: RequestInfo | URL) => {
+      if (String(input).endsWith('/models')) {
+        return {
+          ok: true,
+          json: async () => ({ models: [{ name: 'models/gemini-2.5-flash', supportedGenerationMethods: ['generateContent'] }] }),
+        } as Response;
+      }
+      return {
+        ok: true,
+        json: async () => ({ candidates: [{ content: { parts: [{ text: content }] } }] }),
+      } as Response;
+    });
+    const parseSpy = jest.spyOn(JSON, 'parse');
+    try {
+      const receipt = await parseReceipt('base64', 'tr');
+      expect(receipt.items[0].turkish_name).toBe('Ekmek');
+      expect(parseSpy.mock.calls.filter(([text]) => text === content)).toHaveLength(1);
+    } finally {
+      parseSpy.mockRestore();
+    }
   });
 
   it('en fazla dört fiş fotoğrafını aynı istekte ve doğru sırada gönderir', async () => {
