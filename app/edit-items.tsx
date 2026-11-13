@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View, Text, TextInput, ScrollView, StyleSheet, Pressable, KeyboardAvoidingView, Platform,
 } from 'react-native';
@@ -14,6 +14,7 @@ import { ExpenseDao } from '../src/db/expenseDao';
 import { ExpenseItem } from '../src/db/schema';
 import { SparkToast } from '../src/components/SparkToast';
 import GlassDeleteModal from '../src/components/GlassDeleteModal';
+import ConfirmModal from '../src/components/ConfirmModal';
 import { formatCurrency } from '../src/utils/formatCurrency';
 import { useCurrency } from '../src/context/CurrencyContext';
 import { useLanguage } from '../src/i18n/LanguageContext';
@@ -29,6 +30,7 @@ import {
   formatUnitRateInput,
   parseMoneyInput,
   parseUnitRateInput,
+  subtractMoney,
   sumMoney,
   toMinorUnits,
 } from '../src/utils/moneyMath';
@@ -68,6 +70,25 @@ export default function EditItemsScreen() {
   const [unitPrice, setUnitPrice] = useState('');
   const [discount, setDiscount] = useState('');
   const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null);
+  // Ref aynı karede gelen ikinci dokunuşu da durdurur; aynı kalem iki kez eklenmez (BUG-29).
+  const savingItemRef = useRef(false);
+  const [savingItem, setSavingItem] = useState(false);
+  // BUG-03 (ürün kararı B, ADR-004 madde 12): basılı fiş toplamı; değişecekse önce onay.
+  const [headerTotal, setHeaderTotal] = useState<number | null>(null);
+  const [pendingTotalChange, setPendingTotalChange] = useState<{
+    from: number;
+    to: number;
+    run: () => Promise<void>;
+  } | null>(null);
+  // Düzenleme başladığında para alanlarının form metni; değişmediyse yalnız ad yazılır.
+  const editSnapshotRef = useRef<{ quantity: string; unit: MeasurementInputUnit; unitPrice: string; discount: string } | null>(null);
+
+  /** Kupon sınırı ihlali genel hata yerine nedenini söyleyen mesajla gösterilir (BUG-29). */
+  function itemWriteErrorKey(error: unknown, fallback: string): string {
+    return (error as { message?: string } | null)?.message === 'INVALID_CONTAINER_RECOVERY'
+      ? 'item_voucher_exceeds_total'
+      : fallback;
+  }
 
   useEffect(() => {
     if (id) loadItems();
@@ -78,6 +99,7 @@ export default function EditItemsScreen() {
     try {
       const expense = await ExpenseDao.getById(parseInt(id));
       setItems(expense?.items ?? []);
+      setHeaderTotal(expense ? expense.total_amount : null);
       setRecordCurrency(expense?.currency || displayCurrency);
     } catch (e) {
       SparkToast.show(t('error_loading_items'), 'error');
@@ -86,6 +108,7 @@ export default function EditItemsScreen() {
   }
 
   function resetForm() {
+    editSnapshotRef.current = null;
     setEditingItemId(null);
     setItemName('');
     setQuantity('1');
@@ -106,13 +129,61 @@ export default function EditItemsScreen() {
     const eff = effectiveLineDiscount(item);
     const listTotal = effectiveListLineTotal(item);
     const labelUnit = item.quantity > 0 ? listTotal / item.quantity : listTotal;
-    setUnitPrice(formatUnitRateInput(labelUnit));
-    setDiscount(eff > 0 ? formatMoneyInput(eff) : '');
+    const snapshot = {
+      quantity: Number(measurement.quantity.toFixed(3)).toString(),
+      unit: measurement.inputUnit,
+      unitPrice: formatUnitRateInput(labelUnit),
+      discount: eff > 0 ? formatMoneyInput(eff) : '',
+    };
+    editSnapshotRef.current = snapshot;
+    setQuantity(snapshot.quantity);
+    setUnitPrice(snapshot.unitPrice);
+    setDiscount(snapshot.discount);
+  }
+
+  /** Toplam değişecekse önce onay ister; aksi hâlde doğrudan yazar. */
+  async function runWithTotalConfirmation(projected: number, write: () => Promise<void>) {
+    if (headerTotal != null && toMinorUnits(projected) !== toMinorUnits(headerTotal)) {
+      setPendingTotalChange({ from: headerTotal, to: projected, run: write });
+      return;
+    }
+    await write();
+  }
+
+  async function guardedWrite(work: () => Promise<void>, fallbackError: string) {
+    if (savingItemRef.current) return;
+    savingItemRef.current = true;
+    setSavingItem(true);
+    try {
+      await work();
+      resetForm();
+      await loadItems();
+    } catch (e) {
+      SparkToast.show(t(itemWriteErrorKey(e, fallbackError)), 'error');
+    } finally {
+      savingItemRef.current = false;
+      setSavingItem(false);
+    }
   }
 
   async function handleSaveItem() {
     if (!itemName.trim() || !unitPrice.trim() || !quantity.trim()) {
       SparkToast.show(t('missing_fields'), 'error');
+      return;
+    }
+
+    const expenseIdForLabel = parseInt(id);
+    const snapshot = editSnapshotRef.current;
+    if (editingItemId && snapshot
+      && quantity === snapshot.quantity && measurementUnit === snapshot.unit
+      && unitPrice === snapshot.unitPrice && discount === snapshot.discount) {
+      // Yalnız ad: para alanları yeniden hesaplanıp yazılmaz, toplam değişmez, onay yok.
+      const itemId = editingItemId;
+      await guardedWrite(async () => {
+        await ExpenseDao.updateItemLabel(expenseIdForLabel, itemId, itemName.trim());
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        SparkToast.show(t('item_updated'), 'success');
+      }, 'operation_failed');
       return;
     }
 
@@ -148,9 +219,13 @@ export default function EditItemsScreen() {
       list_line_total_before_discount: hasDisc ? amounts.listLineTotal : null,
     };
 
-    try {
-      if (editingItemId) {
-        await ExpenseDao.updateItemAndSyncTotal(expenseId, editingItemId, {
+    const targetItemId = editingItemId;
+    const projected = targetItemId
+      ? sumMoney(items.map(item => (item.id === targetItemId ? amounts.netTotal : item.total_price)))
+      : sumMoney([...items.map(item => item.total_price), amounts.netTotal]);
+    const write = () => guardedWrite(async () => {
+      if (targetItemId) {
+        await ExpenseDao.updateItemAndSyncTotal(expenseId, targetItemId, {
           // Gösterim düzeltmesi ham fiş adını/ilk çeviriyi ezmez. Böylece ürün
           // kimliği ayrılabilir ve fiş kanıtı daha sonra da denetlenebilir.
           user_label: itemName.trim(),
@@ -177,12 +252,8 @@ export default function EditItemsScreen() {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         SparkToast.show(t('item_added'), 'success');
       }
-
-      resetForm();
-      await loadItems();
-    } catch (e) {
-      SparkToast.show(t('operation_failed'), 'error');
-    }
+    }, 'operation_failed');
+    await runWithTotalConfirmation(projected, write);
   }
 
   function confirmDelete(itemId: number) {
@@ -197,11 +268,18 @@ export default function EditItemsScreen() {
       if (editingItemId === itemId) resetForm();
       await loadItems();
     } catch (e) {
-      SparkToast.show(t('delete_failed'), 'error');
+      SparkToast.show(t(itemWriteErrorKey(e, 'delete_failed')), 'error');
     }
   }
 
   const currentTotal = sumMoney(items.map((item) => item.total_price));
+  const headerDiffers = headerTotal != null && toMinorUnits(headerTotal) !== toMinorUnits(currentTotal);
+  const deleteTarget = deleteConfirmId == null ? null : items.find(item => item.id === deleteConfirmId) ?? null;
+  const totalAfterDelete = deleteTarget
+    ? sumMoney(items.filter(item => item.id !== deleteTarget.id).map(item => item.total_price))
+    : null;
+  const deleteChangesTotal = headerTotal != null && totalAfterDelete != null
+    && toMinorUnits(totalAfterDelete) !== toMinorUnits(headerTotal);
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -218,6 +296,18 @@ export default function EditItemsScreen() {
           <Text style={styles.totalBarText}>{t('current_total')}</Text>
           <Text style={styles.totalBarAmount}>{formatCurrency(currentTotal, recordCurrency)}</Text>
         </View>
+        {headerDiffers ? (
+          // ADR-004 madde 8: basılı toplam ile kalem toplamı farkı sessiz kalmaz.
+          <View testID="edit-items-header-diff" style={styles.headerDiffBar}>
+            <MaterialCommunityIcons name="scale-unbalanced" size={16} color={Colors.warning} />
+            <Text style={styles.headerDiffText}>
+              {t('receipt_header_total_diff', {
+                total: formatCurrency(headerTotal!, recordCurrency),
+                diff: formatCurrency(Math.abs(subtractMoney(headerTotal!, currentTotal)), recordCurrency),
+              })}
+            </Text>
+          </View>
+        ) : null}
 
         <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
           {/* Item List */}
@@ -346,17 +436,43 @@ export default function EditItemsScreen() {
             onChangeText={setDiscount}
           />
           <Pressable
-            style={({ pressed }) => [styles.saveBtn, pressed && styles.saveBtnPressed]}
+            testID="edit-items-save"
+            style={({ pressed }) => [styles.saveBtn, savingItem && { opacity: 0.6 }, pressed && styles.saveBtnPressed]}
             onPress={handleSaveItem}
+            disabled={savingItem}
           >
             <Text style={styles.saveBtnText}>{editingItemId ? t('update') : t('add')}</Text>
           </Pressable>
         </View>
       </KeyboardAvoidingView>
 
+      <ConfirmModal
+        visible={pendingTotalChange != null}
+        title={t('item_total_change_title')}
+        message={pendingTotalChange ? t('item_total_change_msg', {
+          from: formatCurrency(pendingTotalChange.from, recordCurrency),
+          to: formatCurrency(pendingTotalChange.to, recordCurrency),
+        }) : ''}
+        confirmLabel={t('item_total_change_confirm')}
+        cancelLabel={t('cancel')}
+        tone="warning"
+        icon="scale-balance"
+        onCancel={() => setPendingTotalChange(null)}
+        onConfirm={() => {
+          const run = pendingTotalChange?.run;
+          setPendingTotalChange(null);
+          if (run) void run();
+        }}
+      />
+
       <GlassDeleteModal
         visible={deleteConfirmId !== null}
-        message={t('delete_item_msg')}
+        message={deleteChangesTotal
+          ? t('item_total_change_msg', {
+            from: formatCurrency(headerTotal!, recordCurrency),
+            to: formatCurrency(totalAfterDelete!, recordCurrency),
+          })
+          : t('delete_item_msg')}
         onCancel={() => setDeleteConfirmId(null)}
         onDelete={() => {
           if (deleteConfirmId !== null) {
@@ -403,6 +519,19 @@ const getStyles = () => StyleSheet.create({
     ...Typography.bodyMedium,
     color: Colors.textSecondary,
     fontFamily: FontFamily.medium,
+  },
+  headerDiffBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    paddingHorizontal: ScreenPadding.horizontal,
+    paddingVertical: Spacing.sm,
+    backgroundColor: Colors.surface,
+  },
+  headerDiffText: {
+    ...Typography.bodySmall,
+    color: Colors.textSecondary,
+    flex: 1,
   },
   totalBarAmount: {
     ...Typography.headlineMedium,
