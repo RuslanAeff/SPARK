@@ -8,3 +8,15 @@ build/
 .expo/
 
 .DS_Store
+
+# SEC-07: imzalama anahtarları ve hizmet kimlik dosyaları depoya girmez.
+.env.*
+!.env.example
+*.jks
+*.keystore
+*.p8
+*.p12
+*.mobileprovision
+credentials.json
+google-services.json
+GoogleService-Info.plist
