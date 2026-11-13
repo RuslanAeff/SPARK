@@ -13,5 +13,9 @@ public class SparkBoundedFileModule: Module {
       defer { if scoped { url.stopAccessingSecurityScopedResource() } }
       return try readBoundedUtf8File(url, limit: limit)
     }
+    // SEC-01 / ADR-018: yedek parolasından anahtar; arka plan kuyruğunda çalışır.
+    AsyncFunction("pbkdf2Sha256") { (password: String, saltHex: String, iterations: Int, keyLength: Int) -> String in
+      return try sparkPbkdf2Sha256(password: password, saltHex: saltHex, iterations: iterations, keyLength: keyLength)
+    }
   }
 }

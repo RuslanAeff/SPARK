@@ -37,5 +37,9 @@ class SparkBoundedFileModule : Module() {
           .decode(ByteBuffer.wrap(output.toByteArray())).toString()
       }
     }
+    // SEC-01 / ADR-018: yedek parolasından anahtar; AsyncFunction arka planda çalışır.
+    AsyncFunction("pbkdf2Sha256") { password: String, saltHex: String, iterations: Int, keyLength: Int ->
+      sparkPbkdf2Sha256(password, saltHex, iterations, keyLength)
+    }
   }
 }

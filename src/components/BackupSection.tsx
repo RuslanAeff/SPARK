@@ -1,7 +1,7 @@
 // S.P.A.R.K. — Yedek al / geri yükle bölümü (Ayarlar)
 // Tarih aralığı seçimi + preset kısayollar + onay modali + son yedek bilgisi
 // + opsiyonel haftalık/aylık hatırlatıcı.
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -9,6 +9,7 @@ import {
   StyleSheet,
   ActivityIndicator,
   ScrollView,
+  Switch,
   type LayoutRectangle,
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -22,12 +23,17 @@ import { useNotifications } from '../context/NotificationsContext';
 import { useRefreshActions } from '../context/RefreshContext';
 import { SparkToast } from './SparkToast';
 import ConfirmModal from './ConfirmModal';
+import BackupPasswordModal from './BackupPasswordModal';
+import { BACKUP_ENCRYPTION_UNAVAILABLE } from '../services/nativeKdf';
 import CustomDatePicker from './CustomDatePicker';
 import GlassSelectionIndicator from './GlassSelectionIndicator';
 import { SettingsInfoHintModal, SettingsInfoIconButton } from './SettingsInfoHint';
 import { SettingsSection } from './SettingsList';
 import {
+  BACKUP_EXPORT_INVALID,
+  BACKUP_EXPORT_TOO_LARGE,
   exportBackupToFile,
+  getAllDataRange,
   pickAndImportBackup,
   type ImportSummary,
 } from '../services/backupService';
@@ -40,6 +46,7 @@ import {
 } from '../services/backupMeta';
 import { createSusevarStyles } from '../theme/susevar';
 import { intlLocaleForLanguage } from '../i18n/languageOptions';
+import { logError } from '../utils/logError';
 
 function ymd(d: Date): string {
   const y = d.getFullYear();
@@ -66,7 +73,7 @@ function startOfYear(): string {
   return `${d.getFullYear()}-01-01`;
 }
 
-type PresetId = 'this_month' | 'last_month' | 'last_3_months' | 'this_year' | 'custom';
+type PresetId = 'all_data' | 'this_month' | 'last_month' | 'last_3_months' | 'this_year' | 'custom';
 
 export default function BackupSection() {
   const { t, language } = useLanguage();
@@ -78,19 +85,74 @@ export default function BackupSection() {
 
   const [startDate, setStartDate] = useState<string>(startOfMonth(0));
   const [endDate, setEndDate] = useState<string>(ymd(new Date()));
-  const [preset, setPreset] = useState<PresetId>('this_month');
+  // BUG-31: varsayılan tam yedektir; kullanıcı kısmi dosyayı tam yedek sanmasın.
+  // Aralık veritabanından gelene kadar dışa aktarım beklenir.
+  const [preset, setPreset] = useState<PresetId>('all_data');
+  const [allDataLoading, setAllDataLoading] = useState(true);
   const [startPickerOpen, setStartPickerOpen] = useState(false);
   const [endPickerOpen, setEndPickerOpen] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [importing, setImporting] = useState(false);
   const [exportConfirm, setExportConfirm] = useState(false);
   const [importConfirm, setImportConfirm] = useState(false);
+  // SEC-01: isteğe bağlı parolalı yedek. Parola durumda tutulmaz; yalnız tek
+  // dışa/içe aktarım çağrısına aktarılır.
+  const [encryptExport, setEncryptExport] = useState(false);
+  const [exportPasswordOpen, setExportPasswordOpen] = useState(false);
+  const [importPasswordPrompt, setImportPasswordPrompt] = useState<{ wrong: boolean } | null>(null);
+  const passwordResolverRef = useRef<((password: string | null) => void) | null>(null);
+  useEffect(() => () => {
+    // Ekran kapanırsa bekleyen içe aktarım iptal sayılır.
+    passwordResolverRef.current?.(null);
+    passwordResolverRef.current = null;
+  }, []);
+
+  function requestImportPassword(lastAttemptWrong: boolean): Promise<string | null> {
+    return new Promise(resolve => {
+      passwordResolverRef.current = resolve;
+      setImportConfirm(false);
+      setImportPasswordPrompt({ wrong: lastAttemptWrong });
+    });
+  }
+
+  function settleImportPassword(password: string | null) {
+    const resolve = passwordResolverRef.current;
+    passwordResolverRef.current = null;
+    setImportPasswordPrompt(null);
+    resolve?.(password);
+  }
   const [infoOpen, setInfoOpen] = useState(false);
   const [meta, setMeta] = useState<BackupMeta | null>(null);
   const [reminderLayouts, setReminderLayouts] = useState<Record<BackupReminderInterval, LayoutRectangle>>({} as Record<BackupReminderInterval, LayoutRectangle>);
 
   useEffect(() => {
     void (async () => setMeta(await loadBackupMeta()))();
+  }, []);
+
+  // Kullanıcı okuma bitmeden başka ön ayar seçerse geç gelen sonuç onu ezmesin.
+  const allDataRequestRef = useRef(0);
+  async function loadAllDataRange() {
+    const request = ++allDataRequestRef.current;
+    setAllDataLoading(true);
+    try {
+      const range = await getAllDataRange();
+      if (request !== allDataRequestRef.current) return;
+      setStartDate(range.start);
+      setEndDate(range.end);
+    } catch (error) {
+      if (request !== allDataRequestRef.current) return;
+      // Okunamazsa bu ayın aralığına düşülür; kullanıcı aralığı ekranda görür.
+      logError('backup all-data range failed', error);
+      setPreset('this_month');
+      setStartDate(startOfMonth(0));
+      setEndDate(ymd(new Date()));
+    } finally {
+      if (request === allDataRequestRef.current) setAllDataLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    void loadAllDataRange();
   }, []);
 
   async function refreshNotificationState(source: string) {
@@ -100,7 +162,7 @@ export default function BackupSection() {
     } catch (error) {
       // Yedek tercihi/export/import kanonik olarak tamamlandı. Native/feed
       // senkronu ikincil yan etkidir; başarıyı geri çevirmeden resume'da denenir.
-      if (__DEV__) console.warn(`[backup] ${source} notification sync failed`, error);
+      logError(`backup ${source} notification sync failed`, error);
     }
   }
 
@@ -139,8 +201,15 @@ export default function BackupSection() {
 
   function applyPreset(p: Exclude<PresetId, 'custom'>) {
     setPreset(p);
+    if (p !== 'all_data') {
+      allDataRequestRef.current += 1;
+      setAllDataLoading(false);
+    }
     Haptics.selectionAsync();
     switch (p) {
+      case 'all_data':
+        void loadAllDataRange();
+        break;
       case 'this_month':
         setStartDate(startOfMonth(0));
         setEndDate(ymd(new Date()));
@@ -161,17 +230,19 @@ export default function BackupSection() {
   }
 
   function requestExport() {
-    if (exporting || importing) return;
+    if (exporting || importing || allDataLoading) return;
     if (startDate > endDate) {
       SparkToast.show(t('backup_range_invalid'), 'error');
       return;
     }
     Haptics.selectionAsync();
-    setExportConfirm(true);
+    if (encryptExport) setExportPasswordOpen(true);
+    else setExportConfirm(true);
   }
 
-  async function handleExport() {
+  async function handleExport(password?: string) {
     setExportConfirm(false);
+    setExportPasswordOpen(false);
     if (exporting || importing) return;
     if (startDate > endDate) {
       SparkToast.show(t('backup_range_invalid'), 'error');
@@ -180,16 +251,23 @@ export default function BackupSection() {
     try {
       setExporting(true);
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-      const res = await exportBackupToFile({ start: startDate, end: endDate });
+      const res = await exportBackupToFile(
+        { start: startDate, end: endDate },
+        { dialogTitle: t('backup_share_dialog_title'), password },
+      );
+      const encryptedNote = res.encrypted ? `\n${t('backup_export_encrypted_note')}` : '';
       // Boş aralıkta dahi metaveriyi kaydetmiyoruz; "son yedek" gerçek bir
       // finansal kayıt veya kullanıcı hatırlatıcısı içeren ve cihazda kalıcı
       // olan kaydı temsil etmeli.
       if (res.recordCount > 0 && (res.destination === 'saved' || res.destination === 'shared')) {
+        // BUG-31: yalnız bütün verileri kapsayan yedek hatırlatıcıyı sıfırlar.
+        const all = await getAllDataRange().catch(() => null);
         await recordBackupSuccess({
           expenseCount: res.recordCount,
           itemCount: res.itemCount,
           rangeStart: startDate,
           rangeEnd: endDate,
+          fullRange: all != null && startDate <= all.start && endDate >= all.end,
         });
         setMeta(await loadBackupMeta());
         // Başarılı yedek, uygulama-içi gecikmiş-yedek uyarısını aynı işlemde
@@ -205,7 +283,7 @@ export default function BackupSection() {
           t('backup_export_saved_desc', {
             count: res.recordCount.toString(),
             items: res.itemCount.toString(),
-          })
+          }) + encryptedNote
         );
       } else if (res.destination === 'shared') {
         SparkToast.show(
@@ -214,7 +292,7 @@ export default function BackupSection() {
           t('backup_export_save_hint', {
             count: res.recordCount.toString(),
             items: res.itemCount.toString(),
-          })
+          }) + encryptedNote
         );
       } else {
         SparkToast.show(
@@ -224,8 +302,17 @@ export default function BackupSection() {
         );
       }
     } catch (e: any) {
-      if (__DEV__) console.warn('backup export', e);
-      SparkToast.show(t('backup_export_failed'), 'error', e?.message ?? '');
+      logError('backup export', e);
+      // Ham hata metni kullanıcıya gösterilmez; öz denetim kodları çevrilir.
+      const code = e?.message ?? '';
+      const detail = code === BACKUP_EXPORT_INVALID
+        ? t('backup_export_invalid_desc', { section: t(`backup_section_${e?.section ?? 'root'}`) })
+        : code === BACKUP_EXPORT_TOO_LARGE
+          ? t('backup_export_too_large_desc')
+          : code === BACKUP_ENCRYPTION_UNAVAILABLE
+            ? t('backup_encryption_unavailable')
+            : '';
+      SparkToast.show(t('backup_export_failed'), 'error', detail);
     } finally {
       setExporting(false);
     }
@@ -236,7 +323,7 @@ export default function BackupSection() {
     try {
       setImporting(true);
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-      const res = await pickAndImportBackup();
+      const res = await pickAndImportBackup(requestImportPassword);
       if (!res) {
         setImportConfirm(false);
         return;
@@ -244,10 +331,12 @@ export default function BackupSection() {
       const s: ImportSummary = res.summary;
       const added = s.expensesAdded + s.debtsAdded + s.debtPaymentsAdded
         + s.extraIncomesAdded + s.remindersAdded + s.rolloversAdded
-        + s.depositVouchersAdded + s.depositRecoveriesAdded;
+        + s.depositVouchersAdded + s.depositRecoveriesAdded
+        + s.savingsGoalAdded + s.categoryLimitsAdded;
       const skipped = s.expensesSkipped + s.debtsSkipped + s.debtPaymentsSkipped
         + s.extraIncomesSkipped + s.remindersSkipped + s.rolloversSkipped
-        + s.depositVouchersSkipped + s.depositRecoveriesSkipped;
+        + s.depositVouchersSkipped + s.depositRecoveriesSkipped
+        + s.categoryLimitsSkipped;
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       // Restore aktif borç ve ödeme planları ekleyebilir. Kullanıcı uygulamayı
       // hemen kapatsa bile yeni tarihli alarmlar 300 ms refresh debounce'una
@@ -256,10 +345,14 @@ export default function BackupSection() {
       SparkToast.show(
         t('backup_import_success_title'),
         'success',
-        t('backup_import_success_desc', {
-          added: added.toString(),
-          skipped: skipped.toString(),
-        })
+        [
+          t('backup_import_success_desc', {
+            added: added.toString(),
+            skipped: skipped.toString(),
+          }),
+          // BUG-20: cihazda yedekten sonra değişen kayıtlar ezilmedi; kullanıcı bilsin.
+          s.keptLocal > 0 ? t('backup_import_kept_local', { count: s.keptLocal.toString() }) : null,
+        ].filter(Boolean).join('\n')
       );
     } catch (e: any) {
       const code = e?.message ?? '';
@@ -267,8 +360,9 @@ export default function BackupSection() {
         code === 'INVALID_JSON' ? 'backup_import_invalid_json'
         : code === 'INVALID_FORMAT' ? 'backup_import_invalid_format'
         : code === 'UNSUPPORTED_VERSION' ? 'backup_import_unsupported_version'
+        : code === BACKUP_ENCRYPTION_UNAVAILABLE ? 'backup_encryption_unavailable'
         : 'backup_import_failed';
-      if (__DEV__) console.warn('backup import', e);
+      logError('backup import', e);
       SparkToast.show(t('backup_import_failed_title'), 'error', t(key));
     } finally {
       setImporting(false);
@@ -277,6 +371,7 @@ export default function BackupSection() {
   }
 
   const presets: { id: Exclude<PresetId, 'custom'>; label: string }[] = [
+    { id: 'all_data', label: t('backup_preset_all_data') },
     { id: 'this_month', label: t('backup_preset_this_month') },
     { id: 'last_month', label: t('backup_preset_last_month') },
     { id: 'last_3_months', label: t('backup_preset_last_3') },
@@ -321,6 +416,15 @@ export default function BackupSection() {
                 {t('backup_last_summary', {
                   count: String(meta.lastCount),
                   items: String(meta.lastItemCount ?? 0),
+                })}
+              </Text>
+            )}
+            {/* BUG-31: kısmi bir yedek tam yedek sanılmasın; kapsadığı aralık görünür. */}
+            {meta.lastRangeStart && meta.lastRangeEnd && (
+              <Text testID="backup-last-range" style={styles.lastBackupMeta} numberOfLines={1}>
+                {t('backup_last_range', {
+                  start: formatRangeDate(meta.lastRangeStart),
+                  end: formatRangeDate(meta.lastRangeEnd),
                 })}
               </Text>
             )}
@@ -384,6 +488,26 @@ export default function BackupSection() {
               <Text style={styles.dateValue} numberOfLines={1} adjustsFontSizeToFit>{formatRangeDate(endDate)}</Text>
             </View>
           </Pressable>
+        </View>
+
+        {/* SEC-01: isteğe bağlı parola koruması. */}
+        <View style={styles.encryptRow}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.encryptLabel}>{t('backup_encrypt_toggle')}</Text>
+            <Text style={styles.encryptHint}>{t('backup_encrypt_hint')}</Text>
+          </View>
+          <Switch
+            testID="backup-encrypt-switch"
+            accessibilityRole="switch"
+            accessibilityLabel={t('backup_encrypt_toggle')}
+            accessibilityState={{ checked: encryptExport, disabled: exporting || importing }}
+            value={encryptExport}
+            disabled={exporting || importing}
+            onValueChange={(value) => { Haptics.selectionAsync(); setEncryptExport(value); }}
+            trackColor={{ false: Colors.borderLight, true: Colors.primary + '88' }}
+            thumbColor={encryptExport ? Colors.primary : Colors.textMuted}
+            ios_backgroundColor={Colors.borderLight}
+          />
         </View>
 
         <View style={styles.actionsRow}>
@@ -482,13 +606,13 @@ export default function BackupSection() {
         visible={startPickerOpen}
         onClose={() => setStartPickerOpen(false)}
         initialDate={startDate}
-        onSelectDate={(d) => { setStartDate(d); setPreset('custom'); }}
+        onSelectDate={(d) => { allDataRequestRef.current += 1; setAllDataLoading(false); setStartDate(d); setPreset('custom'); }}
       />
       <CustomDatePicker
         visible={endPickerOpen}
         onClose={() => setEndPickerOpen(false)}
         initialDate={endDate}
-        onSelectDate={(d) => { setEndDate(d); setPreset('custom'); }}
+        onSelectDate={(d) => { allDataRequestRef.current += 1; setAllDataLoading(false); setEndDate(d); setPreset('custom'); }}
       />
 
       <ConfirmModal
@@ -513,7 +637,22 @@ export default function BackupSection() {
         confirmLabel={t('backup_export_confirm_btn')}
         cancelLabel={t('cancel')}
         onCancel={() => setExportConfirm(false)}
-        onConfirm={handleExport}
+        onConfirm={() => void handleExport()}
+      />
+
+      <BackupPasswordModal
+        visible={exportPasswordOpen}
+        mode="set"
+        onCancel={() => setExportPasswordOpen(false)}
+        onSubmit={(password) => void handleExport(password)}
+      />
+
+      <BackupPasswordModal
+        visible={importPasswordPrompt != null}
+        mode="enter"
+        wrongPassword={importPasswordPrompt?.wrong ?? false}
+        onCancel={() => settleImportPassword(null)}
+        onSubmit={(password) => settleImportPassword(password)}
       />
     </SettingsSection>
   );
@@ -607,6 +746,14 @@ const getStyles = () => {
       color: Colors.textPrimary,
       fontFamily: FontFamily.semiBold,
     },
+    encryptRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: Spacing.md,
+      marginTop: Spacing.md,
+    },
+    encryptLabel: { ...Typography.bodyMedium, color: Colors.textPrimary, fontFamily: FontFamily.semiBold },
+    encryptHint: { ...Typography.labelSmall, color: Colors.textSecondary, marginTop: Spacing.xs },
     actionsRow: {
       flexDirection: 'row',
       gap: Spacing.sm,

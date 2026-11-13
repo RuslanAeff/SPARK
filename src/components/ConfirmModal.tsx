@@ -23,6 +23,8 @@ import {
   Modal,
   Animated,
   Easing,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import Svg, { Defs, RadialGradient, Rect, Stop } from 'react-native-svg';
@@ -53,6 +55,12 @@ export interface ConfirmModalProps {
   onCancel: () => void;
   onConfirm: () => void;
   onDismiss?: () => void;
+  /** Mesajın altında, butonların üstünde ek içerik (ör. parola alanları). */
+  children?: React.ReactNode;
+  /** true iken onay butonu basılamaz ve soluk görünür. */
+  confirmDisabled?: boolean;
+  confirmTestID?: string;
+  cancelTestID?: string;
 }
 
 export default function ConfirmModal({
@@ -66,6 +74,10 @@ export default function ConfirmModal({
   onCancel,
   onConfirm,
   onDismiss,
+  children,
+  confirmDisabled = false,
+  confirmTestID,
+  cancelTestID,
 }: ConfirmModalProps) {
   const scheme = useAppTheme();
   const themeRevision = useThemeRevision();
@@ -176,6 +188,13 @@ export default function ConfirmModal({
     >
       <Animated.View style={[styles.overlay, { opacity: opacityAnim }]}>
         <Pressable style={StyleSheet.absoluteFill} onPress={onCancel} />
+        {/* Ek içerikte (parola alanı) klavye kartı örtmesin. */}
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          enabled={children != null}
+          style={styles.keyboardFrame}
+          pointerEvents="box-none"
+        >
 
         <Animated.View
           style={[
@@ -208,10 +227,12 @@ export default function ConfirmModal({
             </View>
 
             <Text style={styles.title}>{title}</Text>
-            <Text style={styles.message}>{message}</Text>
+            <Text style={[styles.message, children != null && styles.messageWithChildren]}>{message}</Text>
+            {children != null && <View style={styles.extra}>{children}</View>}
 
             <View style={styles.actions}>
               <Pressable
+                testID={cancelTestID}
                 onPress={onCancel}
                 style={({ pressed }) => [
                   styles.btn,
@@ -223,6 +244,8 @@ export default function ConfirmModal({
                 <Text style={styles.btnCancelText}>{cancelLabel}</Text>
               </Pressable>
               <Pressable
+                testID={confirmTestID}
+                disabled={confirmDisabled}
                 onPress={() => {
                   Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                   onConfirm();
@@ -231,9 +254,11 @@ export default function ConfirmModal({
                   styles.btn,
                   styles.btnConfirm,
                   { backgroundColor: toneColor },
-                  pressed && styles.btnPressed,
+                  confirmDisabled && styles.btnDisabled,
+                  pressed && !confirmDisabled && styles.btnPressed,
                 ]}
                 accessibilityRole="button"
+                accessibilityState={{ disabled: confirmDisabled }}
               >
                 <Text style={[styles.btnConfirmText, { color: Colors.background }]}>
                   {confirmLabel}
@@ -242,6 +267,7 @@ export default function ConfirmModal({
             </View>
           </View>
         </Animated.View>
+        </KeyboardAvoidingView>
       </Animated.View>
       <SparkToastContainer />
     </Modal>
@@ -270,6 +296,20 @@ const getStyles = () =>
       shadowOpacity: 0.35,
       shadowRadius: 24,
       elevation: 24,
+    },
+    keyboardFrame: {
+      width: '100%',
+      alignItems: 'center',
+    },
+    messageWithChildren: {
+      marginBottom: Spacing.md,
+    },
+    extra: {
+      width: '100%',
+      marginBottom: Spacing.lg,
+    },
+    btnDisabled: {
+      opacity: 0.45,
     },
     aura: {
       position: 'absolute',
