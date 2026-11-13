@@ -64,7 +64,10 @@ describe('receiptParser prefill quality and currency', () => {
     mockCategoryFindByName.mockImplementation(async (name: string) => (
       name === 'Market' ? { id: 7, name: 'Market' } : null
     ));
-    mockCategoryGetAll.mockResolvedValue([{ id: 1, name: 'Diğer' }]);
+    mockCategoryGetAll.mockResolvedValue([
+      { id: 1, name: 'Diğer', parent_id: null },
+      { id: 7, name: 'Market', parent_id: null },
+    ]);
     mockVendorFindOrCreate.mockResolvedValue(3);
     mockExpenseCreate.mockResolvedValue(41);
     mockExpenseAddItem.mockResolvedValue(51);
@@ -103,4 +106,69 @@ describe('receiptParser prefill quality and currency', () => {
     expect(mockSyncPurchaseRecovery).toHaveBeenCalledWith(41);
   });
 
+  describe('voucher_issued.expires_on (BUG-04)', () => {
+    const voucherInsertParams = () => {
+      const call = mockDbRun.mock.calls.find(([sql]) => String(sql).includes('container_deposit_vouchers'));
+      expect(call).toBeDefined();
+      return call![1] as unknown[];
+    };
+
+    it.each([
+      ['31.12.2026'],
+      ['2026-12-31T00:00'],
+      ['2026-02-31'],
+      ['2026-08-22'],
+    ])('stores NULL instead of unsupported or pre-receipt expiry %s', async (expiresOn) => {
+      await expect(processReceipt({
+        ...validReceipt,
+        voucher_issued: { amount: 2, expires_on: expiresOn },
+      })).resolves.toBe(41);
+
+      expect(voucherInsertParams()[4]).toBeNull();
+    });
+
+    it('keeps a valid expiry on or after the receipt date', async () => {
+      await processReceipt({
+        ...validReceipt,
+        voucher_issued: { amount: 2, expires_on: '2026-08-23' },
+      });
+
+      expect(voucherInsertParams()[4]).toBe('2026-08-23');
+    });
+  });
+
+
+  describe('category resolution queries (PERF-04)', () => {
+    it('reads categories once for the whole receipt instead of per item', async () => {
+      const items = Array.from({ length: 60 }, (_, index) => ({
+        ...validReceipt.items[0],
+        name: `Item ${index}`,
+        category_key: index % 2 === 0 ? ('market' as const) : undefined,
+        suggested_category: index % 2 === 0 ? 'Market' : 'Nonexistent',
+      }));
+
+      await processReceipt({ ...validReceipt, total: 375, items });
+
+      expect(mockCategoryGetAll).toHaveBeenCalledTimes(1);
+      expect(mockCategoryFindByName).not.toHaveBeenCalled();
+      const ids = mockExpenseAddItem.mock.calls.map(([item]) => item.category_id);
+      expect(ids.filter(id => id === 7)).toHaveLength(30);
+      expect(ids.filter(id => id === 1)).toHaveLength(30);
+    });
+  });
+
+  it('rejects a receipt dated more than two days in the future before writing (BUG-17)', async () => {
+    await expect(processReceipt({ ...validReceipt, date: '2062-08-23' }))
+      .rejects.toThrow('INVALID_RECEIPT_future_date');
+    expect(mockDbTransaction).not.toHaveBeenCalled();
+  });
+
+  it('keeps the original foreign amount in the note of a converted receipt (BUG-01)', async () => {
+    await processReceipt({ ...validReceipt, currency: 'PLN', original: { currency: 'EUR', total: 50 } });
+
+    expect(mockExpenseCreate).toHaveBeenCalledWith(expect.objectContaining({
+      currency: 'PLN',
+      note: 'Fiş: Shop · 50.00 EUR',
+    }));
+  });
 });

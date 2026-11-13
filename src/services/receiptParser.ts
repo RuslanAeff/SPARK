@@ -15,32 +15,37 @@ import {
 import { normalizeReceiptItemAmounts } from '../utils/receiptMoney';
 import { normalizeMeasurementInput } from '../utils/measurementUnit';
 import { canonicalReceiptCategoryName } from '../utils/receiptCategory';
+import { sanitizePurchaseVoucherExpiry } from '../utils/containerVoucherRules';
+import { createCategoryNameResolver } from '../utils/categoryNameResolver';
+import { isReceiptDateTooFarAhead } from '../utils/receiptDateRules';
 
-async function resolveCategory(item: Pick<ParsedItem, 'category_key' | 'suggested_category'>): Promise<number> {
-  const canonicalName = canonicalReceiptCategoryName(
+/**
+ * Kategoriler fiş başına BİR kez okunur (PERF-04). Bulunamayan ad her zaman
+ * "Diğer"e düşer — analiz JOIN'i NULL category_id'yi dışlar.
+ */
+async function createReceiptCategoryResolver(): Promise<
+  (item: Pick<ParsedItem, 'category_key' | 'suggested_category'>) => number
+> {
+  const resolveName = createCategoryNameResolver(await CategoryDao.getAll());
+  return (item) => resolveName(canonicalReceiptCategoryName(
     item.category_key,
     item.suggested_category,
-  );
-  const category = await CategoryDao.findByName(canonicalName);
-  if (category) return category.id;
-
-  // Always fallback to "Diğer" — analytics JOIN excludes null category_id
-  const other = await CategoryDao.findByName('Diğer');
-  if (other) return other.id;
-  
-  // Last resort: first available category
-  const all = await CategoryDao.getAll();
-  return all[0]?.id ?? 1;
+  ));
 }
 
 export async function processReceipt(receipt: ParsedReceipt): Promise<number> {
   const validation = validateParsedReceipt(receipt);
   if (!validation.valid) throw new Error(`INVALID_RECEIPT_${validation.code}`);
+  // BUG-17: kayıt sınırında ikinci güvence; tarayıcı kullanıcıya önce düzelttirir.
+  if (isReceiptDateTooFarAhead(normalizeToYYYYMMDD(receipt.date))) {
+    throw new Error('INVALID_RECEIPT_future_date');
+  }
   if (receipt.document_type === 'container_return_voucher') {
     throw new Error('CONTAINER_VOUCHER_REQUIRES_VOUCHER_FLOW');
   }
   const vendorName = String(receipt.vendor_name || '').trim() || 'Bilinmeyen';
   const existingVendor = await VendorDao.findByName(vendorName);
+  const resolveCategory = await createReceiptCategoryResolver();
   const vendorId = existingVendor?.id ?? (await VendorDao.findOrCreate(vendorName));
 
   // 2. Kategori: satıcı için kullanıcı tarafından belirlenmiş varsayılan varsa onu
@@ -56,7 +61,7 @@ export async function processReceipt(receipt: ParsedReceipt): Promise<number> {
     }
     const primaryCategory = Object.entries(categoryCounts)
       .sort(([, a], [, b]) => b - a)[0]?.[0] || 'Diğer';
-    primaryCategoryId = await resolveCategory({ suggested_category: primaryCategory });
+    primaryCategoryId = resolveCategory({ suggested_category: primaryCategory });
   }
   const normalizedDate = normalizeToYYYYMMDD(receipt.date);
   const derivedDepositPaid = sumMoney(
@@ -87,7 +92,7 @@ export async function processReceipt(receipt: ParsedReceipt): Promise<number> {
     totalPrice: number;
   }> = [];
   for (const item of rawItems) {
-    const itemCategoryId = await resolveCategory(item);
+    const itemCategoryId = resolveCategory(item);
     const { quantity: rawQty, unitPrice, totalPrice } = normalizeReceiptItemAmounts(item);
     const measurement = normalizeMeasurementInput(rawQty, item.measurement_unit);
     const canonicalUnitPrice = measurement.quantity > 0 && totalPrice > 0
@@ -113,7 +118,10 @@ export async function processReceipt(receipt: ParsedReceipt): Promise<number> {
       category_id: primaryCategoryId,
       total_amount: totalAmount,
       currency: receipt.currency || 'PLN',
-      note: `Fiş: ${vendorName}`,
+      // BUG-01: çevrilmiş fişte orijinal tutar notta kalır (dil bağımsız biçim).
+      note: receipt.original
+        ? `Fiş: ${vendorName} · ${roundMoney(receipt.original.total).toFixed(2)} ${receipt.original.currency}`
+        : `Fiş: ${vendorName}`,
       receipt_uri: null,
       date: normalizedDate,
       container_deposit_paid: containerDepositPaid,
@@ -156,7 +164,7 @@ export async function processReceipt(receipt: ParsedReceipt): Promise<number> {
           roundMoney(receipt.voucher_issued.amount),
           receipt.currency || 'PLN',
           normalizedDate,
-          receipt.voucher_issued.expires_on,
+          sanitizePurchaseVoucherExpiry(normalizedDate, receipt.voucher_issued.expires_on),
           `Voucher: ${vendorName}`,
           new Date().toISOString(),
         ],
