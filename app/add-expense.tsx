@@ -38,6 +38,7 @@ import {
 import { useAppTheme, useThemeRevision } from '../src/theme/themeStore';
 import { getDatabase } from '../src/db/database';
 import { ContainerDepositDao } from '../src/db/containerDepositDao';
+import { logError } from '../src/utils/logError';
 
 export default function AddExpenseScreen() {
   const scheme = useAppTheme();
@@ -75,6 +76,10 @@ export default function AddExpenseScreen() {
   } | null>(null);
   const vendorAutofillTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const navTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // State güncellemesi (düğmenin `disabled` olması) bir sonraki çizime kadar
+  // gecikir; ref aynı karede gelen ikinci dokunuşu da durdurur (BUG-15).
+  const savingRef = useRef(false);
+  const deletingRef = useRef(false);
 
   useEffect(() => {
     return () => {
@@ -223,6 +228,8 @@ export default function AddExpenseScreen() {
       return;
     }
 
+    if (savingRef.current) return;
+    savingRef.current = true;
     setSaving(true);
     try {
       let vendorId: number | null = null;
@@ -269,18 +276,20 @@ export default function AddExpenseScreen() {
         try {
           await refreshReceiptSavedNotification(savedExpenseId);
         } catch (error) {
-          if (__DEV__) console.warn('[add-expense] receipt notification refresh failed', error);
+          logError('add-expense receipt notification refresh failed', error);
         }
       }
 
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       triggerRefresh();
       SparkToast.show(id ? t('expense_updated') : t('expense_added'), 'success', formatCurrency(parsedAmount, recordCurrency, false));
-      setTimeout(() => router.back(), 150);
+      // Başarıdan sonra ekran kapanana kadar kilit açılmaz: 150 ms içindeki
+      // ikinci dokunuş yeni bir kopya oluşturmasın.
+      navTimerRef.current = setTimeout(() => router.back(), 150);
     } catch (e) {
-      SparkToast.show(t('error_saving_data'), 'error');
-    } finally {
+      savingRef.current = false;
       setSaving(false);
+      SparkToast.show(t('error_saving_data'), 'error');
     }
   }
 
@@ -305,7 +314,9 @@ export default function AddExpenseScreen() {
       SparkToast.show(t('deposit_amount_invalid'), 'error');
       return;
     }
-    
+
+    if (savingRef.current) return;
+    savingRef.current = true;
     setSaving(true);
     try {
       let vendorId: number | null = null;
@@ -344,17 +355,28 @@ export default function AddExpenseScreen() {
       
     } catch(e) {
       SparkToast.show(t('error_detailed_mode'), 'error');
+    } finally {
+      savingRef.current = false;
+      setSaving(false);
     }
-    setSaving(false);
   }
 
   async function handleDeleteConfirm() {
-    if (!id) return;
+    if (!id || deletingRef.current) return;
+    deletingRef.current = true;
     setShowDeleteConfirm(false);
-    await ExpenseDao.delete(parseInt(id));
+    try {
+      await ExpenseDao.delete(parseInt(id, 10));
+    } catch (error) {
+      // Eskiden yakalanmamış promise reddi oluşuyor, kullanıcı hiçbir şey görmüyordu.
+      logError('add-expense delete failed', error);
+      SparkToast.show(t('delete_failed'), 'error');
+      deletingRef.current = false;
+      return;
+    }
     triggerRefresh();
     SparkToast.show(t('record_deleted'), 'success', t('removed_from_system'));
-    setTimeout(() => router.back(), 150);
+    navTimerRef.current = setTimeout(() => router.back(), 150);
   }
 
   async function handleDelete() {
@@ -482,6 +504,7 @@ export default function AddExpenseScreen() {
               onChangeText={setNote}
               placeholder={t('note_placeholder')}
               placeholderTextColor={Colors.textMuted}
+              maxLength={1000}
               multiline
             />
           </View>
@@ -652,6 +675,7 @@ export default function AddExpenseScreen() {
           )}
 
           <Pressable
+            testID="add-expense-detailed"
             onPress={handleDetailedEdit}
             disabled={saving}
             style={[styles.detailedButton, saving && { opacity: 0.6 }]}
@@ -668,6 +692,7 @@ export default function AddExpenseScreen() {
 
           {/* Save Button — modern pill + glassmorphism inspired */}
           <Pressable
+            testID="add-expense-save"
             onPress={handleSave}
             disabled={saving}
             style={({ pressed }) => [
