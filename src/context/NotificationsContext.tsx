@@ -41,6 +41,7 @@ import {
   isScheduledReminderCatchUpNotificationId,
   reminderNotificationFamilyKeyFromId,
 } from '../notifications/reminderNotificationFeed';
+import { logError } from '../utils/logError';
 
 export interface NativeReminderScheduleHealth {
   status: AndroidNotificationSetupStatus;
@@ -86,7 +87,7 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
         setMutes(await loadMutesStrict());
       });
     } catch (error) {
-      console.warn('[notifications] initial mutes load failed', error);
+      logError('notifications initial mutes load failed', error);
     }
   }, []);
 
@@ -126,7 +127,7 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
           try {
             await dismissAndroidSystemNotifications(delivery.retiredIds);
           } catch (error) {
-            if (__DEV__) console.warn('[notifications] stale tray cleanup failed', error);
+            logError('notifications stale tray cleanup failed', error);
           }
         }
         const nativeFeed = delivery.feed.filter(
@@ -182,7 +183,7 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
           });
           // Native scheduler ikincil yan etkidir; feed ve finansal kayıtlar kanonik
           // kalır, bir sonraki refresh/resume actual-vs-desired retry yapar.
-          if (__DEV__) console.warn('[notifications] reminder schedule sync failed', error);
+          logError('notifications reminder schedule sync failed', error);
         }
 
         // Future actual-vs-desired uzlaştırması anlık köprüden önce çalışır.
@@ -193,7 +194,7 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
           try {
             await dismissAndroidImmediateSystemNotifications(catchUpIds);
           } catch (error) {
-            if (__DEV__) console.warn('[notifications] catch-up tray cleanup failed', error);
+            logError('notifications catch-up tray cleanup failed', error);
           }
         }
         if (!options.suppressImmediateDelivery) {
@@ -213,7 +214,7 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
               { newlyCreatedIds: nativeCreatedIds, suppressedIds },
             );
           } catch (error) {
-            if (__DEV__) console.warn('[notifications] immediate Android delivery failed', error);
+            logError('notifications immediate Android delivery failed', error);
           }
         }
 
@@ -225,12 +226,12 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
           try {
             await RecurringPaymentReminderDao.advancePastDue(getToday());
           } catch (error) {
-            if (__DEV__) console.warn('[notifications] reminder cursor advance failed', error);
+            logError('notifications reminder cursor advance failed', error);
           }
         }
       }
     } catch (error) {
-      console.warn('[notifications] sync failed', error);
+      logError('notifications sync failed', error);
     } finally {
       pendingSyncCountRef.current = Math.max(0, pendingSyncCountRef.current - 1);
       if (pendingSyncCountRef.current === 0) setSyncing(false);
@@ -332,7 +333,7 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
     } catch (error) {
       // Feed silme kanonik işlemdir. Native tray temizliği best-effort'tur;
       // modül/OS hatası kullanıcıya "silinemedi" diye yanlış geri dönmemelidir.
-      if (__DEV__) console.warn('[notifications] tray dismissal failed', error);
+      logError('notifications tray dismissal failed', error);
     }
     return result;
   }, []);

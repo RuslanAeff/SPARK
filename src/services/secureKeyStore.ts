@@ -2,6 +2,7 @@
 // Güvenlik: API anahtarı artık SQLite düz metni yerine OS anahtar zincirinde saklanır.
 import * as SecureStore from 'expo-secure-store';
 import { getDatabase } from '../db/database';
+import { logError } from '../utils/logError';
 
 const SECURE_KEY = 'spark_gemini_api_key';
 const SQLITE_SETTINGS_KEY = 'gemini_api_key';
@@ -47,7 +48,7 @@ async function migrateKeyFromSqlite(): Promise<void> {
   } catch (e) {
     // Migration başarısız olursa sessizce devam et — bir sonraki uygulama açılışında tekrar dener
     _migrationDone = false;
-    if (__DEV__) console.warn('[SecureKeyStore] migration failed');
+    logError('SecureKeyStore migration failed');
   }
 }
 
@@ -67,7 +68,7 @@ async function readSecureApiKey(): Promise<string | null> {
     const trimmed = key?.trim();
     return trimmed || null;
   } catch (e) {
-    if (__DEV__) console.warn('[SecureKeyStore] read failed');
+    logError('SecureKeyStore read failed');
     return null;
   }
 }

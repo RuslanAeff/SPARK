@@ -21,6 +21,7 @@ import { ScreenPadding, Spacing } from '../src/theme/spacing';
 import { useAppTheme, useThemeRevision } from '../src/theme/themeStore';
 import { FontFamily, Typography } from '../src/theme/typography';
 import { scheduleFromDetectedPeriod } from '../src/utils/recurringPaymentPlan';
+import { logError } from '../src/utils/logError';
 
 type RouteParam = string | string[] | undefined;
 
@@ -114,7 +115,7 @@ export default function RecurringPaymentScreen() {
 
         if (active) setInitialValue(null);
       } catch (error) {
-        if (__DEV__) console.warn('[recurring-plan] route load', error);
+        logError('recurring-plan route load', error);
         if (!active) return;
         SparkToast.show(t('recurring_plan_save_error'), 'error');
         router.back();

@@ -51,6 +51,7 @@ import {
   type AndroidNotificationSetupStatus,
 } from '../src/services/androidNotificationsSetup';
 import { formatDate } from '../src/utils/dateUtils';
+import { logError } from '../src/utils/logError';
 const MUTE_CHANNELS: { key: NotificationMuteChannel; labelKey: string }[] = [
   { key: 'budget', labelKey: 'notif_mute_budget' },
   { key: 'category_limit', labelKey: 'notif_mute_category' },
@@ -374,7 +375,7 @@ export default function NotificationsScreen() {
 
       if (!item.read) {
         void markRead(item.id).catch((error) => {
-          console.warn('[notifications] mark read failed', error);
+          logError('notifications mark read failed', error);
         });
       }
       setDetailNotifId(item.id);
@@ -390,7 +391,7 @@ export default function NotificationsScreen() {
           void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         }
       } catch (error) {
-        console.warn('[notifications] swipe dismiss failed', error);
+        logError('notifications swipe dismiss failed', error);
         SparkToast.show(t('delete_failed'), 'error');
         throw error;
       }
@@ -423,7 +424,7 @@ export default function NotificationsScreen() {
         'success',
       );
     } catch (error) {
-      console.warn('[notifications] bulk dismiss failed', error);
+      logError('notifications bulk dismiss failed', error);
       SparkToast.show(t('delete_failed'), 'error');
       setBulkDeleteVisible(false);
     } finally {
@@ -562,7 +563,7 @@ export default function NotificationsScreen() {
                 <Pressable
                   onPress={() => {
                     void markAllRead().catch((error) => {
-                      console.warn('[notifications] mark all read failed', error);
+                      logError('notifications mark all read failed', error);
                       SparkToast.show(t('operation_failed'), 'error');
                     });
                   }}
@@ -939,7 +940,7 @@ export default function NotificationsScreen() {
                   value={!!mutes[key]}
                   onValueChange={(v) => {
                     void setMute(key, v).catch((error) => {
-                      console.warn('[notifications] mute update failed', error);
+                      logError('notifications mute update failed', error);
                       SparkToast.show(t('operation_failed'), 'error');
                     });
                   }}

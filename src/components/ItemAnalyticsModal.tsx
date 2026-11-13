@@ -27,6 +27,7 @@ import {
 import { filterItemHistory, summarizeItemHistory, type ItemHistoryPeriod } from '../utils/itemHistoryPeriod';
 import { fromMinorUnits, toMinorUnits } from '../utils/moneyMath';
 import { useTabSwipe } from '../context/TabSwipeContext';
+import { logError } from '../utils/logError';
 
 const HISTORY_PAGE_SIZE = 6;
 
@@ -156,7 +157,7 @@ export default function ItemAnalyticsModal({
       setStats(result.stats);
       setHistory(result.history);
     } catch (e) {
-      console.error('ItemAnalytics load error:', e);
+      logError('ItemAnalytics load error', e);
     }
     if (mountedRef.current && sequence === requestSequenceRef.current) setLoading(false);
   }

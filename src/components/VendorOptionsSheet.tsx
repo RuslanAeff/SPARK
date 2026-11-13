@@ -22,6 +22,7 @@ import { useLanguage } from '../i18n/LanguageContext';
 import { CategoryDao } from '../db/categoryDao';
 import { VendorDao } from '../db/vendorDao';
 import type { Category, Vendor } from '../db/schema';
+import { logError } from '../utils/logError';
 
 interface VendorOptionsSheetProps {
   visible: boolean;
@@ -107,7 +108,7 @@ export default function VendorOptionsSheet({
       onChanged();
       setPicking(false);
     } catch (e) {
-      if (__DEV__) console.warn('setDefaultCategory', e);
+      logError('setDefaultCategory', e);
     }
   }
 

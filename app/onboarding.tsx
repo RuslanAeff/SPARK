@@ -23,11 +23,13 @@ import { useCurrency, DISPLAY_CURRENCIES, DisplayCurrency } from '../src/context
 import { useAppTheme, useThemeRevision } from '../src/theme/themeStore';
 import { createSusevarStyles, susevarButtonPressed } from '../src/theme/susevar';
 import { sanitizeAmount, sanitizeText } from '../src/utils/inputValidation';
+import { parseMoneyInput } from '../src/utils/moneyMath';
 import { BudgetDao } from '../src/db/budgetDao';
 import { useNotifications } from '../src/context/NotificationsContext';
 import { getCycleStartDay } from '../src/services/budgetCycleSettings';
 import { getCurrentCycle } from '../src/utils/budgetCycle';
 import { useOnboardingStatus } from '../src/hooks/useOnboardingStatus';
+import { logError } from '../src/utils/logError';
 
 const TOTAL_PAGES = 4;
 
@@ -75,9 +77,7 @@ export default function OnboardingScreen() {
   };
 
   const saveAndFinish = async (target: '/(tabs)/scanner' | '/(tabs)') => {
-    const normalized = sanitizeText(budgetAmount, 20).replace(',', '.');
-    const parsed = Number.parseFloat(normalized);
-    const safeBudget = sanitizeAmount(parsed, 0);
+    const safeBudget = sanitizeAmount(parseMoneyInput(sanitizeText(budgetAmount, 20)) ?? 0, 0);
 
     await setCurrency(selectedCurrency);
     if (safeBudget > 0) {
@@ -97,7 +97,7 @@ export default function OnboardingScreen() {
       } catch (error) {
         // Bütçe ve onboarding kaydı kanoniktir. Native checkpoint kurulumu
         // uygulama resume'unda yeniden denenebilir; kullanıcı burada kilitlenmez.
-        if (__DEV__) console.warn('[onboarding] notification sync failed', error);
+        logError('onboarding notification sync failed', error);
       }
     }
 
@@ -241,8 +241,8 @@ export default function OnboardingScreen() {
             style={({ pressed }) => [styles.cta, pressed && susevarButtonPressed]}
             onPress={() => {
               if (page === 2) {
-                const normalized = sanitizeText(budgetAmount, 20).replace(',', '.');
-                if (normalized.length > 0 && sanitizeAmount(Number.parseFloat(normalized), 0) <= 0) {
+                const raw = sanitizeText(budgetAmount, 20);
+                if (raw.length > 0 && sanitizeAmount(parseMoneyInput(raw) ?? 0, 0) <= 0) {
                   setBudgetInvalid(true);
                   return;
                 }

@@ -18,6 +18,7 @@ import { getToday } from '../utils/dateUtils';
 import { computeDebtAdjustedBudget } from '../utils/debtMath';
 import { BudgetRolloverDao } from '../db/budgetRolloverDao';
 import { ContainerDepositDao } from '../db/containerDepositDao';
+import { logError } from '../utils/logError';
 
 export interface BudgetInfo {
   carryIn?: number;
@@ -196,7 +197,7 @@ export function useBudget(specificMonth?: string) {
         });
       }
     } catch (e) {
-      console.error('Error loading budget:', e);
+      logError('Error loading budget', e);
     }
     if (mounted.current && sequence === refreshSequence.current) setLoading(false);
   }, [specificMonth]);

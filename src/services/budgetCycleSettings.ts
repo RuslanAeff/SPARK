@@ -5,6 +5,7 @@
 // Saf matematik src/utils/budgetCycle.ts'de; bu dosya yalnızca kalıcılık katmanı.
 import { getDatabase } from '../db/database';
 import { DEFAULT_CYCLE_START_DAY, normalizeCycleStartDay } from '../utils/budgetCycle';
+import { logError } from '../utils/logError';
 
 const KEY = 'budget_cycle_start_day';
 
@@ -18,7 +19,7 @@ export async function getCycleStartDay(): Promise<number> {
     if (row?.value) return normalizeCycleStartDay(row.value);
     return DEFAULT_CYCLE_START_DAY;
   } catch (e) {
-    console.warn('[budgetCycle] load failed', e);
+    logError('budgetCycle load failed', e);
     return DEFAULT_CYCLE_START_DAY;
   }
 }

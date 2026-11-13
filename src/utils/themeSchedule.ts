@@ -10,6 +10,7 @@ import {
   normalizeThemeAccent,
   type ThemeAccent,
 } from '../theme/colors';
+import { logError } from './logError';
 
 /** Gün ışığı: bu saatler arası aydınlık (dahil başlangıç, bitiş hariç) */
 export const LIGHT_START_HOUR = 6; // 06:00
@@ -52,7 +53,7 @@ export async function applyThemeFromDatabase(): Promise<void> {
       accent: normalizeThemeAccent(values.get(KEY_THEME_ACCENT)),
     });
   } catch (e) {
-    console.warn('[themeSchedule] apply failed', e);
+    logError('themeSchedule apply failed', e);
   }
 }
 

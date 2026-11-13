@@ -41,6 +41,7 @@ import { formatDateFull } from '../src/utils/dateUtils';
 import { useNotifications } from '../src/context/NotificationsContext';
 import { useRefreshActions } from '../src/context/RefreshContext';
 import { syncNotificationsBestEffort } from '../src/notifications/syncNotificationsBestEffort';
+import { logError } from '../src/utils/logError';
 
 function daysUntil(dateIso: string): number {
   const target = new Date(dateIso + 'T12:00:00').getTime();
@@ -74,7 +75,7 @@ export default function SubscriptionsScreen() {
       const reminderRows = await RecurringPaymentReminderDao.listAll();
       setPlans(reminderRows);
     } catch (e) {
-      if (__DEV__) console.warn('[subs] refresh', e);
+      logError('subs refresh', e);
     }
   }, []);
 
@@ -154,7 +155,7 @@ export default function SubscriptionsScreen() {
       triggerRefresh();
       await syncNotificationsBestEffort(syncNotifications, 'recurring-plan-status');
     } catch (error) {
-      if (__DEV__) console.warn('[recurring-plan] toggle', error);
+      logError('recurring-plan toggle', error);
       SparkToast.show(t('recurring_plan_save_error'), 'error');
     } finally {
       planActionRef.current = false;
@@ -173,7 +174,7 @@ export default function SubscriptionsScreen() {
       triggerRefresh();
       await syncNotificationsBestEffort(syncNotifications, 'recurring-plan-delete');
     } catch (error) {
-      if (__DEV__) console.warn('[recurring-plan] remove', error);
+      logError('recurring-plan remove', error);
       SparkToast.show(t('recurring_plan_save_error'), 'error');
     } finally {
       planActionRef.current = false;

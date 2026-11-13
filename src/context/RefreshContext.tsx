@@ -11,6 +11,7 @@ import React, {
   useRef,
   useEffect,
 } from 'react';
+import { logError } from '../utils/logError';
 
 interface RefreshContextType {
   refreshKey: number;
@@ -41,7 +42,7 @@ export function RefreshProvider({ children }: { children: React.ReactNode }) {
       try {
         fn();
       } catch (e) {
-        console.warn('[RefreshContext] listener error', e);
+        logError('RefreshContext listener error', e);
       }
     });
   }, []);

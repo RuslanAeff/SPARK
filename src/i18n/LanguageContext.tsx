@@ -10,6 +10,7 @@ import React, {
 import { Language, loadLocale, getDict } from './translations';
 import { getDatabase } from '../db/database';
 import { suggestLanguageFromDevice } from './languageOptions';
+import { logError } from '../utils/logError';
 
 const VALID_LANGS: Language[] = ['tr', 'en', 'az', 'ru'];
 
@@ -45,13 +46,13 @@ export const LanguageProvider = ({ children }: { children: ReactNode }) => {
             ? result.value
             : suggestLanguageFromDevice();
       } catch (e) {
-        if (__DEV__) console.warn('[Language] load failed', e);
+        logError('Language load failed', e);
       }
       // AZ/RU sözlüğü ilk render'dan ÖNCE yüklenir → flash of wrong locale yok (§8.3).
       try {
         await loadLocale(lang);
       } catch (e) {
-        if (__DEV__) console.warn('[Language] locale load failed', e);
+        logError('Language locale load failed', e);
       }
       setLanguageState(lang);
       setIsLoaded(true);
@@ -69,7 +70,7 @@ export const LanguageProvider = ({ children }: { children: ReactNode }) => {
       );
       setLanguageState(lang);
     } catch (e) {
-      if (__DEV__) console.warn('[Language] save failed', e);
+      logError('Language save failed', e);
     }
   }, []);
 

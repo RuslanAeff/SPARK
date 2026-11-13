@@ -47,6 +47,7 @@ import {
 } from '../src/utils/productMatchDiscovery';
 import * as GeminiService from '../src/services/geminiService';
 import { presentAiError } from '../src/utils/aiErrorPresentation';
+import { logError } from '../src/utils/logError';
 
 type ProductMatchViewMode = 'review' | 'all';
 
@@ -248,7 +249,7 @@ export default function ProductMatchingScreen() {
       const summaries = await ProductIdentityDao.getProductSummaries();
       setProducts(summaries);
     } catch (error) {
-      if (__DEV__) console.warn('[ProductMatching] load failed', error);
+      logError('ProductMatching load failed', error);
       setLoadFailed(true);
     } finally {
       setLoading(false);
@@ -344,7 +345,7 @@ export default function ProductMatchingScreen() {
       const aliases = await ProductIdentityDao.getAliases(productId);
       setAliasesByProduct(current => ({ ...current, [productId]: aliases }));
     } catch (error) {
-      if (__DEV__) console.warn('[ProductMatching] aliases failed', error);
+      logError('ProductMatching aliases failed', error);
       SparkToast.show(t('product_match_aliases_failed'), 'error');
       setExpandedIds(current => {
         const next = new Set(current);
@@ -374,7 +375,7 @@ export default function ProductMatchingScreen() {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       SparkToast.show(t('product_match_merge_success'), 'success');
     } catch (error) {
-      if (__DEV__) console.warn('[ProductMatching] merge failed', error);
+      logError('ProductMatching merge failed', error);
       SparkToast.show(t('product_match_merge_failed'), 'error');
     } finally {
       setBusy(false);
@@ -394,7 +395,7 @@ export default function ProductMatchingScreen() {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       SparkToast.show(t('product_match_split_success'), 'success');
     } catch (error) {
-      if (__DEV__) console.warn('[ProductMatching] split failed', error);
+      logError('ProductMatching split failed', error);
       SparkToast.show(t('product_match_split_failed'), 'error');
     } finally {
       setBusy(false);
@@ -416,7 +417,7 @@ export default function ProductMatchingScreen() {
       await loadProducts();
       SparkToast.show(t('product_match_rename_success'), 'success');
     } catch (error) {
-      if (__DEV__) console.warn('[ProductMatching] rename failed', error);
+      logError('ProductMatching rename failed', error);
       SparkToast.show(t('product_match_rename_failed'), 'error');
     } finally {
       setBusy(false);
@@ -462,7 +463,7 @@ export default function ProductMatchingScreen() {
       if (!controller.signal.aborted) setSuggestion(result);
     } catch (error) {
       if (!controller.signal.aborted) {
-        if (__DEV__) console.warn('[ProductMatching] AI suggestion failed', error);
+        logError('ProductMatching AI suggestion failed', error);
         // Kota, anahtar veya bağlantı gibi nedenler başlıkta değil açıklamada
         // söylenir; tanınmayan hatada yalnız genel başlık kalır.
         const presented = presentAiError(error);

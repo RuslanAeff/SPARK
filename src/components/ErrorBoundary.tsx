@@ -3,6 +3,7 @@ import { View, Text, ScrollView, SafeAreaView, Pressable } from "react-native";
 import * as SplashScreen from "expo-splash-screen";
 import { Colors } from "../theme/colors";
 import { useThemeRevision } from "../theme/themeStore";
+import { reportErrorKind } from "../utils/logError";
 
 function ThemeAwareErrorSurface({ children }: { children: () => ReactNode }) {
   useThemeRevision();
@@ -30,12 +31,14 @@ export class ErrorBoundary extends Component<Props, State> {
     return { hasError: true, error, errorInfo: null };
   }
 
-  public componentDidCatch(_error: Error, errorInfo: ErrorInfo) {
+  public componentDidCatch(error: Error, errorInfo: ErrorInfo) {
     // Kök başlangıç perdesi manuel tutuluyor olabilir. Kurtarma ekranının
     // sonsuza dek native splash arkasında kalmasına izin verme.
     void SplashScreen.hideAsync().catch(() => {});
     this.setState({ errorInfo });
     console.error('[UI] UNCAUGHT_RENDER_ERROR');
+    // Yerel hata günlüğüne yalnız hata TÜRÜ düşer; mesaj ve bileşen yığını yazılmaz.
+    reportErrorKind('UI UNCAUGHT_RENDER_ERROR', error);
   }
 
   private handleReset = () => {

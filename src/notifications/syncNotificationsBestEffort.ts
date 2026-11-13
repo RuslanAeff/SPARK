@@ -1,3 +1,4 @@
+import { logError } from '../utils/logError';
 /**
  * Bildirim planlama finansal/domain yazısının ikincil yan etkisidir. Kaynak
  * kayıt commit edildikten sonra native senkronizasyon reddederse kullanıcıya
@@ -11,6 +12,6 @@ export async function syncNotificationsBestEffort(
   try {
     await sync();
   } catch (error) {
-    if (__DEV__) console.warn(`[notifications] ${source} sync failed`, error);
+    logError(`notifications ${source} sync failed`, error);
   }
 }
