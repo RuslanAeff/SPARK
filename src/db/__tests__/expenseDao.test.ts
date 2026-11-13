@@ -121,7 +121,8 @@ describe('ExpenseDao read projections', () => {
     const normalized = normalizeSql(sql);
     expect(normalized).toContain('i.total_price, i.quantity');
     expect(normalized).toContain('i.measurement_unit');
-    expect(params).toEqual([6]);
+    // BUG-08: pencere başlangıcı yerel takvimden hesaplanmış tarih olarak bağlanır.
+    expect(params).toEqual([expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/)]);
   });
 
   it('satıcı ürünlerini ilk 10 kayıtta kesmeden alım sayısına göre döndürür', async () => {
@@ -198,7 +199,7 @@ describe('ExpenseDao read projections', () => {
     await ExpenseDao.getNeedsVsWants('2026-08-01', '2026-08-31');
     const [sql] = getAllAsync.mock.calls[0];
     const normalized = normalizeSql(sql);
-    expect(normalized).toContain("ELSE 'Diğer Harcamalar'");
+    expect(normalized).toContain("ELSE 'other'");
     expect(normalized).not.toContain('Tasarruf / Diğer');
   });
 });
@@ -285,5 +286,196 @@ describe('ExpenseDao receipt money writes', () => {
       ExpenseDao.updateItemAndSyncTotal(9, 404, { total_price: 6.32 }),
     ).rejects.toThrow('Receipt item does not belong to expense');
     expect(runAsync).not.toHaveBeenCalled();
+  });
+});
+
+describe('ExpenseDao header input validation (BUG-10)', () => {
+  let runAsync: jest.Mock;
+
+  beforeEach(() => {
+    runAsync = jest.fn().mockResolvedValue({ changes: 1, lastInsertRowId: 77 });
+    getDatabaseMock.mockResolvedValue({ runAsync } as any);
+  });
+
+  const baseCreate = {
+    vendor_id: null,
+    category_id: 1,
+    total_amount: 10,
+    currency: 'PLN',
+    note: null,
+    receipt_uri: null,
+    date: '2026-11-11',
+  };
+
+  it('create rejects an invalid date without writing', async () => {
+    await expect(ExpenseDao.create({ ...baseCreate, date: '2026-13-45' } as any))
+      .rejects.toThrow('INVALID_EXPENSE_DATE');
+    expect(runAsync).not.toHaveBeenCalled();
+  });
+
+  it('update rejects an invalid date without writing', async () => {
+    await expect(ExpenseDao.update(5, { date: '2026-13-45' }))
+      .rejects.toThrow('INVALID_EXPENSE_DATE');
+    expect(runAsync).not.toHaveBeenCalled();
+  });
+
+  it('update caps note to the backup contract and cleans currency', async () => {
+    await ExpenseDao.update(5, { note: 'x'.repeat(2000), currency: '  EUR\u0000  ' });
+
+    const [sql, values] = runAsync.mock.calls[0];
+    expect(normalizeSql(sql)).toBe('UPDATE expenses SET currency = ?, note = ? WHERE id = ?');
+    expect(values[0]).toBe('EUR');
+    expect((values[1] as string).length).toBe(1000);
+    expect(values[2]).toBe(5);
+  });
+
+  it('update stores empty note as NULL and empty currency as PLN', async () => {
+    await ExpenseDao.update(5, { note: '   ', currency: '' });
+
+    const [, values] = runAsync.mock.calls[0];
+    expect(values).toEqual(['PLN', null, 5]);
+  });
+
+  it('create caps receipt_uri and note to backup limits', async () => {
+    await ExpenseDao.create({
+      ...baseCreate,
+      note: 'n'.repeat(1500),
+      receipt_uri: 'file://' + 'a'.repeat(3000),
+    } as any);
+
+    const [, values] = runAsync.mock.calls[0];
+    expect((values[4] as string).length).toBe(1000);
+    expect((values[5] as string).length).toBe(2000);
+    expect(values[8]).toBe('2026-11-11');
+  });
+});
+
+describe('ExpenseDao.deleteMany (BUG-06)', () => {
+  let runAsync: jest.Mock;
+  let withTransactionAsync: jest.Mock;
+
+  beforeEach(() => {
+    runAsync = jest.fn(async (sql: string, params: unknown[]) => (
+      sql.startsWith('DELETE') ? { changes: params.length, lastInsertRowId: 0 } : { changes: 0, lastInsertRowId: 0 }
+    ));
+    withTransactionAsync = jest.fn(async (work: () => Promise<void>) => work());
+    getDatabaseMock.mockClear();
+    getDatabaseMock.mockResolvedValue({ runAsync, withTransactionAsync } as any);
+  });
+
+  const deleteCalls = () => runAsync.mock.calls.filter(([sql]) => String(sql).startsWith('DELETE'));
+
+  it('deletes every selected id instead of silently stopping at 500', async () => {
+    const ids = Array.from({ length: 600 }, (_, i) => i + 1);
+
+    await expect(ExpenseDao.deleteMany(ids)).resolves.toBe(600);
+
+    const deleted = deleteCalls().flatMap(([, params]) => params as number[]);
+    expect(deleted).toHaveLength(600);
+    expect(new Set(deleted)).toEqual(new Set(ids));
+    deleteCalls().forEach(([, params]) => expect((params as number[]).length).toBeLessThanOrEqual(400));
+  });
+
+  it('runs all chunks in a single transaction so a late failure rolls everything back', async () => {
+    const ids = Array.from({ length: 900 }, (_, i) => i + 1);
+    let deletes = 0;
+    runAsync.mockImplementation(async (sql: string) => {
+      if (String(sql).startsWith('DELETE') && ++deletes === 2) throw new Error('synthetic');
+      return { changes: 0, lastInsertRowId: 0 };
+    });
+
+    await expect(ExpenseDao.deleteMany(ids)).rejects.toThrow('synthetic');
+    expect(withTransactionAsync).toHaveBeenCalledTimes(1);
+  });
+
+  it('returns the real deleted row count and ignores duplicates or invalid ids', async () => {
+    runAsync.mockImplementation(async (sql: string) => (
+      String(sql).startsWith('DELETE') ? { changes: 2, lastInsertRowId: 0 } : { changes: 0, lastInsertRowId: 0 }
+    ));
+
+    await expect(ExpenseDao.deleteMany([4, 4, -1, Number.NaN, 7, 9])).resolves.toBe(2);
+    expect(deleteCalls()[0][1]).toEqual([4, 7, 9]);
+  });
+
+  it('does not open the database for an empty selection', async () => {
+    await expect(ExpenseDao.deleteMany([])).resolves.toBe(0);
+    expect(getDatabaseMock).not.toHaveBeenCalled();
+  });
+});
+
+describe('ExpenseDao.getPriceHistory lookback (BUG-08)', () => {
+  afterEach(() => jest.useRealTimers());
+
+  it('pencere başlangıcını SQLite UTC "now" yerine yerel takvimden parametre olarak verir', async () => {
+    jest.useFakeTimers().setSystemTime(new Date(2026, 7, 31, 0, 30)); // Varşova 31 Ağu 00:30
+    const getAllAsync = jest.fn().mockResolvedValue([]);
+    getDatabaseMock.mockResolvedValue({ getAllAsync } as any);
+
+    await ExpenseDao.getPriceHistory(6);
+
+    const [sql, params] = getAllAsync.mock.calls[0];
+    expect(sql).not.toContain("date('now'");
+    expect(normalizeSql(sql)).toContain('WHERE e.date >= ?');
+    expect(params).toEqual(['2026-02-28']);
+  });
+});
+
+describe('ExpenseDao deposit header sync on item edits (BUG-29)', () => {
+  let getFirstAsync: jest.Mock;
+  let runAsync: jest.Mock;
+  let withTransactionAsync: jest.Mock;
+
+  function mockReads(itemKind: 'product' | 'container_deposit' | null, sums: { total_minor: number; deposit_minor: number }) {
+    getFirstAsync = jest.fn(async (sql: string) => {
+      if (sql.includes('FROM expense_items WHERE id = ? AND expense_id = ?')) {
+        return itemKind ? { id: 4, financial_kind: itemKind } : null;
+      }
+      if (sql.includes('total_minor')) return sums;
+      if (sql.includes('container_voucher_used')) return { container_voucher_used: 0 };
+      return null;
+    });
+    runAsync = jest.fn().mockResolvedValue({ changes: 1, lastInsertRowId: 12 });
+    withTransactionAsync = jest.fn(async (work: () => Promise<void>) => work());
+    getDatabaseMock.mockResolvedValue({ getFirstAsync, runAsync, withTransactionAsync } as any);
+  }
+
+  const headerUpdate = () => runAsync.mock.calls.find(([sql]) => String(sql).startsWith('UPDATE expenses'));
+
+  it('deleting a deposit item recomputes container_deposit_paid with the total', async () => {
+    mockReads('container_deposit', { total_minor: 5000, deposit_minor: 0 });
+
+    await ExpenseDao.deleteItemAndSyncTotal(9, 4);
+
+    expect(headerUpdate()).toEqual([
+      'UPDATE expenses SET total_amount = ?, container_deposit_paid = ? WHERE id = ?',
+      [50, 0, 9],
+    ]);
+  });
+
+  it('editing a deposit item keeps the header deposit equal to deposit lines', async () => {
+    mockReads('container_deposit', { total_minor: 5100, deposit_minor: 100 });
+
+    await ExpenseDao.updateItemAndSyncTotal(9, 4, { total_price: 1 });
+
+    expect(headerUpdate()![1]).toEqual([51, 1, 9]);
+  });
+
+  it('adding a deposit item recomputes the header deposit', async () => {
+    mockReads(null, { total_minor: 5050, deposit_minor: 50 });
+
+    await ExpenseDao.addItemAndSyncTotal({
+      expense_id: 9, name: 'Kaucja', quantity: 1, unit_price: 0.5, total_price: 0.5,
+      category_id: null, financial_kind: 'container_deposit',
+    } as any);
+
+    expect(headerUpdate()![1]).toEqual([50.5, 0.5, 9]);
+  });
+
+  it('editing a product item leaves a printed header deposit untouched', async () => {
+    mockReads('product', { total_minor: 5000, deposit_minor: 0 });
+
+    await ExpenseDao.updateItemAndSyncTotal(9, 4, { total_price: 2 });
+
+    expect(headerUpdate()).toEqual(['UPDATE expenses SET total_amount = ? WHERE id = ?', [50, 9]]);
   });
 });

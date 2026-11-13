@@ -1,14 +1,40 @@
 // S.P.A.R.K. — Expense Data Access Object
+import { isSpendSegment, systemRootsFor, type SpendSegment } from '../utils/spendSegment';
 import { getDatabase } from './database';
 import { Expense, ExpenseItem, ExpenseWithDetails } from './schema';
 import { CategoryDao } from './categoryDao';
+import { getLocalDateMonthsAgo } from '../utils/dateUtils';
+import { releaseVouchersRedeemedBy } from './containerDepositDao';
 import {
   sanitizeAmount,
   sanitizeQuantity,
   sanitizeUnitPrice,
   sanitizeText,
   sanitizeIdArray,
+  sanitizeDate,
 } from '../utils/inputValidation';
+
+// Sınırlar yedek içe aktarım sözleşmesiyle aynıdır (backupService
+// validateBaseCollections). Burada daha geniş değer yazmak, o harcamayı içeren
+// her yedeği geri yüklenemez yapar (BUG-10, BUG-19).
+const EXPENSE_NOTE_MAX = 1000;
+const EXPENSE_RECEIPT_URI_MAX = 2000;
+const EXPENSE_CURRENCY_MAX = 10;
+
+function requireExpenseDate(value: unknown): string {
+  const safe = sanitizeDate(value);
+  if (!safe) throw new Error('INVALID_EXPENSE_DATE');
+  return safe;
+}
+
+function safeExpenseCurrency(value: unknown): string {
+  return sanitizeText(value || 'PLN', EXPENSE_CURRENCY_MAX) || 'PLN';
+}
+
+function safeNullableText(value: unknown, maxLen: number): string | null {
+  if (value == null) return null;
+  return sanitizeText(value, maxLen) || null;
+}
 import { normalizeItemKey } from '../utils/itemNameNormalizer';
 import { fromMinorUnits, roundMoney, sumMoney, subtractMoney } from '../utils/moneyMath';
 import {
@@ -47,16 +73,18 @@ type ExpenseItemUpdate = Partial<ExpenseItem> & {
  */
 export type TopTransactionSelection = 'overall' | 'per-vendor';
 
+/** Kalemin harcamaya ait olduğunu doğrular ve depozito kalemi olup olmadığını döndürür. */
 async function assertItemBelongsToExpense(
   db: Awaited<ReturnType<typeof getDatabase>>,
   expenseId: number,
   itemId: number,
-): Promise<void> {
-  const row = await db.getFirstAsync<{ id: number }>(
-    'SELECT id FROM expense_items WHERE id = ? AND expense_id = ?',
+): Promise<{ isDeposit: boolean }> {
+  const row = await db.getFirstAsync<{ id: number; financial_kind?: string | null }>(
+    'SELECT id, financial_kind FROM expense_items WHERE id = ? AND expense_id = ?',
     [itemId, expenseId],
   );
   if (!row) throw new Error('Receipt item does not belong to expense');
+  return { isDeposit: row.financial_kind === 'container_deposit' };
 }
 
 export const ExpenseDao = {
@@ -69,10 +97,53 @@ export const ExpenseDao = {
        FROM expenses e
        LEFT JOIN vendors v ON e.vendor_id = v.id
        LEFT JOIN categories c ON e.category_id = c.id
-       ORDER BY e.date DESC, e.created_at DESC
+       ORDER BY e.date DESC, e.created_at DESC, e.id DESC
        LIMIT ? OFFSET ?`,
+      // BUG-25: e.id benzersiz son anahtar; aynı date+created_at satırları
+      // (içe aktarım) OFFSET sayfalamasında atlanmaz veya tekrarlanmaz.
       [limit, offset]
     );
+  },
+
+  /**
+   * BUG-11: arama için tüm harcamaların yalnız aranabilir alanları, liste
+   * sırasıyla. Eşleştirme JS'te dil bağımsız katlamayla yapılır (SQLite LIKE
+   * ASCII dışı harflerde büyük/küçük farkını yok sayamaz); tam satırlar yalnız
+   * eşleşenler için `getByIdsInOrder` ile sayfa sayfa okunur.
+   */
+  async getSearchIndex(): Promise<Array<{
+    id: number; vendor_name: string | null; category_name: string | null; note: string | null;
+  }>> {
+    const db = await getDatabase();
+    return db.getAllAsync(
+      `SELECT e.id, v.name AS vendor_name, c.name AS category_name, e.note
+         FROM expenses e
+         LEFT JOIN vendors v ON e.vendor_id = v.id
+         LEFT JOIN categories c ON e.category_id = c.id
+        ORDER BY e.date DESC, e.created_at DESC, e.id DESC`,
+    );
+  },
+
+  /** Verilen kimliklerin tam satırları, verilen sırada (silinmiş olanlar atlanır). */
+  async getByIdsInOrder(ids: number[]): Promise<ExpenseWithDetails[]> {
+    if (ids.length === 0) return [];
+    const db = await getDatabase();
+    const byId = new Map<number, ExpenseWithDetails>();
+    for (let i = 0; i < ids.length; i += 400) {
+      const chunk = ids.slice(i, i + 400);
+      const rows = await db.getAllAsync<ExpenseWithDetails>(
+        `SELECT e.*,
+                v.name as vendor_name, v.logo_uri as vendor_logo,
+                c.name as category_name, c.icon as category_icon, c.color as category_color
+           FROM expenses e
+           LEFT JOIN vendors v ON e.vendor_id = v.id
+           LEFT JOIN categories c ON e.category_id = c.id
+          WHERE e.id IN (${chunk.map(() => '?').join(', ')})`,
+        chunk,
+      );
+      for (const row of rows) byId.set(row.id, row);
+    }
+    return ids.map(id => byId.get(id)).filter((row): row is ExpenseWithDetails => row != null);
   },
 
   async getById(id: number): Promise<ExpenseWithDetails | null> {
@@ -116,10 +187,12 @@ export const ExpenseDao = {
   },
 
   async create(expense: ExpenseCreate): Promise<number> {
-    const db = await getDatabase();
+    const safeDate = requireExpenseDate(expense.date);
     const safeTotalAmount = sanitizeAmount(expense.total_amount);
-    const safeCurrency = sanitizeText(expense.currency || 'PLN', 10);
-    const safeNote = expense.note ? sanitizeText(expense.note, 1000) : null;
+    const safeCurrency = safeExpenseCurrency(expense.currency);
+    const safeNote = safeNullableText(expense.note, EXPENSE_NOTE_MAX);
+    const safeReceiptUri = safeNullableText(expense.receipt_uri, EXPENSE_RECEIPT_URI_MAX);
+    const db = await getDatabase();
     const result = await db.runAsync(
       `INSERT INTO expenses
         (vendor_id, category_id, total_amount, currency, note, receipt_uri,
@@ -127,16 +200,18 @@ export const ExpenseDao = {
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         expense.vendor_id, expense.category_id, safeTotalAmount,
-        safeCurrency, safeNote, expense.receipt_uri,
+        safeCurrency, safeNote, safeReceiptUri,
         sanitizeAmount(expense.container_deposit_paid ?? 0),
         sanitizeAmount(expense.container_voucher_used ?? 0),
-        expense.date,
+        safeDate,
       ]
     );
     return result.lastInsertRowId;
   },
 
   async update(id: number, expense: Partial<Expense>): Promise<void> {
+    // Doğrulama yazmadan önce: geçersiz tarih hiçbir alanı değiştirmemeli.
+    const safeDate = expense.date !== undefined ? requireExpenseDate(expense.date) : undefined;
     const db = await getDatabase();
     const fields: string[] = [];
     const values: any[] = [];
@@ -147,9 +222,18 @@ export const ExpenseDao = {
       fields.push('total_amount = ?');
       values.push(sanitizeAmount(expense.total_amount));
     }
-    if (expense.currency !== undefined) { fields.push('currency = ?'); values.push(expense.currency); }
-    if (expense.note !== undefined) { fields.push('note = ?'); values.push(expense.note); }
-    if (expense.receipt_uri !== undefined) { fields.push('receipt_uri = ?'); values.push(expense.receipt_uri); }
+    if (expense.currency !== undefined) {
+      fields.push('currency = ?');
+      values.push(safeExpenseCurrency(expense.currency));
+    }
+    if (expense.note !== undefined) {
+      fields.push('note = ?');
+      values.push(safeNullableText(expense.note, EXPENSE_NOTE_MAX));
+    }
+    if (expense.receipt_uri !== undefined) {
+      fields.push('receipt_uri = ?');
+      values.push(safeNullableText(expense.receipt_uri, EXPENSE_RECEIPT_URI_MAX));
+    }
     if (expense.container_deposit_paid !== undefined) {
       fields.push('container_deposit_paid = ?');
       values.push(sanitizeAmount(expense.container_deposit_paid));
@@ -158,7 +242,7 @@ export const ExpenseDao = {
       fields.push('container_voucher_used = ?');
       values.push(sanitizeAmount(expense.container_voucher_used));
     }
-    if (expense.date !== undefined) { fields.push('date = ?'); values.push(expense.date); }
+    if (safeDate !== undefined) { fields.push('date = ?'); values.push(safeDate); }
 
     if (fields.length > 0) {
       values.push(id);
@@ -169,36 +253,34 @@ export const ExpenseDao = {
   async delete(id: number): Promise<void> {
     const db = await getDatabase();
     await db.withTransactionAsync(async () => {
-      await db.runAsync(
-        `UPDATE container_deposit_vouchers
-            SET status = 'available', redeemed_date = NULL, redemption_expense_id = NULL
-          WHERE redemption_expense_id = ? AND status = 'redeemed'`,
-        [id],
-      );
+      await releaseVouchersRedeemedBy(db, '?', [id]);
       await db.runAsync('DELETE FROM expenses WHERE id = ?', [id]);
     });
   },
 
-  /** Toplu silme; expense_items FK ile birlikte temizlenir (CASCADE). */
-  async deleteMany(ids: number[]): Promise<void> {
-    const safeIds = sanitizeIdArray(ids, 500);
-    if (safeIds.length === 0) return;
+  /**
+   * Toplu silme; expense_items FK ile birlikte temizlenir (CASCADE).
+   * Seçimin tamamı silinir (sessiz üst sınır yok) ve tüm parçalar TEK
+   * transaction'dadır: ortada hata olursa hiçbir kayıt silinmez (BUG-06).
+   * Gerçekten silinen satır sayısını döndürür.
+   */
+  async deleteMany(ids: number[]): Promise<number> {
+    const safeIds = Array.from(new Set(sanitizeIdArray(ids, Number.MAX_SAFE_INTEGER)));
+    if (safeIds.length === 0) return 0;
     const db = await getDatabase();
     // SQLite placeholder limiti (~999): chunk'lara böl
     const CHUNK = 400;
-    for (let i = 0; i < safeIds.length; i += CHUNK) {
-      const chunk = safeIds.slice(i, i + CHUNK);
-      const placeholders = chunk.map(() => '?').join(',');
-      await db.withTransactionAsync(async () => {
-        await db.runAsync(
-          `UPDATE container_deposit_vouchers
-              SET status = 'available', redeemed_date = NULL, redemption_expense_id = NULL
-            WHERE redemption_expense_id IN (${placeholders}) AND status = 'redeemed'`,
-          chunk,
-        );
-        await db.runAsync(`DELETE FROM expenses WHERE id IN (${placeholders})`, chunk);
-      });
-    }
+    let deleted = 0;
+    await db.withTransactionAsync(async () => {
+      for (let i = 0; i < safeIds.length; i += CHUNK) {
+        const chunk = safeIds.slice(i, i + CHUNK);
+        const placeholders = chunk.map(() => '?').join(',');
+        await releaseVouchersRedeemedBy(db, placeholders, chunk);
+        const result = await db.runAsync(`DELETE FROM expenses WHERE id IN (${placeholders})`, chunk);
+        deleted += result.changes;
+      }
+    });
+    return deleted;
   },
 
   async addItem(item: ExpenseItemWrite): Promise<number> {
@@ -354,13 +436,24 @@ export const ExpenseDao = {
     await db.runAsync('DELETE FROM expense_items WHERE id = ?', [id]);
   },
 
-  async syncExpenseTotal(expenseId: number): Promise<void> {
+  /**
+   * Başlık toplamını kalemlerden yeniden üretir. `depositItemsChanged` true ise
+   * (depozito kalemi eklendi/değişti/silindi) `container_deposit_paid` da aynı
+   * ifadede depozito kalemlerinin toplamına eşitlenir; aksi hâlde fişten okunmuş
+   * başlık depozitosu korunur (BUG-29). Cüzdandaki "ödenen depozito" bu alandan okunur.
+   */
+  async syncExpenseTotal(
+    expenseId: number,
+    options: { depositItemsChanged?: boolean } = {},
+  ): Promise<void> {
     const db = await getDatabase();
-    const result = await db.getFirstAsync<{ total_minor: number }>(
+    const result = await db.getFirstAsync<{ total_minor: number; deposit_minor?: number }>(
       `SELECT COALESCE(
          SUM(CAST(ROUND(total_price * 100, 0) AS INTEGER)),
          0
-       ) as total_minor
+       ) as total_minor,
+       COALESCE(SUM(CASE WHEN financial_kind = 'container_deposit'
+         THEN MAX(0, CAST(ROUND(total_price * 100, 0) AS INTEGER)) ELSE 0 END), 0) as deposit_minor
        FROM expense_items
        WHERE expense_id = ?`,
       [expenseId]
@@ -371,7 +464,14 @@ export const ExpenseDao = {
         'SELECT container_voucher_used FROM expenses WHERE id = ?', [expenseId],
       );
       if ((expense?.container_voucher_used ?? 0) > total) throw new Error('INVALID_CONTAINER_RECOVERY');
-      await db.runAsync('UPDATE expenses SET total_amount = ? WHERE id = ?', [total, expenseId]);
+      if (options.depositItemsChanged) {
+        await db.runAsync(
+          'UPDATE expenses SET total_amount = ?, container_deposit_paid = ? WHERE id = ?',
+          [total, fromMinorUnits(Number(result.deposit_minor) || 0), expenseId],
+        );
+      } else {
+        await db.runAsync('UPDATE expenses SET total_amount = ? WHERE id = ?', [total, expenseId]);
+      }
     }
   },
 
@@ -382,7 +482,9 @@ export const ExpenseDao = {
     let itemId = 0;
     await db.withTransactionAsync(async () => {
       itemId = await ExpenseDao.addItem(item);
-      await ExpenseDao.syncExpenseTotal(item.expense_id);
+      await ExpenseDao.syncExpenseTotal(item.expense_id, {
+        depositItemsChanged: (item as { financial_kind?: string }).financial_kind === 'container_deposit',
+      });
     });
     return itemId;
   },
@@ -394,18 +496,32 @@ export const ExpenseDao = {
   ): Promise<void> {
     const db = await getDatabase();
     await db.withTransactionAsync(async () => {
-      await assertItemBelongsToExpense(db, expenseId, itemId);
+      const { isDeposit } = await assertItemBelongsToExpense(db, expenseId, itemId);
       await ExpenseDao.updateItem(itemId, item);
-      await ExpenseDao.syncExpenseTotal(expenseId);
+      await ExpenseDao.syncExpenseTotal(expenseId, {
+        depositItemsChanged: isDeposit || item.financial_kind === 'container_deposit',
+      });
+    });
+  },
+
+  /**
+   * BUG-03 (ürün kararı B, ADR-004 madde 12): yalnız gösterim adı düzeltmesi.
+   * Para alanlarına ve fişin basılı toplamına dokunmaz; onay gerekmez.
+   */
+  async updateItemLabel(expenseId: number, itemId: number, label: string): Promise<void> {
+    const db = await getDatabase();
+    await db.withTransactionAsync(async () => {
+      await assertItemBelongsToExpense(db, expenseId, itemId);
+      await ExpenseDao.updateItem(itemId, { user_label: label });
     });
   },
 
   async deleteItemAndSyncTotal(expenseId: number, itemId: number): Promise<void> {
     const db = await getDatabase();
     await db.withTransactionAsync(async () => {
-      await assertItemBelongsToExpense(db, expenseId, itemId);
+      const { isDeposit } = await assertItemBelongsToExpense(db, expenseId, itemId);
       await ExpenseDao.deleteItem(itemId);
-      await ExpenseDao.syncExpenseTotal(expenseId);
+      await ExpenseDao.syncExpenseTotal(expenseId, { depositItemsChanged: isDeposit });
     });
   },
 
@@ -531,14 +647,21 @@ export const ExpenseDao = {
     );
   },
 
+  /**
+   * İhtiyaç/istek dağılımı. `segment` dil bağımsız anahtardır (`needs|wants|other`);
+   * yalnız sistem kök kategorisinin kanonik adı eşlenir (BUG-16, `spendSegment`).
+   */
   async getNeedsVsWants(startDate: string, endDate: string) {
     const db = await getDatabase();
-    return db.getAllAsync<{ segment: string; total: number }>(
+    const needs = systemRootsFor('needs');
+    const wants = systemRootsFor('wants');
+    const marks = (list: string[]) => list.map(() => '?').join(', ');
+    const rows = await db.getAllAsync<{ segment: string; total: number }>(
       `SELECT
-         CASE 
-           WHEN COALESCE(p.name, c.name) IN ('Faturalar', 'Sağlık', 'Eğitim', 'Ulaşım', 'Yeme-İçme', 'Konut') THEN 'Zorunlu İhtiyaçlar'
-           WHEN COALESCE(p.name, c.name) IN ('Eğlence', 'Alışveriş') THEN 'Keyfi Harcamalar'
-           ELSE 'Diğer Harcamalar'
+         CASE
+           WHEN COALESCE(p.is_system, c.is_system) = 1 AND COALESCE(p.name, c.name) IN (${marks(needs)}) THEN 'needs'
+           WHEN COALESCE(p.is_system, c.is_system) = 1 AND COALESCE(p.name, c.name) IN (${marks(wants)}) THEN 'wants'
+           ELSE 'other'
          END as segment,
          COALESCE(SUM(e.total_amount), 0) as total
        FROM expenses e
@@ -547,8 +670,12 @@ export const ExpenseDao = {
        WHERE e.date BETWEEN ? AND ?
        GROUP BY segment
        ORDER BY total DESC`,
-      [startDate, endDate]
+      [...needs, ...wants, startDate, endDate]
     );
+    return rows.map(row => ({
+      segment: (isSpendSegment(row.segment) ? row.segment : 'other') as SpendSegment,
+      total: row.total,
+    }));
   },
 
   async getWeekdayVsWeekend(startDate: string, endDate: string) {
@@ -836,16 +963,31 @@ export const ExpenseDao = {
        LEFT JOIN vendors v ON e.vendor_id = v.id
        LEFT JOIN canonical_products p ON p.id = i.canonical_product_id
        WHERE i.financial_kind = 'product'
-       ORDER BY e.date ASC, i.id ASC`
+         ${safeCanonicalProductId ? 'AND i.canonical_product_id = ?' : ''}
+       ORDER BY e.date ASC, i.id ASC`,
+      // PERF-01: kimlik biliniyorsa yalnız o ürünün satırları gelir
+      // (idx_expense_items_canonical_product); eskiden tüm kalem tablosu çekiliyordu.
+      safeCanonicalProductId ? [safeCanonicalProductId] : [],
     );
 
-    const nameMatched = rows.filter((row) => {
-      const unit = sanitizeMeasurementUnit(row.measurement_unit);
-      if (safeCanonicalProductId) return row.canonical_product_id === safeCanonicalProductId;
-      const rowKey = productIdentityGroupKey({ name: row.name, measurementUnit: unit });
-      const targetKey = productIdentityGroupKey({ name: itemName, measurementUnit: unit });
-      return rowKey !== '' && rowKey === targetKey;
-    });
+    // Hedef anahtar ölçü birimi başına bir kez hesaplanır; eskiden her satırda yeniden.
+    const targetKeyByUnit = new Map<MeasurementUnit, string>();
+    const targetKeyFor = (unit: MeasurementUnit): string => {
+      let key = targetKeyByUnit.get(unit);
+      if (key === undefined) {
+        key = productIdentityGroupKey({ name: itemName, measurementUnit: unit });
+        targetKeyByUnit.set(unit, key);
+      }
+      return key;
+    };
+    const nameMatched = safeCanonicalProductId
+      // SQL zaten süzüyor; ucuz savunma kontrolü (artık yalnız o ürünün satırları).
+      ? rows.filter(row => row.canonical_product_id === safeCanonicalProductId)
+      : rows.filter((row) => {
+        const unit = sanitizeMeasurementUnit(row.measurement_unit);
+        const rowKey = productIdentityGroupKey({ name: row.name, measurementUnit: unit });
+        return rowKey !== '' && rowKey === targetKeyFor(unit);
+      });
     const unitCounts = new Map<MeasurementUnit, number>();
     nameMatched.forEach(row => {
       const unit = sanitizeMeasurementUnit(row.measurement_unit);
@@ -913,11 +1055,11 @@ export const ExpenseDao = {
        FROM expense_items i
        JOIN expenses e ON i.expense_id = e.id
        LEFT JOIN canonical_products p ON p.id = i.canonical_product_id
-       WHERE e.date >= date('now', '-' || ? || ' months')
+       WHERE e.date >= ?
          AND i.financial_kind = 'product'
          AND i.unit_price > 0
        ORDER BY TRIM(i.name), e.date ASC`,
-      [safeMonths]
+      [getLocalDateMonthsAgo(safeMonths)]
     );
   },
 

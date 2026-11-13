@@ -40,23 +40,31 @@ describe('VendorDao bulk deletion', () => {
     expect(params).toEqual([4, 9]);
   });
 
-  it('deletes all linked expenses and vendors inside one transaction', async () => {
+  it('releases redeemed vouchers, then deletes linked expenses and vendors inside one transaction', async () => {
     runAsync
+      .mockResolvedValueOnce({ changes: 1, lastInsertRowId: 0 })
       .mockResolvedValueOnce({ changes: 5, lastInsertRowId: 0 })
       .mockResolvedValueOnce({ changes: 2, lastInsertRowId: 0 });
 
     await expect(VendorDao.deleteMany([3, 8, 3])).resolves.toBe(2);
 
     expect(withTransactionAsync).toHaveBeenCalledTimes(1);
-    expect(runAsync).toHaveBeenCalledTimes(2);
+    expect(runAsync).toHaveBeenCalledTimes(3);
+    // BUG-02: kuponla ödenmiş harcama silinmeden önce kupon yeniden kullanılabilir olur.
     expect(normalizeSql(runAsync.mock.calls[0][0])).toBe(
-      'DELETE FROM expenses WHERE vendor_id IN (?, ?)',
+      "UPDATE container_deposit_vouchers SET status = 'available', redeemed_date = NULL, "
+      + "redemption_expense_id = NULL WHERE status = 'redeemed' AND redemption_expense_id IN "
+      + '(SELECT id FROM expenses WHERE vendor_id IN (?, ?))',
     );
     expect(runAsync.mock.calls[0][1]).toEqual([3, 8]);
     expect(normalizeSql(runAsync.mock.calls[1][0])).toBe(
-      'DELETE FROM vendors WHERE id IN (?, ?)',
+      'DELETE FROM expenses WHERE vendor_id IN (?, ?)',
     );
     expect(runAsync.mock.calls[1][1]).toEqual([3, 8]);
+    expect(normalizeSql(runAsync.mock.calls[2][0])).toBe(
+      'DELETE FROM vendors WHERE id IN (?, ?)',
+    );
+    expect(runAsync.mock.calls[2][1]).toEqual([3, 8]);
   });
 
   it('does not open the database for an empty or invalid selection', async () => {
