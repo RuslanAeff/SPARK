@@ -1,4 +1,5 @@
 // S.P.A.R.K. — Database Schema Definitions
+import { RECORD_UID_SCHEMA_SQL } from './recordUid';
 
 /** Kanonik ürün ve öğrenilmiş alias tabloları; eski/yeni DB'de idempotenttir. */
 export const PRODUCT_IDENTITY_TABLES_SCHEMA_SQL = `
@@ -113,6 +114,7 @@ export const CREATE_TABLES_SQL = `
   CREATE TABLE IF NOT EXISTS vendors (
     id                  INTEGER PRIMARY KEY AUTOINCREMENT,
     name                TEXT NOT NULL,
+    name_key            TEXT,
     logo_uri            TEXT,
     default_category_id INTEGER REFERENCES categories(id) ON DELETE SET NULL,
     created_at          TEXT DEFAULT (datetime('now'))
@@ -125,6 +127,7 @@ export const CREATE_TABLES_SQL = `
 
   CREATE TABLE IF NOT EXISTS expenses (
     id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    uid          TEXT,
     vendor_id    INTEGER REFERENCES vendors(id),
     category_id  INTEGER REFERENCES categories(id),
     total_amount REAL NOT NULL,
@@ -222,6 +225,7 @@ export const CREATE_TABLES_SQL = `
   -- src/utils/debtMath.ts. 'remaining' kalan borç; <=0 olunca status='settled'.
   CREATE TABLE IF NOT EXISTS debts (
     id                INTEGER PRIMARY KEY AUTOINCREMENT,
+    uid               TEXT,
     direction         TEXT NOT NULL DEFAULT 'borrowed',   -- 'borrowed'=ben aldım | 'lent'=ben verdim
     counterparty      TEXT NOT NULL DEFAULT '',
     amount            REAL NOT NULL,                       -- orijinal tutar (>0)
@@ -251,6 +255,7 @@ export const CREATE_TABLES_SQL = `
 
   CREATE TABLE IF NOT EXISTS debt_payments (
     id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    uid         TEXT,
     debt_id     INTEGER NOT NULL REFERENCES debts(id) ON DELETE CASCADE,
     amount      REAL NOT NULL,
     date        TEXT NOT NULL,                             -- ödeme günü (döngü bundan)
@@ -261,6 +266,7 @@ export const CREATE_TABLES_SQL = `
 
   CREATE TABLE IF NOT EXISTS extra_incomes (
     id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    uid         TEXT,
     source      TEXT NOT NULL DEFAULT '',            -- "Credit Agricole bonus", "Ek iş" ...
     amount      REAL NOT NULL,                        -- >0 (harcanabilir tutarı ARTIRIR)
     currency    TEXT NOT NULL DEFAULT 'PLN',
@@ -269,6 +275,8 @@ export const CREATE_TABLES_SQL = `
     created_at  TEXT NOT NULL
   );
   CREATE INDEX IF NOT EXISTS idx_extra_incomes_date ON extra_incomes(date);
+
+  ${RECORD_UID_SCHEMA_SQL}
 `;
 
 /**
@@ -529,6 +537,8 @@ export interface SubscriptionWithDetails extends SubscriptionRow {
 
 export interface Expense {
   id: number;
+  /** BUG-21: yedekler arası taşınabilir kalıcı kimlik (UUID). */
+  uid?: string | null;
   vendor_id: number | null;
   category_id: number | null;
   total_amount: number;
@@ -627,6 +637,8 @@ export interface Budget {
  *  odaklanır; 'lent' (verme) şemada hazır, UI'ı sonraki faz. */
 export interface Debt {
   id: number;
+  /** BUG-21: yedekler arası taşınabilir kalıcı kimlik (UUID). */
+  uid?: string | null;
   /** 'borrowed' = ben borç aldım | 'lent' = ben borç verdim. */
   direction: 'borrowed' | 'lent';
   /** Kime/kimden (karşı taraf). */
@@ -654,6 +666,8 @@ export interface Debt {
 /** Borç Operasyonu — `debt_payments` tablosu satırı (kısmi geri ödeme). */
 export interface DebtPayment {
   id: number;
+  /** BUG-21: yedekler arası taşınabilir kalıcı kimlik (UUID). */
+  uid?: string | null;
   debt_id: number;
   amount: number;
   /** YYYY-MM-DD; ödemenin düştüğü bütçe döngüsü bu tarihten hesaplanır. */
@@ -696,6 +710,8 @@ export interface RecurringPaymentReminder {
  *  döngüyü `date` belirler; sonraki döngüye sarkmaz (bkz. src/utils/debtMath.ts). */
 export interface ExtraIncome {
   id: number;
+  /** BUG-21: yedekler arası taşınabilir kalıcı kimlik (UUID). */
+  uid?: string | null;
   /** Kaynak (banka, kişi, iş) — serbest metin. */
   source: string;
   /** Tutar (>0). */
