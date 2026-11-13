@@ -21,3 +21,11 @@ it('blocks overlay and keeps preview APK while production uses AAB', () => {
   expect(eas.build.production.android.buildType).toBe('app-bundle');
   expect(eas.build.preview.android.buildType).toBe('apk');
 });
+it('does not request broad storage access beyond what the image picker scopes to Android 12 and below (SEC-06)', () => {
+  const app = require('../../app.json').expo;
+  // Galeri seçicisi kütüphanesi izni kendisi `maxSdkVersion=32` ile bildirir;
+  // uygulama yapılandırması sınırsız ikinci bir bildirim eklememeli.
+  expect(app.android.permissions).not.toContain('android.permission.READ_EXTERNAL_STORAGE');
+  expect(app.android.permissions).not.toContain('android.permission.WRITE_EXTERNAL_STORAGE');
+  expect(app.android.permissions).not.toContain('android.permission.READ_MEDIA_IMAGES');
+});
