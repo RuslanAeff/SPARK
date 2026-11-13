@@ -159,4 +159,16 @@ describe('SavingsGoalContributionSheet durability', () => {
     expect(toastShow).not.toHaveBeenCalledWith('error_saving_data', 'error');
     warn.mockRestore();
   });
+
+  it('binlik ayraçlı girişi 1,5 olarak kaydetmek yerine reddeder (BUG-24)', async () => {
+    const screen = await render(
+      <SavingsGoalContributionSheet visible onClose={jest.fn()} />,
+    );
+
+    await fireEvent.changeText(screen.getByTestId('goal-contribution-input'), '1.500');
+    await fireEvent.press(screen.getByTestId('goal-contribution-save'));
+
+    await waitFor(() => expect(SparkToast.show).toHaveBeenCalledWith('invalid_amount', 'error'));
+    expect(GoalDao.addContribution).not.toHaveBeenCalled();
+  });
 });

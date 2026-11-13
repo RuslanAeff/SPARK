@@ -22,6 +22,7 @@ import { Typography, FontFamily } from '../theme/typography';
 import { Spacing, ScreenPadding, BorderRadius } from '../theme/spacing';
 import { createSusevarStyles, susevarButtonPressed } from '../theme/susevar';
 import { formatCurrency } from '../utils/formatCurrency';
+import { parseMoneyInput } from '../utils/moneyMath';
 import { formatDateFull, formatDayMonth, getToday } from '../utils/dateUtils';
 import {
   getDebtDueState,
@@ -49,8 +50,9 @@ interface DebtSheetProps {
 type DebtView = 'list' | 'add' | 'repay' | 'reminder';
 type DatePickerTarget = 'debt-date' | 'repay-date' | 'due-date' | null;
 
+/** Geçersiz veya belirsiz giriş 0 döner; çağıran `<= 0` ile `invalid_amount` gösterir. */
 function parseAmountInput(s: string): number {
-  return parseFloat(s.replace(',', '.')) || 0;
+  return parseMoneyInput(s) ?? 0;
 }
 
 function playSuccessHaptic(): void {

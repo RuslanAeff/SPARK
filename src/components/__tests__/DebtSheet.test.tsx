@@ -195,6 +195,20 @@ describe('DebtSheet debt reminder flow', () => {
     await fireEvent.press(screen.getByTestId('debt-open-reminder-settings'));
   }
 
+  it.each(['1.500', '1.250,50', '12abc'])(
+    'belirsiz tutar girişini (%s) kırpıp kaydetmek yerine reddeder (BUG-24)',
+    async (amount) => {
+      const { screen } = await renderSheet();
+      await openAddForm(screen);
+      await fillRequiredAddFields(screen, amount);
+
+      await fireEvent.press(screen.getByText('save'));
+
+      await waitFor(() => expect(toastShow).toHaveBeenCalledWith('invalid_amount', 'error'));
+      expect(create).not.toHaveBeenCalled();
+    },
+  );
+
   it('vadesiz borç oluştururken eski alanları korur ve hatırlatma alanlarını kapalı gönderir', async () => {
     const { screen } = await renderSheet();
     await openAddForm(screen);

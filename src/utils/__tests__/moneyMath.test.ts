@@ -21,6 +21,16 @@ describe('minor-unit para matematiği', () => {
     expect(parseMoneyInput('55,9x')).toBeNull();
   });
 
+  it('binlik ayraçlı veya 2 basamaktan uzun kesirli girişi tahmin etmeden reddeder (BUG-24)', () => {
+    expect(parseMoneyInput('1.500')).toBeNull();
+    expect(parseMoneyInput('1.250,50')).toBeNull();
+    expect(parseMoneyInput('12.345')).toBeNull();
+    expect(parseMoneyInput('1 250,50')).toBe(1250.5);
+    expect(parseMoneyInput('1500')).toBe(1500);
+    expect(parseMoneyInput('12,5')).toBe(12.5);
+    expect(parseMoneyInput('12.')).toBe(12);
+  });
+
   it('9,49 − 3,17 satırını tam 6,32 hesaplar', () => {
     expect(calculateReceiptLineAmounts(1, 9.49, 3.17)).toEqual({
       listLineTotal: 9.49,

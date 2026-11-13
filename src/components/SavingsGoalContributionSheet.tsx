@@ -13,6 +13,8 @@ import { Typography, FontFamily } from '../theme/typography';
 import { Spacing, BorderRadius } from '../theme/spacing';
 import BottomSheetModal from './BottomSheetModal';
 import { SparkToast } from './SparkToast';
+import { parseMoneyInput } from '../utils/moneyMath';
+import { logError } from '../utils/logError';
 
 type Props = {
   visible: boolean;
@@ -44,8 +46,8 @@ export default function SavingsGoalContributionSheet({ visible, onClose }: Props
 
   async function handleSave() {
     if (savingRef.current) return;
-    const value = Number.parseFloat(amount.replace(',', '.'));
-    if (!Number.isFinite(value) || value <= 0) {
+    const value = parseMoneyInput(amount);
+    if (value == null || value <= 0) {
       SparkToast.show(t('invalid_amount'), 'error');
       return;
     }
@@ -71,11 +73,11 @@ export default function SavingsGoalContributionSheet({ visible, onClose }: Props
         // Katkı SQLite'a kalıcı olarak yazıldı. İkincil native senkronizasyon
         // hatası işlemi başarısızmış gibi gösterip ikinci katkıya yol açmamalı;
         // provider refresh/resume geçişinde yeniden dener.
-        if (__DEV__) console.warn('[goal] notification sync failed', error);
+        logError('goal notification sync failed', error);
       }
       onClose();
     } catch (error) {
-      console.warn('goal contribution', error);
+      logError('goal contribution', error);
       SparkToast.show(t('error_saving_data'), 'error');
     } finally {
       savingRef.current = false;

@@ -43,9 +43,14 @@ export function roundUnitRate(value: number): number {
     / RATE_PRECISION_FACTOR;
 }
 
+/**
+ * Kullanıcının yazdığı para tutarını okur; belirsiz girişi tahmin etmez, `null` döner.
+ * Kesir en çok 2 basamaktır: "1.500" binlik ayraç mı 1,5 mi bilinemediği için
+ * reddedilir (BUG-24). Boşluk binlik ayracı olarak kabul edilir ("1 250,50").
+ */
 export function parseMoneyInput(text: string): number | null {
   const normalized = text.trim().replace(/\s/g, '').replace(',', '.');
-  if (!/^[+-]?\d+(?:\.\d*)?$/.test(normalized)) return null;
+  if (!/^[+-]?\d+(?:\.\d{0,2})?$/.test(normalized)) return null;
   const value = Number(normalized);
   return Number.isFinite(value) ? roundMoney(value) : null;
 }
