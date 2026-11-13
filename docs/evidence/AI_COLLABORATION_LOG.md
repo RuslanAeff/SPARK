@@ -1,5 +1,58 @@
 # SPARK Yapay Zekâ İşbirliği Kaydı
 
+## 12–13 Kasım 2026 — Karar gerektiren denetim bulguları
+
+- **İnsan kararları:** Ürün sahibi §10.1 kararlarını verdi ve uygulama sırasında
+  şunları ekledi: para birimi yalnız görsel bir etikettir, her şey seçilen para
+  biriminde kaydedilir; farklı para birimli fiş için önce elle ödenen tutar
+  girilir (otomatik kur ve banka ekranı okuma ileriki aşamalar, henüz onaylanmadı).
+  Fiş tarihi en çok 2 gün ileri olabilir. Şifreleme için önce "expo-crypto + noble"
+  yolunu seçti; cihazda 23 sn ölçünce native parola türetmeyi seçti. BUG-01
+  aşama 2–3 için "şimdilik hiçbiri", yedek varsayılanı için "Tüm veriler" dedi.
+- **AI önerileri ve uygulaması:** Aşamalı para birimi planı, limit döneminin tek
+  kuralı (`cycleForDate`), mevcut limitlerin bir kez döngü anahtarına taşınması,
+  uid'nin DAO yerine veritabanı tetikleyicisiyle verilmesi, "cihaz kazanır"
+  kuralının aynı parayı iki kez saymayacak biçimde iadeler/ödemeler/devirlere
+  uygulanması, içe aktarımda para birimi etiketinin cihaza çekilmesi, aynı üst
+  altında aynı adlı kategori reddi, "Tüm veriler"in varsayılan yapılması ve
+  PBKDF2 + AES-GCM zarf tasarımı (başlık AAD'ye bağlı, KDF sınırları) AI önerisidir.
+  AI'ın saf JS scrypt için verdiği "1–4 sn" tahmini cihazda yanlış çıktı (~23 sn).
+  "Tüm veriler"in varsayılan olması ürün sahibine açıkça bildirildi.
+- **İnsan/AI sınırı:** Ürün seçimleri insanındır; AI seçenekleri basit dille ve
+  öneriyle sundu. Uygulama gerçek kullanıcı verisi okumadı; dış servise veri
+  göndermedi; tek ağ işlemi npm paket kurulumudur. Commit/push yapılmadı.
+- **Kanıt/sınır:** Typecheck ve tam Jest 196 suite / 1408 test başarılı. Cihaz
+  doğrulaması büyük ölçüde açık. Ayrıntı: [izlenebilirlik kaydı](TRACEABILITY.md).
+
+## 11–12 Kasım 2026 — Kod denetimi düzeltmeleri ve yerel hata günlüğü
+
+- **İnsan kararları:** Ürün sahibi denetim raporuna göre adım adım ilerlemeyi,
+  her adımdan sonra basit dille açıklama ve onay beklemeyi istedi; commit'i
+  sonraya bıraktı. İndirim satırı sezgisinde (BUG-30) koda dokunulmamasını ve
+  önce gerçek "PROMO" fişleriyle kendisinin test etmesini seçti; sorun doğrulanırsa
+  A seçeneği (pozitif tutarlı ad eşleşmesini önceki ürün fiyatıyla sınırlama)
+  uygulanacak. PERF-09'da yalnız yinelenen kalem okuma kapsamını onayladı.
+  Hata raporlama için bulut servisi yerine, kullanıcının kendi onayıyla rapor
+  gönderebileceği bir sistem istedi ve önerilen tasarımı onayladı.
+- **AI önerileri ve uygulaması:** Bulgular koda karşı yeniden doğrulandı; her
+  biri için önce kırmızı test, sonra en küçük düzeltme yazıldı. AI şu tasarım
+  tercihlerini önerdi ve gerekçelendirdi: hata günlüğünü SQLite yerine dosyada
+  tutmak (ADR-002 eşzamanlılık riski), ErrorBoundary'de yalnız hata türü kaydetmek
+  (mevcut güvenlik testi), kesmeyi UTF-16 sınırında yapmak (yedek doğrulamasıyla
+  uyum), mevcut takılı kupon ve depozito kayıtlarını güvenle ayırt edilemediği için
+  onarmamak. Rapordaki iki öneri gerekçesiyle değiştirildi: SEC-05 kod noktası
+  kesmesi ve SEC-02'nin ErrorBoundary kapsamı.
+- **İnsan/AI sınırı:** §10'daki ürün kararları AI tarafından seçilmedi. AI her
+  biri için basit dille seçenekler ve öneri sundu; ürün sahibi 12 Kasım'da
+  kararlarını verdi ([rapor §10.1](CODE_AUDIT_2026-11-11.md)). BUG-22 (devralma yok),
+  BUG-03 (her değişiklikte onay) ve SEC-01 (şifreleme) AI önerisinden farklı
+  insan seçimleridir. Uygulama gerçek kullanıcı
+  verisi okumadı; dış servise veri göndermedi; commit/push yapmadı.
+- **Kanıt/sınır:** Typecheck ve tam Jest 180 suite / 1336 test başarılı. Hata
+  günlüğü ekranı cihazda görüldü; diğer davranışların cihaz ve kullanıcı kabulü
+  açık. Ayrıntı: [izlenebilirlik kaydı](TRACEABILITY.md),
+  [denetim raporu](CODE_AUDIT_2026-11-11.md).
+
 ## 3 Ekim 2026 — Güvenlik raporunun uygulanması
 
 İnsan kararı: Güvenlik raporunu yeniden doğrula ve düzelt. AI uygulaması:

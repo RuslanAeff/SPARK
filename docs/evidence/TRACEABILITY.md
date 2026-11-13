@@ -1,5 +1,93 @@
 # SPARK Akademik İzlenebilirlik Kaydı
 
+## 13 Kasım 2026 — Uygulama sürümü 3.4.2
+
+İnsan kararı: denetim düzeltmelerinden sonraki önizleme APK'sı `3.4.2` olsun.
+`package.json`, `package-lock.json` (kök kayıtlar), `app.json` ve gizlilik
+politikasındaki sürüm `3.4.2`; Android `versionCode` 14'ten 15'e (önceki APK'nın
+üzerine kurulabilsin). Denetim raporundaki `3.4.0` denetlenen sürümün tarihsel
+kaydıdır, değiştirilmedi.
+
+## 12–13 Kasım 2026 — Denetimin karar gerektiren bulguları
+
+- Gereksinim: Ürün sahibinin [§10.1 kararlarıyla](CODE_AUDIT_2026-11-11.md)
+  karar gerektiren bulguları kapat; adım adım, onayla.
+- Kapatılan (kod + test): BUG-01 (aşama 1: tarayıcıda elle çevrilen tutar,
+  para birimi değişince bütün kayıtların etiketi), BUG-03, 13 eki, 17, 20, 21, 22,
+  23, 28, 31; SEC-01 (isteğe bağlı parolalı şifreleme).
+- Karar: [ADR-004](../decisions/ADR-004-receipt-total-integrity.md) 12 Kasım eki,
+  [ADR-017](../decisions/ADR-017-backup-v7-identity-and-local-wins.md) yedek v7
+  (kalıcı kimlik, cihaz kazanır, tam kapsam),
+  [ADR-018](../decisions/ADR-018-optional-backup-encryption.md) yedek şifrelemesi.
+  Şema: `expenses/debts/debt_payments/extra_incomes.uid` (geçiş + tetikleyici +
+  tekillik indeksi); tek seferlik geçişler `migration_category_limit_cycle_v1`.
+  Native: `spark-bounded-file` modülüne `pbkdf2Sha256` (Kotlin + Swift); yeni
+  bağımlılık yok (`@noble/hashes` önce eklendi, cihazda 23 sn ölçülünce kaldırıldı).
+- Kod: `appCurrencyDao`, `recordUid`, `limitCycle`, `budgetCycle.cycleForDate`,
+  `backupService`, `backupEncryption`, `receiptCurrencyConversion`,
+  `receiptDateRules`, `categoryDao`, `containerDepositDao`, `expenseDao`;
+  ekranlar `scanner`, `edit-items`, `categories`, `deposit-wallet`,
+  `goal-settings`, `settings-general`, `settings-budget`, `index`, `analytics`;
+  bileşenler `BackupSection`, `BackupPasswordModal`, `ConfirmModal`; dört dil.
+- Otomatik kanıt: Raporun kabul kriterleri gerçek SQLite ve uygulamanın tam açılış
+  zinciriyle sınandı (döngü günü 23 limit; süresi dolan kupon + ilerleyen
+  hatırlatıcıyla geri yükleme; tutarı değişen harcama ve ödenen borç çoğalmaz;
+  hedef/limit/döngü günü yeni cihaza gelir). `npm run typecheck` temiz; tam Jest
+  196 suite / 1408 test.
+- Cihaz kanıtı: Tarayıcı tarih seçici ekranı ürün sahibinin ekran görüntüsüyle
+  görüldü. Para birimi değişimi, limit dönemi, yedek v7 geri yükleme ve şifreli
+  yedek cihazda doğrulanmadı; yerel AES Jest'te Node sahtesiyle sınandı.
+- Ek: hatırlatıcı formunda para birimi salt okunur; yedek hatırlatıcısı yalnız tam
+  yedekle sıfırlanır (`backupMetaFullBackup` testi). Tam Jest 197 / 1414.
+- Karar gerektirmeyenler (13 Kasım): BUG-11 (arama bütün kayıtlarda,
+  `foldSearchText`, `useExpenseSearch`), BUG-14 (`vendors.name_key` + tekil indeks,
+  açılışta kopya satıcı birleştirme `vendorIdentity`), BUG-27 (logo kalıcı klasörde,
+  sahipsiz dosya süpürmesi, eski önbellek logolarının geçişi `vendorLogoStore`;
+  yedek logo yolu yazmaz), BUG-16 (ihtiyaç/istek dil bağımsız anahtar,
+  `spendSegment`; yalnız sistem kökü eşlenir), BUG-18 (atomik tohumlama,
+  `addColumnIfMissing`; hata yutan ALTER/CREATE blokları kaldırıldı), SEC-03 (sıfırlama
+  sonrası VACUUM + WAL TRUNCATE; gerçek SQLite dosyasında silinen metin 0), SEC-04
+  (projectId yorumu), SEC-07 kısmen (CI izinleri, SHA sabitleme, rapor amaçlı
+  audit, `.gitignore`), SEC-08 (karar A: erişilemezlik belgesi, `+native-intent`
+  bağlantı koruması, `shell-quote` 1.12.0; üretim audit kritik 1 → 0), SEC-06 (manifest ölçümü:
+  depolama izni zaten Android ≤12 ile sınırlı; fazla `app.json` satırı kaldırıldı,
+  manifest değişmedi), PERF-08 (fiş yanıtı tek ayrıştırma), PERF-07 (abonelik
+  tespiti değişmeyeni yazmaz, tek transaction), PERF-10 (bütçe geçmişi dönem
+  sayısından bağımsız 5 sorgu; tekil DAO ile kuruş eşdeğerliği). Tam Jest 206 / 1459. Logo dosya işlemleri cihazda
+  (önbellek temizliği sonrası) doğrulanmadı.
+- Açık sınır: BUG-01 aşama 2–3 için ürün kararı "şimdilik hiçbiri"; native PBKDF2
+  Android derlemesi ve cihaz süresi doğrulanmadı. Commit atılmadı.
+
+## 11–12 Kasım 2026 — Kod denetimi bulgularının adım adım düzeltilmesi
+
+- Gereksinim: [Kod denetimi raporu](CODE_AUDIT_2026-11-11.md) bulgularını, her
+  adımdan sonra ürün sahibine basit dille açıklayarak ve onay alarak düzelt.
+  "Karar gerekli" bulgular (§10) uygulanmadı.
+- Kapatılan (kod + test): BUG-02, 04, 06, 07, 08, 09, 10, 12, 13, 15, 19, 24, 25, 26, 29;
+  BUG-30 (5 maddeden 4'ü); SEC-01 (yol alanları), 02, 05, 09; PERF-01, 02, 03, 04;
+  BUG-05 ve PERF-09 yalnız güvenli alt kapsamla (busy_timeout; yinelenen kalem okuma).
+- Karar: [ADR-016](../decisions/ADR-016-local-error-journal.md) yerel hata günlüğü;
+  [ADR-002](../decisions/ADR-002-sqlite-concurrency-and-transactions.md) 12 Kasım eki.
+  Şema değişikliği yok; tek seferlik veri onarımı `migration_voucher_expiry_repair_v1`.
+  Yedek biçimi v6 kalır; export girintisiz, öz denetimli ve yol alanları boş.
+- Kod: `backupService`, `expenseDao`, `vendorDao`, `containerDepositDao`,
+  `goalDao`, `categoryLimitDao`, `database`, `receiptParser`, `inputValidation`,
+  `moneyMath`, `dateUtils`; yeni `serialQueue`, `busyTimeout`, `logError`,
+  `errorJournal`, `categoryAppearance`, `categoryNameResolver`; ekranlar
+  `add-expense`, `edit-items`, `goal-settings`, `categories`, `scanner`,
+  `transactions`, `index`, `analytics`, `settings-data`, yeni `error-journal`;
+  dört dil kaynağı ve üretilmiş çıktılar.
+- Otomatik kanıt: Her bulgu için önce hatayı gösteren test, sonra düzeltme;
+  veritabanı adımlarında gerçek bellek içi SQLite testleri. `npm run typecheck`
+  temiz; tam Jest 180 suite / 1336 test (başlangıç 155 / 1203).
+- Cihaz kanıtı: Hata günlüğü ekranı ve Ayarlar girişi fiziksel Android cihazda
+  ürün sahibinin ekran görüntüsüyle görüldü (12 Kasım). Diğer değişiklikler cihazda
+  doğrulanmadı.
+- Açık sınır: Rapor §9'daki cihaz doğrulamaları (özellikle aynı cihaza gerçek
+  yedek geri yükleme, çift dokunuş, 500+ toplu silme); §10'daki ürün kararları;
+  BUG-30 indirim satırı sezgisi gerçek fişlerle insan testi bekliyor; PERF-05,
+  PERF-06, BUG-05 yazma kuyruğu ölçüm/yeniden üretim bekliyor. Commit atılmadı.
+
 ## 3 Ekim 2026 — Güvenlik sınırlarının güçlendirilmesi
 
 - Gereksinim: Güvenlik raporunu doğrulayıp finansal semantiği koruyarak uygula.
