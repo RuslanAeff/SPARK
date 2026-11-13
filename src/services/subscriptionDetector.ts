@@ -15,6 +15,7 @@
 import { getDatabase } from '../db/database';
 import { SubscriptionDao } from '../db/subscriptionDao';
 import type { SubscriptionRow } from '../db/schema';
+import { addLocalDays, getLocalDateDaysAgo } from '../utils/dateUtils';
 
 interface PeriodBand {
   /** Periyot etiketi — UI için key. */
@@ -55,9 +56,7 @@ function dayDiff(a: string, b: string): number {
 }
 
 function addDays(iso: string, days: number): string {
-  const d = new Date(iso + 'T12:00:00');
-  d.setDate(d.getDate() + days);
-  return d.toISOString().slice(0, 10);
+  return addLocalDays(iso, days) ?? iso;
 }
 
 function classifyInterval(days: number): PeriodBand | null {
@@ -150,9 +149,7 @@ export function detectForVendor(rows: CandidateRow[]): DetectionResult | null {
  */
 export async function syncSubscriptions(): Promise<{ active: number }> {
   const db = await getDatabase();
-  const since = new Date();
-  since.setDate(since.getDate() - LOOKBACK_DAYS);
-  const sinceIso = since.toISOString().slice(0, 10);
+  const sinceIso = getLocalDateDaysAgo(LOOKBACK_DAYS);
 
   const rows = await db.getAllAsync<CandidateRow>(
     `SELECT vendor_id, total_amount AS amount, currency, date
@@ -170,13 +167,14 @@ export async function syncSubscriptions(): Promise<{ active: number }> {
   }
 
   const detectedVendorIds: number[] = [];
+  const detections: Omit<SubscriptionRow, 'id'>[] = [];
   const now = new Date().toISOString();
 
   for (const [vendorId, list] of byVendor) {
     const detection = detectForVendor(list);
     if (!detection) continue;
     detectedVendorIds.push(vendorId);
-    const sub: Omit<SubscriptionRow, 'id'> = {
+    detections.push({
       vendor_id: vendorId,
       amount: detection.amount,
       currency: detection.currency,
@@ -186,12 +184,12 @@ export async function syncSubscriptions(): Promise<{ active: number }> {
       occurrences: detection.occurrences,
       status: 'active',
       updated_at: now,
-    };
-    await SubscriptionDao.upsert(sub);
+    });
   }
 
-  // Artık tespit edilmeyen aktif kayıtları temizle (dismissed olanlar kalır).
-  await SubscriptionDao.deactivateMissing(detectedVendorIds);
+  // PERF-07: değişmeyen tespit yazılmaz; yazılar ve eskiyen aktif kayıtların
+  // silinmesi tek transaction'da (dismissed kararlar korunur).
+  await SubscriptionDao.applyDetections(detections);
 
   return { active: detectedVendorIds.length };
 }

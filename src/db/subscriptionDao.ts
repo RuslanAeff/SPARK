@@ -38,44 +38,6 @@ export const SubscriptionDao = {
     );
   },
 
-  async upsert(row: Omit<SubscriptionRow, 'id'>): Promise<void> {
-    const db = await getDatabase();
-    // Mevcut kayıt varsa status'u koru (kullanıcı dismiss etmiş olabilir).
-    const existing = await db.getFirstAsync<SubscriptionRow>(
-      'SELECT * FROM subscriptions WHERE vendor_id = ?',
-      [row.vendor_id]
-    );
-    const finalStatus =
-      existing?.status === 'dismissed' ? 'dismissed' : row.status;
-    await db.runAsync(
-      `INSERT INTO subscriptions
-         (vendor_id, amount, currency, period_days, last_seen_date,
-          next_expected_date, occurrences, status, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-       ON CONFLICT(vendor_id) DO UPDATE SET
-         amount             = excluded.amount,
-         currency           = excluded.currency,
-         period_days        = excluded.period_days,
-         last_seen_date     = excluded.last_seen_date,
-         next_expected_date = excluded.next_expected_date,
-         occurrences        = excluded.occurrences,
-         status             = ?,
-         updated_at         = excluded.updated_at`,
-      [
-        row.vendor_id,
-        row.amount,
-        row.currency,
-        row.period_days,
-        row.last_seen_date,
-        row.next_expected_date,
-        row.occurrences,
-        finalStatus,
-        row.updated_at,
-        finalStatus,
-      ]
-    );
-  },
-
   async setStatus(vendorId: number, status: 'active' | 'dismissed'): Promise<void> {
     const db = await getDatabase();
     await db.runAsync(
@@ -84,17 +46,61 @@ export const SubscriptionDao = {
     );
   },
 
-  /** Tespit motoru için: artık aktif/aday olmayan satıcıların aktif kayıtlarını sil.
-   *  Dismissed kayıtlar korunur (kullanıcı tekrar uyarılmasın diye). */
-  async deactivateMissing(activeVendorIds: number[]): Promise<void> {
+  /**
+   * PERF-07: tespit sonuçlarını tek transaction'da uygular. Mevcut satırlar bir kez
+   * okunur; aynı kalan tespit yazılmaz, yalnız değişen/yeni satırlar yazılır ve
+   * artık tespit edilmeyen aktif kayıtlar silinir. Kullanıcının "abonelik değil"
+   * kararı (dismissed) korunur. Yazılan satır sayısını döndürür.
+   */
+  async applyDetections(detections: Omit<SubscriptionRow, 'id'>[]): Promise<number> {
     const db = await getDatabase();
-    const ph = activeVendorIds.length > 0
-      ? `AND vendor_id NOT IN (${activeVendorIds.map(() => '?').join(',')})`
-      : '';
-    await db.runAsync(
-      `DELETE FROM subscriptions WHERE status = 'active' ${ph}`,
-      activeVendorIds
-    );
+    const existingRows = await db.getAllAsync<SubscriptionRow>('SELECT * FROM subscriptions');
+    const existing = new Map(existingRows.map(row => [row.vendor_id, row]));
+    const detected = new Set<number>();
+    const writes: Array<Omit<SubscriptionRow, 'id'>> = [];
+    for (const row of detections) {
+      detected.add(row.vendor_id);
+      const current = existing.get(row.vendor_id);
+      const status = current?.status === 'dismissed' ? 'dismissed' : row.status;
+      if (current
+        && current.amount === row.amount
+        && current.currency === row.currency
+        && current.period_days === row.period_days
+        && current.last_seen_date === row.last_seen_date
+        && current.next_expected_date === row.next_expected_date
+        && current.occurrences === row.occurrences
+        && current.status === status) continue;
+      writes.push({ ...row, status });
+    }
+    const stale = existingRows
+      .filter(row => row.status === 'active' && !detected.has(row.vendor_id))
+      .map(row => row.id);
+    if (writes.length === 0 && stale.length === 0) return 0;
+    await db.withTransactionAsync(async () => {
+      for (const row of writes) {
+        await db.runAsync(
+          `INSERT INTO subscriptions
+             (vendor_id, amount, currency, period_days, last_seen_date,
+              next_expected_date, occurrences, status, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+           ON CONFLICT(vendor_id) DO UPDATE SET
+             amount             = excluded.amount,
+             currency           = excluded.currency,
+             period_days        = excluded.period_days,
+             last_seen_date     = excluded.last_seen_date,
+             next_expected_date = excluded.next_expected_date,
+             occurrences        = excluded.occurrences,
+             status             = excluded.status,
+             updated_at         = excluded.updated_at`,
+          [row.vendor_id, row.amount, row.currency, row.period_days, row.last_seen_date,
+            row.next_expected_date, row.occurrences, row.status, row.updated_at],
+        );
+      }
+      for (const id of stale) {
+        await db.runAsync("DELETE FROM subscriptions WHERE id = ? AND status = 'active'", [id]);
+      }
+    });
+    return writes.length + stale.length;
   },
 
 };
