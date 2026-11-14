@@ -266,7 +266,11 @@ export function useSubcategorySpending(
   endDate?: string,
   options: ExpenseQueryOptions = {},
 ) {
-  const [data, setData] = useState<CategorySpending[]>([]);
+  // Satırlar ve ait oldukları üst kategori tek state'te tutulur; böylece kart,
+  // önceki kategorinin satırlarını yeni seçimin sonucu sanıp açılmaz.
+  const [result, setResult] = useState<{ data: CategorySpending[]; parentId: number | null }>({
+    data: [], parentId: null,
+  });
   const [loading, setLoading] = useState(true);
   const mounted = useMounted();
   const refreshSequence = useRef(0);
@@ -287,7 +291,7 @@ export function useSubcategorySpending(
     const sequence = ++refreshSequence.current;
     if (!parentId) {
       if (mounted.current && sequence === refreshSequence.current) {
-        setData([]);
+        setResult({ data: [], parentId: null });
         setLoading(false);
       }
       return;
@@ -304,16 +308,18 @@ export function useSubcategorySpending(
         total: r.total,
         percentage: totalSpent > 0 ? Math.round((r.total / totalSpent) * 100) : 0,
       }));
-      if (mounted.current && sequence === refreshSequence.current) setData(mapped);
+      if (mounted.current && sequence === refreshSequence.current) setResult({ data: mapped, parentId });
     } catch (e) {
       logError('Error loading subcategory spending', e);
+      // Seçili kart sonsuza dek "bekliyor" kalmasın; boş durumla açılsın.
+      if (mounted.current && sequence === refreshSequence.current) setResult({ data: [], parentId });
     }
     if (mounted.current && sequence === refreshSequence.current) setLoading(false);
   }, [parentId, start, end, enabled]);
 
   useAutoRefresh(refresh, enabled, autoLoad);
 
-  return { data, loading, refresh };
+  return { data: result.data, parentId: result.parentId, loading, refresh };
 }
 
 export function useVendorSpending(

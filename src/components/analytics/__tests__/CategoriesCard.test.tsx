@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { StyleSheet } from 'react-native';
 import { fireEvent, render } from '@testing-library/react-native';
 import CategoriesCard from '../CategoriesCard';
 import { getAnalyticsStyles } from '../analyticsStyles';
@@ -49,7 +50,7 @@ const base = {
 function InteractiveCard() {
   const [selected, setSelected] = useState<number | null>(null);
   return <CategoriesCard {...base} selectedCategory={selected} setSelectedCategory={setSelected}
-    subcats={selected === 1 ? [groceries] : selected === 2 ? [bus] : []} />;
+    subcats={selected === 1 ? [groceries] : selected === 2 ? [bus] : []} subcatsParentId={selected} />;
 }
 
 describe('CategoriesCard disclosure', () => {
@@ -75,13 +76,64 @@ describe('CategoriesCard disclosure', () => {
     expect(screen.queryByText('Bus')).toBeNull();
   });
 
-  it('updates late query results and preserves the empty state without losing selection', async () => {
+  it('stays closed until the selected category result arrives, then shows rows or the empty state', async () => {
     const onSelect = jest.fn();
-    const screen = await render(<CategoriesCard {...base} selectedCategory={1} setSelectedCategory={onSelect} subcats={[]} />);
-    expect(screen.getByText('no_sub_categories')).toBeTruthy();
-    await screen.rerender(<CategoriesCard {...base} selectedCategory={1} setSelectedCategory={onSelect} subcats={[groceries]} />);
+    const props = { ...base, selectedCategory: 1, setSelectedCategory: onSelect };
+    const screen = await render(<CategoriesCard {...props} subcats={[]} subcatsParentId={null} />);
+    // Query pending: no premature empty panel that would later grow a second time.
     expect(screen.queryByText('no_sub_categories')).toBeNull();
+    expect(screen.getByTestId('category-breakdown', { includeHiddenElements: true }).props.pointerEvents).toBe('none');
+
+    await screen.rerender(<CategoriesCard {...props} subcats={[groceries]} subcatsParentId={1} />);
     expect(screen.getByText('Groceries')).toBeTruthy();
+
+    await screen.rerender(<CategoriesCard {...props} subcats={[]} subcatsParentId={1} />);
+    expect(screen.queryByText('Groceries')).toBeNull();
+    expect(screen.getByText('no_sub_categories')).toBeTruthy();
     expect(onSelect).not.toHaveBeenCalled();
+  });
+
+  it('keeps the previous rows open while switching until the new result arrives', async () => {
+    const props = { ...base, setSelectedCategory: jest.fn() };
+    const screen = await render(<CategoriesCard {...props} selectedCategory={1} subcats={[groceries]} subcatsParentId={1} />);
+    await screen.rerender(<CategoriesCard {...props} selectedCategory={2} subcats={[groceries]} subcatsParentId={1} />);
+    expect(screen.getByText('Groceries')).toBeTruthy();
+    expect(screen.getByTestId('category-breakdown').props.pointerEvents).toBe('auto');
+
+    await screen.rerender(<CategoriesCard {...props} selectedCategory={2} subcats={[bus]} subcatsParentId={2} />);
+    expect(screen.getByText('Bus')).toBeTruthy();
+    expect(screen.queryByText('Groceries')).toBeNull();
+  });
+
+  it('animates height only towards the measurement of the current content', async () => {
+    const one = [groceries];
+    const both = [groceries, { ...groceries, category_id: 12, category_name: 'Snacks' }];
+    // A fresh `t` defeats React.memo so the test reads the style after the effect ran.
+    const card = (rows: CategorySpending[]) => (
+      <CategoriesCard {...base} t={(key: string) => key} setSelectedCategory={jest.fn()}
+        selectedCategory={1} subcats={rows} subcatsParentId={1} />
+    );
+    const screen = await render(card(one));
+    const viewportHeight = () =>
+      StyleSheet.flatten(screen.getByTestId('category-breakdown', { includeHiddenElements: true }).props.style).height;
+    const layout = (height: number) => fireEvent(
+      screen.getByTestId('category-breakdown-content', { includeHiddenElements: true }),
+      'layout', { nativeEvent: { layout: { x: 0, y: 0, width: 300, height } } },
+    );
+    await screen.rerender(card(one));
+    // Not measured yet: no animation towards a guessed or stale height.
+    expect(viewportHeight()).toBe(0);
+
+    await layout(120);
+    await screen.rerender(card(one));
+    expect(viewportHeight()).toBe(120);
+
+    // New content keeps the current height until it reports its own size.
+    await screen.rerender(card(both));
+    await screen.rerender(card(both));
+    expect(viewportHeight()).toBe(120);
+    await layout(200);
+    await screen.rerender(card(both));
+    expect(viewportHeight()).toBe(200);
   });
 });

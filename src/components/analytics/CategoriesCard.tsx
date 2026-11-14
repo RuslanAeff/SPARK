@@ -65,12 +65,22 @@ function CategoryOption({ category, selected, faded, onPress, styles, tc, curren
 interface CategoriesCardProps extends BaseCardProps {
   categories: CategorySpending[];
   subcats: CategorySpending[];
+  /** `subcats` satırlarının ait olduğu üst kategori; sorgu bitmeden `selectedCategory` ile eşleşmez. */
+  subcatsParentId: number | null;
   selectedCategory: number | null;
   setSelectedCategory: Dispatch<SetStateAction<number | null>>;
 }
 
+interface DisplayedBreakdown {
+  rows: CategorySpending[];
+  /** Panelin gösterdiği kategori; kapanışta null olur ama satırlar solma için kalır. */
+  parentId: number | null;
+  /** Her yeni içerikte artar; ölçüm kabını yeniden bağlayıp onLayout'u garanti eder. */
+  version: number;
+}
+
 function CategoriesCard({
-  styles, t, tc, currency, categories, subcats, selectedCategory, setSelectedCategory,
+  styles, t, tc, currency, categories, subcats, subcatsParentId, selectedCategory, setSelectedCategory,
 }: CategoriesCardProps) {
   const scheme = useAppTheme();
   const revision = useThemeRevision();
@@ -81,27 +91,40 @@ function CategoriesCard({
     divider: { height: 1, backgroundColor: Colors.border, marginBottom: Spacing.md },
     empty: { ...Typography.bodyMedium, color: Colors.textMuted, textAlign: 'center', paddingVertical: Spacing.lg },
   }), [scheme, revision]);
-  const expanded = selectedCategory !== null;
-  // Keep the last rows during collapse, even when the parent clears its query result.
-  const [displayedSubcats, setDisplayedSubcats] = useState(subcats);
-  if (expanded && displayedSubcats !== subcats) setDisplayedSubcats(subcats);
-  const [contentHeight, setContentHeight] = useState(0);
+
+  // Panel yalnızca seçili kategoriye ait sonuç geldiğinde içerik değiştirir. Böylece
+  // önce boş/eski satırlarla açılıp veri gelince ikinci kez boy değiştirmez.
+  const ready = selectedCategory !== null && subcatsParentId === selectedCategory;
+  const [displayed, setDisplayed] = useState<DisplayedBreakdown>(() => ({
+    rows: ready ? subcats : [], parentId: ready ? selectedCategory : null, version: 0,
+  }));
+  if (ready && (displayed.rows !== subcats || displayed.parentId !== selectedCategory)) {
+    setDisplayed({ rows: subcats, parentId: selectedCategory, version: displayed.version + 1 });
+  } else if (selectedCategory === null && displayed.parentId !== null) {
+    setDisplayed({ ...displayed, parentId: null });
+  }
+  // Kategori değiştirirken yeni sonuç gelene kadar panel açık kalır (kapanıp açılmaz).
+  const expanded = selectedCategory !== null && displayed.parentId !== null;
+
+  // Yükseklik yalnızca güncel içeriğin ölçümüyle hedeflenir; eski ölçüme doğru
+  // başlayıp sonra yön değiştiren (zıplayan) animasyon oluşmaz.
+  const [measured, setMeasured] = useState({ version: -1, height: 0 });
   const height = useSharedValue(0);
   const visibility = useSharedValue(0);
   useEffect(() => {
-    height.value = withTiming(expanded ? contentHeight : 0, {
+    if (expanded && measured.version !== displayed.version) return;
+    height.value = withTiming(expanded ? measured.height : 0, {
       duration: expanded ? 280 : 220,
       easing: Easing.out(Easing.cubic),
       reduceMotion: ReduceMotion.System,
     });
-  }, [expanded, contentHeight, height]);
-  useEffect(() => {
     visibility.value = withTiming(expanded ? 1 : 0, {
       ...selectionMotion, duration: expanded ? 200 : 140,
     });
-  }, [expanded, visibility]);
+  }, [expanded, measured, displayed.version, height, visibility]);
   const viewportMotion = useAnimatedStyle(() => ({ height: height.value }));
   const contentMotion = useAnimatedStyle(() => ({ opacity: visibility.value }));
+  const contentVersion = displayed.version;
 
   return (
     <AnimatedCard delay={200} style={styles.section}>
@@ -121,11 +144,16 @@ function CategoriesCard({
         pointerEvents={expanded ? 'auto' : 'none'}
         accessibilityElementsHidden={!expanded}
         importantForAccessibility={expanded ? 'auto' : 'no-hide-descendants'}>
-        <Animated.View testID="category-breakdown-content" style={[detailStyles.content, contentMotion]}
-          onLayout={event => setContentHeight(event.nativeEvent.layout.height)}>
+        <Animated.View key={contentVersion} testID="category-breakdown-content"
+          style={[detailStyles.content, contentMotion]}
+          onLayout={event => {
+            const next = event.nativeEvent.layout.height;
+            setMeasured(prev => (prev.version === contentVersion && prev.height === next
+              ? prev : { version: contentVersion, height: next }));
+          }}>
           <View style={detailStyles.divider} />
           <Text style={styles.sectionTitle}>{t('subcategories')}</Text>
-          {displayedSubcats.length > 0 ? displayedSubcats.map(sc => (
+          {displayed.rows.length > 0 ? displayed.rows.map(sc => (
               <View key={sc.category_id} style={[styles.vendorRow, { borderBottomWidth: 0, paddingBottom: Spacing.sm }]}>
                 <View style={[styles.pillIcon, { backgroundColor: sc.category_color, width: 44, height: 44, borderRadius: 22 }]}>
                   <MaterialCommunityIcons name={sc.category_icon as any} size={22} color="#FFF" />

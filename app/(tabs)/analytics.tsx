@@ -515,12 +515,20 @@ export default function AnalyticsScreen() {
     10,
     topTransactionsQueryOptions,
   );
-  const { data: subcats, refresh: refreshSubcats } = useSubcategorySpending(
+  const { data: subcats, parentId: subcatsParentId, refresh: refreshSubcats } = useSubcategorySpending(
     selectedCategory,
     dateRange.start,
     dateRange.end,
     analyticsQueryOptions,
   );
+  // Kategori seçimi tüm analiz kuyruğunu yeniden başlatmamalı: yalnızca alt
+  // kırılım sorgusu çalışır. Toplu yenileme en güncel fonksiyonu ref üzerinden
+  // çağırır, böylece seçim değişince runAnalyticsRefresh/useFocusEffect tetiklenmez.
+  const refreshSubcatsRef = useRef(refreshSubcats);
+  refreshSubcatsRef.current = refreshSubcats;
+  useEffect(() => {
+    if (analyticsPeriodReady) void refreshSubcats();
+  }, [refreshSubcats, analyticsPeriodReady]);
   const { needsWants, weekWeekend, refresh: refreshBehavior } = useBehavioralAnalytics(
     dateRange.start,
     dateRange.end,
@@ -1035,7 +1043,7 @@ export default function AnalyticsScreen() {
         await refreshDaily();
         await refreshCycleDaily();
         await refreshTop();
-        await refreshSubcats();
+        await refreshSubcatsRef.current();
         await refreshBehavior();
         await loadTrackingStartDate();
         await loadPrevTotal();
@@ -1059,7 +1067,6 @@ export default function AnalyticsScreen() {
     dateRange.start,
     dateRange.end,
     timeframe,
-    selectedCategory,
     analyticsPeriodReady,
     activeAnalyticsKey,
   ]);
@@ -1274,6 +1281,7 @@ export default function AnalyticsScreen() {
           {...cardBase}
           categories={categories}
           subcats={subcats}
+          subcatsParentId={subcatsParentId}
           selectedCategory={selectedCategory}
           setSelectedCategory={setSelectedCategory}
         />
