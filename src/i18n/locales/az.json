@@ -1148,6 +1148,7 @@
   "search_no_results_title": "Nəticə tapılmadı",
   "search_no_results_desc": "\"{query}\" üçün bütün əməliyyatlarda uyğunluq yoxdur.",
   "vendor_logo_failed": "Loqo yadda saxlanılmadı. Başqa şəkil sınayın.",
+  "subscription_overdue": "Gecikib",
   "onboarding_skip": "Keç",
   "onboarding_next": "İrəli",
   "onboarding_welcome_title": "Çekini skan et, pulunu anla.",

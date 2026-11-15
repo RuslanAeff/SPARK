@@ -1148,6 +1148,7 @@
   "search_no_results_title": "Ничего не найдено",
   "search_no_results_desc": "Среди всех операций нет совпадений для «{query}».",
   "vendor_logo_failed": "Не удалось сохранить логотип. Попробуйте другое изображение.",
+  "subscription_overdue": "Просрочено",
   "notif_filter_backup": "Резервная копия",
   "notif_mute_backup": "Напоминание о резервной копии",
   "notif_backup_due_t": "Пора сделать резервную копию",

@@ -1147,5 +1147,6 @@
   "backup_encryption_unavailable": "Encrypted backups need the latest version of the app. Update the app and try again.",
   "search_no_results_title": "No results",
   "search_no_results_desc": "No transaction matches \"{query}\".",
-  "vendor_logo_failed": "Logo could not be saved. Try another image."
+  "vendor_logo_failed": "Logo could not be saved. Try another image.",
+  "subscription_overdue": "Overdue"
 }

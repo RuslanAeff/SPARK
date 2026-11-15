@@ -38,17 +38,11 @@ import GlassDeleteModal from '../src/components/GlassDeleteModal';
 import { RecurringPaymentReminderDao } from '../src/db/recurringPaymentReminderDao';
 import type { RecurringPaymentReminder } from '../src/db/schema';
 import { formatDateFull } from '../src/utils/dateUtils';
+import { getSubscriptionDueStatus } from '../src/utils/subscriptionDue';
 import { useNotifications } from '../src/context/NotificationsContext';
 import { useRefreshActions } from '../src/context/RefreshContext';
 import { syncNotificationsBestEffort } from '../src/notifications/syncNotificationsBestEffort';
 import { logError } from '../src/utils/logError';
-
-function daysUntil(dateIso: string): number {
-  const target = new Date(dateIso + 'T12:00:00').getTime();
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  return Math.ceil((target - today.getTime()) / (86400 * 1000));
-}
 
 export default function SubscriptionsScreen() {
   const scheme = useAppTheme();
@@ -259,15 +253,14 @@ export default function SubscriptionsScreen() {
   );
 
   const renderItem = (s: SubscriptionWithDetails, isDismissed: boolean) => {
-    const days = daysUntil(s.next_expected_date);
-    const dueLabel =
-      days <= 0
-        ? t('subscription_due_today')
-        : days === 1
-        ? t('subscription_due_tomorrow')
-        : t('subscription_due_in_days', { days: days.toString() });
+    const due = getSubscriptionDueStatus(s.next_expected_date);
+    const dueLabel = t(due.labelKey, due.params);
     const dueColor =
-      days <= 1 ? Colors.danger : days <= 3 ? Colors.warning : Colors.textMuted;
+      due.tone === 'overdue' || due.tone === 'urgent'
+        ? Colors.danger
+        : due.tone === 'soon'
+          ? Colors.warning
+          : Colors.textMuted;
     const formattedDate = new Intl.DateTimeFormat(intlLocaleForLanguage(language), {
       day: '2-digit',
       month: 'short',

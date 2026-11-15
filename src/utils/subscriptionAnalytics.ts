@@ -1,3 +1,4 @@
+import { daysUntilLocal } from './dateUtils';
 import type {
   RecurringPaymentReminder,
   SubscriptionWithDetails,
@@ -22,18 +23,8 @@ export interface SubscriptionAnalyticsInfo {
   upcoming: ActiveSubscriptionAnalyticsItem[];
 }
 
-function localDateAtNoon(value: string): Date | null {
-  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
-  if (!match) return null;
-  const date = new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]), 12);
-  return Number.isNaN(date.getTime()) ? null : date;
-}
-
 function daysUntil(value: string, today: Date): number {
-  const next = localDateAtNoon(value);
-  if (!next) return Number.MAX_SAFE_INTEGER;
-  const base = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 12);
-  return Math.round((next.getTime() - base.getTime()) / 86_400_000);
+  return daysUntilLocal(value, today) ?? Number.MAX_SAFE_INTEGER;
 }
 
 export function monthlyEquivalentForPlan(plan: RecurringPaymentReminder): number {

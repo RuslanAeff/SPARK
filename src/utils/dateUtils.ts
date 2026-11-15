@@ -157,6 +157,19 @@ export function addLocalDays(ymd: string, days: number): string | null {
   return getLocalDateDaysAgo(-days, base);
 }
 
+/**
+ * Bugünden `ymd` gününe kalan yerel takvim günü: bugün 0, yarın 1, dün -1.
+ * İki taraf da yerel öğlene sabitlenir; yaz saati geçişi ve gün içindeki saat
+ * sonucu değiştirmez. Geçersiz girişte `null` (UI denetimi FN-01 / CQ-04).
+ */
+export function daysUntilLocal(ymd: string, from: Date = new Date()): number | null {
+  const target = parseLocalYYYYMMDD(ymd);
+  if (!target) return null;
+  const targetNoon = new Date(target.getFullYear(), target.getMonth(), target.getDate(), 12);
+  const todayNoon = new Date(from.getFullYear(), from.getMonth(), from.getDate(), 12);
+  return Math.round((targetNoon.getTime() - todayNoon.getTime()) / 86_400_000);
+}
+
 export function getStartOfMonth(date?: Date): string {
   const d = date || new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`;
