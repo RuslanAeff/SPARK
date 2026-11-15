@@ -277,7 +277,7 @@ const getStyles = () => StyleSheet.create({
     transform: [{ scale: 0.95 }],
   },
   usageValue: {
-    ...Typography.titleMedium,
+    ...Typography.labelLarge,
     color: Colors.primary,
     fontFamily: FontFamily.bold,
     lineHeight: 22,

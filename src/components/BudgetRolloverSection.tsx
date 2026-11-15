@@ -30,12 +30,12 @@ export default function BudgetRolloverSection({ budget }: { budget: Budget | nul
     icon: { width: 36, height: 36, borderRadius: 12, backgroundColor: palette.primarySoft, alignItems: 'center', justifyContent: 'center' },
     panel: { padding: Spacing.md, paddingTop: 0, gap: Spacing.md },
     record: { borderTopWidth: 1, borderTopColor: palette.border, paddingTop: Spacing.md, gap: Spacing.sm },
-    title: { ...Typography.titleSmall, color: palette.textPrimary },
+    title: { ...Typography.labelLarge, color: palette.textPrimary },
     text: { ...Typography.bodySmall, color: palette.textSecondary },
     row: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: Spacing.sm },
     label: { ...Typography.bodySmall, color: palette.textSecondary, flex: 1 },
     amount: { ...Typography.labelMedium, color: palette.textPrimary },
-    input: { ...Typography.titleSmall, color: palette.textPrimary, minHeight: 48, borderWidth: 1, borderColor: palette.border, borderRadius: BorderRadius.md, padding: Spacing.sm, flex: 1 },
+    input: { ...Typography.labelLarge, color: palette.textPrimary, minHeight: 48, borderWidth: 1, borderColor: palette.border, borderRadius: BorderRadius.md, padding: Spacing.sm, flex: 1 },
     link: { minHeight: 44, flexDirection: 'row', gap: Spacing.sm, alignItems: 'center', justifyContent: 'center', padding: Spacing.sm, borderWidth: 1, borderColor: palette.danger, borderRadius: BorderRadius.md },
   }), [palette]);
   const action = useMemo(() => createSusevarStyles(palette), [palette]);

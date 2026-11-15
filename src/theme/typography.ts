@@ -11,7 +11,9 @@ export const FontFamily = {
   black: 'Inter_800ExtraBold',
 };
 
-export const Typography: Record<string, TextStyle> = {
+// `satisfies`: anahtarlar sabit tiptir; var olmayan `Typography.x` derlemede hata verir
+// (UI denetimi DS-05: `titleSmall`/`titleMedium` sessizce boş stil üretiyordu).
+export const Typography = {
   // Display
   displayLarge: {
     fontFamily: FontFamily.bold,
@@ -105,4 +107,4 @@ export const Typography: Record<string, TextStyle> = {
     lineHeight: 24,
     letterSpacing: 0,
   },
-};
+} satisfies Record<string, TextStyle>;
