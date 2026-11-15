@@ -185,6 +185,10 @@ export default function NotificationsScreen() {
   } = useNotifications();
   const [filter, setFilter] = useState<FilterKey>('all');
   const [muteModal, setMuteModal] = useState(false);
+  // Tercih listesi pencereye sığmadığında kaydırılabilir olduğunu belli et.
+  const [prefsViewportH, setPrefsViewportH] = useState(0);
+  const [prefsContentH, setPrefsContentH] = useState(0);
+  const prefsOverflow = prefsViewportH > 0 && prefsContentH > prefsViewportH + 1;
   const [systemNotificationStatus, setSystemNotificationStatus] =
     useState<AndroidNotificationSetupStatus | null>(null);
   const [futureScheduleCount, setFutureScheduleCount] = useState(0);
@@ -844,15 +848,43 @@ export default function NotificationsScreen() {
         navigationBarTranslucent
         onRequestClose={closeMuteModal}
       >
-        <Pressable
-          style={styles.modalOverlay}
-          onPress={closeMuteModal}
-          testID="notifications-preferences-backdrop"
+        <View
+          style={[
+            styles.modalOverlay,
+            // statusBarTranslucent/navigationBarTranslucent: pencere sistem çubuklarının
+            // altına taşmasın diye güvenli alan kadar iç boşluk.
+            {
+              paddingTop: insets.top + Spacing.lg,
+              paddingBottom: insets.bottom + Spacing.lg,
+            },
+          ]}
         >
-          <Pressable style={styles.modalSheet} onPress={(e) => e.stopPropagation()}>
+          {/* Karartı ayrı katman: pencere bir Pressable olsaydı dokunma hareketini
+              kendine alıp içteki ScrollView'in kaydırmasını takılır hale getiriyordu. */}
+          <Pressable
+            style={StyleSheet.absoluteFill}
+            onPress={closeMuteModal}
+            accessible={false}
+            testID="notifications-preferences-backdrop"
+          />
+          <View style={styles.modalSheet}>
             <Text style={styles.modalTitle} accessibilityRole="header">
               {t('notif_prefs_title')}
             </Text>
+            {/* Başlık ve "Tamam" sabit; uzun içerik (sistem durumu + kanallar) ekrana
+                sığmadığında pencere taşmak yerine yalnızca bu bölüm kaydırılır. */}
+            <ScrollView
+              style={styles.modalScroll}
+              contentContainerStyle={styles.modalScrollContent}
+              showsVerticalScrollIndicator={prefsOverflow}
+              persistentScrollbar={prefsOverflow}
+              bounces={false}
+              overScrollMode="never"
+              keyboardShouldPersistTaps="handled"
+              onLayout={(e) => setPrefsViewportH(e.nativeEvent.layout.height)}
+              onContentSizeChange={(_, h) => setPrefsContentH(h)}
+              testID="notifications-preferences-scroll"
+            >
             <Text style={styles.modalHint}>{t('notif_mute_hint')}</Text>
             {Platform.OS === 'android' &&
               (systemNotificationStatus === 'ready' ||
@@ -953,6 +985,10 @@ export default function NotificationsScreen() {
                 />
               </View>
             ))}
+            </ScrollView>
+            {prefsOverflow && (
+              <View style={styles.modalScrollDivider} testID="notifications-preferences-divider" />
+            )}
             <Pressable
               style={({ pressed }) => [styles.modalPrimaryBtn, pressed && styles.modalPrimaryBtnPressed]}
               onPress={closeMuteModal}
@@ -961,8 +997,8 @@ export default function NotificationsScreen() {
             >
               <Text style={styles.modalPrimaryBtnText}>{t('ok')}</Text>
             </Pressable>
-          </Pressable>
-        </Pressable>
+          </View>
+        </View>
       </Modal>
     </SafeAreaView>
   );
@@ -1387,6 +1423,27 @@ const getStyles = (isDark: boolean) => {
       padding: Spacing.xl,
       borderWidth: 1,
       borderColor: Colors.border,
+      // Overlay'in (güvenli alan çıkarılmış) yüksekliğini aşma; içerik kaydırılır.
+      maxHeight: '100%',
+      flexShrink: 1,
+    },
+    modalScroll: {
+      flexGrow: 0,
+      flexShrink: 1,
+      // Kaydırma çubuğu içeriğin hemen yanında değil, pencere kenarına yakın dursun:
+      // alan sağ iç boşluğa uzatılır, içerik aynı miktarda geri itilir (hizalama değişmez).
+      marginRight: -(Spacing.xl - Spacing.sm),
+    },
+    modalScrollContent: {
+      paddingBottom: Spacing.xs,
+      paddingRight: Spacing.xl - Spacing.sm,
+    },
+    // Liste taşınca kaydırılan alan ile sabit "Tamam" butonunu ayırır; satırın butonun
+    // altına sıkışmış gibi görünmesini önler.
+    modalScrollDivider: {
+      height: StyleSheet.hairlineWidth,
+      backgroundColor: Colors.border,
+      marginHorizontal: -Spacing.xl,
     },
     modalTitle: {
       fontSize: 22,
@@ -1407,7 +1464,9 @@ const getStyles = (isDark: boolean) => {
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'space-between',
-      paddingVertical: Spacing.md,
+      // Switch kendi 48dp dokunma alanını taşır; ek dikey boşluk listeyi gereksiz uzatıyordu.
+      paddingVertical: Spacing.xs,
+      minHeight: 52,
       borderBottomWidth: StyleSheet.hairlineWidth,
       borderBottomColor: Colors.border,
     },
