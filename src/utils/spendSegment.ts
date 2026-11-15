@@ -44,3 +44,21 @@ export const SPEND_SEGMENT_COLOR: Readonly<Record<SpendSegment, string>> = {
   wants: '#4ECDC4',
   other: '#FFE66D',
 };
+
+/** Hafta içi/sonu dil bağımsız anahtarı (UI denetimi FN-07). */
+export type DayTypeSegment = 'weekday' | 'weekend';
+
+export function isDayTypeSegment(value: unknown): value is DayTypeSegment {
+  return value === 'weekday' || value === 'weekend';
+}
+
+/** Çeviri anahtarı segment anahtarıyla aynıdır. */
+export const DAY_TYPE_SEGMENT_LABEL_KEY: Readonly<Record<DayTypeSegment, string>> = {
+  weekday: 'weekday',
+  weekend: 'weekend',
+};
+
+export const DAY_TYPE_SEGMENT_COLOR: Readonly<Record<DayTypeSegment, string>> = {
+  weekday: '#2EC4B6',
+  weekend: '#FF9F1C',
+};

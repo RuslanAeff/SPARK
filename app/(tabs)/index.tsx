@@ -14,7 +14,6 @@ import { Typography, FontFamily } from '../../src/theme/typography';
 import { Spacing, ScreenPadding, BorderRadius } from '../../src/theme/spacing';
 import { formatCurrency } from '../../src/utils/formatCurrency';
 import { formatPeriodRange } from '../../src/utils/dateUtils';
-import { createSerialQueue, runSequentially } from '../../src/utils/serialQueue';
 import { getCurrentCycle, shiftCycleKey } from '../../src/utils/budgetCycle';
 import { getCycleStartDay } from '../../src/services/budgetCycleSettings';
 import { useBudget } from '../../src/hooks/useBudget';
@@ -40,9 +39,12 @@ import { useExpenseDataRefresh } from '../../src/context/RefreshContext';
 import { useCurrency } from '../../src/context/CurrencyContext';
 import { useNotifications } from '../../src/context/NotificationsContext';
 import { getDashboardGoalPresentation } from '../../src/utils/dashboardGoalPresentation';
-import { logError } from '../../src/utils/logError';
 import PrimaryButton from '../../src/components/PrimaryButton';
 import { useBottomClearance } from '../../src/hooks/useBottomClearance';
+import { useDashboardRefresh } from '../../src/hooks/useDashboardRefresh';
+
+/** Veri hook'ları yalnız useDashboardRefresh üzerinden yüklenir (FN-03). */
+const MANUAL_LOAD = { autoLoad: false } as const;
 
 export default function DashboardScreen() {
   // UX-06: yüzen sekme çubuğu + sistem gezinme alanı kadar alt boşluk.
@@ -73,17 +75,19 @@ export default function DashboardScreen() {
   const cycleStart = budget.periodStart || undefined;
   const cycleEnd = budget.periodEnd || undefined;
 
-  const { data: categories, refresh: refreshCats } = useCategorySpending(cycleStart, cycleEnd);
-  const { data: vendors, refresh: refreshVendors } = useVendorSpending(cycleStart, cycleEnd);
-  const { total: monthlyTotal, refresh: refreshTotal } = useMonthlyTotal(cycleStart, cycleEnd);
-  const { goal, loading: goalLoading, refresh: refreshGoal } = useSavingsGoal();
-  const { rows: limitRows, refresh: refreshLimits } = useCategoryLimitsProgress(cycleStart, cycleEnd);
+  // FN-03: veri hook'ları kendiliğinden sorgu atmaz; tek yükleme yolu aşağıdaki
+  // useDashboardRefresh kuyruğudur (dönem çözülünce, odakta ve veri değişince).
+  const { data: categories, refresh: refreshCats } = useCategorySpending(cycleStart, cycleEnd, MANUAL_LOAD);
+  const { data: vendors, refresh: refreshVendors } = useVendorSpending(cycleStart, cycleEnd, MANUAL_LOAD);
+  const { total: monthlyTotal, refresh: refreshTotal } = useMonthlyTotal(cycleStart, cycleEnd, MANUAL_LOAD);
+  const { goal, loading: goalLoading, refresh: refreshGoal } = useSavingsGoal(MANUAL_LOAD);
+  const { rows: limitRows, refresh: refreshLimits } = useCategoryLimitsProgress(cycleStart, cycleEnd, MANUAL_LOAD);
   const {
     enabled: goalFeatureEnabled,
     dashboardFocusEnabled,
     loading: goalPreferencesLoading,
     refresh: refreshGoalFeature,
-  } = useGoalFeatureEnabled();
+  } = useGoalFeatureEnabled(MANUAL_LOAD);
   const [refreshing, setRefreshing] = React.useState(false);
   // Borç yönetim alt sayfası (açık borç rozetine dokununca açılır — Faz 4a).
   const [debtSheetVisible, setDebtSheetVisible] = React.useState(false);
@@ -93,14 +97,18 @@ export default function DashboardScreen() {
   const { currency } = useCurrency();
   const { unreadCount, sync } = useNotifications();
 
-  // ADR-002 / BUG-12: yedi yenileme zinciri aynı SQLite bağlantısını kullanır.
-  // Odak, veri değişikliği ve çekip yenileme aynı anda tetiklense bile zincirler
+  // ADR-002 / BUG-12: yenileme zincirleri aynı SQLite bağlantısını kullanır ve
   // tek kuyrukta sırayla çalışır; bir zincirin hatası diğerlerini durdurmaz.
-  const refreshQueueRef = React.useRef(createSerialQueue());
-  const refreshAll = useCallback(() => refreshQueueRef.current(() => runSequentially(
-    [refreshBudget, refreshCats, refreshVendors, refreshTotal, refreshGoal, refreshLimits, refreshGoalFeature],
-    (error) => { logError('dashboard refresh step failed', error); },
-  )), [refreshBudget, refreshCats, refreshVendors, refreshTotal, refreshGoal, refreshLimits, refreshGoalFeature]);
+  // Dönem değişince adımların kimliği değişir → odak efekti yeni dönemi yükler.
+  const dataSteps = React.useMemo(
+    () => [refreshCats, refreshVendors, refreshTotal, refreshGoal, refreshLimits, refreshGoalFeature],
+    [refreshCats, refreshVendors, refreshTotal, refreshGoal, refreshLimits, refreshGoalFeature],
+  );
+  const refreshAll = useDashboardRefresh({
+    periodReady: Boolean(budget.periodStart && budget.periodEnd),
+    refreshBudget,
+    dataSteps,
+  });
 
   useFocusEffect(
     useCallback(() => {

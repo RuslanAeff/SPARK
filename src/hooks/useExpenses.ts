@@ -1,7 +1,13 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { ExpenseDao, type TopTransactionSelection } from '../db/expenseDao';
 import { useLanguage } from '../i18n/LanguageContext';
-import { SPEND_SEGMENT_COLOR, SPEND_SEGMENT_LABEL_KEY, type SpendSegment } from '../utils/spendSegment';
+import {
+  DAY_TYPE_SEGMENT_COLOR,
+  DAY_TYPE_SEGMENT_LABEL_KEY,
+  SPEND_SEGMENT_COLOR,
+  SPEND_SEGMENT_LABEL_KEY,
+  type SpendSegment,
+} from '../utils/spendSegment';
 import { ExpenseWithDetails, CategorySpending, VendorSpending } from '../db/schema';
 import { getStartOfMonth, getEndOfMonth } from '../utils/dateUtils';
 import { logError } from '../utils/logError';
@@ -188,7 +194,8 @@ export function useExpenseSearch(
   return { active: trimmed.length > 0, items, searching, loadingMore, hasMore, loadMore, refresh };
 }
 
-export function useMonthlyTotal(startDate?: string, endDate?: string) {
+export function useMonthlyTotal(startDate?: string, endDate?: string, options: ExpenseQueryOptions = {}) {
+  const autoLoad = options.autoLoad ?? true;
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const mounted = useMounted();
@@ -207,7 +214,7 @@ export function useMonthlyTotal(startDate?: string, endDate?: string) {
     if (mounted.current) setLoading(false);
   }, [start, end]);
 
-  useEffect(() => { refresh(); }, [refresh]);
+  useEffect(() => { if (autoLoad) refresh(); }, [refresh, autoLoad]);
 
   return { total, loading, refresh };
 }
@@ -524,18 +531,12 @@ export function useBehavioralAnalytics(
 
       const wwData = await ExpenseDao.getWeekdayVsWeekend(start, end);
       const wwTotal = wwData.reduce((sum, item) => sum + item.total, 0);
-      const mappedWW = wwData.map(item => {
-        let localizedSegment = item.segment;
-        if (item.segment === 'Hafta Sonu') localizedSegment = translate('weekend');
-        if (item.segment === 'Hafta İçi') localizedSegment = translate('weekday');
-
-        return {
-          ...item,
-          segment: localizedSegment,
-          percentage: wwTotal > 0 ? Math.round((item.total / wwTotal) * 100) : 0,
-          color: item.segment === 'Hafta Sonu' ? '#FF9F1C' : '#2EC4B6'
-        };
-      });
+      const mappedWW = wwData.map(item => ({
+        segment: translate(DAY_TYPE_SEGMENT_LABEL_KEY[item.segment]),
+        total: item.total,
+        percentage: wwTotal > 0 ? Math.round((item.total / wwTotal) * 100) : 0,
+        color: DAY_TYPE_SEGMENT_COLOR[item.segment],
+      }));
       if (mounted.current && sequence === refreshSequence.current) setWeekWeekend(mappedWW);
     } catch (e) {
       logError('Error loading behavioral analytics', e);

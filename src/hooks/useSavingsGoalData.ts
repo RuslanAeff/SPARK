@@ -6,7 +6,13 @@ import { resolveBudgetCycle } from '../services/limitCycle';
 import { getGoalFeaturePreferences } from '../services/goalFeatureSettings';
 import { logError } from '../utils/logError';
 
-export function useSavingsGoal() {
+/** `autoLoad: false`: çağıran yükleme sırasını kendisi yönetir (FN-03). */
+export interface DataHookOptions {
+  autoLoad?: boolean;
+}
+
+export function useSavingsGoal(options: DataHookOptions = {}) {
+  const autoLoad = options.autoLoad ?? true;
   const [goal, setGoal] = useState<SavingsGoalRow | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -20,8 +26,8 @@ export function useSavingsGoal() {
   }, []);
 
   useEffect(() => {
-    refresh();
-  }, [refresh]);
+    if (autoLoad) refresh();
+  }, [refresh, autoLoad]);
 
   return { goal, loading, refresh };
 }
@@ -44,7 +50,8 @@ export interface CategoryLimitProgress {
  * YYYY-MM'i). Sınır verilmezse (ilk render) bugünü kapsayan döngü çözülür —
  * takvim ayına düşülmez, yoksa limit ayarıyla farklı satır okunurdu.
  */
-export function useCategoryLimitsProgress(startDate?: string, endDate?: string) {
+export function useCategoryLimitsProgress(startDate?: string, endDate?: string, options: DataHookOptions = {}) {
+  const autoLoad = options.autoLoad ?? true;
   const [rows, setRows] = useState<CategoryLimitProgress[]>([]);
   const [loading, setLoading] = useState(true);
   const mounted = useRef(true);
@@ -91,13 +98,14 @@ export function useCategoryLimitsProgress(startDate?: string, endDate?: string) 
   }, [startDate, endDate]);
 
   useEffect(() => {
-    refresh();
-  }, [refresh]);
+    if (autoLoad) refresh();
+  }, [refresh, autoLoad]);
 
   return { rows, loading, refresh };
 }
 
-export function useGoalFeatureEnabled() {
+export function useGoalFeatureEnabled(options: DataHookOptions = {}) {
+  const autoLoad = options.autoLoad ?? true;
   const [enabled, setEnabled] = useState(true);
   const [dashboardFocusEnabled, setDashboardFocusEnabled] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -113,8 +121,8 @@ export function useGoalFeatureEnabled() {
   }, []);
 
   useEffect(() => {
-    refresh();
-  }, [refresh]);
+    if (autoLoad) refresh();
+  }, [refresh, autoLoad]);
 
   return { enabled, dashboardFocusEnabled, loading, refresh };
 }

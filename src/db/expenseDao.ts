@@ -1,5 +1,11 @@
 // S.P.A.R.K. — Expense Data Access Object
-import { isSpendSegment, systemRootsFor, type SpendSegment } from '../utils/spendSegment';
+import {
+  isDayTypeSegment,
+  isSpendSegment,
+  systemRootsFor,
+  type DayTypeSegment,
+  type SpendSegment,
+} from '../utils/spendSegment';
 import { getDatabase } from './database';
 import { Expense, ExpenseItem, ExpenseWithDetails } from './schema';
 import { CategoryDao } from './categoryDao';
@@ -678,13 +684,14 @@ export const ExpenseDao = {
     }));
   },
 
-  async getWeekdayVsWeekend(startDate: string, endDate: string) {
+  /** FN-07: segment dil bağımsız anahtardır ('weekday' | 'weekend'); etiket UI'da çevrilir. */
+  async getWeekdayVsWeekend(startDate: string, endDate: string): Promise<{ segment: DayTypeSegment; total: number }[]> {
     const db = await getDatabase();
-    return db.getAllAsync<{ segment: string; total: number }>(
+    const rows = await db.getAllAsync<{ segment: string; total: number }>(
       `SELECT
-         CASE 
-           WHEN strftime('%w', e.date) IN ('0', '6') THEN 'Hafta Sonu'
-           ELSE 'Hafta İçi'
+         CASE
+           WHEN strftime('%w', e.date) IN ('0', '6') THEN 'weekend'
+           ELSE 'weekday'
          END as segment,
          COALESCE(SUM(e.total_amount), 0) as total
        FROM expenses e
@@ -693,6 +700,10 @@ export const ExpenseDao = {
        ORDER BY total DESC`,
       [startDate, endDate]
     );
+    return rows.map(row => ({
+      segment: isDayTypeSegment(row.segment) ? row.segment : 'weekday',
+      total: row.total,
+    }));
   },
 
   async getYearlyTotals() {
