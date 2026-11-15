@@ -20,6 +20,7 @@
     "expo": "~55.0.31",
     "expo-asset": "~55.0.20",
     "expo-audio": "~55.0.18",
+    "expo-blur": "~55.0.18",
     "expo-camera": "~55.0.23",
     "expo-constants": "~55.0.17",
     "expo-crypto": "~55.0.19",
