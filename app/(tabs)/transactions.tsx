@@ -170,7 +170,10 @@ export default function TransactionsScreen() {
 
   const handleRowLongPress = useCallback((expenseId: number) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    if (selectionMode) {
+    // FN-02: geri çağrı kimliği sabit ([]) tutulur; güncel mod ref'ten okunur.
+    // Eskiden kapanıştaki `selectionMode` hep ilk render'ın `false` değeriydi ve
+    // seçim modunda uzun basma önceki seçimleri silip tek satıra indiriyordu.
+    if (selectionModeRef.current) {
       toggleSelect(expenseId);
     } else {
       setSelectionMode(true);
@@ -182,7 +185,7 @@ export default function TransactionsScreen() {
     lastTouchedIdRef.current = expenseId;
     dragSelectingRef.current = true;
     setDragSelecting(true);
-  }, []);
+  }, [toggleSelect]);
 
   // Auto-scroll loop: parmak edge'deyken liste otomatik kayar.
   useEffect(() => {
