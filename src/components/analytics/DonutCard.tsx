@@ -30,11 +30,6 @@ function DonutCard({
   handleNWMove, handleWWMove,
 }: DonutCardProps) {
   useThemeRevision();
-  if (needsWants.length === 0 && weekWeekend.length === 0) return null;
-
-  const nwItem = selectedNWIdx !== null ? needsWants[selectedNWIdx] : null;
-  const wwItem = selectedWWIdx !== null ? weekWeekend[selectedWWIdx] : null;
-
   // Sayfa genişliğini HESAPLAMA yerine ÖLÇ: parent padding + kart border/padding
   // birleşimi hesapla tutmadığında her donut sayfası viewport'tan dar kalıp sonraki
   // donut'un sağdan sızmasına yol açıyordu. onLayout ile ScrollView'in gerçek
@@ -42,6 +37,12 @@ function DonutCard({
   const screenWidth = Dimensions.get('window').width;
   const [pageW, setPageW] = useState(screenWidth - ScreenPadding.horizontal * 2); // ilk render fallback
   const [infoVisible, setInfoVisible] = useState(false);
+  // Hook'lar erken dönüşten ÖNCE: veri dolu → boş geçişinde hook sayısı değişirse
+  // React "Rendered fewer hooks" ile ekranı çökertir (UI denetimi CQ-01 lint bulgusu).
+  if (needsWants.length === 0 && weekWeekend.length === 0) return null;
+
+  const nwItem = selectedNWIdx !== null ? needsWants[selectedNWIdx] : null;
+  const wwItem = selectedWWIdx !== null ? weekWeekend[selectedWWIdx] : null;
 
   return (
     <AnimatedCard delay={300} style={{ ...styles.section, ...styles.primaryCard, paddingHorizontal: 0 }}>

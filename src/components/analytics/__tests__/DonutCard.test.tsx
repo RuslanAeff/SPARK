@@ -27,7 +27,8 @@ jest.mock('../../SettingsInfoHint', () => {
     ) : null,
   };
 });
-jest.mock('../../../theme/themeStore', () => ({ useThemeRevision: () => 0 }));
+// Gerçekteki gibi bir hook: React'in "eksik hook" denetimi ancak böyle devreye girer.
+jest.mock('../../../theme/themeStore', () => ({ useThemeRevision: () => require('react').useState(0)[0] }));
 jest.mock('@expo/vector-icons', () => ({ MaterialCommunityIcons: () => null }));
 
 const styles: any = {
@@ -166,5 +167,23 @@ describe('DonutCard ihtiyaç/istek açıklaması (BUG-16)', () => {
     );
     expect(screen.getByText('wants_analysis')).toBeTruthy();
     expect(screen.queryByText('savings_other_analysis')).toBeNull();
+  });
+
+  it('veri boşalıp yeniden dolduğunda hook sırası bozulmadan render eder', async () => {
+    const props = {
+      styles, t: (key: string) => key, tc: (key: string) => key, currency: 'PLN' as const,
+      nwSegments: [], wwSegments: [], selectedNWIdx: null, selectedWWIdx: null,
+      handleNWSelect: jest.fn(), handleWWSelect: jest.fn(), handleNWMove: jest.fn(), handleWWMove: jest.fn(),
+    };
+    const filled = [{ segment: 'needs', percentage: 100, total: 10, color: '#00a' }];
+    const screen = await render(<DonutCard {...props} needsWants={filled} weekWeekend={[]} />);
+    expect(screen.getByText('behavioral_analysis')).toBeTruthy();
+
+    // Ör. dönemdeki tüm harcamalar silindi: kart kaybolur, ekran çökmez.
+    await screen.rerender(<DonutCard {...props} needsWants={[]} weekWeekend={[]} />);
+    expect(screen.queryByText('behavioral_analysis')).toBeNull();
+
+    await screen.rerender(<DonutCard {...props} needsWants={filled} weekWeekend={[]} />);
+    expect(screen.getByText('behavioral_analysis')).toBeTruthy();
   });
 });
