@@ -6,6 +6,9 @@ import { Colors } from '../../theme/colors';
 import { Typography, FontFamily } from '../../theme/typography';
 import { Spacing, ScreenPadding, BorderRadius } from '../../theme/spacing';
 
+// Önceki görünümle aynı boyut: 20px ikon + 2×Spacing.sm iç boşluk + 2×1px kenarlık.
+const EDIT_TOGGLE_SIZE = 38;
+
 export const getAnalyticsStyles = () => StyleSheet.create({
   container: {
     flex: 1,
@@ -26,6 +29,9 @@ export const getAnalyticsStyles = () => StyleSheet.create({
   headerTitleBlock: {
     flex: 1,
     alignItems: 'center',
+    // editToggleBtn mutlak konumlu (sağ üst). Başlık ortada kalsın ve uzun düzenleme
+    // ipucu butonun altına girmesin diye iki yana buton genişliği + boşluk kadar pay.
+    paddingHorizontal: EDIT_TOGGLE_SIZE + Spacing.sm,
   },
   title: {
     ...Typography.headlineLarge,
@@ -97,7 +103,10 @@ export const getAnalyticsStyles = () => StyleSheet.create({
     position: 'absolute',
     right: 0,
     top: Spacing.lg,
-    padding: Spacing.sm,
+    width: EDIT_TOGGLE_SIZE,
+    height: EDIT_TOGGLE_SIZE,
+    alignItems: 'center',
+    justifyContent: 'center',
     backgroundColor: Colors.surfaceLight,
     borderRadius: BorderRadius.round,
     borderWidth: 1,
