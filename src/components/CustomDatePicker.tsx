@@ -336,12 +336,11 @@ export default function CustomDatePicker({
       navigationBarTranslucent
       onRequestClose={onClose}
     >
-      <Pressable style={styles.overlay} onPress={onClose} accessible={false}>
-        <Pressable
-          style={[styles.modal, { backgroundColor: modalBg }]}
-          onPress={() => {}}
-          accessible={false}
-        >
+      <View style={styles.overlay}>
+        {/* UX-02: karartı ayrı katman. Pencere Pressable olursa Android'de dikey
+            hareketi yakalayıp içteki listenin kaydırmasını takılır hale getirir. */}
+        <Pressable style={StyleSheet.absoluteFill} onPress={onClose} accessible={false} />
+        <View style={[styles.modal, { backgroundColor: modalBg }]}>
 
           {/* Header with month navigation */}
           <View style={styles.header}>
@@ -480,9 +479,8 @@ export default function CustomDatePicker({
                <Text style={styles.closeText}>{t('close')}</Text>
             </Pressable>
           </View>
-
-        </Pressable>
-      </Pressable>
+        </View>
+      </View>
     </Modal>
   );
 }

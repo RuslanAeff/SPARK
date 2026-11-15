@@ -386,8 +386,11 @@ export default function GoalSettingsScreen() {
           navigationBarTranslucent
           onRequestClose={() => setAddModal(false)}
         >
-          <Pressable style={styles.modalBackdrop} onPress={() => setAddModal(false)}>
-            <Pressable style={styles.modalCard} onPress={e => e.stopPropagation()}>
+          <View style={styles.modalBackdrop}>
+            {/* UX-02: karartı ayrı katman. Pencere Pressable olursa Android'de dikey
+            hareketi yakalayıp içteki listenin kaydırmasını takılır hale getirir. */}
+            <Pressable style={StyleSheet.absoluteFill} onPress={() => setAddModal(false)} accessible={false} />
+            <View style={styles.modalCard}>
               <Text style={styles.modalTitle}>{t('goal_settings_pick_category')}</Text>
               <FlatList
                 data={categoriesAvailableToAdd}
@@ -409,8 +412,8 @@ export default function GoalSettingsScreen() {
               >
                 <Text style={styles.modalCancelBtnText}>{t('cancel')}</Text>
               </Pressable>
-            </Pressable>
-          </Pressable>
+            </View>
+          </View>
         </Modal>
       </KeyboardAvoidingView>
     </SafeAreaView>

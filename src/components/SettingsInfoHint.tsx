@@ -44,8 +44,11 @@ export function SettingsInfoHintModal({ visible, onClose, title, paragraphs }: I
       navigationBarTranslucent
       onRequestClose={onClose}
     >
-      <Pressable style={styles.overlay} onPress={onClose}>
-        <Pressable style={styles.sheet} onPress={(e) => e.stopPropagation()}>
+      <View style={styles.overlay}>
+        {/* UX-02: karartı ayrı katman. Pencere Pressable olursa Android'de dikey
+            hareketi yakalayıp içteki listenin kaydırmasını takılır hale getirir. */}
+        <Pressable style={StyleSheet.absoluteFill} onPress={onClose} accessible={false} />
+        <View style={styles.sheet}>
           <Text style={styles.sheetTitle}>{title}</Text>
           <ScrollView
             style={styles.scroll}
@@ -69,8 +72,8 @@ export function SettingsInfoHintModal({ visible, onClose, title, paragraphs }: I
               <Text style={[styles.closeBtnText, pressed && styles.closeBtnTextPressed]}>{t('close')}</Text>
             )}
           </Pressable>
-        </Pressable>
-      </Pressable>
+        </View>
+      </View>
     </Modal>
   );
 }
