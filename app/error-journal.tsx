@@ -22,6 +22,7 @@ import {
   type ErrorJournalEntry,
 } from '../src/services/errorJournal';
 import ScreenHeader from '../src/components/ScreenHeader';
+import { useBottomClearance } from '../src/hooks/useBottomClearance';
 
 function formatEntryTime(iso: string): string {
   const d = new Date(iso);
@@ -31,6 +32,8 @@ function formatEntryTime(iso: string): string {
 }
 
 export default function ErrorJournalScreen() {
+  // UX-06: sistem gezinme alanı (jest/üç düğme) kadar ek alt boşluk.
+  const bottomClearance = useBottomClearance('screen', Spacing.xl * 2);
   useThemeRevision();
   const styles = getStyles();
   const { t } = useLanguage();
@@ -66,7 +69,7 @@ export default function ErrorJournalScreen() {
     <SafeAreaView style={styles.container} edges={['top']}>
       <ScreenHeader title={t('error_journal_entry_title')} />
 
-      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+      <ScrollView contentContainerStyle={[styles.content, { paddingBottom: bottomClearance }]} showsVerticalScrollIndicator={false}>
         <View style={styles.privacyCard}>
           <MaterialCommunityIcons name="shield-lock-outline" size={22} color={Colors.primary} />
           <Text style={styles.privacyText}>{t('error_journal_privacy')}</Text>

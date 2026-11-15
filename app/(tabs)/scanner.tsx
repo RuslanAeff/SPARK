@@ -48,6 +48,7 @@ import {
   susevarButtonPressed,
   susevarButtonRow,
 } from '../../src/theme/susevar';
+import { useBottomClearance } from '../../src/hooks/useBottomClearance';
 
 type ScanState = 'idle' | 'collecting' | 'processing' | 'result' | 'error' | 'no_key';
 
@@ -132,6 +133,8 @@ function ScannerGalleryMark({ color }: { color: string }) {
 }
 
 export default function ScannerScreen() {
+  // UX-06: yüzen sekme çubuğu + sistem gezinme alanı kadar alt boşluk.
+  const bottomClearance = useBottomClearance('tab');
   const scheme = useAppTheme();
   const theme = useThemePalette();
   const { t, tc, language } = useLanguage();
@@ -894,7 +897,7 @@ export default function ScannerScreen() {
           );
         })()}
 
-        <View style={{ height: 100 }} />
+        <View style={{ height: bottomClearance }} />
       </ScrollView>
       {result ? (
         <CustomDatePicker

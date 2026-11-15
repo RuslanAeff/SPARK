@@ -42,8 +42,11 @@ import { useNotifications } from '../../src/context/NotificationsContext';
 import { getDashboardGoalPresentation } from '../../src/utils/dashboardGoalPresentation';
 import { logError } from '../../src/utils/logError';
 import PrimaryButton from '../../src/components/PrimaryButton';
+import { useBottomClearance } from '../../src/hooks/useBottomClearance';
 
 export default function DashboardScreen() {
+  // UX-06: yüzen sekme çubuğu + sistem gezinme alanı kadar alt boşluk.
+  const bottomClearance = useBottomClearance('tab');
   // İlk açılışta DB teması gelince tüm kartlar aynı React store'undan senkronlensin.
   const scheme = useAppTheme();
   const themeRevision = useThemeRevision();
@@ -420,7 +423,7 @@ export default function DashboardScreen() {
           </Animated.View>
         )}
 
-        <View style={{ height: 100 }} />
+        <View style={{ height: bottomClearance }} />
       </ScrollView>
 
       <DebtSheet

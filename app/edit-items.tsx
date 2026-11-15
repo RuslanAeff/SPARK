@@ -48,10 +48,13 @@ import {
   type MeasurementInputUnit,
 } from '../src/utils/measurementUnit';
 import ScreenHeader from '../src/components/ScreenHeader';
+import { useBottomClearance } from '../src/hooks/useBottomClearance';
 
 const UNIT_OPTIONS: MeasurementInputUnit[] = ['piece', 'kg', 'g', 'l', 'ml'];
 
 export default function EditItemsScreen() {
+  // UX-06: sistem gezinme alanı (jest/üç düğme) kadar ek alt boşluk.
+  const formBottom = useBottomClearance('screen');
   useThemeRevision();
   const styles = getStyles();
   const { t } = useLanguage();
@@ -367,7 +370,7 @@ export default function EditItemsScreen() {
         </ScrollView>
 
         {/* Edit / Add Form Fixed at Bottom */}
-        <View style={styles.formContainer}>
+        <View style={[styles.formContainer, { paddingBottom: formBottom }]}>
           <View style={styles.formHeader}>
             <Text style={styles.formTitle}>
               {editingItemId ? t('edit_item') : t('add_item_manual')}
@@ -602,7 +605,6 @@ const getStyles = () => StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: Colors.border,
     padding: ScreenPadding.horizontal,
-    paddingBottom: Spacing.xl, // Safe area padding
     gap: Spacing.md,
   },
   formHeader: {

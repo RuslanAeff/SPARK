@@ -15,6 +15,7 @@ import { Spacing, ScreenPadding } from '../../src/theme/spacing';
 import { useLanguage } from '../../src/i18n/LanguageContext';
 import LivingSparkWordmark from '../../src/components/LivingSparkWordmark';
 import { SettingsNavigationRow } from '../../src/components/SettingsList';
+import { useBottomClearance } from '../../src/hooks/useBottomClearance';
 
 interface SettingsGroup {
   key: 'general' | 'budget' | 'data' | 'ai';
@@ -27,6 +28,8 @@ interface SettingsGroup {
 }
 
 export default function SettingsScreen() {
+  // UX-06: yüzen sekme çubuğu + sistem gezinme alanı kadar alt boşluk.
+  const bottomClearance = useBottomClearance('tab');
   const colorScheme = useAppTheme();
   const themeRevision = useThemeRevision();
   const styles = useMemo(() => getStyles(), [colorScheme, themeRevision]);
@@ -135,7 +138,7 @@ export default function SettingsScreen() {
           </View>
         </Animated.View>
 
-        <View style={styles.bottomSpacer} />
+        <View style={{ height: bottomClearance }} />
       </ScrollView>
     </SafeAreaView>
   );
@@ -197,8 +200,5 @@ const getStyles = () => StyleSheet.create({
   privacyLinkText: {
     ...Typography.labelSmall,
     color: Colors.textMuted,
-  },
-  bottomSpacer: {
-    height: 100,
   },
 });

@@ -56,6 +56,7 @@ import {
 import { logError } from '../src/utils/logError';
 import ScreenHeader from '../src/components/ScreenHeader';
 import PrimaryButton from '../src/components/PrimaryButton';
+import { useBottomClearance } from '../src/hooks/useBottomClearance';
 
 /** Kilitli dönem uyarısı kullanıcıya özel; diğer yazma hataları genel mesajda kalır. */
 function budgetWriteErrorKey(error: unknown): string {
@@ -65,6 +66,8 @@ function budgetWriteErrorKey(error: unknown): string {
 }
 
 export default function SettingsBudgetScreen() {
+  // UX-06: sistem gezinme alanı (jest/üç düğme) kadar ek alt boşluk.
+  const bottomClearance = useBottomClearance('screen', 40);
   const colorScheme = useAppTheme();
   const themeRevision = useThemeRevision();
   const styles = useMemo(() => getStyles(), [colorScheme, themeRevision]);
@@ -358,7 +361,7 @@ export default function SettingsBudgetScreen() {
       <SafeAreaView style={styles.container} edges={['top']}>
         <ScreenHeader title={t('settings_group_budget')} />
 
-        <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+        <ScrollView contentContainerStyle={[styles.content, { paddingBottom: bottomClearance }]} showsVerticalScrollIndicator={false}>
           <Animated.View entering={FadeInDown.delay(40).duration(400)}>
             <SettingsSection testID="settings-budget-cycle-section">
               <View style={styles.sectionHeader}>

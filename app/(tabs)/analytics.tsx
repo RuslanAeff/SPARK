@@ -79,6 +79,7 @@ import {
   resolveAnalyticsCardEditExit,
 } from '../../src/utils/analyticsCardConfig';
 import { logError } from '../../src/utils/logError';
+import { useBottomClearance } from '../../src/hooks/useBottomClearance';
 
 const SCREEN_HEIGHT = Dimensions.get('window').height;
 const AUTO_SCROLL_EDGE = 100;
@@ -264,6 +265,8 @@ const DraggablePanel = ({
 };
 
 export default function AnalyticsScreen() {
+  // UX-06: yüzen sekme çubuğu + sistem gezinme alanı kadar alt boşluk.
+  const bottomClearance = useBottomClearance('tab');
   // BÜTÇE DURUMU vb. kartlar sekme odakta değilken de tema güncellensin.
   // Merkezi React tema store'u tüm analitik kartları aynı karede günceller.
   const scheme = useAppTheme();
@@ -1644,7 +1647,7 @@ export default function AnalyticsScreen() {
             </>
           )}
 
-          <View style={{ height: 100 }} />
+          <View style={{ height: bottomClearance }} />
         </ScrollView>
       </SafeAreaView>
     </ErrorBoundary>

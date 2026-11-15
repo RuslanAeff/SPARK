@@ -41,12 +41,15 @@ import GlassDeleteModal from '../../src/components/GlassDeleteModal';
 import { SparkToast } from '../../src/components/SparkToast';
 import { ExpenseDao } from '../../src/db/expenseDao';
 import { logError } from '../../src/utils/logError';
+import { useBottomClearance } from '../../src/hooks/useBottomClearance';
 
 type Row =
   | { kind: 'header'; date: string; key: string }
   | { kind: 'row'; expense: ExpenseWithDetails; key: string };
 
 export default function TransactionsScreen() {
+  // UX-06: yüzen sekme çubuğu + sistem gezinme alanı kadar alt boşluk.
+  const bottomClearance = useBottomClearance('tab');
   const scheme = useAppTheme();
   const themeRevision = useThemeRevision();
   // P10: StyleSheet sadece tema değiştiğinde yeniden oluşur.
@@ -545,7 +548,7 @@ export default function TransactionsScreen() {
               enabled={!dragSelecting}
             />
           }
-          contentContainerStyle={styles.listContent}
+          contentContainerStyle={{ paddingBottom: bottomClearance }}
           showsVerticalScrollIndicator={false}
           ListEmptyComponent={
             search.active ? (
@@ -653,9 +656,6 @@ const getStyles = () => StyleSheet.create({
     ...Typography.bodyMedium,
     color: Colors.textPrimary,
     paddingVertical: 0,
-  },
-  listContent: {
-    paddingBottom: 100,
   },
   dateHeader: {
     ...Typography.labelMedium,

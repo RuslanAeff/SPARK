@@ -43,8 +43,11 @@ import {
 import { logError } from '../src/utils/logError';
 import ConfirmModal from '../src/components/ConfirmModal';
 import ScreenHeader from '../src/components/ScreenHeader';
+import { useBottomClearance } from '../src/hooks/useBottomClearance';
 
 export default function SettingsGeneralScreen() {
+  // UX-06: sistem gezinme alanı (jest/üç düğme) kadar ek alt boşluk.
+  const bottomClearance = useBottomClearance('screen', 40);
   const colorScheme = useAppTheme();
   const activeAccent = useThemeAccent();
   const palette = useThemePalette();
@@ -151,7 +154,7 @@ export default function SettingsGeneralScreen() {
       <SafeAreaView style={styles.container} edges={['top']}>
         <ScreenHeader title={t('settings_group_general')} />
 
-        <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+        <ScrollView contentContainerStyle={[styles.content, { paddingBottom: bottomClearance }]} showsVerticalScrollIndicator={false}>
           {/* Language */}
           <Animated.View entering={FadeInDown.delay(80).duration(400)}>
             <SettingsNavigationRow

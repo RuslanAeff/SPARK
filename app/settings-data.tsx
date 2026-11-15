@@ -42,6 +42,7 @@ import {
 import { logError } from '../src/utils/logError';
 import { setVendorLogo, sweepOrphanVendorLogos } from '../src/services/vendorLogoStore';
 import ScreenHeader from '../src/components/ScreenHeader';
+import { useBottomClearance } from '../src/hooks/useBottomClearance';
 
 type BulkVendorDeletePrompt = {
   vendorIds: number[];
@@ -50,6 +51,8 @@ type BulkVendorDeletePrompt = {
 };
 
 export default function SettingsDataScreen() {
+  // UX-06: sistem gezinme alanı (jest/üç düğme) kadar ek alt boşluk.
+  const bottomClearance = useBottomClearance('screen', 40);
   const colorScheme = useAppTheme();
   const themeRevision = useThemeRevision();
   const styles = useMemo(() => getStyles(), [colorScheme, themeRevision]);
@@ -240,7 +243,7 @@ export default function SettingsDataScreen() {
       <SafeAreaView style={styles.container} edges={['top']}>
         <ScreenHeader title={t('settings_group_data')} />
 
-        <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+        <ScrollView contentContainerStyle={[styles.content, { paddingBottom: bottomClearance }]} showsVerticalScrollIndicator={false}>
           {/* Vendors */}
           <Animated.View entering={FadeInDown.delay(80).duration(400)}>
             <SettingsSection testID="settings-data-vendors-section">

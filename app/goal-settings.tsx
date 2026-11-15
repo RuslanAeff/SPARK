@@ -30,11 +30,14 @@ import { createSusevarStyles } from '../src/theme/susevar';
 import { useThemeRevision } from '../src/theme/themeStore';
 import { logError } from '../src/utils/logError';
 import ScreenHeader from '../src/components/ScreenHeader';
+import { useBottomClearance } from '../src/hooks/useBottomClearance';
 
 /** Limit satırı + kullanıcının yazdığı ham metin; sayı yalnız kaydederken üretilir (BUG-24). */
 type LimitDraft = CategoryLimitRow & { limit_text: string };
 
 export default function GoalSettingsScreen() {
+  // UX-06: sistem gezinme alanı (jest/üç düğme) kadar ek alt boşluk.
+  const bottomClearance = useBottomClearance('screen', 48);
   useThemeRevision();
   const router = useRouter();
   const { t, tc } = useLanguage();
@@ -353,7 +356,7 @@ export default function GoalSettingsScreen() {
             </Pressable>
           )}
 
-          <View style={{ height: 48 }} />
+          <View style={{ height: bottomClearance }} />
         </ScrollView>
 
         <CustomDatePicker

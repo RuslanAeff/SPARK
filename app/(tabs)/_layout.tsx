@@ -8,6 +8,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useThemePalette } from '../../src/theme/themeStore';
 import { FontFamily } from '../../src/theme/typography';
 import { BorderRadius, Spacing } from '../../src/theme/spacing';
+import { TAB_BAR_FLOAT_GAP, TAB_BAR_HEIGHT } from '../../src/theme/layout';
 import { useLanguage } from '../../src/i18n/LanguageContext';
 import { TabSwipeProvider, useTabSwipe } from '../../src/context/TabSwipeContext';
 import { GlassTabBar, TabBlurProvider, TabBlurScene } from '../../src/components/GlassTabBar';
@@ -22,7 +23,7 @@ function TabNavigator() {
   const insets = useSafeAreaInsets();
   const { swipeEnabled } = useTabSwipe();
   /** Sistem jest çubuğu / home indicator üstünde kalsın (Android gesture bar, iPhone çentik vb.) */
-  const tabBarInsetBottom = Spacing.xl + insets.bottom;
+  const tabBarInsetBottom = TAB_BAR_FLOAT_GAP + insets.bottom;
   // Yüzen konum, köşe ve gölge dış sarmalayıcıda; çubuğun kendisi saydamdır ki
   // GlassTabBar'ın bulanık cam katmanı görünsün (UI denetimi UX-01).
   const floatingStyle = useMemo<ViewStyle>(() => ({
@@ -30,7 +31,7 @@ function TabNavigator() {
     bottom: tabBarInsetBottom,
     left: Spacing.xl + insets.left,
     right: Spacing.xl + insets.right,
-    height: 65,
+    height: TAB_BAR_HEIGHT,
     borderRadius: BorderRadius.round,
     // Android elevation yarı saydam yüzeyin İÇİNDE gri gölge olarak görünür;
     // gölge yalnız iOS'ta.
@@ -79,7 +80,7 @@ function TabNavigator() {
         tabBarStyle: {
           backgroundColor: 'transparent',
           borderTopWidth: 0,
-          height: 65,
+          height: TAB_BAR_HEIGHT,
           paddingBottom: 8,
           paddingTop: 8,
           elevation: 0,

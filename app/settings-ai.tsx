@@ -17,10 +17,13 @@ import GlassDeleteModal from '../src/components/GlassDeleteModal';
 import { SparkToast } from '../src/components/SparkToast';
 import { SettingsSection } from '../src/components/SettingsList';
 import ScreenHeader from '../src/components/ScreenHeader';
+import { useBottomClearance } from '../src/hooks/useBottomClearance';
 
 const API_KEY_CONSOLE_URL = 'https://aistudio.google.com/app/apikey';
 
 export default function SettingsAiScreen() {
+  // UX-06: sistem gezinme alanı (jest/üç düğme) kadar ek alt boşluk.
+  const bottomClearance = useBottomClearance('screen', 40);
   const colorScheme = useAppTheme();
   const styles = useMemo(() => getStyles(), [colorScheme]);
   const { t } = useLanguage();
@@ -78,7 +81,7 @@ export default function SettingsAiScreen() {
     <SafeAreaView style={styles.container} edges={['top']}>
       <ScreenHeader title={t('settings_group_ai')} />
 
-      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+      <ScrollView contentContainerStyle={[styles.content, { paddingBottom: bottomClearance }]} showsVerticalScrollIndicator={false}>
         <Animated.View entering={FadeInDown.delay(80).duration(400)}>
           <SettingsSection testID="settings-ai-key-section" last>
             <View style={styles.sectionHeader}>

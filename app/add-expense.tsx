@@ -40,8 +40,11 @@ import { getDatabase } from '../src/db/database';
 import { ContainerDepositDao } from '../src/db/containerDepositDao';
 import { logError } from '../src/utils/logError';
 import ScreenHeader from '../src/components/ScreenHeader';
+import { useBottomClearance } from '../src/hooks/useBottomClearance';
 
 export default function AddExpenseScreen() {
+  // UX-06: sistem gezinme alanı (jest/üç düğme) kadar ek alt boşluk.
+  const bottomClearance = useBottomClearance('screen', 60);
   const scheme = useAppTheme();
   const revision = useThemeRevision();
   const styles = useMemo(() => getStyles(), [scheme, revision]);
@@ -704,7 +707,7 @@ export default function AddExpenseScreen() {
             </Text>
           </Pressable>
 
-          <View style={{ height: 60 }} />
+          <View style={{ height: bottomClearance }} />
         </ScrollView>
         <CustomDatePicker
           visible={datePickerVisible}

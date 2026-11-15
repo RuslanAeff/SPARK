@@ -44,8 +44,11 @@ import { useRefreshActions } from '../src/context/RefreshContext';
 import { syncNotificationsBestEffort } from '../src/notifications/syncNotificationsBestEffort';
 import { logError } from '../src/utils/logError';
 import ScreenHeader from '../src/components/ScreenHeader';
+import { useBottomClearance } from '../src/hooks/useBottomClearance';
 
 export default function SubscriptionsScreen() {
+  // UX-06: sistem gezinme alanı (jest/üç düğme) kadar ek alt boşluk.
+  const bottomClearance = useBottomClearance('screen', Spacing.xxl);
   const scheme = useAppTheme();
   const themeRevision = useThemeRevision();
   const styles = useMemo(() => getStyles(), [scheme, themeRevision]);
@@ -357,7 +360,7 @@ export default function SubscriptionsScreen() {
       <ScreenHeader title={t('subscriptions_title')} />
 
       <ScrollView
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={[styles.scrollContent, { paddingBottom: bottomClearance }]}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}

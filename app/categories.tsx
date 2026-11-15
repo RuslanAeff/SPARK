@@ -5,6 +5,7 @@ import {
 } from 'react-native';
 import ScreenHeader from '../src/components/ScreenHeader';
 import PrimaryButton from '../src/components/PrimaryButton';
+import { useBottomClearance } from '../src/hooks/useBottomClearance';
 
 const isFabricEnabled = Boolean(
   (globalThis as typeof globalThis & { nativeFabricUIManager?: unknown }).nativeFabricUIManager,
@@ -34,6 +35,8 @@ import { SparkToast } from '../src/components/SparkToast';
 import { logError } from '../src/utils/logError';
 
 export default function CategoriesScreen() {
+  // UX-06: sistem gezinme alanı (jest/üç düğme) kadar ek alt boşluk.
+  const bottomClearance = useBottomClearance('screen', Spacing.xxl);
   useThemeRevision();
   const styles = getStyles();
   const { t, tc } = useLanguage();
@@ -243,7 +246,7 @@ export default function CategoriesScreen() {
           </Animated.View>
         ))}
 
-        <View style={{ height: 100 }} />
+        <View style={{ height: bottomClearance }} />
       </ScrollView>
 
       <GlassDeleteModal
