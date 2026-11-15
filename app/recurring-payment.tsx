@@ -1,8 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
 
 import RecurringPaymentReminderForm, {
   type RecurringPaymentReminderFormValue,
@@ -17,11 +16,10 @@ import { SubscriptionDao } from '../src/db/subscriptionDao';
 import type { RecurringPaymentReminder } from '../src/db/schema';
 import { useLanguage } from '../src/i18n/LanguageContext';
 import { Colors } from '../src/theme/colors';
-import { ScreenPadding, Spacing } from '../src/theme/spacing';
 import { useAppTheme, useThemeRevision } from '../src/theme/themeStore';
-import { FontFamily, Typography } from '../src/theme/typography';
 import { scheduleFromDetectedPeriod } from '../src/utils/recurringPaymentPlan';
 import { logError } from '../src/utils/logError';
+import ScreenHeader from '../src/components/ScreenHeader';
 
 type RouteParam = string | string[] | undefined;
 
@@ -129,24 +127,13 @@ export default function RecurringPaymentScreen() {
 
   return (
     <SafeAreaView style={styles.container} edges={['top', 'right', 'bottom', 'left']}>
-      <View testID="recurring-plan-header" style={styles.header}>
-        <Pressable
-          testID="recurring-plan-back"
-          accessibilityRole="button"
-          accessibilityLabel={t('back')}
-          onPress={() => router.back()}
-          style={({ pressed }) => [styles.backButton, pressed && styles.pressed]}
-        >
-          <MaterialCommunityIcons name="chevron-left" size={28} color={Colors.textPrimary} />
-        </Pressable>
-        <View style={styles.headerCopy}>
-          <Text style={styles.title}>
-            {t(isEditing ? 'recurring_plan_edit_title' : 'recurring_plan_add_title')}
-          </Text>
-          <Text style={styles.subtitle}>{t('recurring_plan_form_hint')}</Text>
-        </View>
-        <View style={styles.headerBalance} />
-      </View>
+      <ScreenHeader
+        testID="recurring-plan-header"
+        backTestID="recurring-plan-back"
+        title={t(isEditing ? 'recurring_plan_edit_title' : 'recurring_plan_add_title')}
+        subtitle={t('recurring_plan_form_hint')}
+        divider
+      />
 
       <View style={styles.body}>
         {initialValue === undefined ? (
@@ -174,21 +161,6 @@ export default function RecurringPaymentScreen() {
 
 const getStyles = () => StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
-  header: {
-    flexDirection: 'row', alignItems: 'center', gap: Spacing.sm,
-    paddingHorizontal: ScreenPadding.horizontal, paddingVertical: Spacing.md,
-    borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: Colors.border,
-    backgroundColor: Colors.background,
-  },
-  backButton: {
-    width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center',
-    backgroundColor: Colors.surface,
-  },
-  headerCopy: { flex: 1, minWidth: 0 },
-  headerBalance: { width: 44, height: 44 },
-  title: { ...Typography.headlineSmall, color: Colors.textPrimary, fontFamily: FontFamily.bold },
-  subtitle: { ...Typography.bodySmall, color: Colors.textSecondary, marginTop: 2 },
   body: { flex: 1, minHeight: 0 },
   loading: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  pressed: { opacity: 0.72 },
 });

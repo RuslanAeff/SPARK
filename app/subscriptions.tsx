@@ -43,6 +43,7 @@ import { useNotifications } from '../src/context/NotificationsContext';
 import { useRefreshActions } from '../src/context/RefreshContext';
 import { syncNotificationsBestEffort } from '../src/notifications/syncNotificationsBestEffort';
 import { logError } from '../src/utils/logError';
+import ScreenHeader from '../src/components/ScreenHeader';
 
 export default function SubscriptionsScreen() {
   const scheme = useAppTheme();
@@ -353,15 +354,7 @@ export default function SubscriptionsScreen() {
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
-      <View style={styles.header}>
-        <Pressable onPress={() => router.back()} style={styles.backBtn}>
-          <MaterialCommunityIcons name="chevron-left" size={26} color={Colors.textPrimary} />
-        </Pressable>
-        <Text style={styles.title} numberOfLines={1}>
-          {t('subscriptions_title')}
-        </Text>
-        <View style={{ width: 44 }} />
-      </View>
+      <ScreenHeader title={t('subscriptions_title')} />
 
       <ScrollView
         contentContainerStyle={styles.scrollContent}
@@ -491,28 +484,6 @@ export default function SubscriptionsScreen() {
 const getStyles = () =>
   StyleSheet.create({
     container: { flex: 1, backgroundColor: Colors.background },
-    header: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      paddingHorizontal: ScreenPadding.horizontal,
-      paddingVertical: Spacing.md,
-    },
-    backBtn: {
-      width: 44,
-      height: 44,
-      borderRadius: 22,
-      backgroundColor: Colors.surface,
-      borderWidth: 1,
-      borderColor: Colors.border,
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-    title: {
-      ...Typography.headlineLarge,
-      color: Colors.textPrimary,
-      flex: 1,
-      textAlign: 'center',
-    },
     scrollContent: {
       paddingHorizontal: ScreenPadding.horizontal,
       paddingBottom: Spacing.xxl,

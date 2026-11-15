@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import {
   View, Text, TextInput, ScrollView, StyleSheet, Pressable, KeyboardAvoidingView, Platform,
 } from 'react-native';
-import { useRouter, useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -47,13 +47,13 @@ import {
   normalizeMeasurementInput,
   type MeasurementInputUnit,
 } from '../src/utils/measurementUnit';
+import ScreenHeader from '../src/components/ScreenHeader';
 
 const UNIT_OPTIONS: MeasurementInputUnit[] = ['piece', 'kg', 'g', 'l', 'ml'];
 
 export default function EditItemsScreen() {
   useThemeRevision();
   const styles = getStyles();
-  const router = useRouter();
   const { t } = useLanguage();
   const { currency: displayCurrency } = useCurrency();
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -284,12 +284,7 @@ export default function EditItemsScreen() {
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
-        <View style={styles.header}>
-          <Pressable onPress={() => router.back()} style={styles.backButton}>
-            <MaterialCommunityIcons name="arrow-left" size={24} color={Colors.textPrimary} />
-          </Pressable>
-          <Text style={styles.title}>{t('item_details_title')}</Text>
-        </View>
+        <ScreenHeader title={t('item_details_title')} />
 
         {/* Grand Total Bar */}
         <View style={styles.totalBar}>
@@ -489,21 +484,6 @@ const getStyles = () => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: Colors.background,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: ScreenPadding.horizontal,
-    paddingVertical: Spacing.md,
-    gap: Spacing.md,
-  },
-  backButton: {
-    padding: Spacing.xs,
-  },
-  title: {
-    ...Typography.headlineMedium,
-    color: Colors.textPrimary,
-    flex: 1,
   },
   totalBar: {
     flexDirection: 'row',

@@ -29,6 +29,7 @@ import { parseMoneyInput, roundMoney } from '../src/utils/moneyMath';
 import { createSusevarStyles } from '../src/theme/susevar';
 import { useThemeRevision } from '../src/theme/themeStore';
 import { logError } from '../src/utils/logError';
+import ScreenHeader from '../src/components/ScreenHeader';
 
 /** Limit satırı + kullanıcının yazdığı ham metin; sayı yalnız kaydederken üretilir (BUG-24). */
 type LimitDraft = CategoryLimitRow & { limit_text: string };
@@ -236,13 +237,7 @@ export default function GoalSettingsScreen() {
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         style={{ flex: 1 }}
       >
-        <View style={styles.header}>
-          <Pressable onPress={() => router.back()} style={styles.backBtn}>
-            <MaterialCommunityIcons name="arrow-left" size={24} color={Colors.textPrimary} />
-          </Pressable>
-          <Text style={styles.headerTitle}>{t('goal_settings_title')}</Text>
-          <View style={{ width: 40 }} />
-        </View>
+        <ScreenHeader title={t('goal_settings_title')} />
 
         <ScrollView
           contentContainerStyle={styles.scroll}
@@ -424,19 +419,6 @@ const getStyles = () => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: Colors.background,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: ScreenPadding.horizontal,
-    paddingVertical: Spacing.md,
-  },
-  backBtn: { padding: Spacing.xs },
-  headerTitle: {
-    ...Typography.headlineMedium,
-    color: Colors.textPrimary,
-    flex: 1,
-    textAlign: 'center',
   },
   scroll: {
     paddingHorizontal: ScreenPadding.horizontal,

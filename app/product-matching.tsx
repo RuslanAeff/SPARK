@@ -12,7 +12,6 @@ import {
   View,
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 
@@ -48,6 +47,7 @@ import {
 import * as GeminiService from '../src/services/geminiService';
 import { presentAiError } from '../src/utils/aiErrorPresentation';
 import { logError } from '../src/utils/logError';
+import ScreenHeader from '../src/components/ScreenHeader';
 
 type ProductMatchViewMode = 'review' | 'all';
 
@@ -122,7 +122,6 @@ type SuggestProductMatch = (
 const EMPTY_ALIASES: ProductAliasSummary[] = [];
 
 export default function ProductMatchingScreen() {
-  const router = useRouter();
   const scheme = useAppTheme();
   const theme = useThemePalette();
   const styles = useMemo(() => getStyles(theme), [theme]);
@@ -671,21 +670,7 @@ export default function ProductMatchingScreen() {
   return (
     <>
       <SafeAreaView style={styles.container} edges={['top']}>
-        <View style={styles.header}>
-          <Pressable
-            onPress={() => router.back()}
-            style={({ pressed }) => [styles.backButton, pressed && styles.pressed]}
-            accessibilityRole="button"
-            accessibilityLabel={t('settings_back')}
-            hitSlop={8}
-          >
-            <MaterialCommunityIcons name="chevron-left" size={28} color={theme.textPrimary} />
-          </Pressable>
-          <Text style={styles.headerTitle} accessibilityRole="header" numberOfLines={1}>
-            {t('product_match_title')}
-          </Text>
-          <View style={styles.headerSpacer} />
-        </View>
+        <ScreenHeader title={t('product_match_title')} />
 
         <SectionList<ProductListEntry, ProductListSection>
           testID="product-matching-list"
@@ -1285,28 +1270,6 @@ export default function ProductMatchingScreen() {
 
 const getStyles = (theme: ThemePalette) => StyleSheet.create({
   container: { flex: 1, backgroundColor: theme.background },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.sm,
-    paddingHorizontal: ScreenPadding.horizontal,
-    paddingVertical: Spacing.md,
-  },
-  backButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: theme.surfaceLight,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  headerTitle: {
-    ...Typography.headlineMedium,
-    color: theme.textPrimary,
-    fontFamily: FontFamily.extraBold,
-    flex: 1,
-  },
-  headerSpacer: { width: 40 },
   content: {
     flexGrow: 1,
     paddingHorizontal: ScreenPadding.horizontal,

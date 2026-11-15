@@ -39,6 +39,7 @@ import { useAppTheme, useThemeRevision } from '../src/theme/themeStore';
 import { getDatabase } from '../src/db/database';
 import { ContainerDepositDao } from '../src/db/containerDepositDao';
 import { logError } from '../src/utils/logError';
+import ScreenHeader from '../src/components/ScreenHeader';
 
 export default function AddExpenseScreen() {
   const scheme = useAppTheme();
@@ -402,13 +403,10 @@ export default function AddExpenseScreen() {
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={{ flex: 1 }}
       >
-        {/* Header */}
-        <View style={styles.header}>
-          <Pressable onPress={() => router.back()} style={styles.backButton}>
-            <MaterialCommunityIcons name="arrow-left" size={24} color={Colors.textPrimary} />
-          </Pressable>
-          <Text style={styles.title}>{isEditing ? t('edit_expense_title') : t('add_expense_title')}</Text>
-          {isEditing && (
+        {/* Header — DS-06 ortak başlık */}
+        <ScreenHeader
+          title={isEditing ? t('edit_expense_title') : t('add_expense_title')}
+          right={isEditing ? (
             <Pressable
               onPress={handleDelete}
               accessibilityRole="button"
@@ -429,8 +427,8 @@ export default function AddExpenseScreen() {
               </View>
               <MaterialCommunityIcons name="trash-can-outline" size={20} color={Colors.danger} />
             </Pressable>
-          )}
-        </View>
+          ) : undefined}
+        />
 
         <ScrollView contentContainerStyle={styles.form} showsVerticalScrollIndicator={false}>
           {/* Amount — Hero Section */}
@@ -730,21 +728,6 @@ const getStyles = () => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: Colors.background,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: ScreenPadding.horizontal,
-    paddingVertical: Spacing.md,
-    gap: Spacing.md,
-  },
-  backButton: {
-    padding: Spacing.xs,
-  },
-  title: {
-    ...Typography.headlineMedium,
-    color: Colors.textPrimary,
-    flex: 1,
   },
   deleteButton: {
     width: 44,

@@ -3,7 +3,6 @@
 // işletim sisteminin paylaşma ekranı üzerinden yapılır. Ağ çağrısı yoktur.
 import React, { useCallback, useState } from 'react';
 import { View, Text, ScrollView, StyleSheet, Pressable, Share } from 'react-native';
-import { useRouter } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
@@ -22,6 +21,7 @@ import {
   readErrorJournal,
   type ErrorJournalEntry,
 } from '../src/services/errorJournal';
+import ScreenHeader from '../src/components/ScreenHeader';
 
 function formatEntryTime(iso: string): string {
   const d = new Date(iso);
@@ -33,7 +33,6 @@ function formatEntryTime(iso: string): string {
 export default function ErrorJournalScreen() {
   useThemeRevision();
   const styles = getStyles();
-  const router = useRouter();
   const { t } = useLanguage();
   const [entries, setEntries] = useState<ErrorJournalEntry[]>(() => readErrorJournal());
   const [confirmClear, setConfirmClear] = useState(false);
@@ -65,20 +64,7 @@ export default function ErrorJournalScreen() {
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
-      <View style={styles.header}>
-        {/* Ayarlar alt sayfalarıyla aynı başlık: yuvarlak geri düğmesi (settings-data). */}
-        <Pressable
-          onPress={() => router.back()}
-          style={({ pressed }) => [styles.backButton, pressed && styles.backButtonPressed]}
-          accessibilityRole="button"
-          accessibilityLabel={t('settings_back')}
-          hitSlop={8}
-        >
-          <MaterialCommunityIcons name="chevron-left" size={28} color={Colors.textPrimary} />
-        </Pressable>
-        <Text style={styles.title} numberOfLines={1}>{t('error_journal_entry_title')}</Text>
-        <View style={styles.headerSpacer} />
-      </View>
+      <ScreenHeader title={t('error_journal_entry_title')} />
 
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <View style={styles.privacyCard}>
@@ -155,29 +141,6 @@ const getStyles = () => StyleSheet.create({
     flex: 1,
     backgroundColor: Colors.background,
   },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: ScreenPadding.horizontal,
-    paddingVertical: Spacing.md,
-    gap: Spacing.sm,
-  },
-  backButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: Colors.surfaceLight,
-  },
-  backButtonPressed: { opacity: 0.7 },
-  title: {
-    ...Typography.headlineMedium,
-    color: Colors.textPrimary,
-    fontFamily: FontFamily.extraBold,
-    flex: 1,
-  },
-  headerSpacer: { width: 40 },
   content: {
     paddingHorizontal: ScreenPadding.horizontal,
     paddingBottom: Spacing.xl * 2,

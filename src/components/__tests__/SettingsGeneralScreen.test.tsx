@@ -118,6 +118,7 @@ jest.mock('../../theme/themeStore', () => ({
   useAppTheme: () => 'dark',
   useThemeAccent: () => 'green',
   useThemePalette: () => mockPalette,
+  useThemeRevision: () => 0,
 }));
 
 jest.mock('../../i18n/LanguageContext', () => ({

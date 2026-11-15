@@ -6,7 +6,6 @@ import {
   useThemeAccent,
   useThemePalette,
 } from '../src/theme/themeStore';
-import { useRouter } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, { FadeInDown } from 'react-native-reanimated';
@@ -43,6 +42,7 @@ import {
 } from '../src/components/SettingsList';
 import { logError } from '../src/utils/logError';
 import ConfirmModal from '../src/components/ConfirmModal';
+import ScreenHeader from '../src/components/ScreenHeader';
 
 export default function SettingsGeneralScreen() {
   const colorScheme = useAppTheme();
@@ -50,7 +50,6 @@ export default function SettingsGeneralScreen() {
   const palette = useThemePalette();
   const styles = useMemo(() => getStyles(palette), [palette]);
   const safeAreaInsets = useSafeAreaInsets();
-  const router = useRouter();
   const { t, language, setLanguage } = useLanguage();
   const { currency, setCurrency } = useCurrency();
 
@@ -150,21 +149,7 @@ export default function SettingsGeneralScreen() {
   return (
     <>
       <SafeAreaView style={styles.container} edges={['top']}>
-        <View style={styles.subHeader}>
-          <Pressable
-            onPress={() => router.back()}
-            style={({ pressed }) => [styles.backBtn, pressed && styles.backBtnPressed]}
-            accessibilityRole="button"
-            accessibilityLabel={t('settings_back')}
-            hitSlop={8}
-          >
-            <MaterialCommunityIcons name="chevron-left" size={28} color={palette.textPrimary} />
-          </Pressable>
-          <Text style={styles.subHeaderTitle} numberOfLines={1}>
-            {t('settings_group_general')}
-          </Text>
-          <View style={styles.headerSpacer} />
-        </View>
+        <ScreenHeader title={t('settings_group_general')} />
 
         <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
           {/* Language */}
@@ -414,29 +399,6 @@ export default function SettingsGeneralScreen() {
 
 const getStyles = (colors: ThemePalette) => StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
-  subHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: ScreenPadding.horizontal,
-    paddingVertical: Spacing.md,
-    gap: Spacing.sm,
-  },
-  backBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.surfaceLight,
-  },
-  backBtnPressed: { opacity: 0.7 },
-  subHeaderTitle: {
-    ...Typography.headlineMedium,
-    color: colors.textPrimary,
-    fontFamily: FontFamily.extraBold,
-    flex: 1,
-  },
-  headerSpacer: { width: 40 },
   content: {
     paddingHorizontal: ScreenPadding.horizontal,
     paddingBottom: 40,

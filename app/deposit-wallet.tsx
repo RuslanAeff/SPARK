@@ -29,6 +29,7 @@ import CustomDatePicker from '../src/components/CustomDatePicker';
 import { SparkToast } from '../src/components/SparkToast';
 import GlassDeleteModal from '../src/components/GlassDeleteModal';
 import { createSusevarStyles, susevarButtonPressed } from '../src/theme/susevar';
+import ScreenHeader from '../src/components/ScreenHeader';
 
 const EMPTY_SUMMARY: ContainerDepositSummary = {
   depositPaid: 0,
@@ -145,22 +146,21 @@ export default function DepositWalletScreen() {
 
   return (
     <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
-      <View style={styles.header}>
-        <Pressable onPress={() => router.back()} style={styles.headerButton} accessibilityRole="button">
-          <MaterialCommunityIcons name="arrow-left" size={23} color={Colors.textPrimary} />
-        </Pressable>
-        <Text style={styles.title}>{t('deposit_wallet_title')}</Text>
-        <Pressable onPress={() => setAdding(value => !value)} style={styles.headerButton}
-          accessibilityRole="button" accessibilityLabel={t(adding ? 'close' : 'deposit_add_voucher')}
-          accessibilityState={{ expanded: adding }}>
-          <Animated.View pointerEvents="none" style={[styles.headerIconLayer, plusIconStyle]}>
-            <MaterialCommunityIcons name="plus" size={23} color={Colors.primary} />
-          </Animated.View>
-          <Animated.View pointerEvents="none" style={[styles.headerIconLayer, closeIconStyle]}>
-            <MaterialCommunityIcons name="close" size={23} color={Colors.primary} />
-          </Animated.View>
-        </Pressable>
-      </View>
+      <ScreenHeader
+        title={t('deposit_wallet_title')}
+        right={(
+          <Pressable onPress={() => setAdding(value => !value)} style={styles.headerButton}
+            accessibilityRole="button" accessibilityLabel={t(adding ? 'close' : 'deposit_add_voucher')}
+            accessibilityState={{ expanded: adding }}>
+            <Animated.View pointerEvents="none" style={[styles.headerIconLayer, plusIconStyle]}>
+              <MaterialCommunityIcons name="plus" size={23} color={Colors.primary} />
+            </Animated.View>
+            <Animated.View pointerEvents="none" style={[styles.headerIconLayer, closeIconStyle]}>
+              <MaterialCommunityIcons name="close" size={23} color={Colors.primary} />
+            </Animated.View>
+          </Pressable>
+        )}
+      />
 
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <View>
@@ -301,13 +301,8 @@ const getStyles = () => {
   const susevar = createSusevarStyles(Colors);
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: Colors.background },
-    header: {
-      minHeight: 58, flexDirection: 'row', alignItems: 'center',
-      paddingHorizontal: ScreenPadding.horizontal, gap: Spacing.md,
-    },
-    headerButton: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
+    headerButton: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
     headerIconLayer: { position: 'absolute', alignItems: 'center', justifyContent: 'center' },
-    title: { ...Typography.headlineMedium, color: Colors.textPrimary, textAlign: 'center', flex: 1, fontFamily: FontFamily.bold },
     content: { padding: ScreenPadding.horizontal, paddingBottom: Spacing.huge, gap: Spacing.lg },
     heroCard: {
       alignItems: 'center', padding: Spacing.xl, borderRadius: BorderRadius.xl,

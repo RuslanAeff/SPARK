@@ -2,7 +2,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { View, Text, ScrollView, StyleSheet, Pressable, TextInput, Linking } from 'react-native';
 import { useAppTheme } from '../src/theme/themeStore';
-import { useRouter } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Animated, { FadeInDown } from 'react-native-reanimated';
@@ -17,13 +16,13 @@ import GlassCheckButton from '../src/components/GlassCheckButton';
 import GlassDeleteModal from '../src/components/GlassDeleteModal';
 import { SparkToast } from '../src/components/SparkToast';
 import { SettingsSection } from '../src/components/SettingsList';
+import ScreenHeader from '../src/components/ScreenHeader';
 
 const API_KEY_CONSOLE_URL = 'https://aistudio.google.com/app/apikey';
 
 export default function SettingsAiScreen() {
   const colorScheme = useAppTheme();
   const styles = useMemo(() => getStyles(), [colorScheme]);
-  const router = useRouter();
   const { t } = useLanguage();
 
   const [apiKey, setApiKey] = useState('');
@@ -77,21 +76,7 @@ export default function SettingsAiScreen() {
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
-      <View style={styles.subHeader}>
-        <Pressable
-          onPress={() => router.back()}
-          style={({ pressed }) => [styles.backBtn, pressed && styles.backBtnPressed]}
-          accessibilityRole="button"
-          accessibilityLabel={t('settings_back')}
-          hitSlop={8}
-        >
-          <MaterialCommunityIcons name="chevron-left" size={28} color={Colors.textPrimary} />
-        </Pressable>
-        <Text style={styles.subHeaderTitle} numberOfLines={1}>
-          {t('settings_group_ai')}
-        </Text>
-        <View style={styles.headerSpacer} />
-      </View>
+      <ScreenHeader title={t('settings_group_ai')} />
 
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <Animated.View entering={FadeInDown.delay(80).duration(400)}>
@@ -155,29 +140,6 @@ export default function SettingsAiScreen() {
 
 const getStyles = () => StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
-  subHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: ScreenPadding.horizontal,
-    paddingVertical: Spacing.md,
-    gap: Spacing.sm,
-  },
-  backBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: Colors.surfaceLight,
-  },
-  backBtnPressed: { opacity: 0.7 },
-  subHeaderTitle: {
-    ...Typography.headlineMedium,
-    color: Colors.textPrimary,
-    fontFamily: FontFamily.extraBold,
-    flex: 1,
-  },
-  headerSpacer: { width: 40 },
   content: {
     paddingHorizontal: ScreenPadding.horizontal,
     paddingBottom: 40,

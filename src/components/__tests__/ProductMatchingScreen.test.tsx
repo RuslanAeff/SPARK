@@ -45,6 +45,7 @@ jest.mock('../../theme/themeStore', () => {
   return {
     useAppTheme: () => 'dark',
     useThemePalette: () => resolveTheme('dark', 'green'),
+    useThemeRevision: () => 0,
   };
 });
 
