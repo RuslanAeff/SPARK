@@ -172,6 +172,9 @@ export default function ConfirmModal({
   if (!mounted) return null;
 
   const toneColor = tone === 'warning' ? Colors.warning : Colors.primary;
+  // DS-03: dolu düğme yüzeyi ve yazısı kontrastı doğrulanmış çiftten gelir.
+  // Eski `toneColor` zemin + `background` yazı açık temada 1,4–4,0:1 kalıyordu.
+  const confirmColors = getConfirmButtonColors(tone);
   // Aynı anda iki modal mount olabildiği için gradient id'si tona göre ayrışır.
   const auraId = `confirm-aura-${tone}`;
 
@@ -253,14 +256,14 @@ export default function ConfirmModal({
                 style={({ pressed }) => [
                   styles.btn,
                   styles.btnConfirm,
-                  { backgroundColor: toneColor },
+                  { backgroundColor: confirmColors.background },
                   confirmDisabled && styles.btnDisabled,
                   pressed && !confirmDisabled && styles.btnPressed,
                 ]}
                 accessibilityRole="button"
                 accessibilityState={{ disabled: confirmDisabled }}
               >
-                <Text style={[styles.btnConfirmText, { color: Colors.background }]}>
+                <Text style={[styles.btnConfirmText, { color: confirmColors.text }]}>
                   {confirmLabel}
                 </Text>
               </Pressable>
@@ -272,6 +275,17 @@ export default function ConfirmModal({
       <SparkToastContainer />
     </Modal>
   );
+}
+
+/**
+ * Onay düğmesinin dolgu ve yazı rengi. Birincil ton tema sözleşmesindeki
+ * `primaryAction`/`onPrimary` çiftini (beş vurguda ≥ 5,4:1) kullanır. Uyarı
+ * tonu sarı yüzeyde koyu yazı taşır (≥ 11:1); sarı zemine açık yazı her iki
+ * temada da okunmuyordu.
+ */
+export function getConfirmButtonColors(tone: ConfirmTone): { background: string; text: string } {
+  if (tone === 'warning') return { background: Colors.warning, text: '#1A1A1A' };
+  return { background: Colors.primaryAction, text: Colors.onPrimary };
 }
 
 const getStyles = () =>
