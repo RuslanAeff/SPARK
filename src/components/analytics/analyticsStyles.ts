@@ -499,7 +499,8 @@ export const getAnalyticsStyles = () => StyleSheet.create({
   newBadgeText: {
     fontSize: 8,
     fontFamily: FontFamily.bold,
-    color: '#FFF',
+    // DS-02/04: beyaz yazı koyu temanın neon yeşilinde 1,4:1 idi.
+    color: Colors.onSuccess,
     letterSpacing: 0.5,
   },
   vendorInfo: {

@@ -280,11 +280,11 @@ export default function ConfirmModal({
 /**
  * Onay düğmesinin dolgu ve yazı rengi. Birincil ton tema sözleşmesindeki
  * `primaryAction`/`onPrimary` çiftini (beş vurguda ≥ 5,4:1) kullanır. Uyarı
- * tonu sarı yüzeyde koyu yazı taşır (≥ 11:1); sarı zemine açık yazı her iki
- * temada da okunmuyordu.
+ * tonu `warning`/`onWarning` çiftini kullanır (koyu: sarı + koyu yazı, açık:
+ * koyu amber + beyaz yazı).
  */
 export function getConfirmButtonColors(tone: ConfirmTone): { background: string; text: string } {
-  if (tone === 'warning') return { background: Colors.warning, text: '#1A1A1A' };
+  if (tone === 'warning') return { background: Colors.warning, text: Colors.onWarning };
   return { background: Colors.primaryAction, text: Colors.onPrimary };
 }
 

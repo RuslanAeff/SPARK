@@ -10,7 +10,6 @@ jest.mock('../../theme/colors', () => {
   };
 });
 
-// eslint-disable-next-line import/first
 import { getConfirmButtonColors } from '../ConfirmModal';
 
 function contrast(a: string, b: string): number {

@@ -48,10 +48,15 @@ const DarkNeutralTheme = {
   dangerDark: '#CC0000',
   warning: '#FFCC00',
   info: '#33CCFF',
+  // Semantik dolgu üstündeki yazı/ikon (ör. "yeni" rozeti, uyarı onay düğmesi).
+  onSuccess: '#04140A',
+  onWarning: '#1A1A1A',
 
   textPrimary: '#FFFFFF',
   textSecondary: '#A0A0B0',
-  textMuted: '#666677',
+  // UI denetimi DS-08: #666677 koyu yüzeylerde 2,7–3,6:1 kalıyordu; artık
+  // tüm koyu yüzeylerde ≥ 4,6:1 ve textSecondary'den hâlâ ayırt edilebilir.
+  textMuted: '#8E8E9E',
   textInverse: '#000000',
 
   // Grafik serileri veri anlamını korumak için vurgu seçiminden bağımsızdır.
@@ -74,12 +79,39 @@ const DarkNeutralTheme = {
 
   glass: 'rgba(10, 10, 10, 0.90)',
 
-  tabInactive: '#666677',
+  tabInactive: '#8E8E9E',
   tabBackground: '#050505',
 } as const;
 
 const LightNeutralTheme = {
   ...DarkNeutralTheme,
+  // UI denetimi DS-02: koyu temanın neon semantik ve seri renkleri beyaz
+  // yüzeyde 1,2–3,6:1 kalıyordu. Açık tema aynı tonların koyu karşılıklarını
+  // kullanır; hepsi beyaz, background ve surfaceLight üzerinde ≥ 4,5:1.
+  secondary: '#4F6800',
+  secondaryLight: '#5F7A00',
+  secondaryDark: '#3F5300',
+
+  success: '#067647',
+  successDark: '#055F39',
+  danger: '#C8281C',
+  dangerDark: '#CC0000',
+  warning: '#8F5600',
+  info: '#0A62B8',
+  onSuccess: '#FFFFFF',
+  onWarning: '#FFFFFF',
+
+  // Ayar simgeleri ve satıcı baş harfleri bu "seri" renklerini metin/ikon
+  // olarak kullanır; ton kimliği korunur, açık yüzeyde ≥ 4,3:1.
+  chartPurple: '#7A1FD6',
+  chartBlue: '#00748F',
+  chartOrange: '#B84A00',
+  chartGreen: '#067647',
+  chartPink: '#B8006F',
+  chartYellow: '#5F6E00',
+  chartCyan: '#006F99',
+  chartRed: '#C8281C',
+
   background: '#F5F5F7',
   surface: '#FFFFFF',
   surfaceLight: '#F0F0F3',
@@ -100,7 +132,8 @@ const LightNeutralTheme = {
 
   glass: 'rgba(255, 255, 255, 0.90)',
 
-  tabInactive: '#9999AA',
+  // DS-08: #9999AA beyazda 2,8:1 idi.
+  tabInactive: '#6E6E80',
   tabBackground: '#FFFFFF',
 } as const;
 
