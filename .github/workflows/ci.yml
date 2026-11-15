@@ -32,6 +32,11 @@ jobs:
       - name: TypeScript tip kontrolü
         run: npm run typecheck
 
+      # UI denetimi CQ-01: yalnız hook kuralları (rules-of-hooks) birleştirmeyi
+      # durdurur; diğer kurallar şimdilik uyarıdır (eslint.config.js).
+      - name: Lint (hook kuralları)
+        run: npm run lint
+
       - name: Birim testleri
         run: npm test -- --ci --coverage=false
 
