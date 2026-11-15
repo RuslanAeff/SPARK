@@ -52,6 +52,8 @@ import {
 } from '../src/services/androidNotificationsSetup';
 import { formatDate } from '../src/utils/dateUtils';
 import { logError } from '../src/utils/logError';
+import ScreenHeader from '../src/components/ScreenHeader';
+import PrimaryButton from '../src/components/PrimaryButton';
 const MUTE_CHANNELS: { key: NotificationMuteChannel; labelKey: string }[] = [
   { key: 'budget', labelKey: 'notif_mute_budget' },
   { key: 'category_limit', labelKey: 'notif_mute_category' },
@@ -511,94 +513,80 @@ export default function NotificationsScreen() {
 
   return (
     <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
-      <View style={styles.header}>
-        <Pressable
-          onPress={selectionMode ? exitSelection : () => router.back()}
-          style={({ pressed }) => [styles.circleBtn, pressed && styles.circleBtnPressed]}
-          hitSlop={4}
-          accessibilityRole="button"
-          accessibilityLabel={selectionMode ? t('cancel') : t('notif_go_back')}
-          testID={selectionMode ? 'notifications-selection-cancel' : undefined}
-        >
-          <MaterialCommunityIcons
-            name={selectionMode ? 'close' : 'chevron-left'}
-            size={selectionMode ? 20 : 23}
-            color={Colors.textPrimary}
-          />
-        </Pressable>
-
-        <View style={styles.headerTitleWrap}>
-          <Text style={styles.pageTitle} numberOfLines={1} accessibilityRole="header">
-            {selectionMode
-              ? t('notif_selected', { count: selectedCount.toString() })
-              : t('notif_center_title')}
-          </Text>
-          {!selectionMode && unreadCount > 0 && (
-            <View style={styles.badge}>
-              <Text style={styles.badgeText}>{unreadCount > 99 ? '99+' : unreadCount}</Text>
-            </View>
-          )}
-        </View>
-
-        <View style={styles.headerActions}>
-          {selectionMode ? (
-            <Pressable
-              onPress={openBulkDelete}
-              disabled={selectedCount === 0 || deleting}
-              style={({ pressed }) => [
-                styles.bulkDeleteBtn,
-                (selectedCount === 0 || deleting) && styles.headerActionDisabled,
-                pressed && selectedCount > 0 && !deleting && styles.bulkDeleteBtnPressed,
-              ]}
-              hitSlop={4}
-              accessibilityRole="button"
-              accessibilityLabel={t('notif_delete_selected_title')}
-              accessibilityState={{ disabled: selectedCount === 0 || deleting }}
-              testID="notifications-selection-delete"
-            >
-              <MaterialCommunityIcons
-                name="trash-can-outline"
-                size={19}
-                color={Colors.danger}
-              />
-            </Pressable>
-          ) : (
-            <>
-              {unreadCount > 0 && (
+      {/* DS-06 ortak başlık; seçim modunda geri düğmesi "kapat" olur. */}
+      <ScreenHeader
+        title={selectionMode
+          ? t('notif_selected', { count: selectedCount.toString() })
+          : t('notif_center_title')}
+        onBack={selectionMode ? exitSelection : undefined}
+        backIcon={selectionMode ? 'close' : 'chevron-left'}
+        backTestID={selectionMode ? 'notifications-selection-cancel' : undefined}
+        titleAccessory={!selectionMode && unreadCount > 0 ? (
+          <View style={styles.badge}>
+            <Text style={styles.badgeText}>{unreadCount > 99 ? '99+' : unreadCount}</Text>
+          </View>
+        ) : undefined}
+        right={(
+            <View style={styles.headerActions}>
+              {selectionMode ? (
                 <Pressable
-                  onPress={() => {
-                    void markAllRead().catch((error) => {
-                      logError('notifications mark all read failed', error);
-                      SparkToast.show(t('operation_failed'), 'error');
-                    });
-                  }}
-                  style={({ pressed }) => [styles.markReadBtn, pressed && styles.markReadBtnPressed]}
+                  onPress={openBulkDelete}
+                  disabled={selectedCount === 0 || deleting}
+                  style={({ pressed }) => [
+                    styles.bulkDeleteBtn,
+                    (selectedCount === 0 || deleting) && styles.headerActionDisabled,
+                    pressed && selectedCount > 0 && !deleting && styles.bulkDeleteBtnPressed,
+                  ]}
                   hitSlop={4}
                   accessibilityRole="button"
-                  accessibilityLabel={t('notif_mark_all')}
-                  testID="notifications-mark-all"
+                  accessibilityLabel={t('notif_delete_selected_title')}
+                  accessibilityState={{ disabled: selectedCount === 0 || deleting }}
+                  testID="notifications-selection-delete"
                 >
                   <MaterialCommunityIcons
-                    name="check-all"
+                    name="trash-can-outline"
                     size={19}
-                    color={Colors.primary}
+                    color={Colors.danger}
                   />
                 </Pressable>
+              ) : (
+                <>
+                  {unreadCount > 0 && (
+                    <Pressable
+                      onPress={() => {
+                        void markAllRead().catch((error) => {
+                          logError('notifications mark all read failed', error);
+                          SparkToast.show(t('operation_failed'), 'error');
+                        });
+                      }}
+                      style={({ pressed }) => [styles.markReadBtn, pressed && styles.markReadBtnPressed]}
+                      hitSlop={4}
+                      accessibilityRole="button"
+                      accessibilityLabel={t('notif_mark_all')}
+                      testID="notifications-mark-all"
+                    >
+                      <MaterialCommunityIcons
+                        name="check-all"
+                        size={19}
+                        color={Colors.primary}
+                      />
+                    </Pressable>
+                  )}
+                  <Pressable
+                    onPress={() => setMuteModal(true)}
+                    style={({ pressed }) => [styles.circleBtn, pressed && styles.circleBtnPressed]}
+                    hitSlop={4}
+                    accessibilityRole="button"
+                    accessibilityLabel={t('notif_prefs_title')}
+                    testID="notifications-preferences"
+                  >
+                    <MaterialCommunityIcons name="tune-variant" size={19} color={Colors.textPrimary} />
+                  </Pressable>
+                </>
               )}
-              <Pressable
-                onPress={() => setMuteModal(true)}
-                style={({ pressed }) => [styles.circleBtn, pressed && styles.circleBtnPressed]}
-                hitSlop={4}
-                accessibilityRole="button"
-                accessibilityLabel={t('notif_prefs_title')}
-                testID="notifications-preferences"
-              >
-                <MaterialCommunityIcons name="tune-variant" size={19} color={Colors.textPrimary} />
-              </Pressable>
-            </>
-          )}
-        </View>
-      </View>
+            </View>
+        )}
+      />
 
       <ScrollView
         horizontal
@@ -990,14 +978,7 @@ export default function NotificationsScreen() {
             {prefsOverflow && (
               <View style={styles.modalScrollDivider} testID="notifications-preferences-divider" />
             )}
-            <Pressable
-              style={({ pressed }) => [styles.modalPrimaryBtn, pressed && styles.modalPrimaryBtnPressed]}
-              onPress={closeMuteModal}
-              accessibilityRole="button"
-              accessibilityLabel={t('ok')}
-            >
-              <Text style={styles.modalPrimaryBtnText}>{t('ok')}</Text>
-            </Pressable>
+            <PrimaryButton label={t('ok')} onPress={closeMuteModal} style={styles.modalPrimaryBtn} />
           </View>
         </View>
       </Modal>
@@ -1010,15 +991,6 @@ const getStyles = (isDark: boolean) => {
     container: {
       flex: 1,
       backgroundColor: Colors.background,
-    },
-    header: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      paddingHorizontal: ScreenPadding.horizontal,
-      paddingTop: Spacing.sm,
-      paddingBottom: Spacing.sm,
-      minHeight: 56,
-      gap: Spacing.md,
     },
     circleBtn: {
       width: 40,
@@ -1034,28 +1006,10 @@ const getStyles = (isDark: boolean) => {
       backgroundColor: Colors.surfaceLight,
       opacity: 0.82,
     },
-    headerTitleWrap: {
-      flex: 1,
-      minWidth: 0,
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: Spacing.sm,
-    },
     headerActions: {
       flexDirection: 'row',
       alignItems: 'center',
       gap: Spacing.sm,
-    },
-    pageTitle: {
-      ...Typography.headlineLarge,
-      lineHeight: 30,
-      color: Colors.textPrimary,
-      fontFamily: FontFamily.extraBold,
-      flexShrink: 1,
-      letterSpacing: -0.35,
-      ...Platform.select({
-        android: { includeFontPadding: false },
-      }),
     },
     badge: {
       minWidth: 20,
@@ -1534,38 +1488,7 @@ const getStyles = (isDark: boolean) => {
       fontFamily: FontFamily.semiBold,
       fontSize: 11,
     },
-    modalPrimaryBtn: {
-      marginTop: Spacing.lg,
-      width: '100%',
-      backgroundColor: Colors.primaryAction,
-      borderRadius: BorderRadius.round,
-      paddingVertical: Spacing.lg,
-      alignItems: 'center',
-      justifyContent: 'center',
-      borderWidth: 1,
-      borderColor: Colors.glassBorder,
-      ...Platform.select({
-        ios: {
-          shadowColor: Colors.primary,
-          shadowOffset: { width: 0, height: 6 },
-          shadowOpacity: 0.4,
-          shadowRadius: 14,
-        },
-        android: {
-          elevation: 10,
-          shadowColor: Colors.primary,
-        },
-      }),
-    },
-    modalPrimaryBtnPressed: {
-      opacity: 0.92,
-    },
-    modalPrimaryBtnText: {
-      color: Colors.onPrimary,
-      fontFamily: FontFamily.extraBold,
-      fontSize: 16,
-      letterSpacing: 0.85,
-      textTransform: 'uppercase',
-    },
+    modalPrimaryBtn: { marginTop: Spacing.lg, width: '100%' },
+
   });
 };

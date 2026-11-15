@@ -3,6 +3,8 @@ import React, { useState, useCallback, useRef } from 'react';
 import {
   View, Text, ScrollView, StyleSheet, Pressable, TextInput, LayoutAnimation, Platform, UIManager,
 } from 'react-native';
+import ScreenHeader from '../src/components/ScreenHeader';
+import PrimaryButton from '../src/components/PrimaryButton';
 
 const isFabricEnabled = Boolean(
   (globalThis as typeof globalThis & { nativeFabricUIManager?: unknown }).nativeFabricUIManager,
@@ -14,7 +16,6 @@ if (
 ) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
 }
-import { useRouter } from 'expo-router';
 import { useFocusEffect } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -35,7 +36,6 @@ import { logError } from '../src/utils/logError';
 export default function CategoriesScreen() {
   useThemeRevision();
   const styles = getStyles();
-  const router = useRouter();
   const { t, tc } = useLanguage();
   const [tree, setTree] = useState<CategoryWithChildren[]>([]);
   const [expanded, setExpanded] = useState<Set<number>>(new Set());
@@ -130,19 +130,21 @@ export default function CategoriesScreen() {
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
-      {/* Header */}
-      <View style={styles.header}>
-        <Pressable onPress={() => router.back()} style={styles.backButton}>
-          <MaterialCommunityIcons name="arrow-left" size={24} color={Colors.textPrimary} />
-        </Pressable>
-        <Text style={styles.title}>{t('categories_title')}</Text>
-        <Pressable
-          onPress={() => { setAddingTo(null); setShowAdd(!showAdd); }}
-          style={styles.addBtn}
-        >
-          <MaterialCommunityIcons name="plus" size={24} color={Colors.primary} />
-        </Pressable>
-      </View>
+      {/* Header — DS-06 ortak başlık */}
+      <ScreenHeader
+        title={t('categories_title')}
+        right={(
+          <Pressable
+            onPress={() => { setAddingTo(null); setShowAdd(!showAdd); }}
+            style={styles.addBtn}
+            accessibilityRole="button"
+            accessibilityLabel={t('add_main_category')}
+            accessibilityState={{ expanded: showAdd }}
+          >
+            <MaterialCommunityIcons name="plus" size={24} color={Colors.primary} />
+          </Pressable>
+        )}
+      />
 
       {/* Add category input */}
       {showAdd && (
@@ -172,13 +174,13 @@ export default function CategoriesScreen() {
             </View>
             <Text style={styles.emptyTitle}>{t('empty_categories_title')}</Text>
             <Text style={styles.emptyDesc}>{t('empty_categories_desc')}</Text>
-            <Pressable
+            <PrimaryButton
+              size="compact"
+              icon="plus"
+              label={t('empty_categories_cta')}
               onPress={() => { setAddingTo(null); setShowAdd(true); }}
               style={styles.emptyCTA}
-            >
-              <MaterialCommunityIcons name="plus" size={18} color={Colors.onPrimary} />
-              <Text style={styles.emptyCTAText}>{t('empty_categories_cta')}</Text>
-            </Pressable>
+            />
           </View>
         )}
         {tree.map((cat, i) => (
@@ -262,23 +264,12 @@ const getStyles = () => StyleSheet.create({
     flex: 1,
     backgroundColor: Colors.background,
   },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: ScreenPadding.horizontal,
-    paddingVertical: Spacing.md,
-    gap: Spacing.md,
-  },
-  backButton: {
-    padding: Spacing.xs,
-  },
-  title: {
-    ...Typography.headlineMedium,
-    color: Colors.textPrimary,
-    flex: 1,
-  },
   addBtn: {
-    padding: Spacing.xs,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   addRow: {
     flexDirection: 'row',
@@ -391,19 +382,6 @@ const getStyles = () => StyleSheet.create({
     textAlign: 'center',
     paddingHorizontal: Spacing.xl,
   },
-  emptyCTA: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.sm,
-    backgroundColor: Colors.primaryAction,
-    paddingHorizontal: Spacing.xl,
-    paddingVertical: Spacing.md,
-    borderRadius: BorderRadius.round,
-    marginTop: Spacing.md,
-  },
-  emptyCTAText: {
-    ...Typography.labelMedium,
-    color: Colors.onPrimary,
-    fontFamily: FontFamily.semiBold,
-  },
+  emptyCTA: { marginTop: Spacing.md },
+
 });

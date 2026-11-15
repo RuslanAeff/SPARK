@@ -41,6 +41,7 @@ import { useCurrency } from '../../src/context/CurrencyContext';
 import { useNotifications } from '../../src/context/NotificationsContext';
 import { getDashboardGoalPresentation } from '../../src/utils/dashboardGoalPresentation';
 import { logError } from '../../src/utils/logError';
+import PrimaryButton from '../../src/components/PrimaryButton';
 
 export default function DashboardScreen() {
   // İlk açılışta DB teması gelince tüm kartlar aynı React store'undan senkronlensin.
@@ -369,13 +370,12 @@ export default function DashboardScreen() {
                 <Text style={styles.emptyTitle}>{t('empty_dashboard_title')}</Text>
                 <Text style={styles.emptyDesc}>{t('empty_dashboard_desc')}</Text>
                 <View style={styles.emptyCTARow}>
-                  <Pressable
-                    style={styles.emptyCTAPrimary}
+                  <PrimaryButton
+                    size="compact"
+                    icon="camera"
+                    label={t('empty_dashboard_scan')}
                     onPress={() => router.push('/(tabs)/scanner')}
-                  >
-                    <MaterialCommunityIcons name="camera" size={18} color={Colors.textInverse} />
-                    <Text style={styles.emptyCTAPrimaryText}>{t('empty_dashboard_scan')}</Text>
-                  </Pressable>
+                  />
                   <Pressable
                     style={styles.emptyCTASecondary}
                     onPress={() => router.push('/add-expense')}
@@ -687,20 +687,7 @@ const getStyles = () => StyleSheet.create({
     gap: Spacing.md,
     marginTop: Spacing.md,
   },
-  emptyCTAPrimary: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.sm,
-    backgroundColor: Colors.primaryAction,
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.md,
-    borderRadius: BorderRadius.round,
-  },
-  emptyCTAPrimaryText: {
-    ...Typography.labelMedium,
-    color: Colors.onPrimary,
-    fontFamily: FontFamily.semiBold,
-  },
+
   emptyCTASecondary: {
     flexDirection: 'row',
     alignItems: 'center',

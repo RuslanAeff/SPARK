@@ -15,6 +15,7 @@ import BottomSheetModal from './BottomSheetModal';
 import { SparkToast } from './SparkToast';
 import { parseMoneyInput } from '../utils/moneyMath';
 import { logError } from '../utils/logError';
+import PrimaryButton from './PrimaryButton';
 
 type Props = {
   visible: boolean;
@@ -153,20 +154,14 @@ export default function SavingsGoalContributionSheet({ visible, onClose }: Props
         >
           <Text style={styles.cancelText}>{t('cancel')}</Text>
         </Pressable>
-        <Pressable
+        <PrimaryButton
           testID="goal-contribution-save"
+          size="compact"
+          label={saving ? t('processing') : t('save')}
           onPress={handleSave}
           disabled={saving}
-          style={({ pressed }) => [
-            styles.saveButton,
-            pressed && styles.pressed,
-            saving && styles.disabled,
-          ]}
-          accessibilityRole="button"
-          accessibilityState={{ disabled: saving }}
-        >
-          <Text style={styles.saveText}>{saving ? t('processing') : t('save')}</Text>
-        </Pressable>
+          style={styles.saveButton}
+        />
       </View>
     </BottomSheetModal>
   );
@@ -265,19 +260,8 @@ const getStyles = () => StyleSheet.create({
     color: Colors.textPrimary,
     fontFamily: FontFamily.semiBold,
   },
-  saveButton: {
-    flex: 1.4,
-    paddingVertical: Spacing.md,
-    borderRadius: BorderRadius.round,
-    backgroundColor: Colors.primaryAction,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  saveText: {
-    ...Typography.labelLarge,
-    color: Colors.onPrimary,
-    fontFamily: FontFamily.extraBold,
-  },
+  saveButton: { flex: 1.4 },
+
   pressed: {
     opacity: 0.9,
   },

@@ -54,6 +54,8 @@ import {
   SettingsSection,
 } from '../src/components/SettingsList';
 import { logError } from '../src/utils/logError';
+import ScreenHeader from '../src/components/ScreenHeader';
+import PrimaryButton from '../src/components/PrimaryButton';
 
 /** Kilitli dönem uyarısı kullanıcıya özel; diğer yazma hataları genel mesajda kalır. */
 function budgetWriteErrorKey(error: unknown): string {
@@ -354,21 +356,7 @@ export default function SettingsBudgetScreen() {
   return (
     <>
       <SafeAreaView style={styles.container} edges={['top']}>
-        <View style={styles.subHeader}>
-          <Pressable
-            onPress={() => router.back()}
-            style={({ pressed }) => [styles.backBtn, pressed && styles.backBtnPressed]}
-            accessibilityRole="button"
-            accessibilityLabel={t('settings_back')}
-            hitSlop={8}
-          >
-            <MaterialCommunityIcons name="chevron-left" size={28} color={Colors.textPrimary} />
-          </Pressable>
-          <Text style={styles.subHeaderTitle} numberOfLines={1}>
-            {t('settings_group_budget')}
-          </Text>
-          <View style={styles.headerSpacer} />
-        </View>
+        <ScreenHeader title={t('settings_group_budget')} />
 
         <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
           <Animated.View entering={FadeInDown.delay(40).duration(400)}>
@@ -408,10 +396,8 @@ export default function SettingsBudgetScreen() {
                 <Text style={styles.cyclePreviewText}>{t('budget_cycle_preview_preserved', cyclePreview.preserved)}</Text>
                 {cyclePreview.bridge && <Text style={styles.cyclePreviewText}>{t('budget_cycle_preview_bridge', { start: cyclePreview.bridge.start, end: cyclePreview.bridge.end })}</Text>}
                 <Text style={styles.cyclePreviewText}>{t('budget_cycle_preview_regular', { start: cyclePreview.firstRegular.start, end: cyclePreview.firstRegular.end })}</Text>
-                <Pressable testID="budget-cycle-apply" accessibilityRole="button" onPress={() => setCycleChangeOpen(true)}
-                  style={({ pressed }) => [styles.cycleApply, pressed && styles.stepperBtnPressed]}>
-                  <Text style={styles.cycleApplyText}>{t('budget_cycle_apply')}</Text>
-                </Pressable>
+                <PrimaryButton testID="budget-cycle-apply" size="compact" label={t('budget_cycle_apply')}
+                  onPress={() => setCycleChangeOpen(true)} style={styles.cycleApply} />
               </View>}
             </SettingsSection>
           </Animated.View>
@@ -668,29 +654,6 @@ export default function SettingsBudgetScreen() {
 
 const getStyles = () => StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
-  subHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: ScreenPadding.horizontal,
-    paddingVertical: Spacing.md,
-    gap: Spacing.sm,
-  },
-  backBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: Colors.surfaceLight,
-  },
-  backBtnPressed: { opacity: 0.7 },
-  subHeaderTitle: {
-    ...Typography.headlineMedium,
-    color: Colors.textPrimary,
-    fontFamily: FontFamily.extraBold,
-    flex: 1,
-  },
-  headerSpacer: { width: 40 },
   content: { paddingHorizontal: ScreenPadding.horizontal, paddingBottom: 40 },
   sectionHeader: {
     flexDirection: 'row',
@@ -776,16 +739,7 @@ const getStyles = () => StyleSheet.create({
     fontFamily: FontFamily.bold,
   },
   cyclePreviewText: { ...Typography.bodySmall, color: Colors.textSecondary },
-  cycleApply: {
-    minHeight: 44,
-    marginTop: Spacing.sm,
-    borderRadius: BorderRadius.round,
-    backgroundColor: Colors.primaryAction,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: Spacing.lg,
-  },
-  cycleApplyText: { ...Typography.labelLarge, color: Colors.onPrimary, fontFamily: FontFamily.bold },
+  cycleApply: { marginTop: Spacing.sm },
   inputRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
   input: {
     ...Typography.bodyLarge,
