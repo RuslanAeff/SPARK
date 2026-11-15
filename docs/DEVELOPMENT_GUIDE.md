@@ -102,7 +102,7 @@ Kurallar:
 - `success`, `danger`, `warning` ve `info` kullanıcı vurgusu değildir. Kategori ve grafik serisi ile native uygulama ikonu/splash renklerini vurgu seçimine bağlamayın. Uygulama içi `LivingSparkWordmark` bu native varlıklardan ayrı, belgelenmiş istisnadır; yalnız tema token'larını kullanır.
 - Yeni vurgu değeri eklemek yalnız bir hex eklemek değildir: açık/koyu display ve action tonları, `onPrimary` kontrastı, ayar çevirileri, geçersiz tercih fallback'i ve cihaz matrisi birlikte ele alınır.
 - Glass yüzey dilini ayrı hardcoded renkler yerine tema token'larıyla koruyun.
-- Safe-area inset'lerine uyun; cihaza özgü alt boşluğu sabit padding ile taklit etmeyin.
+- Safe-area inset'lerine uyun; cihaza özgü alt boşluğu sabit padding ile taklit etmeyin. Kaydırma sonu ve dibe sabit formlar için `useBottomClearance('tab' | 'screen')` kullanın; yüzen sekme çubuğunun ölçüleri `src/theme/layout.ts` içindedir. Alt ekran başlığı için `ScreenHeader`, ana eylem için `PrimaryButton`, karar penceresi için `ConfirmModal`/`GlassDeleteModal` (ikisi de `DecisionModal`) kullanın.
 
 ## Animasyon ve gesture'lar
 
