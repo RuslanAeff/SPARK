@@ -159,7 +159,8 @@ const getStyles = (isDark: boolean) =>
       alignItems: 'center',
       justifyContent: 'center',
       gap: Spacing.xs,
-      backgroundColor: isDark ? '#B4232B' : '#D92D36',
+      // DS-04: yıkıcı eylem dolgusu tema belirtecinden (beyaz yazıyla 5,9:1).
+      backgroundColor: Colors.dangerDark,
     },
     deleteActionPressed: {
       opacity: 0.82,

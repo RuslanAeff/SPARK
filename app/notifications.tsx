@@ -122,12 +122,13 @@ function notificationIconName(id: string): MciName {
 }
 
 /** Büyük dolu renk diskleri yerine önem seviyesini sakin, tonal bir vurguyla gösterir. */
-function notificationAccent(severity: NotificationSeverity, isDark: boolean): string {
+function notificationAccent(severity: NotificationSeverity): string {
   switch (severity) {
+    // DS-04: tema semantik renkleri (açık temada artık okunur; DS-02).
     case 'critical':
-      return isDark ? '#FF6666' : '#D92D20';
+      return Colors.danger;
     case 'warning':
-      return isDark ? '#F6C453' : '#A86400';
+      return Colors.warning;
     case 'info':
     default:
       return Colors.primary;
@@ -673,7 +674,7 @@ export default function NotificationsScreen() {
         }
         renderItem={({ item }) => {
           const iconName = notificationIconName(item.id);
-          const accent = notificationAccent(item.severity, isDark);
+          const accent = notificationAccent(item.severity);
           const p = localizeNotificationParams(item.params, t);
           const title = t(item.titleKey, p);
           const body = t(item.bodyKey, p);

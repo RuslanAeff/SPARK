@@ -12,8 +12,10 @@ import * as Haptics from 'expo-haptics';
 import { Typography, FontFamily } from '../theme/typography';
 import { Spacing, BorderRadius } from '../theme/spacing';
 
+// Yeşil = otomatik, kırmızı = kapalı sözleşmesi korunur; tonlar beyaz yazıyla
+// okunur seviyede (DS-04: #00C853 + beyaz 2,2:1 idi → #007A3D 5,5:1; kırmızı 5,6:1).
 const RED = '#C62828';
-const GREEN = '#00C853';
+const GREEN = '#007A3D';
 type Props = {
   enabled: boolean;
   onToggle: (next: boolean) => void;

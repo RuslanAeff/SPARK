@@ -308,7 +308,7 @@ export default function SettingsGeneralScreen() {
                         <MaterialCommunityIcons
                           name={icon}
                           size={20}
-                          color={selected ? '#FFFFFF' : palette.textPrimary}
+                          color={selected ? palette.onPrimary : palette.textPrimary}
                         />
                         <Text style={[styles.themeBtnText, selected && styles.themeBtnTextActive]}>
                           {label}
@@ -515,13 +515,14 @@ const getStyles = (colors: ThemePalette) => StyleSheet.create({
     borderRadius: BorderRadius.md,
     gap: Spacing.xs,
   },
-  themeBtnActive: { backgroundColor: '#00C853' },
+  // DS-04: seçili görünüm vurguyu izler; sabit yeşil + beyaz 2,2:1 idi.
+  themeBtnActive: { backgroundColor: colors.primaryAction },
   themeBtnText: {
     color: colors.textPrimary,
     fontFamily: FontFamily.extraBold,
     fontSize: 15,
     letterSpacing: 0.5,
   },
-  themeBtnTextActive: { color: '#FFFFFF' },
+  themeBtnTextActive: { color: colors.onPrimary },
   optionPressed: { opacity: 0.72 },
 });

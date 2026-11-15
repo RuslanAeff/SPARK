@@ -32,11 +32,13 @@ interface ToastData {
   type: ToastType;
 }
 
-const CONFIG: Record<ToastType, { icon: string; color: string }> = {
-  success: { icon: 'check-circle', color: '#00C853' },
-  error: { icon: 'alert-circle', color: '#FF3B3B' },
-  info: { icon: 'information', color: '#00A8D6' },
-  warning: { icon: 'alert', color: '#E5A900' },
+// UI denetimi DS-04: renkler tema semantik belirteçlerinden gelir; sabit hex
+// açık temada okunmuyordu ve uygulamanın geri kalanıyla farklıydı.
+const CONFIG: Record<ToastType, { icon: string; tone: 'success' | 'danger' | 'info' | 'warning' }> = {
+  success: { icon: 'check-circle', tone: 'success' },
+  error: { icon: 'alert-circle', tone: 'danger' },
+  info: { icon: 'information', tone: 'info' },
+  warning: { icon: 'alert', tone: 'warning' },
 };
 
 const DISMISS_MS = 3500;
@@ -509,7 +511,7 @@ export function SparkToastContainer() {
             successStyles.sheet,
             {
               bottom: bottom + Spacing.lg,
-              backgroundColor: isDark ? '#1C1C1E' : '#FFFFFF',
+              backgroundColor: theme.cardSurface,
               borderColor: isDark ? 'rgba(255,255,255,0.10)' : 'rgba(0,0,0,0.08)',
               opacity: successOpacity,
               transform: [{ translateY: successY }],
@@ -548,6 +550,7 @@ export function SparkToastContainer() {
                 style={[
                   successStyles.progressFill,
                   {
+                    backgroundColor: theme.success,
                     transform: [{ scaleX: progress }],
                     transformOrigin: 'left center',
                   } as any,
@@ -555,16 +558,19 @@ export function SparkToastContainer() {
               />
             </View>
             <Animated.View
-              style={[successStyles.checkCircle, { transform: [{ scale: checkScale }] }]}
+              style={[
+                successStyles.checkCircle,
+                { backgroundColor: theme.success + '1F', transform: [{ scale: checkScale }] },
+              ]}
             >
-              <View style={successStyles.checkInner}>
-                <MaterialCommunityIcons name="check" size={28} color="#FFF" />
+              <View style={[successStyles.checkInner, { backgroundColor: theme.success }]}>
+                <MaterialCommunityIcons name="check" size={28} color={theme.onSuccess} />
               </View>
             </Animated.View>
             <Text
               style={[
                 successStyles.message,
-                { color: isDark ? '#FFFFFF' : '#1A1A1A' },
+                { color: theme.textPrimary },
               ]}
             >
               {toast.message}
@@ -573,7 +579,7 @@ export function SparkToastContainer() {
               <Text
                 style={[
                   successStyles.submessage,
-                  { color: isDark ? '#A0A0B0' : '#6E6E80' },
+                  { color: theme.textSecondary },
                 ]}
               >
                 {toast.submessage}
@@ -585,7 +591,7 @@ export function SparkToastContainer() {
     );
   }
 
-  const cfg = CONFIG[toast.type];
+  const cfg = { icon: CONFIG[toast.type].icon, color: theme[CONFIG[toast.type].tone] };
   return (
     <View testID="spark-toast-host" style={hostStyles.host} pointerEvents="box-none">
       <Animated.View
@@ -682,14 +688,12 @@ const successStyles = StyleSheet.create({
   progressFill: {
     width: '100%',
     height: '100%',
-    backgroundColor: '#00C853',
     borderRadius: 2,
   },
   checkCircle: {
     width: 58,
     height: 58,
     borderRadius: 29,
-    backgroundColor: 'rgba(0, 200, 83, 0.12)',
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: Spacing.md,
@@ -698,7 +702,6 @@ const successStyles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: '#00C853',
     alignItems: 'center',
     justifyContent: 'center',
   },
