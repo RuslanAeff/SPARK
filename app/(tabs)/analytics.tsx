@@ -1,6 +1,6 @@
 // S.P.A.R.K. — Advanced Analytics Screen
 import React, { useCallback, useEffect, useState, useMemo, useRef } from 'react';
-import { View, Text, ScrollView, StyleSheet, Pressable, PanResponder, Animated as RNAnimated, Dimensions, RefreshControl, Platform, ActivityIndicator, type LayoutRectangle } from 'react-native';
+import { View, Text, ScrollView, Pressable, RefreshControl, ActivityIndicator, type LayoutRectangle } from 'react-native';
 import { useAppTheme, useThemeRevision } from '../../src/theme/themeStore';
 import { useFocusEffect } from 'expo-router';
 import { useIsFocused } from '@react-navigation/native';
@@ -9,7 +9,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import Animated, { FadeInDown, FadeIn } from 'react-native-reanimated';
 
 import { Colors } from '../../src/theme/colors';
-import { Spacing, BorderRadius } from '../../src/theme/spacing';
+import { Spacing } from '../../src/theme/spacing';
 import { useCategorySpending, useVendorSpending, useDailySpending, useTopTransactions, useSubcategorySpending, useBehavioralAnalytics } from '../../src/hooks/useExpenses';
 import { ExpenseDao } from '../../src/db/expenseDao';
 import { SubscriptionDao } from '../../src/db/subscriptionDao';
@@ -80,33 +80,9 @@ import {
 } from '../../src/utils/analyticsCardConfig';
 import { logError } from '../../src/utils/logError';
 import { useBottomClearance } from '../../src/hooks/useBottomClearance';
+import DraggablePanel from '../../src/components/analytics/DraggablePanel';
 
-const SCREEN_HEIGHT = Dimensions.get('window').height;
-const AUTO_SCROLL_EDGE = 100;
-const AUTO_SCROLL_SPEED = 10;
 const CARD_GAP = 8;
-
-/** Kart düzenleme modunda sıra tutamacı — kompakt, kart sınırı içinde */
-const editDragHandleStyles = StyleSheet.create({
-  hitArea: {
-    position: 'absolute',
-    right: Spacing.sm,
-    top: 0,
-    bottom: 0,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingLeft: Spacing.xs,
-  },
-  pill: {
-    paddingVertical: 4,
-    paddingHorizontal: 3,
-    borderRadius: BorderRadius.xs,
-    alignItems: 'center',
-    justifyContent: 'center',
-    minWidth: 26,
-    minHeight: 28,
-  },
-});
 
 const ALL_CARDS: { id: string; icon: string; labelKey: string }[] = [
   { id: 'chart',           icon: 'chart-bar',          labelKey: 'card_chart' },
@@ -136,133 +112,6 @@ interface DragInfo {
   targetIdx: number;
   initialScroll: number;
 }
-
-const DraggablePanel = ({
-  children, id, isEditing,
-  shiftOffset, isDragActive,
-  onDragStart, onDragMove, onDragEnd, onLayout,
-  scrollRef, scrollOffsetRef,
-  reorderAccessibilityLabel,
-}: any) => {
-  const pan = useRef(new RNAnimated.ValueXY()).current;
-  const shiftY = useRef(new RNAnimated.Value(0)).current;
-  const autoScrollTimer = useRef<ReturnType<typeof setInterval> | null>(null);
-
-  const propsRef = useRef({ onDragStart, onDragMove, onDragEnd, id, scrollRef, scrollOffsetRef });
-  propsRef.current = { onDragStart, onDragMove, onDragEnd, id, scrollRef, scrollOffsetRef };
-
-  useEffect(() => {
-    RNAnimated.spring(shiftY, {
-      toValue: shiftOffset,
-      friction: 8,
-      tension: 120,
-      useNativeDriver: false,
-    }).start();
-  }, [shiftOffset, shiftY]);
-
-  const stopAutoScroll = () => {
-    if (autoScrollTimer.current) {
-      clearInterval(autoScrollTimer.current);
-      autoScrollTimer.current = null;
-    }
-  };
-
-  useEffect(() => () => stopAutoScroll(), []);
-
-  const panResponder = useRef(
-    PanResponder.create({
-      onStartShouldSetPanResponder: () => true,
-      onMoveShouldSetPanResponder: () => true,
-      onPanResponderGrant: () => {
-        propsRef.current.onDragStart(propsRef.current.id);
-      },
-      onPanResponderMove: (evt, gesture) => {
-        pan.setValue({ x: 0, y: gesture.dy });
-        propsRef.current.onDragMove(propsRef.current.id, gesture.dy);
-
-        const touchY = evt.nativeEvent.pageY;
-        const { scrollRef: sRef, scrollOffsetRef: soRef } = propsRef.current;
-        stopAutoScroll();
-
-        if (touchY < AUTO_SCROLL_EDGE && sRef?.current) {
-          autoScrollTimer.current = setInterval(() => {
-            const cur = soRef?.current ?? 0;
-            sRef.current?.scrollTo({ y: Math.max(0, cur - AUTO_SCROLL_SPEED), animated: false });
-          }, 16);
-        } else if (touchY > SCREEN_HEIGHT - AUTO_SCROLL_EDGE && sRef?.current) {
-          autoScrollTimer.current = setInterval(() => {
-            const cur = soRef?.current ?? 0;
-            sRef.current?.scrollTo({ y: cur + AUTO_SCROLL_SPEED, animated: false });
-          }, 16);
-        }
-      },
-      onPanResponderRelease: () => {
-        stopAutoScroll();
-        propsRef.current.onDragEnd(propsRef.current.id);
-        RNAnimated.spring(pan, { toValue: { x: 0, y: 0 }, friction: 8, useNativeDriver: false }).start();
-      },
-    })
-  ).current;
-
-  return (
-    <RNAnimated.View
-      onLayout={(e) => onLayout?.(id, e.nativeEvent.layout.height)}
-      style={{
-        transform: [{ translateY: isDragActive ? pan.y : shiftY }],
-        zIndex: isDragActive ? 1000 : 1,
-        position: 'relative',
-        marginVertical: 4,
-        opacity: isDragActive ? 0.88 : 1,
-        ...(isDragActive ? {
-          shadowColor: '#000',
-          shadowOffset: { width: 0, height: 8 },
-          shadowOpacity: 0.3,
-          shadowRadius: 16,
-          elevation: 20,
-        } : {}),
-      }}
-    >
-      {children}
-      {isEditing && (
-        <View
-          {...panResponder.panHandlers}
-          style={editDragHandleStyles.hitArea}
-          accessibilityRole="adjustable"
-          accessibilityLabel={reorderAccessibilityLabel}
-        >
-          <View
-            style={[
-              editDragHandleStyles.pill,
-              {
-                backgroundColor: isDragActive ? Colors.primaryGlow : 'transparent',
-                borderWidth: StyleSheet.hairlineWidth * 2,
-                borderColor: isDragActive ? Colors.primary : Colors.border,
-                ...(isDragActive
-                  ? Platform.select({
-                      ios: {
-                        shadowColor: '#000',
-                        shadowOffset: { width: 0, height: 2 },
-                        shadowOpacity: 0.2,
-                        shadowRadius: 4,
-                      },
-                      android: { elevation: 3 },
-                      default: {},
-                    })
-                  : {}),
-              },
-            ]}
-          >
-            <MaterialCommunityIcons
-              name="drag-vertical"
-              color={isDragActive ? Colors.primary : Colors.textMuted}
-              size={16}
-            />
-          </View>
-        </View>
-      )}
-    </RNAnimated.View>
-  );
-};
 
 export default function AnalyticsScreen() {
   // UX-06: yüzen sekme çubuğu + sistem gezinme alanı kadar alt boşluk.
@@ -435,6 +284,18 @@ export default function AnalyticsScreen() {
 
     dragRef.current = null;
     setActiveDrag(null);
+  }
+
+  // A11Y-03: ekran okuyucuyla kartı bir sıra yukarı/aşağı taşı.
+  function moveCardBy(id: string, delta: -1 | 1) {
+    setCardOrder(prev => {
+      const from = prev.indexOf(id);
+      const to = from + delta;
+      if (from < 0 || to < 0 || to >= prev.length) return prev;
+      const arr = [...prev];
+      [arr[from], arr[to]] = [arr[to], arr[from]];
+      return arr;
+    });
   }
 
   function removeCard(id: string) {
@@ -1577,6 +1438,9 @@ export default function AnalyticsScreen() {
                     onDragStart={handleDragStart}
                     onDragMove={handleDragMove}
                     onDragEnd={handleDragEnd}
+                    onMoveBy={moveCardBy}
+                    position={index + 1}
+                    total={cardOrder.length}
                     onLayout={handleLayout}
                     scrollRef={scrollRef}
                     scrollOffsetRef={scrollOffsetRef}
