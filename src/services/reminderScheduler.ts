@@ -29,6 +29,7 @@ import {
   budgetCycleFromBounds,
   getCurrentCycle,
 } from '../utils/budgetCycle';
+import { toLocalYmd } from '../utils/dateUtils';
 
 type Translate = (
   key: string,
@@ -38,11 +39,6 @@ type Translate = (
 function clampNativeText(value: string, maxLength: number): string {
   const text = value.trim();
   return text.length > maxLength ? `${text.slice(0, maxLength - 1)}…` : text;
-}
-
-function localYmdAt(epochMs: number): string {
-  const date = new Date(epochMs);
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 }
 
 /**
@@ -62,7 +58,7 @@ export async function syncAndroidReminderSchedules(
   const goal = await GoalDao.get();
   const cycleStartDay = await getCycleStartDay();
   const computedCycle = getCurrentCycle(cycleStartDay, new Date(nowMs));
-  const today = localYmdAt(nowMs);
+  const today = toLocalYmd(new Date(nowMs));
   const exactBudget = await BudgetDao.getContainingDate(today);
   const fallbackBudget = exactBudget ?? await BudgetDao.getLatestAtOrBefore(computedCycle.start);
   const budgetCycle = exactBudget?.period_start && exactBudget.period_end

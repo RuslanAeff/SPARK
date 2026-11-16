@@ -5,7 +5,8 @@ jest.mock('expo-file-system/legacy', () => ({ StorageAccessFramework: {} }));
 jest.mock('expo-sharing', () => ({ isAvailableAsync: jest.fn() }));
 jest.mock('expo-document-picker', () => ({ getDocumentAsync: jest.fn() }));
 jest.mock('expo-crypto', () => ({ randomUUID: () => require('node:crypto').randomUUID() }));
-jest.mock('../../utils/dateUtils', () => ({ getToday: () => '2026-09-21' }));
+jest.mock('../../utils/dateUtils', () => ({
+  ...jest.requireActual('../../utils/dateUtils'), getToday: () => '2026-09-21' }));
 
 import { getDatabase } from '../../db/database';
 import { BudgetDao } from '../../db/budgetDao';

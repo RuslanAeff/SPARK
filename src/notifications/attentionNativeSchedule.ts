@@ -11,6 +11,7 @@ import {
 } from '../utils/recurringSchedule';
 import type { InAppNotification } from './types';
 import { localReminderDateTimeToEpoch } from './reminderNativeSchedule';
+import { localYmdFromEpoch as localYmdAt } from '../utils/dateUtils';
 
 export const GOAL_ATTENTION_MILESTONES = [90, 30, 14, 7, 3, 1, 0] as const;
 export const BUDGET_REVIEW_CHECKPOINTS = [50, 75, 90] as const;
@@ -32,13 +33,6 @@ export interface BuildAttentionNativeScheduleInput {
   goal: SavingsGoalRow | null;
   budgetCycle: BudgetCycle | null;
   budgetAmount: number;
-}
-
-function localYmdAt(epochMs: number): string | null {
-  if (!Number.isFinite(epochMs)) return null;
-  const date = new Date(epochMs);
-  if (Number.isNaN(date.getTime())) return null;
-  return `${String(date.getFullYear()).padStart(4, '0')}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 }
 
 function validActiveGoal(goal: SavingsGoalRow | null): goal is SavingsGoalRow {

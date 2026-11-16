@@ -6,7 +6,8 @@ import { ExpenseDao } from '../../db/expenseDao';
 import { IncomeDao } from '../../db/incomeDao';
 import { ContainerDepositDao } from '../../db/containerDepositDao';
 import { useBudget } from '../useBudget';
-jest.mock('../../utils/dateUtils', () => ({ getToday: () => '2026-07-10' }));
+jest.mock('../../utils/dateUtils', () => ({
+  ...jest.requireActual('../../utils/dateUtils'), getToday: () => '2026-07-10' }));
 jest.mock('../../db/budgetRolloverDao', () => ({ BudgetRolloverDao: {
   totals: jest.fn(async () => ({ incoming: 0, outgoing: 0 })),
   status: jest.fn(async () => ({ needsReview: false })),

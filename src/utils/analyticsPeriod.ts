@@ -1,4 +1,4 @@
-import { getEndOfMonth, getStartOfMonth } from './dateUtils';
+import { getEndOfMonth, getStartOfMonth, parseLocalYmdAtNoon as parseLocalYmd, toLocalYmd } from './dateUtils';
 import { getCycleForKey, shiftCycleKey } from './budgetCycle';
 
 export type AnalyticsTimeframe = 'week' | 'month' | 'year' | 'custom';
@@ -22,17 +22,6 @@ interface ResolveAnalyticsDateRangeOptions {
   budgetPeriodStart?: string;
   budgetPeriodEnd?: string;
   now?: Date;
-}
-
-function toLocalYmd(date: Date): string {
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(
-    date.getDate(),
-  ).padStart(2, '0')}`;
-}
-
-function parseLocalYmd(value: string): Date {
-  const [year, month, day] = value.split('-').map(Number);
-  return new Date(year, month - 1, day, 12, 0, 0, 0);
 }
 
 function addLocalDays(value: string, amount: number): string {

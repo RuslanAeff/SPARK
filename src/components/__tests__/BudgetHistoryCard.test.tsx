@@ -27,7 +27,8 @@ jest.mock('../../services/budgetHistoryTotals', () => {
   };
 });
 jest.mock('../../services/budgetCycleSettings', () => ({ getCycleStartDay: jest.fn(async () => 23) }));
-jest.mock('../../utils/dateUtils', () => ({ getToday: () => '2026-09-25', formatDayMonth: (v: string) => v }));
+jest.mock('../../utils/dateUtils', () => ({
+  ...jest.requireActual('../../utils/dateUtils'), getToday: () => '2026-09-25', formatDayMonth: (v: string) => v }));
 jest.mock('../../theme/themeStore', () => ({ useAppTheme: () => 'dark', useThemeRevision: () => 0 }));
 jest.mock('../../i18n/LanguageContext', () => ({ useLanguage: () => ({ t: (key: string) => key }) }));
 jest.mock('../../context/CurrencyContext', () => ({ useCurrency: () => ({ currency: 'PLN' }) }));

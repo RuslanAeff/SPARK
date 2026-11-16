@@ -23,6 +23,7 @@ import { Spacing, ScreenPadding, BorderRadius } from '../theme/spacing';
 import { formatCurrency } from '../utils/formatCurrency';
 import type { Language } from '../i18n/translations';
 import { intlLocaleForLanguage } from '../i18n/languageOptions';
+import { parseLocalYmdAtNoon as parseYmd } from '../utils/dateUtils';
 
 const SCREEN_H = Dimensions.get('window').height;
 
@@ -50,11 +51,6 @@ interface GroupedMonth {
   label: string; // "Nisan 2026"
   items: { date: string; total?: number }[];
 }
-
-const parseYmd = (s: string) => {
-  const [y, m, d] = s.split('-').map(Number);
-  return new Date(y, (m || 1) - 1, d || 1);
-};
 
 function groupByMonth(
   items: { date: string; total?: number }[],

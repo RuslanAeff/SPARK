@@ -7,11 +7,7 @@ import {
 } from '../utils/budgetCycle';
 import { previewBudgetCycleTransition } from '../utils/budgetCycleTransition';
 import { sanitizeAmount, sanitizeDate } from '../utils/inputValidation';
-
-function parseYmd(value: string): [number, number, number] {
-  const [year, month, day] = value.split('-').map(Number);
-  return [year, month, day];
-}
+import { splitYmd as parseYmd } from '../utils/dateUtils';
 
 export const BudgetDao = {
   async getById(id: number): Promise<Budget | null> {

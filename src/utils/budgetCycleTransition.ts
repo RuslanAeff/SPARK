@@ -1,9 +1,5 @@
 import { getCycleForYmd, normalizeCycleStartDay, type BudgetCycle } from './budgetCycle';
-
-function parseYmd(value: string): [number, number, number] {
-  const [year, month, day] = value.split('-').map(Number);
-  return [year, month, day];
-}
+import { splitYmd as parseYmd } from './dateUtils';
 
 export function addCalendarDays(value: string, amount: number): string {
   const [year, month, day] = parseYmd(value);

@@ -7,22 +7,12 @@ import { formatCurrency } from '../utils/formatCurrency';
 import { useLanguage } from '../i18n/LanguageContext';
 import { useCurrency } from '../context/CurrencyContext';
 import { useAppTheme, useThemeRevision } from '../theme/themeStore';
+import { parseLocalYmdAtNoon as parseLocalYmd, toLocalYmd } from '../utils/dateUtils';
 
 interface HeatmapProps {
   data: { date: string; total: number }[];
   startDate: string;
   endDate: string;
-}
-
-function parseLocalYmd(value: string): Date {
-  const [year, month, day] = value.split('-').map(Number);
-  return new Date(year, month - 1, day, 12, 0, 0, 0);
-}
-
-function toLocalYmd(value: Date): string {
-  return `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, '0')}-${String(
-    value.getDate(),
-  ).padStart(2, '0')}`;
 }
 
 export default function SpendingHeatmap({ data, startDate, endDate }: HeatmapProps) {

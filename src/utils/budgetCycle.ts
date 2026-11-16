@@ -1,3 +1,4 @@
+import { daysBetweenLocal as dayDiff } from './dateUtils';
 // S.P.A.R.K. — Bütçe döngüsü (gelir gününe göre) — TEK KAYNAK
 //
 // Kullanıcı bütçesini takvim ayına değil, seçtiği bir "döngü başlangıç günü"ne
@@ -66,14 +67,6 @@ function pad2(n: number): string {
 
 function toYmd(year: number, month0: number, day: number): string {
   return `${year}-${pad2(month0 + 1)}-${pad2(day)}`;
-}
-
-/** İki yerel tarih (YYYY-MM-DD) arası tam gün farkı: b - a. */
-function dayDiff(a: string, b: string): number {
-  const [ay, am, ad] = a.split('-').map(Number);
-  const [by, bm, bd] = b.split('-').map(Number);
-  // UTC ile hesapla → DST gün kayması olmaz.
-  return Math.round((Date.UTC(by, bm - 1, bd) - Date.UTC(ay, am - 1, ad)) / 86400000);
 }
 
 /** Verilen ayın anchor gününden bir gün öncesi (önceki döngünün son günü). */

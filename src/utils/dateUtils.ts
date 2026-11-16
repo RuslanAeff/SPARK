@@ -7,7 +7,7 @@ type TranslateFunc = (key: string, params?: Record<string, string | number>) => 
  * "bugün" ertesi gün dönebilir veya `getEndOfMonth(Şubat)` 28 yerine 27 olabilir.
  * Bu fonksiyon yerel takvim gününü garanti eder.
  */
-function toLocalYmd(d: Date): string {
+export function toLocalYmd(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
@@ -168,6 +168,42 @@ export function daysUntilLocal(ymd: string, from: Date = new Date()): number | n
   const targetNoon = new Date(target.getFullYear(), target.getMonth(), target.getDate(), 12);
   const todayNoon = new Date(from.getFullYear(), from.getMonth(), from.getDate(), 12);
   return Math.round((targetNoon.getTime() - todayNoon.getTime()) / 86_400_000);
+}
+
+/**
+ * YYYY-MM-DD → yerel öğlen `Date` (doğrulamasız, hızlı yol). Öğlen, yaz saati
+ * geçişinde günün kaymasını önler. Geçersiz girişte doğrulama için
+ * `parseLocalYYYYMMDD` kullanın (UI denetimi CQ-04: 2 kopya birleşti).
+ */
+export function parseLocalYmdAtNoon(value: string): Date {
+  const [year, month, day] = value.split('-').map(Number);
+  return new Date(year, month - 1, day, 12, 0, 0, 0);
+}
+
+/** YYYY-MM-DD → [yıl, ay (1–12), gün]; doğrulamasız (CQ-04: 2 kopya birleşti). */
+export function splitYmd(value: string): [number, number, number] {
+  const [year, month, day] = value.split('-').map(Number);
+  return [year, month, day];
+}
+
+/**
+ * Epoch milisaniyesinin yerel takvim günü; geçersiz veya 1–9999 dışı yılda
+ * `null` (CQ-04: bildirim planlayıcılarındaki 3 kopyanın en sıkı sürümü).
+ */
+export function localYmdFromEpoch(epochMs: number): string | null {
+  if (!Number.isFinite(epochMs)) return null;
+  const date = new Date(epochMs);
+  if (Number.isNaN(date.getTime())) return null;
+  const year = date.getFullYear();
+  if (year < 1 || year > 9999) return null;
+  return `${String(year).padStart(4, '0')}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+}
+
+/** İki yerel YYYY-MM-DD arası işaretli tam gün farkı (b − a); UTC ile, DST'den bağımsız. */
+export function daysBetweenLocal(a: string, b: string): number {
+  const [ay, am, ad] = splitYmd(a);
+  const [by, bm, bd] = splitYmd(b);
+  return Math.round((Date.UTC(by, bm - 1, bd) - Date.UTC(ay, am - 1, ad)) / 86_400_000);
 }
 
 export function getStartOfMonth(date?: Date): string {

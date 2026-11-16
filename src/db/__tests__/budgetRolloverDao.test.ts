@@ -1,6 +1,7 @@
 jest.mock('../database', () => ({ getDatabase: jest.fn() }));
 jest.mock('expo-crypto', () => ({ randomUUID: () => require('node:crypto').randomUUID() }));
-jest.mock('../../utils/dateUtils', () => ({ getToday: () => '2026-09-21' }));
+jest.mock('../../utils/dateUtils', () => ({
+  ...jest.requireActual('../../utils/dateUtils'), getToday: () => '2026-09-21' }));
 
 import { getDatabase } from '../database';
 import { BudgetRolloverDao } from '../budgetRolloverDao';

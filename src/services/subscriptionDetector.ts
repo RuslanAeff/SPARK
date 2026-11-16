@@ -15,7 +15,7 @@
 import { getDatabase } from '../db/database';
 import { SubscriptionDao } from '../db/subscriptionDao';
 import type { SubscriptionRow } from '../db/schema';
-import { addLocalDays, getLocalDateDaysAgo } from '../utils/dateUtils';
+import { addLocalDays, daysBetweenLocal, getLocalDateDaysAgo } from '../utils/dateUtils';
 
 interface PeriodBand {
   /** Periyot etiketi — UI için key. */
@@ -49,10 +49,9 @@ interface CandidateRow {
   date: string;
 }
 
+/** Mutlak gün farkı (sıralama yönünden bağımsız). */
 function dayDiff(a: string, b: string): number {
-  const da = new Date(a + 'T12:00:00').getTime();
-  const db = new Date(b + 'T12:00:00').getTime();
-  return Math.round(Math.abs(db - da) / (86400 * 1000));
+  return Math.abs(daysBetweenLocal(a, b));
 }
 
 function addDays(iso: string, days: number): string {

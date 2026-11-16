@@ -116,6 +116,7 @@ jest.mock('../../db/recurringPaymentReminderDao', () => ({
 }));
 
 jest.mock('../../utils/dateUtils', () => ({
+  ...jest.requireActual('../../utils/dateUtils'),
   getToday: () => '2026-08-11',
   formatMonthYear: (_date: string, t?: (key: string) => string) =>
     `${t?.('month_05') ?? 'Mayıs'} 2026`,

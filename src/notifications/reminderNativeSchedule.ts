@@ -13,6 +13,7 @@ import {
   shiftCalendarDate,
   type RecurringSchedule,
 } from '../utils/recurringSchedule';
+import { localYmdFromEpoch as localYmdAt } from '../utils/dateUtils';
 
 const HH_MM_PATTERN = /^(?:[01]\d|2[0-3]):[0-5]\d$/;
 const SUPPORTED_UNITS = new Set(['day', 'week', 'month', 'year']);
@@ -91,19 +92,6 @@ function parseYmdParts(value: string): LocalDateParts | null {
   if (!isValidYmd(value)) return null;
   const [year, month, day] = value.split('-').map(Number);
   return { year, month, day };
-}
-
-function pad2(value: number): string {
-  return String(value).padStart(2, '0');
-}
-
-function localYmdAt(epochMs: number): string | null {
-  if (!Number.isFinite(epochMs)) return null;
-  const date = new Date(epochMs);
-  if (Number.isNaN(date.getTime())) return null;
-  const year = date.getFullYear();
-  if (year < 1 || year > 9999) return null;
-  return `${String(year).padStart(4, '0')}-${pad2(date.getMonth() + 1)}-${pad2(date.getDate())}`;
 }
 
 /**

@@ -47,6 +47,9 @@ function isLeapYear(year: number): boolean {
   return year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0);
 }
 
+// CQ-04 notu: Bu modülün takvim yardımcıları (aylar 1–12, proleptik Gregoryen
+// sıra numarası, kendi doğrulaması) bilinçli olarak bağımsızdır; `dateUtils`
+// ve `budgetCycle` kopyası değildir, Date/saat dilimine hiç dokunmaz.
 function daysInMonth(year: number, month: number): number {
   if (month === 2) return isLeapYear(year) ? 29 : 28;
   if (month === 4 || month === 6 || month === 9 || month === 11) return 30;

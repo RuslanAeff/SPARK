@@ -25,7 +25,8 @@ jest.mock('react-native-reanimated', () => {
 const mockTriggerRefresh = jest.fn();
 const mockSync = jest.fn(async () => undefined);
 
-jest.mock('../../utils/dateUtils', () => ({ getToday: () => '2026-09-21' }));
+jest.mock('../../utils/dateUtils', () => ({
+  ...jest.requireActual('../../utils/dateUtils'), getToday: () => '2026-09-21' }));
 
 jest.mock('../../db/budgetDao', () => ({
   BudgetDao: { getContainingDate: jest.fn() },
