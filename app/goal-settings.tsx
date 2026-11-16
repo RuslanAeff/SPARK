@@ -1,7 +1,8 @@
 // S.P.A.R.K. — Birikim hedefi ve aylık kategori limitleri
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
-  View, Text, ScrollView, StyleSheet, Pressable, TextInput, Modal, FlatList, KeyboardAvoidingView, Platform,
+  View, Text, ScrollView, StyleSheet, Pressable, TextInput, FlatList, KeyboardAvoidingView, Platform,
+  useWindowDimensions,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -32,11 +33,13 @@ import { logError } from '../src/utils/logError';
 import ScreenHeader from '../src/components/ScreenHeader';
 import { useBottomClearance } from '../src/hooks/useBottomClearance';
 import { toIconName } from '../src/utils/iconName';
+import BottomSheetModal from '../src/components/BottomSheetModal';
 
 /** Limit satırı + kullanıcının yazdığı ham metin; sayı yalnız kaydederken üretilir (BUG-24). */
 type LimitDraft = CategoryLimitRow & { limit_text: string };
 
 export default function GoalSettingsScreen() {
+  const { height: windowHeight } = useWindowDimensions();
   // UX-06: sistem gezinme alanı (jest/üç düğme) kadar ek alt boşluk.
   const bottomClearance = useBottomClearance('screen', 48);
   useThemeRevision();
@@ -375,45 +378,42 @@ export default function GoalSettingsScreen() {
           onDelete={performClearGoal}
         />
 
-        <Modal
+        {/* UX-08: ortak alt sayfa (tutamak, sürükle-kapat, güvenli alan, temalı karartı). */}
+        <BottomSheetModal
           visible={addModal}
-          transparent
-          animationType="fade"
-          hardwareAccelerated
-          presentationStyle="overFullScreen"
-          statusBarTranslucent
-          navigationBarTranslucent
-          onRequestClose={() => setAddModal(false)}
+          onClose={() => setAddModal(false)}
+          showHandle
+          sheetStyle={styles.categorySheet}
         >
-          <View style={styles.modalBackdrop}>
-            {/* UX-02: karartı ayrı katman. Pencere Pressable olursa Android'de dikey
-            hareketi yakalayıp içteki listenin kaydırmasını takılır hale getirir. */}
-            <Pressable style={StyleSheet.absoluteFill} onPress={() => setAddModal(false)} accessible={false} />
-            <View style={styles.modalCard}>
-              <Text style={styles.modalTitle}>{t('goal_settings_pick_category')}</Text>
-              <FlatList
-                data={categoriesAvailableToAdd}
-                keyExtractor={c => String(c.id)}
-                style={{ maxHeight: 360 }}
-                renderItem={({ item }) => (
-                  <Pressable style={styles.catPickRow} onPress={() => addCategory(item)}>
-                    <View style={[styles.miniIcon, { backgroundColor: item.color + '22' }]}>
-                      <MaterialCommunityIcons name={toIconName(item.icon)} size={18} color={item.color} />
-                    </View>
-                    <Text style={styles.limitName}>{tc(item.name)}</Text>
-                <MaterialCommunityIcons name="chevron-right" size={20} color={Colors.textMuted} />
-                  </Pressable>
-                )}
-              />
+          <Text style={styles.modalTitle} accessibilityRole="header">{t('goal_settings_pick_category')}</Text>
+          <FlatList
+            data={categoriesAvailableToAdd}
+            keyExtractor={c => String(c.id)}
+            style={{ maxHeight: windowHeight * 0.55 }}
+            keyboardShouldPersistTaps="handled"
+            renderItem={({ item }) => (
               <Pressable
-                style={({ pressed }) => [styles.modalCancelBtn, pressed && { opacity: 0.92 }]}
-                onPress={() => setAddModal(false)}
+                style={styles.catPickRow}
+                onPress={() => addCategory(item)}
+                accessibilityRole="button"
+                accessibilityLabel={tc(item.name)}
               >
-                <Text style={styles.modalCancelBtnText}>{t('cancel')}</Text>
+                <View style={[styles.miniIcon, { backgroundColor: item.color + '22' }]}>
+                  <MaterialCommunityIcons name={toIconName(item.icon)} size={18} color={item.color} />
+                </View>
+                <Text style={styles.limitName}>{tc(item.name)}</Text>
+                <MaterialCommunityIcons name="chevron-right" size={20} color={Colors.textMuted} />
               </Pressable>
-            </View>
-          </View>
-        </Modal>
+            )}
+          />
+          <Pressable
+            style={({ pressed }) => [styles.modalCancelBtn, pressed && { opacity: 0.85 }]}
+            onPress={() => setAddModal(false)}
+            accessibilityRole="button"
+          >
+            <Text style={styles.modalCancelBtnText}>{t('cancel')}</Text>
+          </Pressable>
+        </BottomSheetModal>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
@@ -523,33 +523,28 @@ const getStyles = () => StyleSheet.create({
     letterSpacing: 0.8,
     textTransform: 'uppercase',
   },
+  // Vazgeç hayalet düğmedir; kırmızı dolgu yalnız yıkıcı eylem içindir.
   modalCancelBtn: {
     marginTop: Spacing.lg,
-    backgroundColor: Colors.danger,
+    minHeight: 48,
     borderRadius: BorderRadius.round,
-    paddingVertical: Spacing.lg,
     alignItems: 'center',
+    justifyContent: 'center',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.35)',
+    borderColor: Colors.cardBorder,
   },
   modalCancelBtnText: {
-    color: '#FFFFFF',
-    fontFamily: FontFamily.extraBold,
-    fontSize: 17,
-    letterSpacing: 0.8,
-    textTransform: 'uppercase',
+    ...Typography.labelLarge,
+    color: Colors.textSecondary,
+    fontFamily: FontFamily.bold,
   },
-  modalBackdrop: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    justifyContent: 'center',
-    padding: Spacing.lg,
-  },
-  modalCard: {
+
+  categorySheet: {
     backgroundColor: Colors.cardSurface,
-    borderRadius: BorderRadius.xl,
-    padding: Spacing.lg,
-    maxHeight: '80%',
+    borderTopLeftRadius: BorderRadius.xl,
+    borderTopRightRadius: BorderRadius.xl,
+    paddingHorizontal: Spacing.lg,
+    paddingBottom: Spacing.lg,
   },
   modalTitle: {
     ...Typography.headlineSmall,

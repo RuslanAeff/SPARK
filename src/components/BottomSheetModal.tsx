@@ -56,6 +56,8 @@ interface BottomSheetModalProps {
    * bir tutamak çizgisi panele karakter katmıyor. Verilmezse sayfa nötr kalır.
    */
   accentColor?: string;
+  /** Karartıya dokunmanın ekran okuyucu etiketi (ör. çevrilmiş "Kapat"). */
+  backdropAccessibilityLabel?: string;
 }
 
 const SCREEN_H = Dimensions.get('screen').height;
@@ -85,6 +87,7 @@ interface ModalContentProps {
   showHandle: boolean;
   interactive: boolean;
   accentColor?: string;
+  backdropAccessibilityLabel?: string;
 }
 
 function ModalContent({
@@ -97,6 +100,7 @@ function ModalContent({
   showHandle,
   interactive,
   accentColor,
+  backdropAccessibilityLabel,
 }: ModalContentProps) {
   const { bottom } = useSafeAreaInsets();
   const interactiveRef = useRef(interactive);
@@ -181,7 +185,12 @@ function ModalContent({
     <>
       {/* Karartma katmanı */}
       <Animated.View style={overlayAnimStyle}>
-        <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
+        <Pressable
+          style={StyleSheet.absoluteFill}
+          onPress={onClose}
+          accessibilityRole={backdropAccessibilityLabel ? 'button' : undefined}
+          accessibilityLabel={backdropAccessibilityLabel}
+        />
       </Animated.View>
       {/* Sheet */}
       <Animated.View
@@ -255,6 +264,7 @@ export default function BottomSheetModal({
   fadeDurationMs = 180,
   showHandle = false,
   accentColor,
+  backdropAccessibilityLabel,
 }: BottomSheetModalProps) {
   const [mounted, setMounted] = useState(visible);
   const mountedRef = useRef(visible);
@@ -381,6 +391,7 @@ export default function BottomSheetModal({
           translateY={translateY}
           showHandle={showHandle}
           accentColor={accentColor}
+          backdropAccessibilityLabel={backdropAccessibilityLabel}
           interactive={visible}
         >
           {children}

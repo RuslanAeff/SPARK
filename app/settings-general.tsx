@@ -7,7 +7,7 @@ import {
   useThemePalette,
 } from '../src/theme/themeStore';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
 
@@ -52,7 +52,6 @@ export default function SettingsGeneralScreen() {
   const activeAccent = useThemeAccent();
   const palette = useThemePalette();
   const styles = useMemo(() => getStyles(palette), [palette]);
-  const safeAreaInsets = useSafeAreaInsets();
   const { t, language, setLanguage } = useLanguage();
   const { currency, setCurrency } = useCurrency();
 
@@ -391,7 +390,6 @@ export default function SettingsGeneralScreen() {
         current={language}
         title={t('language_sheet_title')}
         closeLabel={t('close')}
-        hostBottomInset={safeAreaInsets.bottom}
         onSelect={async (code) => {
           await setLanguage(code);
           SparkToast.show(t('language_changed'), 'success');
