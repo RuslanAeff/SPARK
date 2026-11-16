@@ -11,6 +11,7 @@ import { formatCurrency } from '../../utils/formatCurrency';
 import type { CategorySpending } from '../../db/schema';
 import type { BaseCardProps } from './shared';
 import { useAppTheme, useThemeRevision } from '../../theme/themeStore';
+import { toIconName } from '../../utils/iconName';
 
 const selectionMotion = { duration: 180, easing: Easing.out(Easing.cubic), reduceMotion: ReduceMotion.System };
 
@@ -48,7 +49,7 @@ function CategoryOption({ category, selected, faded, onPress, styles, tc, curren
     >
       <Animated.View style={[styles.categoryPill, { minHeight: 48 }, surface]}>
         <View style={[styles.pillIcon, { backgroundColor: category.category_color }]}>
-          <MaterialCommunityIcons name={category.category_icon as any} size={16} color="#FFF" />
+          <MaterialCommunityIcons name={toIconName(category.category_icon)} size={16} color="#FFF" />
         </View>
         <View style={styles.pillInfo}>
           <Text style={styles.pillName}>{tc(category.category_name)}</Text>
@@ -156,7 +157,7 @@ function CategoriesCard({
           {displayed.rows.length > 0 ? displayed.rows.map(sc => (
               <View key={sc.category_id} style={[styles.vendorRow, { borderBottomWidth: 0, paddingBottom: Spacing.sm }]}>
                 <View style={[styles.pillIcon, { backgroundColor: sc.category_color, width: 44, height: 44, borderRadius: 22 }]}>
-                  <MaterialCommunityIcons name={sc.category_icon as any} size={22} color="#FFF" />
+                  <MaterialCommunityIcons name={toIconName(sc.category_icon)} size={22} color="#FFF" />
                 </View>
                 <View style={styles.vendorInfo}>
                   <Text style={styles.vendorName}>{tc(sc.category_name)}</Text>

@@ -10,6 +10,7 @@ import type { ExpenseWithDetails } from '../../db/schema';
 import type { TopTransactionSelection } from '../../db/expenseDao';
 import type { BaseCardProps } from './shared';
 import { useTabSwipe } from '../../context/TabSwipeContext';
+import { toIconName } from '../../utils/iconName';
 
 interface TopTxCardProps extends BaseCardProps {
   topTx: ExpenseWithDetails[];
@@ -108,7 +109,7 @@ function TopTxCard({ styles, t, tc, currency, topTx, selection = 'overall' }: To
           </View>
           {tx.category_icon ? (
             <View style={[styles.topTxCatIcon, { backgroundColor: (tx.category_color || Colors.primary) + '22' }]}>
-              <MaterialCommunityIcons name={tx.category_icon as any} size={16} color={tx.category_color || Colors.primary} />
+              <MaterialCommunityIcons name={toIconName(tx.category_icon)} size={16} color={tx.category_color || Colors.primary} />
             </View>
           ) : null}
           <View style={styles.topTxContent}>

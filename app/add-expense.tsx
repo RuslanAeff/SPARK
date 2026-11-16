@@ -41,6 +41,7 @@ import { ContainerDepositDao } from '../src/db/containerDepositDao';
 import { logError } from '../src/utils/logError';
 import ScreenHeader from '../src/components/ScreenHeader';
 import { useBottomClearance } from '../src/hooks/useBottomClearance';
+import { toIconName } from '../src/utils/iconName';
 
 export default function AddExpenseScreen() {
   // UX-06: sistem gezinme alanı (jest/üç düğme) kadar ek alt boşluk.
@@ -570,7 +571,7 @@ export default function AddExpenseScreen() {
                       ]}
                     >
                       <MaterialCommunityIcons
-                        name={cat.icon as any}
+                        name={toIconName(cat.icon)}
                         size={18}
                         color={isParentSelected ? cat.color : Colors.textSecondary}
                       />
@@ -604,7 +605,7 @@ export default function AddExpenseScreen() {
                                 ]}
                               >
                                 <MaterialCommunityIcons
-                                  name={sub.icon as any}
+                                  name={toIconName(sub.icon)}
                                   size={14}
                                   color={isSubSelected ? sub.color : Colors.textSecondary}
                                 />

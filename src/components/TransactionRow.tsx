@@ -12,6 +12,7 @@ import { subtractMoney } from '../utils/moneyMath';
 import VendorAvatar from './VendorAvatar';
 import { useLanguage } from '../i18n/LanguageContext';
 import { useCurrency } from '../context/CurrencyContext';
+import { toIconName } from '../utils/iconName';
 
 interface TransactionRowProps {
   expense: ExpenseWithDetails;
@@ -72,7 +73,7 @@ function TransactionRow({
         <View style={styles.categoryRow}>
           {expense.category_icon && (
             <MaterialCommunityIcons
-              name={expense.category_icon as any}
+              name={toIconName(expense.category_icon)}
               size={14}
               color={expense.category_color || Colors.textSecondary}
             />

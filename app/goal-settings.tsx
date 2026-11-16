@@ -31,6 +31,7 @@ import { useThemeRevision } from '../src/theme/themeStore';
 import { logError } from '../src/utils/logError';
 import ScreenHeader from '../src/components/ScreenHeader';
 import { useBottomClearance } from '../src/hooks/useBottomClearance';
+import { toIconName } from '../src/utils/iconName';
 
 /** Limit satırı + kullanıcının yazdığı ham metin; sayı yalnız kaydederken üretilir (BUG-24). */
 type LimitDraft = CategoryLimitRow & { limit_text: string };
@@ -289,7 +290,7 @@ export default function GoalSettingsScreen() {
             return (
               <View key={`${row.id}-${row.category_id}`} style={styles.limitRow}>
                 <View style={[styles.miniIcon, { backgroundColor: cat.color + '22' }]}>
-                  <MaterialCommunityIcons name={cat.icon as any} size={18} color={cat.color} />
+                  <MaterialCommunityIcons name={toIconName(cat.icon)} size={18} color={cat.color} />
                 </View>
                 <Text style={styles.limitName} numberOfLines={1}>{tc(cat.name)}</Text>
                 <TextInput
@@ -397,7 +398,7 @@ export default function GoalSettingsScreen() {
                 renderItem={({ item }) => (
                   <Pressable style={styles.catPickRow} onPress={() => addCategory(item)}>
                     <View style={[styles.miniIcon, { backgroundColor: item.color + '22' }]}>
-                      <MaterialCommunityIcons name={item.icon as any} size={18} color={item.color} />
+                      <MaterialCommunityIcons name={toIconName(item.icon)} size={18} color={item.color} />
                     </View>
                     <Text style={styles.limitName}>{tc(item.name)}</Text>
                 <MaterialCommunityIcons name="chevron-right" size={20} color={Colors.textMuted} />

@@ -45,6 +45,7 @@ import { syncNotificationsBestEffort } from '../src/notifications/syncNotificati
 import { logError } from '../src/utils/logError';
 import ScreenHeader from '../src/components/ScreenHeader';
 import { useBottomClearance } from '../src/hooks/useBottomClearance';
+import { toIconName } from '../src/utils/iconName';
 
 export default function SubscriptionsScreen() {
   // UX-06: sistem gezinme alanı (jest/üç düğme) kadar ek alt boşluk.
@@ -287,7 +288,7 @@ export default function SubscriptionsScreen() {
             ]}
           >
             <MaterialCommunityIcons
-              name={(s.category_icon as any) || 'autorenew'}
+              name={toIconName(s.category_icon, 'autorenew')}
               size={22}
               color={s.category_color || Colors.primary}
             />

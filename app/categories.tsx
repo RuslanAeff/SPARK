@@ -5,6 +5,7 @@ import {
 } from 'react-native';
 import ScreenHeader from '../src/components/ScreenHeader';
 import PrimaryButton from '../src/components/PrimaryButton';
+import { toIconName } from '../src/utils/iconName';
 import { useBottomClearance } from '../src/hooks/useBottomClearance';
 
 const isFabricEnabled = Boolean(
@@ -195,7 +196,7 @@ export default function CategoriesScreen() {
             >
               <View style={[styles.iconCircle, { backgroundColor: cat.color + '22' }]}>
                 <MaterialCommunityIcons
-                  name={cat.icon as any}
+                  name={toIconName(cat.icon)}
                   size={22}
                   color={cat.color}
                 />
@@ -215,7 +216,7 @@ export default function CategoriesScreen() {
                 {cat.children.map(child => (
                   <View key={child.id} style={styles.childItem}>
                     <MaterialCommunityIcons
-                      name={child.icon as any}
+                      name={toIconName(child.icon)}
                       size={18}
                       color={child.color}
                     />

@@ -8,6 +8,7 @@ import { Colors } from '../../theme/colors';
 import { useThemeRevision } from '../../theme/themeStore';
 import { formatCurrency } from '../../utils/formatCurrency';
 import type { BaseCardProps, LimitsHealthInfo } from './shared';
+import { toIconName } from '../../utils/iconName';
 
 interface LimitsHealthCardProps extends BaseCardProps { limitsHealthInfo: LimitsHealthInfo; }
 
@@ -59,7 +60,7 @@ function LimitsHealthCard({ styles, t, tc, currency, limitsHealthInfo }: LimitsH
               <View style={styles.limitRowTop}>
                 <View style={[styles.limitIcon, { backgroundColor: l.category_color + '22' }]}>
                   <MaterialCommunityIcons
-                    name={(l.category_icon as any) || 'tag-outline'}
+                    name={toIconName(l.category_icon, 'tag-outline')}
                     size={16}
                     color={l.category_color}
                   />

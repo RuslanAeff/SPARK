@@ -30,6 +30,7 @@ import { getCycleStartDay } from '../src/services/budgetCycleSettings';
 import { getCurrentCycle } from '../src/utils/budgetCycle';
 import { useOnboardingStatus } from '../src/hooks/useOnboardingStatus';
 import { logError } from '../src/utils/logError';
+import { toIconName } from '../src/utils/iconName';
 
 const TOTAL_PAGES = 4;
 
@@ -167,7 +168,7 @@ export default function OnboardingScreen() {
                 ['chart-donut', t('onboarding_feature_analytics')],
               ].map(([icon, label]) => (
                 <View key={String(label)} style={styles.featurePill}>
-                  <MaterialCommunityIcons name={icon as any} size={18} color={Colors.primary} />
+                  <MaterialCommunityIcons name={toIconName(icon)} size={18} color={Colors.primary} />
                   <Text style={styles.featureText}>{label}</Text>
                 </View>
               ))}

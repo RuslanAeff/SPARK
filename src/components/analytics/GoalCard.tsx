@@ -8,6 +8,7 @@ import { Colors } from '../../theme/colors';
 import { useThemeRevision } from '../../theme/themeStore';
 import { formatCurrency } from '../../utils/formatCurrency';
 import type { BaseCardProps, GoalInfo } from './shared';
+import { toIconName } from '../../utils/iconName';
 
 interface GoalCardProps extends BaseCardProps {
   goalInfo: GoalInfo;
@@ -101,7 +102,7 @@ function GoalCard({ styles, t, currency, goalInfo }: GoalCardProps) {
       {/* Outcome panel */}
       <View style={[styles.goalOutcome, { backgroundColor: accent + '14', borderColor: accent + '33' }]}>
         <View style={[styles.goalOutcomeIcon, { backgroundColor: accent + '22' }]}>
-          <MaterialCommunityIcons name={subIcon as any} size={16} color={accent} />
+          <MaterialCommunityIcons name={toIconName(subIcon)} size={16} color={accent} />
         </View>
         <Text style={[styles.goalOutcomeText, { color: status === 'complete' || status === 'overdue' ? accent : Colors.textPrimary }]} numberOfLines={2}>
           {status === 'complete' ? t('goal_card_complete_title') + ' — ' : ''}{subText}

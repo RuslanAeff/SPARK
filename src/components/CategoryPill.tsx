@@ -7,6 +7,7 @@ import { Colors } from '../theme/colors';
 import { useAppTheme } from '../theme/themeStore';
 import { Typography, FontFamily } from '../theme/typography';
 import { Spacing, BorderRadius } from '../theme/spacing';
+import { toIconName } from '../utils/iconName';
 
 interface CategoryPillProps {
   name: string;
@@ -86,7 +87,7 @@ export default function CategoryPill({
         </Svg>
         <View style={[styles.iconContainer, { backgroundColor: color + '15' }]}>
           <MaterialCommunityIcons
-            name={icon as any}
+            name={toIconName(icon)}
             size={iconSize}
             color={color}
           />

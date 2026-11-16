@@ -11,6 +11,7 @@ import { CategoryLimitProgress } from '../hooks/useSavingsGoalData';
 import { useLanguage } from '../i18n/LanguageContext';
 import { useCurrency } from '../context/CurrencyContext';
 import AnimatedCard from './AnimatedCard';
+import { toIconName } from '../utils/iconName';
 
 type Props = {
   rows: CategoryLimitProgress[];
@@ -37,7 +38,7 @@ export default function CategoryLimitsSection({ rows }: Props) {
         return (
           <View key={r.id} style={[styles.row, idx === 0 && { borderTopWidth: 0 }]}>
             <View style={[styles.catIcon, { backgroundColor: r.category_color + '22' }]}>
-              <MaterialCommunityIcons name={r.category_icon as any} size={18} color={r.category_color} />
+              <MaterialCommunityIcons name={toIconName(r.category_icon)} size={18} color={r.category_color} />
             </View>
             <View style={{ flex: 1 }}>
               <Text style={styles.catName} numberOfLines={1}>{name}</Text>

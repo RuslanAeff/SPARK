@@ -23,6 +23,7 @@ import { CategoryDao } from '../db/categoryDao';
 import { VendorDao } from '../db/vendorDao';
 import type { Category, Vendor } from '../db/schema';
 import { logError } from '../utils/logError';
+import { toIconName } from '../utils/iconName';
 
 interface VendorOptionsSheetProps {
   visible: boolean;
@@ -250,7 +251,7 @@ export default function VendorOptionsSheet({
                   onPress={() => handleSetDefault(root.id)}
                 >
                   <MaterialCommunityIcons
-                    name={root.icon as any}
+                    name={toIconName(root.icon)}
                     size={16}
                     color={root.color}
                   />
@@ -279,7 +280,7 @@ export default function VendorOptionsSheet({
                           ]}
                         >
                           <MaterialCommunityIcons
-                            name={sub.icon as any}
+                            name={toIconName(sub.icon)}
                             size={13}
                             color={active ? sub.color : Colors.textSecondary}
                           />

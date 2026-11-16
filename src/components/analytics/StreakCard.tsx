@@ -7,6 +7,7 @@ import MarqueeText from '../MarqueeText';
 import { Colors } from '../../theme/colors';
 import { useThemeRevision } from '../../theme/themeStore';
 import { CountUpText, type BaseCardProps, type StreakData, type StreakVariant } from './shared';
+import { toIconName } from '../../utils/iconName';
 
 interface StreakCardProps extends BaseCardProps {
   streakData: StreakData;
@@ -108,7 +109,7 @@ function StreakCard({ styles, t, streakData, setStreakDetailVariant }: StreakCar
       <View style={styles.streakMsg}>
         <View style={[styles.streakMsgIconWrap, { backgroundColor: (streakType === 'great' ? Colors.warning : streakType === 'good' ? Colors.primary : Colors.info) + '22' }]}>
           <MaterialCommunityIcons
-            name={StreakIcon as any}
+            name={toIconName(StreakIcon)}
             size={20}
             color={streakType === 'great' ? Colors.warning : streakType === 'good' ? Colors.primary : Colors.info}
           />

@@ -8,6 +8,7 @@ import { Colors } from '../../theme/colors';
 import { useThemeRevision } from '../../theme/themeStore';
 import { formatCurrency } from '../../utils/formatCurrency';
 import type { BaseCardProps, SubscriptionInfo } from './shared';
+import { toIconName } from '../../utils/iconName';
 
 interface SubscriptionsCardProps extends BaseCardProps {
   subscriptionInfo: SubscriptionInfo;
@@ -59,7 +60,7 @@ function SubscriptionsCard({ styles, t, currency, subscriptionInfo }: Subscripti
             <Animated.View key={s.id} entering={FadeInDown.delay(i * 60).duration(280)} style={styles.subsRow}>
               <View style={[styles.subsAvatar, { backgroundColor: catColor + '22' }]}>
                 <MaterialCommunityIcons
-                  name={(s.category_icon as any) || 'tag-outline'}
+                  name={toIconName(s.category_icon, 'tag-outline')}
                   size={18}
                   color={catColor}
                 />

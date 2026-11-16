@@ -21,6 +21,7 @@ import { useAppTheme, useThemePalette } from '../theme/themeStore';
 import { Typography, FontFamily } from '../theme/typography';
 import { BorderRadius, Spacing } from '../theme/spacing';
 import { useLanguage } from '../i18n/LanguageContext';
+import { toIconName } from '../utils/iconName';
 
 export type ToastType = 'success' | 'error' | 'info' | 'warning';
 
@@ -617,7 +618,7 @@ export function SparkToastContainer() {
               { backgroundColor: `${cfg.color}1F`, transform: [{ scale: hudIconScale }] },
             ]}
           >
-            <MaterialCommunityIcons name={cfg.icon as any} size={24} color={cfg.color} />
+            <MaterialCommunityIcons name={toIconName(cfg.icon)} size={24} color={cfg.color} />
           </Animated.View>
           <View style={hudStyles.textArea}>
             <Text style={[hudStyles.typeLabel, { color: cfg.color }]}>

@@ -9,6 +9,7 @@ import { formatCurrency } from '../../utils/formatCurrency';
 import { itemDisplayName } from '../../utils/itemDisplayName';
 import type { BaseCardProps, SilentSpendInfo } from './shared';
 import { useTabSwipe } from '../../context/TabSwipeContext';
+import { toIconName } from '../../utils/iconName';
 
 const SILENT_SPEND_PAGE_SIZE = 5;
 
@@ -136,7 +137,7 @@ function SilentSpendCard({ styles, t, currency, silentSpendInfo, onSelectItem }:
         {page.map((it, i) => {
           const displayName = it.canonical_name || itemDisplayName(it).primary;
           const catColor = it.category_color || Colors.warning;
-          const icon = (it.category_icon as any) || 'water-outline';
+          const icon = toIconName(it.category_icon, 'water-outline');
           return (
             <Animated.View
               key={it.normalized_key}

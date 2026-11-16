@@ -9,7 +9,6 @@
 // zorunlu sayılmaz.
 export type SpendSegment = 'needs' | 'wants' | 'other';
 
-export const SPEND_SEGMENTS: readonly SpendSegment[] = ['needs', 'wants', 'other'];
 
 /** Sistem kök kategorilerinin grubu; `DEFAULT_CATEGORIES` ile birebir (test korur). */
 export const SYSTEM_ROOT_SEGMENTS: Readonly<Record<string, SpendSegment>> = {
