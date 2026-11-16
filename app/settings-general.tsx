@@ -390,6 +390,7 @@ export default function SettingsGeneralScreen() {
         onClose={() => setLangSheetOpen(false)}
         current={language}
         title={t('language_sheet_title')}
+        closeLabel={t('close')}
         hostBottomInset={safeAreaInsets.bottom}
         onSelect={async (code) => {
           await setLanguage(code);

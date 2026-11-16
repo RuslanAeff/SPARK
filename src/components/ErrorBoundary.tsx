@@ -4,10 +4,65 @@ import * as SplashScreen from "expo-splash-screen";
 import { Colors } from "../theme/colors";
 import { useThemeRevision } from "../theme/themeStore";
 import { reportErrorKind } from "../utils/logError";
+import { MaterialCommunityIcons } from "@expo/vector-icons";
+import { Typography, FontFamily } from "../theme/typography";
+import { Spacing } from "../theme/spacing";
+import { getDict } from "../i18n/translations";
+import { suggestLanguageFromDevice } from "../i18n/languageOptions";
+import { useOptionalLanguage } from "../i18n/LanguageContext";
+import PrimaryButton from "./PrimaryButton";
 
 function ThemeAwareErrorSurface({ children }: { children: () => ReactNode }) {
   useThemeRevision();
   return <>{children()}</>;
+}
+
+const RECOVERY_KEYS = ['error_boundary_title', 'error_boundary_desc', 'error_boundary_retry'] as const;
+
+/**
+ * A11Y-04: kurtarma ekranı dört dilde ve tasarım sistemiyle çizilir. Dil
+ * sağlayıcısı da çökmüş olabileceği için `useOptionalLanguage` kullanılır;
+ * sağlayıcı yoksa telefonun dili, o dilin sözlüğü yüklenmemişse İngilizce.
+ */
+function ErrorRecoveryScreen({ onRetry }: { onRetry: () => void }) {
+  const languageContext = useOptionalLanguage();
+  const lang = languageContext?.language ?? suggestLanguageFromDevice();
+  const text = (key: (typeof RECOVERY_KEYS)[number]) =>
+    getDict(lang)?.[key] ?? getDict('en')?.[key] ?? key;
+
+  return (
+    <SafeAreaView style={{ flex: 1, backgroundColor: Colors.background }}>
+      <View
+        testID="error-recovery-screen"
+        style={{ flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: Spacing.xxxl, gap: Spacing.md }}
+      >
+        <View
+          style={{
+            width: 64, height: 64, borderRadius: 32, alignItems: 'center', justifyContent: 'center',
+            backgroundColor: Colors.warning + '1F', borderWidth: 1, borderColor: Colors.warning + '4D',
+          }}
+        >
+          <MaterialCommunityIcons name="alert-circle-outline" size={32} color={Colors.warning} />
+        </View>
+        <Text
+          accessibilityRole="header"
+          style={{ ...Typography.headlineMedium, color: Colors.textPrimary, fontFamily: FontFamily.bold, textAlign: 'center' }}
+        >
+          {text('error_boundary_title')}
+        </Text>
+        <Text style={{ ...Typography.bodyMedium, color: Colors.textSecondary, textAlign: 'center' }}>
+          {text('error_boundary_desc')}
+        </Text>
+        <PrimaryButton
+          testID="error-recovery-retry"
+          size="compact"
+          label={text('error_boundary_retry')}
+          onPress={onRetry}
+          style={{ marginTop: Spacing.sm }}
+        />
+      </View>
+    </SafeAreaView>
+  );
 }
 
 interface Props {
@@ -74,7 +129,7 @@ export class ErrorBoundary extends Component<Props, State> {
                 onPress={this.handleReset}
                 style={{ alignSelf: 'flex-start', paddingVertical: 10, paddingHorizontal: 18, borderRadius: 12, backgroundColor: Colors.primaryGlow, borderWidth: 1, borderColor: Colors.glassBorder }}
               >
-                <Text style={{ color: Colors.primary, fontWeight: 'bold' }}>Tekrar Dene</Text>
+                <Text style={{ color: Colors.primary, fontWeight: 'bold' }}>Retry</Text>
               </Pressable>
             </ScrollView>
           </SafeAreaView>
@@ -84,35 +139,7 @@ export class ErrorBoundary extends Component<Props, State> {
 
       // Üretim: kullanıcı dostu, sade kurtarma ekranı (ham hata gösterilmez).
       return (
-        <ThemeAwareErrorSurface>{() => (
-        <SafeAreaView style={{ flex: 1, backgroundColor: Colors.background }}>
-          <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 32, gap: 14 }}>
-            <Text style={{ fontSize: 52 }}>⚠️</Text>
-            <Text style={{ color: Colors.textPrimary, fontSize: 20, fontWeight: 'bold', textAlign: 'center' }}>
-              Bir şeyler ters gitti
-            </Text>
-            <Text style={{ color: Colors.textSecondary, fontSize: 14, textAlign: 'center', lineHeight: 20 }}>
-              Uygulamada beklenmedik bir sorun oluştu. Verileriniz güvende. Lütfen tekrar deneyin.
-            </Text>
-            <Pressable
-              onPress={this.handleReset}
-              accessibilityRole="button"
-              style={({ pressed }) => ({
-                marginTop: 8,
-                paddingVertical: 12,
-                paddingHorizontal: 28,
-                borderRadius: 14,
-                backgroundColor: Colors.primaryGlow,
-                borderWidth: 1,
-                borderColor: Colors.glassBorder,
-                opacity: pressed ? 0.8 : 1,
-              })}
-            >
-              <Text style={{ color: Colors.primary, fontSize: 15, fontWeight: 'bold' }}>Tekrar Dene</Text>
-            </Pressable>
-          </View>
-        </SafeAreaView>
-        )}</ThemeAwareErrorSurface>
+        <ThemeAwareErrorSurface>{() => <ErrorRecoveryScreen onRetry={this.handleReset} />}</ThemeAwareErrorSurface>
       );
     }
 

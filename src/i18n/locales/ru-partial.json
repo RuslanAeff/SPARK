@@ -1347,5 +1347,8 @@
   "search_no_results_title": "Ничего не найдено",
   "search_no_results_desc": "Среди всех операций нет совпадений для «{query}».",
   "vendor_logo_failed": "Не удалось сохранить логотип. Попробуйте другое изображение.",
-  "subscription_overdue": "Просрочено"
+  "subscription_overdue": "Просрочено",
+  "error_boundary_title": "Что-то пошло не так",
+  "error_boundary_desc": "В приложении произошла непредвиденная ошибка. Ваши данные в безопасности. Попробуйте ещё раз.",
+  "error_boundary_retry": "Повторить"
 }

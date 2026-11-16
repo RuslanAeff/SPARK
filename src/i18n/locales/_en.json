@@ -1148,5 +1148,8 @@
   "search_no_results_title": "No results",
   "search_no_results_desc": "No transaction matches \"{query}\".",
   "vendor_logo_failed": "Logo could not be saved. Try another image.",
-  "subscription_overdue": "Overdue"
+  "subscription_overdue": "Overdue",
+  "error_boundary_title": "Something went wrong",
+  "error_boundary_desc": "The app ran into an unexpected problem. Your data is safe. Please try again.",
+  "error_boundary_retry": "Try again"
 }

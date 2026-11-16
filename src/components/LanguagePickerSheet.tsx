@@ -39,6 +39,8 @@ type Props = {
   current: Language;
   onSelect: (lang: Language) => void;
   title: string;
+  /** Karartı dokunmasının ekran okuyucu etiketi (A11Y-04: sabit "Kapat" idi). */
+  closeLabel: string;
   hostBottomInset?: number;
 };
 
@@ -48,6 +50,7 @@ export default function LanguagePickerSheet({
   current,
   onSelect,
   title,
+  closeLabel,
   hostBottomInset = 0,
 }: Props) {
   const insets = useSafeAreaInsets();
@@ -267,7 +270,7 @@ export default function LanguagePickerSheet({
             style={StyleSheet.absoluteFillObject}
             onPress={closeWithAnimation}
             accessibilityRole="button"
-            accessibilityLabel="Kapat"
+            accessibilityLabel={closeLabel}
           />
         </Animated.View>
         <Animated.View style={[styles.sheetWrap, sheetAnimatedStyle]}>

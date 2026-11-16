@@ -119,6 +119,13 @@ export const LanguageProvider = ({ children }: { children: ReactNode }) => {
   return <LanguageContext.Provider value={value}>{children}</LanguageContext.Provider>;
 };
 
+/**
+ * Sağlayıcı yoksa hata fırlatmadan `undefined` döner. Yalnız sağlayıcının
+ * dışında veya çökmüş bir alt ağaçta çizilebilen kurtarma yüzeyleri içindir
+ * (UI denetimi A11Y-04); normal ekranlar `useLanguage` kullanır.
+ */
+export const useOptionalLanguage = () => useContext(LanguageContext);
+
 export const useLanguage = () => {
   const context = useContext(LanguageContext);
   if (!context) {
