@@ -7,8 +7,7 @@ import { Colors } from '../theme/colors';
 import { useAppTheme, useThemeRevision } from '../theme/themeStore';
 import { Typography, FontFamily } from '../theme/typography';
 import { Spacing, BorderRadius } from '../theme/spacing';
-import { formatCurrency } from '../utils/formatCurrency';
-import { getCurrencyLocale } from '../utils/currencyMeta';
+import { formatCompactAmount, formatCurrency } from '../utils/formatCurrency';
 import { useLanguage } from '../i18n/LanguageContext';
 
 export interface LinePoint {
@@ -32,21 +31,11 @@ export function formatLineChartAxisValue(
   tickStep: number,
   currency: string,
 ): string {
-  if (value >= 1000) {
-    const compactStep = tickStep / 1000;
-    const compactDigits = compactStep < 0.1 ? 2 : 1;
-    const compactFormatter = new Intl.NumberFormat(getCurrencyLocale(currency), {
-      minimumFractionDigits: compactDigits,
-      maximumFractionDigits: compactDigits,
-    });
-    return `${compactFormatter.format(value / 1000)}K`;
-  }
-  const fractionDigits = tickStep < 10 ? 2 : tickStep < 100 ? 1 : 0;
-  const formatter = new Intl.NumberFormat(getCurrencyLocale(currency), {
-    minimumFractionDigits: fractionDigits,
-    maximumFractionDigits: fractionDigits,
+  // FN-06: BarChart ile ortak biçimlendirici; adım hassasiyeti burada seçilir.
+  return formatCompactAmount(value, currency, {
+    compact: tickStep / 1000 < 0.1 ? 2 : 1,
+    plain: tickStep < 10 ? 2 : tickStep < 100 ? 1 : 0,
   });
-  return formatter.format(value);
 }
 
 /**

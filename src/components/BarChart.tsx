@@ -12,7 +12,7 @@ import { Colors } from '../theme/colors';
 import { BorderRadius, Spacing } from '../theme/spacing';
 import { FontFamily, Typography } from '../theme/typography';
 import { useAppTheme, useThemeRevision } from '../theme/themeStore';
-import { formatCurrency } from '../utils/formatCurrency';
+import { formatCurrency, formatCompactAmount } from '../utils/formatCurrency';
 import { useTabSwipe } from '../context/TabSwipeContext';
 import {
   alignedPreviousSeries,
@@ -66,9 +66,9 @@ function AnimatedBar({ progress, staggerDelay, targetBarHeight, x, barWidth, cha
   return <ARect animatedProps={animatedProps} x={x} width={barWidth} fill={fill} opacity={opacity} rx={barWidth / 2} />;
 }
 
-function formatYLabel(value: number) {
-  if (value >= 1000) return `${(value / 1000).toFixed(1)}K`;
-  return value.toFixed(0);
+// FN-06: eksen etiketi para biriminin yerel ayarıyla (LineChart ile aynı biçim).
+function formatYLabel(value: number, currency: string) {
+  return formatCompactAmount(value, currency);
 }
 
 function compactDateLabel(item: BarData | undefined): string {
@@ -125,7 +125,7 @@ function ChartPage({ data, prevData, height, defaultColor, currency, progress }:
             <G key={`grid-${index}`}>
               <Line x1={padding.left} y1={y} x2={width - padding.right} y2={y} stroke={Colors.divider} strokeWidth={1} strokeDasharray="4,4" />
               <SvgText x={padding.left - 6} y={y + 4} fontSize="10" fill={Colors.textMuted} textAnchor="end" fontFamily={FontFamily.regular}>
-                {formatYLabel(maxVal * ratio)}
+                {formatYLabel(maxVal * ratio, currency)}
               </SvgText>
             </G>
           );

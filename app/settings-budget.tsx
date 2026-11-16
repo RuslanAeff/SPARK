@@ -57,6 +57,7 @@ import { logError } from '../src/utils/logError';
 import ScreenHeader from '../src/components/ScreenHeader';
 import PrimaryButton from '../src/components/PrimaryButton';
 import { useBottomClearance } from '../src/hooks/useBottomClearance';
+import { formatAmountNumber } from '../src/utils/formatCurrency';
 
 /** Kilitli dönem uyarısı kullanıcıya özel; diğer yazma hataları genel mesajda kalır. */
 function budgetWriteErrorKey(error: unknown): string {
@@ -285,7 +286,7 @@ export default function SettingsBudgetScreen() {
       SparkToast.show(
         t('budget_saved', { month: cycleLabel }),
         'success',
-        t('budget_saved_desc', { amount: amount.toLocaleString(), currency: curLabel }),
+        t('budget_saved_desc', { amount: formatAmountNumber(amount, savedCurrency), currency: curLabel }),
       );
     } catch (error) {
       logError('budget save failed', error);
