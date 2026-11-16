@@ -14,6 +14,7 @@ import { FontFamily, Typography } from '../theme/typography';
 import { useLanguage } from '../i18n/LanguageContext';
 import { formatDateFull } from '../utils/dateUtils';
 import { DEBT_REMINDER_PRESET_DAYS } from '../utils/debtReminder';
+import { switchColors } from '../theme/switchColors';
 
 interface DebtReminderFieldsProps {
   dueDate: string | null;
@@ -143,9 +144,7 @@ export default function DebtReminderFields({
           value={reminderEnabled}
           disabled={reminderDisabled}
           onValueChange={onReminderEnabledChange}
-          trackColor={{ false: Colors.borderLight, true: Colors.primary + '88' }}
-          thumbColor={reminderEnabled ? Colors.primary : Colors.textMuted}
-          ios_backgroundColor={Colors.borderLight}
+          {...switchColors(reminderEnabled)}
         />
       </View>
 

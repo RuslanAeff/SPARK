@@ -54,6 +54,7 @@ import { formatDate } from '../src/utils/dateUtils';
 import { logError } from '../src/utils/logError';
 import ScreenHeader from '../src/components/ScreenHeader';
 import PrimaryButton from '../src/components/PrimaryButton';
+import { switchColors } from '../src/theme/switchColors';
 const MUTE_CHANNELS: { key: NotificationMuteChannel; labelKey: string }[] = [
   { key: 'budget', labelKey: 'notif_mute_budget' },
   { key: 'category_limit', labelKey: 'notif_mute_category' },
@@ -965,11 +966,7 @@ export default function NotificationsScreen() {
                       SparkToast.show(t('operation_failed'), 'error');
                     });
                   }}
-                  trackColor={{
-                    false: Colors.surfaceLight,
-                    true: Colors.primary + '88',
-                  }}
-                  thumbColor={mutes[key] ? Colors.primary : Colors.textMuted}
+                  {...switchColors(!!mutes[key])}
                   accessibilityLabel={t(labelKey)}
                 />
               </View>

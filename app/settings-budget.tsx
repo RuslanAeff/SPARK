@@ -58,6 +58,7 @@ import ScreenHeader from '../src/components/ScreenHeader';
 import PrimaryButton from '../src/components/PrimaryButton';
 import { useBottomClearance } from '../src/hooks/useBottomClearance';
 import { formatAmountNumber } from '../src/utils/formatCurrency';
+import { switchColors } from '../src/theme/switchColors';
 
 /** Kilitli dönem uyarısı kullanıcıya özel; diğer yazma hataları genel mesajda kalır. */
 function budgetWriteErrorKey(error: unknown): string {
@@ -551,8 +552,7 @@ export default function SettingsBudgetScreen() {
                   testID="goal-feature-switch"
                   value={goalFeatureOn}
                   onValueChange={handleGoalFeatureToggle}
-                  trackColor={{ false: Colors.surfaceLight, true: Colors.primary + '55' }}
-                  thumbColor={goalFeatureOn ? Colors.primary : Colors.textMuted}
+                  {...switchColors(goalFeatureOn)}
                 />
               </View>
               <View style={styles.goalPreferenceDivider} />
@@ -568,8 +568,7 @@ export default function SettingsBudgetScreen() {
                   value={goalFocusOn}
                   onValueChange={handleGoalFocusToggle}
                   disabled={!goalFeatureOn}
-                  trackColor={{ false: Colors.surfaceLight, true: Colors.primary + '55' }}
-                  thumbColor={goalFocusOn && goalFeatureOn ? Colors.primary : Colors.textMuted}
+                  {...switchColors(goalFocusOn, !goalFeatureOn)}
                 />
               </View>
               <View style={styles.goalPreferenceDivider} />

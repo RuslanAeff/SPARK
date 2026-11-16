@@ -57,7 +57,6 @@ export default function CustomDatePicker({
   const { t } = useLanguage();
   const scheme = useAppTheme();
   const themeRevision = useThemeRevision();
-  const isDark = scheme === 'dark';
   const [currentDate, setCurrentDate] = useState(() => getPickerInitialDate(initialDate, maximumDate));
   const [showYearPicker, setShowYearPicker] = useState(false);
 
@@ -147,8 +146,9 @@ export default function CustomDatePicker({
     return day === now.getDate() && month === now.getMonth() && year === now.getFullYear();
   };
 
-  const modalBg = isDark ? '#1C1C1E' : '#FFFFFF';
-  const dayHoverBg = isDark ? '#2C2C2E' : '#F2F2F7';
+  // DS-10: yüzeyler tema belirteçlerinden (sabit hex açık/koyu çifti yerine).
+  const modalBg = Colors.cardSurface;
+  const dayHoverBg = Colors.surfaceLight;
 
   const styles = useMemo(
     () =>

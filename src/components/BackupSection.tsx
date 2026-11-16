@@ -47,6 +47,7 @@ import {
 import { createSusevarStyles } from '../theme/susevar';
 import { intlLocaleForLanguage } from '../i18n/languageOptions';
 import { logError } from '../utils/logError';
+import { switchColors } from '../theme/switchColors';
 
 function ymd(d: Date): string {
   const y = d.getFullYear();
@@ -504,9 +505,7 @@ export default function BackupSection() {
             value={encryptExport}
             disabled={exporting || importing}
             onValueChange={(value) => { Haptics.selectionAsync(); setEncryptExport(value); }}
-            trackColor={{ false: Colors.borderLight, true: Colors.primary + '88' }}
-            thumbColor={encryptExport ? Colors.primary : Colors.textMuted}
-            ios_backgroundColor={Colors.borderLight}
+            {...switchColors(encryptExport)}
           />
         </View>
 
