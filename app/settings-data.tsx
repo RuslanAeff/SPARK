@@ -5,6 +5,7 @@ import {
   View,
   Text,
   ScrollView,
+  FlatList,
   StyleSheet,
   Pressable,
   Image,
@@ -83,6 +84,11 @@ export default function SettingsDataScreen() {
     return q ? vendors.filter(v => v.name.toLowerCase().includes(q)) : vendors;
   }, [vendors, vendorSearch]);
 
+  // UX-12: FlatList satırları seçim durumu değişince yeniden çizilsin.
+  const vendorTileExtraData = useMemo(
+    () => ({ vendorSelectionMode, selectedVendorIds }),
+    [vendorSelectionMode, selectedVendorIds],
+  );
   const selectedVendorCount = selectedVendorIds.size;
   const allVendorsSelected = vendors.length > 0 && selectedVendorCount === vendors.length;
 
@@ -406,13 +412,20 @@ export default function SettingsDataScreen() {
                   )}
 
                   {filteredVendors.length > 0 ? (
-                    <ScrollView
+                    // UX-12: yatay sanallaştırılmış liste; yüzlerce satıcı ve logo
+                    // tek seferde çizilmez.
+                    <FlatList
                       horizontal
+                      data={filteredVendors}
+                      keyExtractor={(v) => String(v.id)}
+                      extraData={vendorTileExtraData}
+                      initialNumToRender={12}
+                      maxToRenderPerBatch={12}
+                      windowSize={5}
                       showsHorizontalScrollIndicator={false}
                       contentContainerStyle={styles.vendorCarousel}
                       style={styles.vendorCarouselView}
-                    >
-                      {filteredVendors.map((v) => {
+                      renderItem={({ item: v }) => {
                         const tileColor = getVendorTileColor(v.name);
                         const hasLogo = isLocalImageUri(v.logo_uri);
                         const hasDefaultCategory = v.default_category_id != null;
@@ -531,8 +544,8 @@ export default function SettingsDataScreen() {
                             </Text>
                           </Pressable>
                         );
-                      })}
-                    </ScrollView>
+                      }}
+                    />
                   ) : (
                     <View style={styles.vendorNoResults}>
                       <MaterialCommunityIcons name="magnify-close" size={24} color={Colors.textMuted} />
