@@ -36,7 +36,7 @@ import {
   susevarButtonPressed,
 } from '../src/theme/susevar';
 import { useAppTheme, useThemeRevision } from '../src/theme/themeStore';
-import { getDatabase } from '../src/db/database';
+import { saveManualExpense } from '../src/services/manualExpenseService';
 import { ContainerDepositDao } from '../src/db/containerDepositDao';
 import { logError } from '../src/utils/logError';
 import ScreenHeader from '../src/components/ScreenHeader';
@@ -245,35 +245,19 @@ export default function AddExpenseScreen() {
         });
       }
 
-      const db = await getDatabase();
-      let savedExpenseId = 0;
-      await db.withTransactionAsync(async () => {
-        if (isEditing && id) {
-          savedExpenseId = parseInt(id, 10);
-          await ExpenseDao.update(savedExpenseId, {
-          total_amount: parsedAmount,
-          currency: recordCurrency,
-          note: note || null,
-          date,
-          vendor_id: vendorId,
-          category_id: effectiveCategoryId,
-          container_deposit_paid: parsedDepositPaid,
-          container_voucher_used: parsedVoucherUsed,
-          });
-        } else {
-          savedExpenseId = await ExpenseDao.create({
-            total_amount: parsedAmount,
-            currency: recordCurrency,
-            note: note || null,
-            date,
-            vendor_id: vendorId,
-            category_id: effectiveCategoryId,
-            receipt_uri: null,
-            container_deposit_paid: parsedDepositPaid,
-            container_voucher_used: parsedVoucherUsed,
-          });
-        }
-        await ContainerDepositDao.syncPurchaseRecovery(savedExpenseId, voucherId ? Number(voucherId) : undefined);
+      // CQ-03: harcama + depozito eşitlemesi tek işlem, servis içinde.
+      const savedExpenseId = await saveManualExpense({
+        total_amount: parsedAmount,
+        currency: recordCurrency,
+        note: note || null,
+        date,
+        vendor_id: vendorId,
+        category_id: effectiveCategoryId,
+        container_deposit_paid: parsedDepositPaid,
+        container_voucher_used: parsedVoucherUsed,
+      }, {
+        expenseId: isEditing && id ? parseInt(id, 10) : undefined,
+        voucherId: voucherId ? Number(voucherId) : undefined,
       });
 
       if (isEditing && savedExpenseId > 0) {
@@ -330,22 +314,16 @@ export default function AddExpenseScreen() {
         });
       }
       
-      const db = await getDatabase();
-      let newId = 0;
-      await db.withTransactionAsync(async () => {
-        newId = await ExpenseDao.create({
-          total_amount: parsedAmount,
-          currency: recordCurrency,
-          note: note || null,
-          date,
-          vendor_id: vendorId,
-          category_id: effectiveCategoryId,
-          receipt_uri: null,
-          container_deposit_paid: parsedDepositPaid,
-          container_voucher_used: parsedVoucherUsed,
-        });
-        await ContainerDepositDao.syncPurchaseRecovery(newId, voucherId ? Number(voucherId) : undefined);
-      });
+      const newId = await saveManualExpense({
+        total_amount: parsedAmount,
+        currency: recordCurrency,
+        note: note || null,
+        date,
+        vendor_id: vendorId,
+        category_id: effectiveCategoryId,
+        container_deposit_paid: parsedDepositPaid,
+        container_voucher_used: parsedVoucherUsed,
+      }, { voucherId: voucherId ? Number(voucherId) : undefined });
 
       triggerRefresh();
       
