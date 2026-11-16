@@ -492,8 +492,8 @@ const getStyles = () => StyleSheet.create({
     paddingHorizontal: 4,
   },
   notifBadgeText: {
+    ...Typography.labelTiny,
     color: '#fff',
-    fontSize: 10,
     fontFamily: FontFamily.bold,
   },
   subtitle: {

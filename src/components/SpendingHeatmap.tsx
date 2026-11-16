@@ -152,7 +152,7 @@ const getStyles = () => StyleSheet.create({
     alignItems: 'center',
   },
   dayLabel: {
-    fontSize: 10,
+    ...Typography.labelTiny,
     fontFamily: FontFamily.medium,
     color: Colors.textMuted,
   },
@@ -214,7 +214,7 @@ const getStyles = () => StyleSheet.create({
     gap: 4,
   },
   legendLabel: {
-    fontSize: 10,
+    ...Typography.labelTiny,
     fontFamily: FontFamily.medium,
     color: Colors.textMuted,
     marginHorizontal: 2,

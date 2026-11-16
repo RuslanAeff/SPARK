@@ -93,6 +93,16 @@ export const Typography = {
     lineHeight: 14,
     letterSpacing: 0.5,
   },
+  /**
+   * Ölçeğin en küçük basamağı (UI denetimi DS-09): rozet, eksen ve sekme
+   * etiketi. Bunun altında yazı kullanılmaz.
+   */
+  labelTiny: {
+    fontFamily: FontFamily.medium,
+    fontSize: 10,
+    lineHeight: 14,
+    letterSpacing: 0.4,
+  },
 
   // Amount (special for currency)
   amount: {

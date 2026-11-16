@@ -678,7 +678,7 @@ export default function ScannerScreen() {
                   {result._modelUsed && (
                     <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4 }}>
                       <View style={{ backgroundColor: theme.primary + '22', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 12 }}>
-                        <Text style={{ ...Typography.labelSmall, color: theme.primary, fontFamily: FontFamily.semiBold, fontSize: 10 }}>
+                        <Text style={{ ...Typography.labelTiny, color: theme.primary, fontFamily: FontFamily.semiBold }}>
                           ✨ {result._modelUsed.split(' (')[0].replace('gemini-', '')}
                         </Text>
                       </View>

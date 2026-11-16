@@ -283,9 +283,8 @@ const getStyles = () => StyleSheet.create({
     lineHeight: 22,
   },
   usageLabel: {
-    ...Typography.labelSmall,
+    ...Typography.labelTiny,
     color: Colors.textSecondary,
-    fontSize: 9,
     lineHeight: 12,
     textAlign: 'center',
   },

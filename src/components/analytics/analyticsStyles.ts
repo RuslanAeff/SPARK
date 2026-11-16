@@ -497,7 +497,8 @@ export const getAnalyticsStyles = () => StyleSheet.create({
     zIndex: 2,
   },
   newBadgeText: {
-    fontSize: 8,
+    ...Typography.labelTiny,
+    lineHeight: 12, // rozet kompakt kalsın
     fontFamily: FontFamily.bold,
     // DS-02/04: beyaz yazı koyu temanın neon yeşilinde 1,4:1 idi.
     color: Colors.onSuccess,
@@ -732,11 +733,10 @@ export const getAnalyticsStyles = () => StyleSheet.create({
     fontSize: 18,
   },
   compareRangeLabel: {
-    ...Typography.labelSmall,
+    ...Typography.labelTiny,
     color: Colors.textMuted,
     marginTop: 4,
     textAlign: 'center',
-    fontSize: 10,
   },
   deltaBadge: {
     flexDirection: 'row',
@@ -926,10 +926,9 @@ export const getAnalyticsStyles = () => StyleSheet.create({
     backgroundColor: Colors.surfaceLight,
   },
   priceTileCountMark: {
-    ...Typography.labelSmall,
+    ...Typography.labelTiny,
     fontFamily: FontFamily.medium,
     color: Colors.textMuted,
-    fontSize: 10,
   },
   priceTileCountValue: {
     ...Typography.labelSmall,
@@ -1142,12 +1141,11 @@ export const getAnalyticsStyles = () => StyleSheet.create({
     marginBottom: Spacing.sm,
   },
   subsUpcomingLabel: {
-    ...Typography.labelSmall,
+    ...Typography.labelTiny,
     color: Colors.textSecondary,
     fontFamily: FontFamily.semiBold,
     textTransform: 'uppercase',
     letterSpacing: 0.8,
-    fontSize: 10,
   },
   subsDividerLine: {
     flex: 1,
@@ -1369,9 +1367,8 @@ export const getAnalyticsStyles = () => StyleSheet.create({
     letterSpacing: -0.5,
   },
   goalDonutLabel: {
-    ...Typography.labelSmall,
+    ...Typography.labelTiny,
     color: Colors.textMuted,
-    fontSize: 10,
     textTransform: 'uppercase',
     letterSpacing: 0.8,
   },

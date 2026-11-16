@@ -592,17 +592,15 @@ const getStyles = () => StyleSheet.create({
     flexShrink: 1,
   },
   statValueUnit: {
-    ...Typography.labelSmall,
+    ...Typography.labelTiny,
     fontFamily: FontFamily.medium,
     color: Colors.textMuted,
-    fontSize: 10,
     lineHeight: 14,
     marginBottom: 2,
   },
   statLabel: {
-    ...Typography.labelSmall,
+    ...Typography.labelTiny,
     color: Colors.textMuted,
-    fontSize: 10,
     lineHeight: 13,
     // İki satır için yer ayrılır → üç kutunun yüksekliği ve taban çizgisi eşit.
     minHeight: 26,
@@ -679,10 +677,10 @@ const getStyles = () => StyleSheet.create({
     borderRadius: BorderRadius.round,
   },
   cheapBadgeText: {
-    ...Typography.labelSmall,
+    ...Typography.labelTiny,
+    lineHeight: 12, // rozet kompakt kalsın
     color: Colors.success,
     fontFamily: FontFamily.bold,
-    fontSize: 9,
   },
 
   // History

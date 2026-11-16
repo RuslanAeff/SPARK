@@ -1018,8 +1018,8 @@ const getStyles = (isDark: boolean) => {
       paddingHorizontal: 5,
     },
     badgeText: {
+      ...Typography.labelTiny,
       color: '#fff',
-      fontSize: 10,
       lineHeight: 13,
       fontFamily: FontFamily.bold,
       ...Platform.select({

@@ -7,7 +7,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
 import { useAppTheme, useThemePalette } from '../theme/themeStore';
-import { FontFamily } from '../theme/typography';
+import { FontFamily, Typography } from '../theme/typography';
 
 // The same physical detent profile used by AccentPaletteCarousel.
 export function triggerReceiptHapticFeedback() {
@@ -154,7 +154,7 @@ const styles = StyleSheet.create({
   innerRim: { ...StyleSheet.absoluteFillObject, borderWidth: 1, borderRadius: 23 },
   badge: { position: 'absolute', left: 7, bottom: 7, width: 18, height: 18, borderRadius: 9,
     alignItems: 'center', justifyContent: 'center', borderWidth: StyleSheet.hairlineWidth },
-  badgeText: { fontFamily: FontFamily.semiBold, fontSize: 10, lineHeight: 12, includeFontPadding: false },
+  badgeText: { ...Typography.labelTiny, fontFamily: FontFamily.semiBold, lineHeight: 12, includeFontPadding: false },
   orbit: { position: 'absolute', left: '8%', right: '8%', top: 206, height: 42, borderRadius: 100,
     borderWidth: 1, transform: [{ rotateX: '55deg' }] },
   dots: { position: 'absolute', bottom: 9, alignSelf: 'center', flexDirection: 'row', gap: 6 },

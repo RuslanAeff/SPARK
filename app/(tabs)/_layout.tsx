@@ -6,7 +6,7 @@ import * as Haptics from 'expo-haptics';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useThemePalette } from '../../src/theme/themeStore';
-import { FontFamily } from '../../src/theme/typography';
+import { FontFamily, Typography } from '../../src/theme/typography';
 import { BorderRadius, Spacing } from '../../src/theme/spacing';
 import { TAB_BAR_FLOAT_GAP, TAB_BAR_HEIGHT } from '../../src/theme/layout';
 import { useLanguage } from '../../src/i18n/LanguageContext';
@@ -88,8 +88,8 @@ function TabNavigator() {
           justifyContent: 'center',
         },
         tabBarLabelStyle: {
+          ...Typography.labelTiny,
           fontFamily: FontFamily.medium,
-          fontSize: 10,
           textTransform: 'none',
           marginTop: 0,
           maxWidth: 76,

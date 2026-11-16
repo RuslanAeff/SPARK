@@ -754,7 +754,7 @@ const hudStyles = StyleSheet.create({
     gap: 2,
   },
   typeLabel: {
-    fontSize: 9,
+    ...Typography.labelTiny,
     fontFamily: FontFamily.bold,
     letterSpacing: 1.5,
   },
