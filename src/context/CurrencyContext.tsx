@@ -8,7 +8,6 @@ import React, {
   useCallback,
   useMemo,
 } from 'react';
-import { getDatabase } from '../db/database';
 import {
   DISPLAY_CURRENCIES,
   CURRENCY_META,
@@ -17,6 +16,7 @@ import {
 } from '../utils/currencyMeta';
 import { logError } from '../utils/logError';
 import { setAppCurrency } from '../db/appCurrencyDao';
+import { SettingsDao } from '../db/settingsDao';
 
 const SETTINGS_KEY = 'display_currency';
 
@@ -42,13 +42,9 @@ export function CurrencyProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     (async () => {
       try {
-        const db = await getDatabase();
-        const row = await db.getFirstAsync<{ value: string }>(
-          'SELECT value FROM settings WHERE key = ?',
-          [SETTINGS_KEY]
-        );
-        if (row?.value && isDisplayCurrency(row.value)) {
-          setCurrencyState(row.value);
+        const value = await SettingsDao.get(SETTINGS_KEY);
+        if (value && isDisplayCurrency(value)) {
+          setCurrencyState(value);
         }
       } catch (e) {
         logError('Currency load failed', e);

@@ -8,9 +8,11 @@ import React, {
   ReactNode,
 } from 'react';
 import { Language, loadLocale, getDict } from './translations';
-import { getDatabase } from '../db/database';
 import { suggestLanguageFromDevice } from './languageOptions';
 import { logError } from '../utils/logError';
+import { SettingsDao } from '../db/settingsDao';
+
+const LANGUAGE_SETTING_KEY = 'app_language';
 
 const VALID_LANGS: Language[] = ['tr', 'en', 'az', 'ru'];
 
@@ -37,14 +39,8 @@ export const LanguageProvider = ({ children }: { children: ReactNode }) => {
     const loadLang = async () => {
       let lang: Language = 'tr';
       try {
-        const db = await getDatabase();
-        const result = await db.getFirstAsync<{ value: string }>(
-          "SELECT value FROM settings WHERE key = 'app_language'",
-        );
-        lang =
-          result && isLanguage(result.value)
-            ? result.value
-            : suggestLanguageFromDevice();
+        const saved = await SettingsDao.get(LANGUAGE_SETTING_KEY);
+        lang = saved && isLanguage(saved) ? saved : suggestLanguageFromDevice();
       } catch (e) {
         logError('Language load failed', e);
       }
@@ -63,11 +59,7 @@ export const LanguageProvider = ({ children }: { children: ReactNode }) => {
   const setLanguage = useCallback(async (lang: Language) => {
     try {
       await loadLocale(lang); // dil değişiminde sözlük hazır olmadan state'i güncelleme
-      const db = await getDatabase();
-      await db.runAsync(
-        "INSERT OR REPLACE INTO settings (key, value) VALUES ('app_language', ?)",
-        [lang],
-      );
+      await SettingsDao.set(LANGUAGE_SETTING_KEY, lang);
       setLanguageState(lang);
     } catch (e) {
       logError('Language save failed', e);

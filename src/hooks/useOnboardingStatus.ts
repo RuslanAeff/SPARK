@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { getDatabase } from '../db/database';
+import { SettingsDao } from '../db/settingsDao';
 
 const ONBOARDING_KEY = 'onboarding_completed';
 let sharedCompleted: boolean | null = null;
@@ -29,12 +29,7 @@ export function useOnboardingStatus() {
   const refresh = useCallback(async () => {
     setIsLoading(true);
     try {
-      const db = await getDatabase();
-      const row = await db.getFirstAsync<{ value: string }>(
-        'SELECT value FROM settings WHERE key = ?',
-        [ONBOARDING_KEY],
-      );
-      publishCompleted(row?.value === '1');
+      publishCompleted((await SettingsDao.get(ONBOARDING_KEY)) === '1');
     } finally {
       setIsLoading(false);
     }
@@ -45,11 +40,7 @@ export function useOnboardingStatus() {
   }, [refresh]);
 
   const setOnboardingCompleted = useCallback(async (value: boolean) => {
-    const db = await getDatabase();
-    await db.runAsync(
-      'INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)',
-      [ONBOARDING_KEY, value ? '1' : '0'],
-    );
+    await SettingsDao.set(ONBOARDING_KEY, value ? '1' : '0');
     publishCompleted(value);
   }, []);
 

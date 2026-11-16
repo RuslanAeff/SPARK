@@ -2,6 +2,7 @@
 // "Son yedek ne zaman alındı? Kaç işlem içeriyordu? Kullanıcı hatırlatma istiyor mu?"
 // gibi bilgileri tutar. Bildirim motoru ve BackupSection bu helper'ı kullanır.
 import { getDatabase } from '../db/database';
+import { SettingsDao } from '../db/settingsDao';
 
 const K_LAST_AT = 'backup_last_at';
 const K_LAST_COUNT = 'backup_last_count';
@@ -37,22 +38,9 @@ export interface BackupMeta {
   reminderInterval: BackupReminderInterval;
 }
 
-async function getSetting(key: string): Promise<string | null> {
-  const db = await getDatabase();
-  const row = await db.getFirstAsync<{ value: string }>(
-    'SELECT value FROM settings WHERE key = ?',
-    [key]
-  );
-  return row?.value ?? null;
-}
-
-async function setSetting(key: string, value: string): Promise<void> {
-  const db = await getDatabase();
-  await db.runAsync('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)', [
-    key,
-    value,
-  ]);
-}
+// CQ-03: ortak ayar DAO'su (eskiden bu dosyada kopyası vardı).
+const getSetting = (key: string) => SettingsDao.get(key);
+const setSetting = (key: string, value: string) => SettingsDao.set(key, value);
 
 function parseIntSafe(raw: string | null): number | null {
   if (raw == null) return null;

@@ -81,8 +81,10 @@ import {
 import { logError } from '../../src/utils/logError';
 import { useBottomClearance } from '../../src/hooks/useBottomClearance';
 import DraggablePanel from '../../src/components/analytics/DraggablePanel';
+import { SettingsDao } from '../../src/db/settingsDao';
 
 const CARD_GAP = 8;
+const ANALYTICS_CARD_ORDER_KEY = 'analytics_card_order';
 
 const ALL_CARDS: { id: string; icon: string; labelKey: string }[] = [
   { id: 'chart',           icon: 'chart-bar',          labelKey: 'card_chart' },
@@ -815,12 +817,10 @@ export default function AnalyticsScreen() {
   async function loadCardConfig() {
     if (configLoaded.current) return;
     try {
-      const db = await (await import('../../src/db/database')).getDatabase();
-      const row = await db.getFirstAsync<{ value: string }>(
-        "SELECT value FROM settings WHERE key = 'analytics_card_order'"
-      );
-      if (row) {
-        const parsed = JSON.parse(row.value);
+      // CQ-03: ekran ham SQL yazmaz; ayar DAO'su üzerinden okunur.
+      const raw = await SettingsDao.get(ANALYTICS_CARD_ORDER_KEY);
+      if (raw != null) {
+        const parsed = JSON.parse(raw);
         // Kart düzenleme yalnız onaylandığında kalıcıdır. Eski/bozuk bir sürüm
         // boş aktif liste yazmış olsa bile bu değer geçerli tercih sayılmaz.
         if (Array.isArray(parsed.active)) {
@@ -873,11 +873,7 @@ export default function AnalyticsScreen() {
   async function saveCardConfig(active: string[], hidden: string[]): Promise<boolean> {
     if (!hasActiveAnalyticsCard(active)) return false;
     try {
-      const db = await (await import('../../src/db/database')).getDatabase();
-      await db.runAsync(
-        "INSERT OR REPLACE INTO settings (key, value) VALUES ('analytics_card_order', ?)",
-        [JSON.stringify({ active, hidden })]
-      );
+      await SettingsDao.setJson(ANALYTICS_CARD_ORDER_KEY, { active, hidden });
       return true;
     } catch (e) {
       logError('Error saving card config', e);
