@@ -42,6 +42,7 @@ import { useOnboardingStatus } from '../src/hooks/useOnboardingStatus';
 import { createNavigationTheme } from '../src/theme/navigationTheme';
 import { logError } from '../src/utils/logError';
 import { installErrorJournal } from '../src/services/errorJournal';
+import ConfirmHost from '../src/components/ConfirmHost';
 
 const BOOT_BACKGROUND = '#050505';
 
@@ -413,6 +414,8 @@ function RootLayoutContent() {
         <RefreshProvider>
           <NotificationsProvider>
             <ThemeScheduler />
+            {/* UX-09: ekran dışı kodun temalı onay penceresi (ör. yapay zekâ aktarımı). */}
+            <ConfirmHost />
             <AppShell
               onboardingLoading={onboardingLoading}
               onboardingCompleted={onboardingCompleted}
