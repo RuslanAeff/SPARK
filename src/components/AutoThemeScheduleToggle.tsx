@@ -126,8 +126,9 @@ const styles = StyleSheet.create({
   label: {
     ...Typography.labelLarge,
     color: '#FFF',
-    fontFamily: FontFamily.extraBold,
-    letterSpacing: 0.6,
+    // DS-01 sonrası: büyük harf + Inter 800 fazla ağırdı; bir kademe hafif.
+    fontFamily: FontFamily.bold,
+    letterSpacing: 0.8,
     textTransform: 'uppercase',
   },
 });

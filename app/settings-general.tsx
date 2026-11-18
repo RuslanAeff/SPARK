@@ -481,11 +481,13 @@ const getStyles = (colors: ThemePalette) => StyleSheet.create({
   },
   // DS-04: seçili görünüm vurguyu izler; sabit yeşil + beyaz 2,2:1 idi.
   themeBtnActive: { backgroundColor: colors.primaryAction },
+  // DS-01 sonrası: Inter 800 bu boyutta fazla ağır görünüyordu (ürün sahibi
+  // geri bildirimi); seçim durumu renkle zaten belli.
   themeBtnText: {
     color: colors.textPrimary,
-    fontFamily: FontFamily.extraBold,
+    fontFamily: FontFamily.semiBold,
     fontSize: 15,
-    letterSpacing: 0.5,
+    letterSpacing: 0.2,
   },
   themeBtnTextActive: { color: colors.onPrimary },
   optionPressed: { opacity: 0.72 },
