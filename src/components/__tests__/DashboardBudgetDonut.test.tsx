@@ -170,6 +170,23 @@ describe('DashboardBudgetDonut', () => {
     expect(screen.getByText('%120')).toBeTruthy();
   });
 
+  it('bütçe aşıldığında genişletme en büyük kategoriyi seçer; aksi hâlde iki görünüm aynı çizilirdi', async () => {
+    const screen = await render(
+      <DashboardBudgetDonut
+        categories={categories}
+        totalSpent={3401.15}
+        effectiveBudget={3372.49}
+        currency="PLN"
+        periodKey="2026-10-23:2026-11-21"
+      />,
+    );
+
+    await fireEvent.press(screen.getByTestId('dashboard-donut-center'));
+
+    expect(screen.getByTestId('mock-donut').props.totalValue).toBeUndefined();
+    expect(screen.getByText('Faturalar')).toBeTruthy();
+  });
+
   it('bütçe yoksa mevcut kategori dağılımı davranışını korur', async () => {
     const screen = await render(
       <DashboardBudgetDonut

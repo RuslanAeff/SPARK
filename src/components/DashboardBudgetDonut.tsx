@@ -102,6 +102,11 @@ export default function DashboardBudgetDonut({
     }
     if (isBudgetOverview && hasCategories) {
       setCategoryFocus(true);
+      // Bütçe %100 ve üstünde kullanılmışsa kategoriler bütçe halkasını zaten
+      // tamamen kaplar: iki görünüm aynı çizilir ve genişletme "tepki vermiyor"
+      // gibi görünür (ürün sahibi bildirimi, 18 Kasım 2026). O durumda en büyük
+      // kategori seçilir; dilim öne çıkar ve ayrıntı satırı görünür.
+      if (rawBudgetUsage >= 100) setSelectedIndex(0);
       return;
     }
     if (hasBudgetScale && categoryFocus) {
@@ -109,7 +114,7 @@ export default function DashboardBudgetDonut({
       return;
     }
     if (hasCategories) setSelectedIndex(0);
-  }, [categoryFocus, hasBudgetScale, hasCategories, isBudgetOverview, selectedIndex]);
+  }, [categoryFocus, hasBudgetScale, hasCategories, isBudgetOverview, rawBudgetUsage, selectedIndex]);
 
   const centerA11yLabel = selectedIndex !== null
     ? t('donut_center_clear')
