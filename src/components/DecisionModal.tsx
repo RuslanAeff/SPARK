@@ -36,6 +36,7 @@ import { useAppTheme, useThemeRevision } from '../theme/themeStore';
 import { Typography, FontFamily } from '../theme/typography';
 import { Spacing, BorderRadius } from '../theme/spacing';
 import { SparkToastContainer } from './SparkToast';
+import { useKeyboardHeight } from '../hooks/useKeyboard';
 
 export type DecisionTone = 'primary' | 'warning' | 'danger';
 
@@ -97,6 +98,11 @@ export default function DecisionModal({
   const styles = useMemo(() => getStyles(), [scheme, themeRevision]);
   // Sağlayıcı yoksa (ör. bazı testler) sıfır inset ile güvenle çalışır.
   const insets = useContext(SafeAreaInsetsContext) ?? ZERO_INSETS;
+  // UX-04: Android'de pencere klavyeyle küçülmez; ek içerik (parola alanı)
+  // varken kart klavyenin üstünde kalsın diye alt boşluk klavye kadar büyür.
+  // iOS'ta aynı işi aşağıdaki KeyboardAvoidingView yapar.
+  const keyboardHeight = useKeyboardHeight();
+  const androidKeyboardLift = Platform.OS === 'android' && children != null ? keyboardHeight : 0;
 
   const scaleAnim = useRef(new Animated.Value(0.92)).current;
   const opacityAnim = useRef(new Animated.Value(0)).current;
@@ -190,7 +196,7 @@ export default function DecisionModal({
           {
             opacity: opacityAnim,
             paddingTop: insets.top + Spacing.lg,
-            paddingBottom: insets.bottom + Spacing.lg,
+            paddingBottom: Math.max(insets.bottom, androidKeyboardLift) + Spacing.lg,
           },
         ]}
       >

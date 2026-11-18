@@ -29,6 +29,7 @@ import {
   Easing,
   Dimensions,
   PanResponder,
+  useWindowDimensions,
 } from 'react-native';
 import {
   initialWindowMetrics,
@@ -37,6 +38,7 @@ import {
 } from 'react-native-safe-area-context';
 import Svg, { Defs, RadialGradient, Rect, Stop } from 'react-native-svg';
 import { SparkToastContainer } from './SparkToast';
+import { useKeyboardHeight } from '../hooks/useKeyboard';
 
 interface BottomSheetModalProps {
   visible: boolean;
@@ -102,7 +104,11 @@ function ModalContent({
   accentColor,
   backdropAccessibilityLabel,
 }: ModalContentProps) {
-  const { bottom } = useSafeAreaInsets();
+  const { bottom, top } = useSafeAreaInsets();
+  const { height: windowHeight } = useWindowDimensions();
+  // UX-04: Android kenardan kenara modunda modal penceresi klavyeyle yeniden
+  // boyutlanmaz; sayfa klavye yüksekliği kadar kendisi yukarı kalkar.
+  const keyboardHeight = useKeyboardHeight();
   const interactiveRef = useRef(interactive);
   interactiveRef.current = interactive;
 
@@ -165,9 +171,21 @@ function ModalContent({
   const adjustedSheetStyle = useMemo(() => {
     const flat = (StyleSheet.flatten(sheetStyle) ?? {}) as ViewStyle;
     const basePB = typeof flat.paddingBottom === 'number' ? flat.paddingBottom : 0;
-    // İçerik padding'i = inset (son satır gesture/nav çubuğunun üstünde kalsın).
-    return { ...flat, paddingBottom: basePB + bottom };
-  }, [sheetStyle, bottom]);
+    // İçerik padding'i = inset (son satır gesture/nav çubuğunun üstünde kalsın);
+    // klavye açıkken klavye yüksekliği (klavye nav çubuğunu da örter).
+    const lift = keyboardHeight > 0 ? Math.max(keyboardHeight, bottom) : bottom;
+    // Sayfa hiçbir zaman durum çubuğunun üstüne taşmaz; klavye açılınca içerik
+    // alanı küçülür ve kaydırılabilir alanlar kendi içinde kayar.
+    const screenCap = windowHeight - top - 12;
+    // Yüzde verilen yükseklik ('85%') sayfanın kendi kararıdır; dokunulmaz.
+    if (typeof flat.maxHeight === 'string') return { ...flat, paddingBottom: basePB + lift };
+    const ownMax = typeof flat.maxHeight === 'number' ? flat.maxHeight : Number.POSITIVE_INFINITY;
+    return {
+      ...flat,
+      paddingBottom: basePB + lift,
+      maxHeight: Math.min(ownMax, screenCap),
+    };
+  }, [sheetStyle, bottom, top, windowHeight, keyboardHeight]);
 
   // Beyaz yüzeyin rengini sheet stilinden çıkar ve sarmalayıcıya ver.
   // Sarmalayıcı ekranın en dibine kadar (overshoot ile altına da taşarak) dolar;
