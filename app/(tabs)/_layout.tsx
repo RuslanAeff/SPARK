@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useRef } from 'react';
 import { Platform, View, type ViewStyle } from 'react-native';
 import { withLayoutContext } from 'expo-router';
 import { createMaterialTopTabNavigator } from '@react-navigation/material-top-tabs';
@@ -21,7 +21,10 @@ function TabNavigator() {
   const theme = useThemePalette();
   const { t } = useLanguage();
   const insets = useSafeAreaInsets();
-  const { swipeEnabled } = useTabSwipe();
+  const { swipeEnabled, navigationLocked } = useTabSwipe();
+  // tabPress dinleyicisi her olayda güncel kilidi okur.
+  const navigationLockedRef = useRef(navigationLocked);
+  navigationLockedRef.current = navigationLocked;
   /** Sistem jest çubuğu / home indicator üstünde kalsın (Android gesture bar, iPhone çentik vb.) */
   const tabBarInsetBottom = TAB_BAR_FLOAT_GAP + insets.bottom;
   // Yüzen konum, köşe ve gölge dış sarmalayıcıda; çubuğun kendisi saydamdır ki
@@ -56,6 +59,13 @@ function TabNavigator() {
       screenListeners={{
         state: () => {
           Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+        },
+        // Gezinme kilidi (ör. İşlemler'de çoklu seçim) alt menü dokunuşunu da
+        // durdurur; kullanıcıya kısa bir uyarı titreşimi verilir.
+        tabPress: (event: { preventDefault: () => void }) => {
+          if (!navigationLockedRef.current) return;
+          event.preventDefault();
+          void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
         },
       }}
       screenOptions={() => ({

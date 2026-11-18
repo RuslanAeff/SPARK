@@ -42,6 +42,7 @@ import { SparkToast } from '../../src/components/SparkToast';
 import { ExpenseDao } from '../../src/db/expenseDao';
 import { logError } from '../../src/utils/logError';
 import { useBottomClearance } from '../../src/hooks/useBottomClearance';
+import { useTabNavigationLock } from '../../src/context/TabSwipeContext';
 
 type Row =
   | { kind: 'header'; date: string; key: string }
@@ -130,6 +131,10 @@ export default function TransactionsScreen() {
   useFocusEffect(useCallback(() => { refresh(); }, [refresh]));
 
   useExpenseDataRefresh(refresh, isFocused);
+
+  // Çoklu seçim sürerken sekmeler arası geçiş (kaydırma + alt menü) kilitli;
+  // kullanıcı önce silmeli veya iptal etmeli (ürün sahibi kararı, 18 Kasım 2026).
+  useTabNavigationLock(selectionMode);
 
   const exitSelection = useCallback(() => {
     setSelectionMode(false);

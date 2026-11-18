@@ -97,21 +97,22 @@ function TransactionRow({
     </Pressable>
   );
 
-  if (selectionMode) {
-    return (
-      <View style={styles.selectionSlot}>
-        {selected ? (
-          <View style={styles.selectedCardShell}>
-            {rowInner}
-          </View>
-        ) : (
-          rowInner
-        )}
+  // Ağaç yapısı modlar arasında AYNI kalır, yalnız stiller değişir. Eskiden
+  // seçim modunda satır ek kaplara sarılıyordu: uzun basma seçim modunu açınca
+  // parmağın altındaki Pressable yeniden oluşturuluyor, dokunma hedefi
+  // kayboluyor ve "basılı tutup sürükleyerek çoklu seçim" hiç başlamıyordu
+  // (ürün sahibi bildirimi, 18 Kasım 2026). `collapsable={false}`: Android
+  // görünüm düzleştirmesi de yerel hiyerarşiyi modlar arasında değiştirmesin.
+  return (
+    <View collapsable={false} style={selectionMode ? styles.selectionSlot : undefined}>
+      <View
+        collapsable={false}
+        style={selectionMode ? (selected ? styles.selectedCardShell : styles.cardShellIdle) : undefined}
+      >
+        {rowInner}
       </View>
-    );
-  }
-
-  return rowInner;
+    </View>
+  );
 }
 
 export default React.memo(TransactionRow);
@@ -122,6 +123,14 @@ const getStyles = () => StyleSheet.create({
     marginHorizontal: ScreenPadding.horizontal,
     marginBottom: Spacing.sm,
     overflow: 'visible',
+  },
+  /** Seçili olmayan satırda kabuk görünmez; seçili kabukla aynı kenarlık kalınlığı
+   * ayrılır ki seçim sırasında satır yüksekliği ve sürükleme hit-test'i kaymasın. */
+  cardShellIdle: {
+    borderRadius: BorderRadius.lg,
+    borderWidth: StyleSheet.hairlineWidth * 2,
+    borderColor: 'transparent',
+    overflow: 'hidden',
   },
   /** Seçili satırda arka planu ayrı katmanda tut: bitişik satırlar üst üste binince alt köşe “yenmiş” görünmez */
   selectedCardShell: {

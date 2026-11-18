@@ -2,7 +2,7 @@ import React from 'react';
 import { Text } from 'react-native';
 import { act, render } from '@testing-library/react-native';
 
-import { TabSwipeProvider, useTabSwipe } from '../TabSwipeContext';
+import { TabSwipeProvider, useTabNavigationLock, useTabSwipe } from '../TabSwipeContext';
 
 type Api = ReturnType<typeof useTabSwipe>;
 const apis: Record<string, Api> = {};
@@ -44,5 +44,24 @@ describe('TabSwipeContext ownership (FN-05)', () => {
 
     await screen.rerender(<TabSwipeProvider><Owner key="b" name="b" /><Probe /></TabSwipeProvider>);
     expect(screen.getByTestId('enabled').props.children).toBe('true');
+  });
+
+  it('navigation lock disables swiping and reports the lock until released', async () => {
+    function Selection({ active }: { active: boolean }) {
+      useTabNavigationLock(active);
+      return null;
+    }
+    function State() {
+      const { swipeEnabled, navigationLocked } = useTabSwipe();
+      return <Text testID="state">{`${swipeEnabled}/${navigationLocked}`}</Text>;
+    }
+    const screen = await render(<TabSwipeProvider><Selection active={false} /><State /></TabSwipeProvider>);
+    expect(screen.getByTestId('state').props.children).toBe('true/false');
+
+    await screen.rerender(<TabSwipeProvider><Selection active /><State /></TabSwipeProvider>);
+    expect(screen.getByTestId('state').props.children).toBe('false/true');
+
+    await screen.rerender(<TabSwipeProvider><Selection active={false} /><State /></TabSwipeProvider>);
+    expect(screen.getByTestId('state').props.children).toBe('true/false');
   });
 });

@@ -11,19 +11,28 @@ import React, { createContext, useCallback, useContext, useEffect, useMemo, useR
 
 interface TabSwipeRegistry {
   swipeEnabled: boolean;
+  /** true iken sekmeler arası geçiş (kaydırma ve alt menü dokunuşu) kapalı. */
+  navigationLocked: boolean;
   acquire: (owner: number) => void;
   release: (owner: number) => void;
+  lockNavigation: (owner: number) => void;
+  unlockNavigation: (owner: number) => void;
 }
 
 const TabSwipeContext = createContext<TabSwipeRegistry>({
   swipeEnabled: true,
+  navigationLocked: false,
   acquire: () => undefined,
   release: () => undefined,
+  lockNavigation: () => undefined,
+  unlockNavigation: () => undefined,
 });
 
 export function TabSwipeProvider({ children }: React.PropsWithChildren) {
   const ownersRef = useRef(new Set<number>());
+  const navOwnersRef = useRef(new Set<number>());
   const [swipeEnabled, setSwipeEnabled] = useState(true);
+  const [navigationLocked, setNavigationLocked] = useState(false);
 
   const acquire = useCallback((owner: number) => {
     ownersRef.current.add(owner);
@@ -34,14 +43,34 @@ export function TabSwipeProvider({ children }: React.PropsWithChildren) {
     setSwipeEnabled(ownersRef.current.size === 0);
   }, []);
 
-  const value = useMemo(() => ({ swipeEnabled, acquire, release }), [swipeEnabled, acquire, release]);
+  const lockNavigation = useCallback((owner: number) => {
+    navOwnersRef.current.add(owner);
+    setNavigationLocked(true);
+  }, []);
+  const unlockNavigation = useCallback((owner: number) => {
+    navOwnersRef.current.delete(owner);
+    setNavigationLocked(navOwnersRef.current.size > 0);
+  }, []);
+
+  const value = useMemo(
+    () => ({
+      // Gezinme kilidi kaydırmayı da kapatır.
+      swipeEnabled: swipeEnabled && !navigationLocked,
+      navigationLocked,
+      acquire,
+      release,
+      lockNavigation,
+      unlockNavigation,
+    }),
+    [swipeEnabled, navigationLocked, acquire, release, lockNavigation, unlockNavigation],
+  );
   return <TabSwipeContext.Provider value={value}>{children}</TabSwipeContext.Provider>;
 }
 
 let nextOwnerId = 1;
 
 export function useTabSwipe() {
-  const { swipeEnabled, acquire, release } = useContext(TabSwipeContext);
+  const { swipeEnabled, navigationLocked, acquire, release } = useContext(TabSwipeContext);
   const ownerRef = useRef(0);
   if (ownerRef.current === 0) ownerRef.current = nextOwnerId++;
 
@@ -56,5 +85,24 @@ export function useTabSwipe() {
     return () => release(owner);
   }, [release]);
 
-  return { swipeEnabled, setNestedHorizontalGestureActive };
+  return { swipeEnabled, navigationLocked, setNestedHorizontalGestureActive };
+}
+
+let nextNavOwnerId = 1;
+
+/**
+ * `active` iken sekmeler arası geçişi (yana kaydırma ve alt menü dokunuşu)
+ * kilitler; ör. İşlemler'de çoklu seçim sürerken kullanıcı önce silmeli veya
+ * iptal etmelidir (ürün sahibi kararı, 18 Kasım 2026). Unmount kilidi bırakır.
+ */
+export function useTabNavigationLock(active: boolean): void {
+  const { lockNavigation, unlockNavigation } = useContext(TabSwipeContext);
+  const ownerRef = useRef(0);
+  if (ownerRef.current === 0) ownerRef.current = nextNavOwnerId++;
+  useEffect(() => {
+    const owner = ownerRef.current;
+    if (active) lockNavigation(owner);
+    else unlockNavigation(owner);
+    return () => unlockNavigation(owner);
+  }, [active, lockNavigation, unlockNavigation]);
 }
