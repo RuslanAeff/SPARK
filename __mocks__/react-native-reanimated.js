@@ -11,7 +11,10 @@ const strip = (Comp) =>
 
 // Layout/entering animasyon kurucuları: zincirlenebilir no-op (FadeInDown.delay(x).duration(y)).
 const anim = () => {
-  const o = { delay: () => o, duration: () => o, springify: () => o, build: () => () => {} };
+  const o = {
+    delay: () => o, duration: () => o, springify: () => o, easing: () => o,
+    reduceMotion: () => o, withInitialValues: () => o, build: () => () => {},
+  };
   return o;
 };
 
@@ -28,6 +31,9 @@ module.exports = {
   FadeOut: anim(),
   FadeIn: anim(),
   SlideInRight: anim(),
+  FadeInRight: anim(),
+  FadeInLeft: anim(),
+  ReduceMotion: { System: 'system', Always: 'always', Never: 'never' },
   LinearTransition: anim(),
   useSharedValue: (value) => ({ value }),
   useAnimatedStyle: (factory) => factory(),
@@ -37,5 +43,12 @@ module.exports = {
   withTiming: (value) => value,
   withDelay: (_delay, value) => value,
   cancelAnimation: () => {},
-  Easing: { linear: (value) => value },
+  Easing: {
+    linear: (value) => value,
+    cubic: (value) => value,
+    quad: (value) => value,
+    out: (fn) => fn,
+    in: (fn) => fn,
+    inOut: (fn) => fn,
+  },
 };

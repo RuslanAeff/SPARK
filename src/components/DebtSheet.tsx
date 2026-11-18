@@ -36,6 +36,8 @@ import { useLanguage } from '../i18n/LanguageContext';
 import { useNotifications } from '../context/NotificationsContext';
 import { useRefreshActions } from '../context/RefreshContext';
 import { syncNotificationsBestEffort } from '../notifications/syncNotificationsBestEffort';
+import { useKeepFocusedInputVisible } from '../hooks/useKeyboard';
+import { SegmentedContent, SegmentedTabs } from './SegmentedTabs';
 
 const SCREEN_H = Dimensions.get('window').height;
 
@@ -60,7 +62,12 @@ function playSuccessHaptic(): void {
     .catch(() => undefined);
 }
 
+const DEBT_TABS = ['open', 'history'] as const;
+
 export default function DebtSheet({ visible, onClose, currency, onChanged }: DebtSheetProps) {
+  // UX-04: klavye açılınca odaklı alan formun içinde klavyenin üstüne kayar.
+  const formScrollRef = useRef<ScrollView | null>(null);
+  useKeepFocusedInputVisible(formScrollRef);
   const scheme = useAppTheme();
   const themeRevision = useThemeRevision();
   const styles = useMemo(() => getStyles(), [scheme, themeRevision]);
@@ -522,25 +529,20 @@ export default function DebtSheet({ visible, onClose, currency, onChanged }: Deb
         </View>
       </View>
 
-      {/* Açık / Geçmiş segmenti */}
-      <View style={styles.segment}>
-        {(['open', 'history'] as const).map((tab) => {
-          const active = listTab === tab;
-          return (
-            <Pressable
-              key={tab}
-              onPress={() => { setListTab(tab); setExpandedDebtId(null); }}
-              style={[styles.segmentBtn, active && styles.segmentBtnActive]}
-            >
-              <Text style={[styles.segmentText, active && styles.segmentTextActive]}>
-                {tab === 'open' ? t('debt_tab_open') : t('debt_tab_history')}
-              </Text>
-            </Pressable>
-          );
-        })}
-      </View>
+      {/* Açık / Geçmiş: kayan cam vurgu ve yönlü içerik geçişi. */}
+      <SegmentedTabs
+        options={DEBT_TABS.map(key => ({
+          key,
+          label: key === 'open' ? t('debt_tab_open') : t('debt_tab_history'),
+          testID: `debt-tab-${key}`,
+        }))}
+        value={listTab}
+        onChange={(tab) => { setListTab(tab); setExpandedDebtId(null); }}
+      />
 
-      {listTab === 'open' ? renderOpenList() : renderHistoryList()}
+      <SegmentedContent order={DEBT_TABS} value={listTab}>
+        {listTab === 'open' ? renderOpenList() : renderHistoryList()}
+      </SegmentedContent>
 
       {/* "Borç Aldım" yalnız Açık sekmesinde — geçmiş salt görüntüleme bağlamı. */}
       {listTab === 'open' ? (
@@ -567,7 +569,7 @@ export default function DebtSheet({ visible, onClose, currency, onChanged }: Deb
         <Text style={styles.formTitle}>{t('debt_add_title')}</Text>
       </View>
 
-      <ScrollView style={styles.formScroll} contentContainerStyle={styles.formContent} keyboardShouldPersistTaps="handled">
+      <ScrollView ref={formScrollRef} style={styles.formScroll} contentContainerStyle={styles.formContent} keyboardShouldPersistTaps="handled">
         <Text style={styles.fieldLabel}>{t('amount')}</Text>
         <TextInput
           testID="debt-add-amount"
@@ -709,7 +711,7 @@ export default function DebtSheet({ visible, onClose, currency, onChanged }: Deb
         </Pressable>
       </View>
 
-      <ScrollView style={styles.formScroll} contentContainerStyle={styles.formContent} keyboardShouldPersistTaps="handled">
+      <ScrollView ref={formScrollRef} style={styles.formScroll} contentContainerStyle={styles.formContent} keyboardShouldPersistTaps="handled">
         {activeDebt ? (
           <>
             <View style={styles.repaySummary}>
@@ -809,6 +811,7 @@ export default function DebtSheet({ visible, onClose, currency, onChanged }: Deb
       </View>
 
       <ScrollView
+        ref={formScrollRef}
         style={styles.formScroll}
         contentContainerStyle={styles.formContent}
         keyboardShouldPersistTaps="handled"
@@ -945,38 +948,6 @@ const getStyles = () => StyleSheet.create({
     marginTop: 2,
   },
   // Açık / Geçmiş segmenti
-  segment: {
-    flexDirection: 'row',
-    backgroundColor: Colors.surface,
-    borderRadius: BorderRadius.round,
-    padding: 4,
-    marginBottom: Spacing.md,
-    borderWidth: 1,
-    borderColor: Colors.border,
-  },
-  segmentBtn: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: Spacing.sm,
-    borderRadius: BorderRadius.round,
-  },
-  segmentBtnActive: {
-    backgroundColor: Colors.primary + '22',
-  },
-  segmentText: {
-    ...Typography.labelLarge,
-    color: Colors.textSecondary,
-    fontFamily: FontFamily.semiBold,
-    // Column + alignItems:center'da Text içeriğe göre ölçülüp Android'de son glifi
-    // ("Açık"→"Açı") kırpıyordu; tam genişlik + ortala → kırpılma yok.
-    alignSelf: 'stretch',
-    textAlign: 'center',
-  },
-  segmentTextActive: {
-    color: Colors.primary,
-    fontFamily: FontFamily.bold,
-  },
   // Geçmiş — "Ödendi" rozeti + ödeme dökümü
   settledBadge: {
     flexDirection: 'row',
@@ -1055,6 +1026,7 @@ const getStyles = () => StyleSheet.create({
   },
   // Liste
   listScroll: {
+    flexShrink: 1,
     maxHeight: SCREEN_H * 0.46,
   },
   // Geçmiş sekmesinde "Borç Aldım" butonu olmadığından liste daha uzun olabilir.
@@ -1189,6 +1161,7 @@ const getStyles = () => StyleSheet.create({
     fontFamily: FontFamily.bold,
   },
   formScroll: {
+    flexShrink: 1,
     maxHeight: SCREEN_H * 0.66,
   },
   formContent: {

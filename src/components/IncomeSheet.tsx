@@ -27,6 +27,8 @@ import { formatDayMonth, getToday } from '../utils/dateUtils';
 import { IncomeDao } from '../db/incomeDao';
 import { ExtraIncome } from '../db/schema';
 import { useLanguage } from '../i18n/LanguageContext';
+import { useKeepFocusedInputVisible } from '../hooks/useKeyboard';
+import { SegmentedContent, SegmentedTabs } from './SegmentedTabs';
 
 const SCREEN_H = Dimensions.get('window').height;
 
@@ -48,9 +50,14 @@ function parseAmountInput(s: string): number {
   return parseMoneyInput(s) ?? 0;
 }
 
+const INCOME_TABS = ['cycle', 'all'] as const;
+
 export default function IncomeSheet({
   visible, onClose, currency, cycleStart, cycleEnd, onChanged,
 }: IncomeSheetProps) {
+  // UX-04: klavye açılınca odaklı alan formun içinde klavyenin üstüne kayar.
+  const formScrollRef = useRef<ScrollView | null>(null);
+  useKeepFocusedInputVisible(formScrollRef);
   const scheme = useAppTheme();
   const themeRevision = useThemeRevision();
   const styles = useMemo(() => getStyles(), [scheme, themeRevision]);
@@ -230,27 +237,22 @@ export default function IncomeSheet({
         </View>
       </View>
 
-      {/* Bu dönem / Tümü segmenti */}
-      <View style={styles.segment}>
-        {(['cycle', 'all'] as const).map((tab) => {
-          const active = listTab === tab;
-          return (
-            <Pressable
-              key={tab}
-              onPress={() => { setListTab(tab); setExpandedId(null); }}
-              style={[styles.segmentBtn, active && styles.segmentBtnActive]}
-            >
-              <Text style={[styles.segmentText, active && styles.segmentTextActive]}>
-                {tab === 'cycle' ? t('income_tab_cycle') : t('income_tab_all')}
-              </Text>
-            </Pressable>
-          );
-        })}
-      </View>
+      {/* Bu dönem / Tümü: kayan cam vurgu ve yönlü içerik geçişi. */}
+      <SegmentedTabs
+        options={INCOME_TABS.map(key => ({
+          key,
+          label: key === 'cycle' ? t('income_tab_cycle') : t('income_tab_all'),
+          testID: `income-tab-${key}`,
+        }))}
+        value={listTab}
+        onChange={(tab) => { setListTab(tab); setExpandedId(null); }}
+      />
 
-      {listTab === 'cycle'
-        ? renderRows(cycleIncomes)
-        : renderRows(allIncomes, styles.listScrollAll)}
+      <SegmentedContent order={INCOME_TABS} value={listTab}>
+        {listTab === 'cycle'
+          ? renderRows(cycleIncomes)
+          : renderRows(allIncomes, styles.listScrollAll)}
+      </SegmentedContent>
 
       {/* Ekleme CTA'sı yalnız "Bu dönem"de — "Tümü" salt görüntüleme bağlamı. */}
       {listTab === 'cycle' ? (
@@ -276,7 +278,7 @@ export default function IncomeSheet({
         <Text style={styles.formTitle}>{t('income_add_title')}</Text>
       </View>
 
-      <ScrollView style={styles.formScroll} contentContainerStyle={styles.formContent} keyboardShouldPersistTaps="handled">
+      <ScrollView ref={formScrollRef} style={styles.formScroll} contentContainerStyle={styles.formContent} keyboardShouldPersistTaps="handled">
         <Text style={styles.fieldLabel}>{t('amount')}</Text>
         <TextInput
           style={styles.input}
@@ -397,38 +399,8 @@ const getStyles = () => StyleSheet.create({
     fontFamily: FontFamily.semiBold,
     marginTop: 2,
   },
-  segment: {
-    flexDirection: 'row',
-    backgroundColor: Colors.surface,
-    borderRadius: BorderRadius.round,
-    padding: 4,
-    marginBottom: Spacing.md,
-    borderWidth: 1,
-    borderColor: Colors.border,
-  },
-  segmentBtn: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: Spacing.sm,
-    borderRadius: BorderRadius.round,
-  },
-  segmentBtnActive: {
-    backgroundColor: Colors.primary + '22',
-  },
-  segmentText: {
-    ...Typography.labelLarge,
-    color: Colors.textSecondary,
-    fontFamily: FontFamily.semiBold,
-    // Android'de içeriğe göre ölçülen Text son glifi kırpıyordu (DebtSheet dersi).
-    alignSelf: 'stretch',
-    textAlign: 'center',
-  },
-  segmentTextActive: {
-    color: Colors.primary,
-    fontFamily: FontFamily.bold,
-  },
   listScroll: {
+    flexShrink: 1,
     maxHeight: SCREEN_H * 0.46,
   },
   // "Tümü" sekmesinde ekleme butonu olmadığından liste daha uzun olabilir.
@@ -541,6 +513,7 @@ const getStyles = () => StyleSheet.create({
     fontFamily: FontFamily.bold,
   },
   formScroll: {
+    flexShrink: 1,
     maxHeight: SCREEN_H * 0.66,
   },
   formContent: {
