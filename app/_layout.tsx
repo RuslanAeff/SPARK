@@ -43,6 +43,14 @@ import { createNavigationTheme } from '../src/theme/navigationTheme';
 import { logError } from '../src/utils/logError';
 import { installErrorJournal } from '../src/services/errorJournal';
 import ConfirmHost from '../src/components/ConfirmHost';
+import { useFonts } from 'expo-font';
+import {
+  Inter_400Regular,
+  Inter_500Medium,
+  Inter_600SemiBold,
+  Inter_700Bold,
+  Inter_800ExtraBold,
+} from '@expo-google-fonts/inter';
 
 const BOOT_BACKGROUND = '#050505';
 
@@ -380,6 +388,11 @@ function RootLayoutContent() {
   const scheme = useAppTheme();
   const theme = useThemePalette();
   const { isReady, failed: databaseFailed, retrying: databaseRetrying, retry: retryDatabase } = useDatabase();
+  // DS-01: Inter ailesi. APK'da `expo-font` eklentisiyle gömülüdür (ilk karede
+  // hazır); Expo Go'da açılışta bir kez yüklenir. Yükleme hatası uygulamayı
+  // kilitlemez: sistem yazı tipiyle devam edilir.
+  const [fontsLoaded, fontError] = useFonts(INTER_FONTS);
+  const fontsSettled = fontsLoaded || fontError != null;
   const {
     isLoading: onboardingLoading,
     completed: onboardingCompleted,
@@ -399,7 +412,7 @@ function RootLayoutContent() {
     );
   }
 
-  if (!isReady) {
+  if (!isReady || !fontsSettled) {
     return (
       <View style={bootStyles.root}>
         <StatusBar style="light" />
@@ -426,6 +439,14 @@ function RootLayoutContent() {
     </LanguageProvider>
   );
 }
+
+const INTER_FONTS = {
+  Inter_400Regular,
+  Inter_500Medium,
+  Inter_600SemiBold,
+  Inter_700Bold,
+  Inter_800ExtraBold,
+};
 
 export default function RootLayout() {
   useEffect(() => {
