@@ -79,5 +79,7 @@
   "subscription_overdue": "Gecikib",
   "error_boundary_title": "Nəsə səhv getdi",
   "error_boundary_desc": "Tətbiqdə gözlənilməz problem yarandı. Məlumatlarınız təhlükəsizdir. Zəhmət olmasa yenidən cəhd edin.",
-  "error_boundary_retry": "Yenidən cəhd et"
+  "error_boundary_retry": "Yenidən cəhd et",
+  "notif_prefs_title": "Bildiriş növləri",
+  "notif_mute_hint": "Aktiv: bu növdə bildiriş alırsınız. Deaktiv: bu növdə yeni bildiriş yaradılmır."
 }

@@ -565,6 +565,19 @@ describe('NotificationsScreen', () => {
     expect(view.getByText('Ödeme planı hatırlatmaları')).toBeTruthy();
   });
 
+  it('shows channel switches as "receive" (on = notifications arrive) (UX-10)', async () => {
+    const view = await render(<NotificationsScreen />);
+    await fireEvent.press(view.getByTestId('notifications-preferences'));
+
+    // Hiçbir tür sessize alınmamış (mutes: {}): anahtarlar açık görünür.
+    const debtSwitch = view.getByLabelText('Borç hatırlatmaları');
+    expect(debtSwitch.props.value).toBe(true);
+
+    // Kapatmak türü sessize alır; saklanan bayrak anlamı değişmedi.
+    await fireEvent(debtSwitch, 'valueChange', false);
+    expect(mockSetMute).toHaveBeenCalledWith(expect.any(String), true);
+  });
+
   it('disables swipe while selecting and deletes all selected IDs in one call', async () => {
     const view = await render(<NotificationsScreen />);
     const receiptCard = view.getByTestId(`notification-card-${receiptNotification.id}`);

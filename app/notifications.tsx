@@ -958,15 +958,17 @@ export default function NotificationsScreen() {
             {MUTE_CHANNELS.map(({ key, labelKey }) => (
               <View key={key} style={styles.muteRow}>
                 <Text style={styles.muteLabel}>{t(labelKey)}</Text>
+                {/* UX-10: anahtar olumlu anlamdadır (açık = bildirim gelir). Saklanan
+                    değer hâlâ "sessize alındı" bayrağıdır; yalnız gösterim tersine döner. */}
                 <Switch
-                  value={!!mutes[key]}
-                  onValueChange={(v) => {
-                    void setMute(key, v).catch((error) => {
+                  value={!mutes[key]}
+                  onValueChange={(receive) => {
+                    void setMute(key, !receive).catch((error) => {
                       logError('notifications mute update failed', error);
                       SparkToast.show(t('operation_failed'), 'error');
                     });
                   }}
-                  {...switchColors(!!mutes[key])}
+                  {...switchColors(!mutes[key])}
                   accessibilityLabel={t(labelKey)}
                 />
               </View>
