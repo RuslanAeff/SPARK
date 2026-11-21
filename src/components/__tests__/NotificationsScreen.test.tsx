@@ -181,11 +181,29 @@ jest.mock('../../services/androidNotificationsSetup', () => ({
   getAndroidFutureScheduleSummary: () => mockGetAndroidFutureScheduleSummary(),
 }));
 
-jest.mock('../BottomSheetModal', () => ({
-  __esModule: true,
-  default: ({ visible, children }: { visible: boolean; children: React.ReactNode }) =>
-    visible ? <>{children}</> : null,
-}));
+jest.mock('../BottomSheetModal', () => {
+  const { Pressable } = require('react-native');
+  return {
+    __esModule: true,
+    default: ({
+      visible,
+      children,
+      onClose,
+      backdropTestID,
+    }: {
+      visible: boolean;
+      children: React.ReactNode;
+      onClose: () => void;
+      backdropTestID?: string;
+    }) =>
+      visible ? (
+        <>
+          {backdropTestID ? <Pressable testID={backdropTestID} onPress={onClose} /> : null}
+          {children}
+        </>
+      ) : null,
+  };
+});
 
 jest.mock('../NotificationSwipeCard', () => {
   const React = require('react');

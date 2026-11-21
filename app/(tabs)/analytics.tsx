@@ -1,7 +1,7 @@
 // S.P.A.R.K. — Advanced Analytics Screen
 import React, { useCallback, useEffect, useState, useMemo, useRef } from 'react';
 import { View, Text, ScrollView, Pressable, RefreshControl, ActivityIndicator, type LayoutRectangle } from 'react-native';
-import { useAppTheme, useThemeRevision } from '../../src/theme/themeStore';
+
 import { useFocusEffect } from 'expo-router';
 import { useIsFocused } from '@react-navigation/native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -36,7 +36,6 @@ import {
 import GlassSelectionIndicator from '../../src/components/GlassSelectionIndicator';
 import CustomDatePicker from '../../src/components/CustomDatePicker';
 import { ErrorBoundary } from '../../src/components/ErrorBoundary';
-import { SparkToast } from '../../src/components/SparkToast';
 import { useLanguage } from '../../src/i18n/LanguageContext';
 import { intlLocaleForLanguage } from '../../src/i18n/languageOptions';
 import ItemAnalyticsModal from '../../src/components/ItemAnalyticsModal';
@@ -72,59 +71,20 @@ import { useCurrency } from '../../src/context/CurrencyContext';
 import type { MeasurementUnit } from '../../src/utils/measurementUnit';
 import { buildPriceChanges } from '../../src/utils/priceWatch';
 import { buildSubscriptionAnalyticsInfo } from '../../src/utils/subscriptionAnalytics';
-import {
-  type AnalyticsCardConfig,
-  buildAllCardsHiddenConfig,
-  hasActiveAnalyticsCard,
-  resolveAnalyticsCardEditExit,
-} from '../../src/utils/analyticsCardConfig';
+import { ALL_CARDS, useAnalyticsCardLayout } from '../../src/components/analytics/useAnalyticsCardLayout';
 import { logError } from '../../src/utils/logError';
 import { useBottomClearance } from '../../src/hooks/useBottomClearance';
 import DraggablePanel from '../../src/components/analytics/DraggablePanel';
-import { SettingsDao } from '../../src/db/settingsDao';
-
-const CARD_GAP = 8;
-const ANALYTICS_CARD_ORDER_KEY = 'analytics_card_order';
-
-const ALL_CARDS: { id: string; icon: string; labelKey: string }[] = [
-  { id: 'chart',           icon: 'chart-bar',          labelKey: 'card_chart' },
-  { id: 'projection',      icon: 'crystal-ball',       labelKey: 'card_projection' },
-  { id: 'spending_change', icon: 'chart-waterfall', labelKey: 'spending_change_title' },
-  { id: 'monthly_compare', icon: 'swap-horizontal',    labelKey: 'card_monthly_compare' },
-  { id: 'goal',            icon: 'flag-checkered',     labelKey: 'card_goal' },
-  { id: 'limits_health',   icon: 'gauge',              labelKey: 'card_limits_health' },
-  { id: 'subscriptions',   icon: 'sync-circle',        labelKey: 'card_subscriptions' },
-  { id: 'silent_spend',    icon: 'water-outline',      labelKey: 'card_silent_spend' },
-  { id: 'personal_inflation', icon: 'basket-outline',  labelKey: 'card_personal_inflation' },
-  { id: 'categories',      icon: 'shape-outline',      labelKey: 'card_categories' },
-  { id: 'streak',          icon: 'fire',               labelKey: 'card_streak' },
-  { id: 'donut',           icon: 'chart-donut',        labelKey: 'card_donut' },
-  { id: 'heatmap',         icon: 'calendar-month',     labelKey: 'card_heatmap' },
-  { id: 'top_tx',          icon: 'podium-gold',        labelKey: 'card_top_tx' },
-  { id: 'price_watch',     icon: 'tag-arrow-up',       labelKey: 'card_price_watch' },
-  { id: 'vendors',         icon: 'store-outline',      labelKey: 'card_vendors' },
-];
-
-const DEFAULT_ACTIVE = ['chart', 'projection', 'monthly_compare', 'spending_change', 'personal_inflation', 'goal', 'limits_health', 'subscriptions', 'silent_spend', 'categories', 'vendors', 'top_tx'];
-const DEFAULT_HIDDEN = ALL_CARDS.map(card => card.id).filter(id => !DEFAULT_ACTIVE.includes(id));
-
-interface DragInfo {
-  id: string;
-  originalIdx: number;
-  targetIdx: number;
-  initialScroll: number;
-}
+import { useThemedStyles } from '../../src/theme/useThemedStyles';
 
 export default function AnalyticsScreen() {
   // UX-06: yüzen sekme çubuğu + sistem gezinme alanı kadar alt boşluk.
   const bottomClearance = useBottomClearance('tab');
   // BÜTÇE DURUMU vb. kartlar sekme odakta değilken de tema güncellensin.
   // Merkezi React tema store'u tüm analitik kartları aynı karede günceller.
-  const scheme = useAppTheme();
-  const themeRevision = useThemeRevision();
   // P10: Büyük StyleSheet her render’da yeniden üretilmesin; yalnız tema
   // geçişlerinde yeniden oluştur.
-  const styles = useMemo(() => getAnalyticsStyles(), [scheme, themeRevision]);
+  const styles = useThemedStyles(getAnalyticsStyles);
   const [timeframe, setTimeframe] = useState<Timeframe>('month');
   const [timeframeLayouts, setTimeframeLayouts] = useState<Record<string, LayoutRectangle>>({});
   const { t, tc, language } = useLanguage();
@@ -197,168 +157,28 @@ export default function AnalyticsScreen() {
   );
 
   const [selectedCategory, setSelectedCategory] = useState<number | null>(null);
-  const [isEditing, setIsEditing] = useState(false);
-  const [cardOrder, setCardOrder] = useState<string[]>(DEFAULT_ACTIVE);
-  const [hiddenCards, setHiddenCards] = useState<string[]>(DEFAULT_HIDDEN);
-  const committedCardConfigRef = useRef<AnalyticsCardConfig>({
-    active: [...DEFAULT_ACTIVE],
-    hidden: [...DEFAULT_HIDDEN],
-  });
-  const configLoaded = useRef(false);
-  const heightsRef = useRef<{ [key: string]: number }>({});
-  const scrollRef = useRef<ScrollView>(null);
-  const scrollOffsetRef = useRef(0);
-
-  const [activeDrag, setActiveDrag] = useState<DragInfo | null>(null);
-  const dragRef = useRef<DragInfo | null>(null);
-
-  const handleLayout = (id: string, height: number) => {
-    heightsRef.current[id] = height;
-  };
-
-  function getCardPositions() {
-    const positions: { id: string; center: number }[] = [];
-    let cumTop = 0;
-    for (const cid of cardOrder) {
-      const h = heightsRef.current[cid] || 150;
-      positions.push({ id: cid, center: cumTop + h / 2 });
-      cumTop += h + CARD_GAP;
-    }
-    return positions;
-  }
-
-  function getShiftOffset(cardId: string, cardIndex: number): number {
-    if (!activeDrag || activeDrag.id === cardId) return 0;
-    const { originalIdx, targetIdx } = activeDrag;
-    const draggedH = heightsRef.current[activeDrag.id] || 150;
-
-    if (targetIdx > originalIdx && cardIndex > originalIdx && cardIndex <= targetIdx) {
-      return -(draggedH + CARD_GAP);
-    }
-    if (targetIdx < originalIdx && cardIndex >= targetIdx && cardIndex < originalIdx) {
-      return draggedH + CARD_GAP;
-    }
-    return 0;
-  }
-
-  function handleDragStart(id: string) {
-    const idx = cardOrder.indexOf(id);
-    const info: DragInfo = { id, originalIdx: idx, targetIdx: idx, initialScroll: scrollOffsetRef.current };
-    dragRef.current = info;
-    setActiveDrag(info);
-  }
-
-  function handleDragMove(id: string, dy: number) {
-    const drag = dragRef.current;
-    if (!drag || drag.id !== id) return;
-
-    const scrollDelta = scrollOffsetRef.current - drag.initialScroll;
-    const adjustedDy = dy + scrollDelta;
-
-    const positions = getCardPositions();
-    const virtualCenter = positions[drag.originalIdx].center + adjustedDy;
-
-    let rank = 0;
-    for (let i = 0; i < positions.length; i++) {
-      if (i === drag.originalIdx) continue;
-      if (virtualCenter > positions[i].center) rank++;
-    }
-
-    if (rank !== drag.targetIdx) {
-      drag.targetIdx = rank;
-      setActiveDrag({ ...drag });
-    }
-  }
-
-  function handleDragEnd() {
-    const drag = dragRef.current;
-    if (!drag) { setActiveDrag(null); return; }
-
-    const { originalIdx, targetIdx } = drag;
-    if (targetIdx !== originalIdx) {
-      setCardOrder(prev => {
-        const arr = [...prev];
-        const [removed] = arr.splice(originalIdx, 1);
-        arr.splice(targetIdx, 0, removed);
-        return arr;
-      });
-    }
-
-    dragRef.current = null;
-    setActiveDrag(null);
-  }
-
-  // A11Y-03: ekran okuyucuyla kartı bir sıra yukarı/aşağı taşı.
-  function moveCardBy(id: string, delta: -1 | 1) {
-    setCardOrder(prev => {
-      const from = prev.indexOf(id);
-      const to = from + delta;
-      if (from < 0 || to < 0 || to >= prev.length) return prev;
-      const arr = [...prev];
-      [arr[from], arr[to]] = [arr[to], arr[from]];
-      return arr;
-    });
-  }
-
-  function removeCard(id: string) {
-    setCardOrder(prev => {
-      const next = prev.filter(c => c !== id);
-      setHiddenCards(h => {
-        return [...h, id];
-      });
-      return next;
-    });
-  }
-
-  function addCard(id: string) {
-    setHiddenCards(prev => {
-      const nh = prev.filter(c => c !== id);
-      setCardOrder(co => {
-        return [...co, id];
-      });
-      return nh;
-    });
-  }
-
-  function removeAllCards() {
-    const next = buildAllCardsHiddenConfig(ALL_CARDS.map(card => card.id));
-    dragRef.current = null;
-    setActiveDrag(null);
-    setCardOrder(next.active);
-    setHiddenCards(next.hidden);
-  }
-
-  async function handleCardEditingToggle() {
-    if (!isEditing) {
-      const committed = committedCardConfigRef.current;
-      setCardOrder([...committed.active]);
-      setHiddenCards([...committed.hidden]);
-      setIsEditing(true);
-      return;
-    }
-    const confirmed = resolveAnalyticsCardEditExit(
-      { active: cardOrder, hidden: hiddenCards },
-      committedCardConfigRef.current,
-      'confirm',
-    );
-    if (!confirmed) {
-      SparkToast.show(
-        t('analytics_card_selection_required_title'),
-        'warning',
-        t('analytics_card_selection_required_desc'),
-      );
-      return;
-    }
-    const saved = await saveCardConfig(confirmed.active, confirmed.hidden);
-    if (!saved) {
-      SparkToast.show(t('error_saving_data'), 'error');
-      return;
-    }
-    committedCardConfigRef.current = confirmed;
-    setCardOrder(confirmed.active);
-    setHiddenCards(confirmed.hidden);
-    setIsEditing(false);
-  }
+  // CQ-02: kart sırası, gizli kartlar, düzenleme modu, sürükle-sırala ve
+  // kalıcılık `useAnalyticsCardLayout` içinde.
+  const {
+    cardOrder,
+    hiddenCards,
+    isEditing,
+    activeDrag,
+    scrollRef,
+    scrollOffsetRef,
+    handleLayout,
+    getShiftOffset,
+    handleDragStart,
+    handleDragMove,
+    handleDragEnd,
+    moveCardBy,
+    removeCard,
+    addCard,
+    removeAllCards,
+    handleCardEditingToggle,
+    loadCardConfig,
+    discardCardDraft,
+  } = useAnalyticsCardLayout(t);
 
   const { data: categories, refresh: refreshCats } = useCategorySpending(
     dateRange.start,
@@ -470,12 +290,18 @@ export default function AnalyticsScreen() {
   }, [isEditing, isFocused, setNestedHorizontalGestureActive]);
 
   const prevDateRange = useMemo(() => {
-    return resolvePreviousAnalyticsDateRange(timeframe, dateRange, budget.cycleStartDay);
+    // Yalnız tarih sınırları kullanılır: etiket dil değişince yenilenir ama
+    // karşılaştırma dönemi değişmez.
+    return resolvePreviousAnalyticsDateRange(
+      timeframe,
+      { start: dateRange.start, end: dateRange.end },
+      budget.cycleStartDay,
+    );
   }, [timeframe, dateRange.start, dateRange.end, budget.cycleStartDay]);
 
   const comparisonRanges = useMemo(() => resolveComparableAnalyticsRanges(
     timeframe,
-    dateRange,
+    { start: dateRange.start, end: dateRange.end },
     budget.cycleStartDay,
   ), [timeframe, dateRange.start, dateRange.end, budget.cycleStartDay]);
 
@@ -814,73 +640,6 @@ export default function AnalyticsScreen() {
     };
   }, [silentSpendData]);
 
-  async function loadCardConfig() {
-    if (configLoaded.current) return;
-    try {
-      // CQ-03: ekran ham SQL yazmaz; ayar DAO'su üzerinden okunur.
-      const raw = await SettingsDao.get(ANALYTICS_CARD_ORDER_KEY);
-      if (raw != null) {
-        const parsed = JSON.parse(raw);
-        // Kart düzenleme yalnız onaylandığında kalıcıdır. Eski/bozuk bir sürüm
-        // boş aktif liste yazmış olsa bile bu değer geçerli tercih sayılmaz.
-        if (Array.isArray(parsed.active)) {
-          // Migration: Kayıtlı konfig eski sürümden geliyor olabilir; ALL_CARDS'a
-          // sonradan eklenmiş kartlar ne aktif ne de gizli listede görünmüyor.
-          // Bilinmeyenleri tara: DEFAULT_ACTIVE'daysa aktife sondan ekle, değilse
-          // gizli "kullanılabilir" listesine ekle. Geçerli/güncel kartları DB'ye
-          // yaz ki bir sonraki açılışta migration tekrar çalışmasın.
-          const validIds = new Set(ALL_CARDS.map(c => c.id));
-          const savedActive: string[] = parsed.active.filter((id: string) => validIds.has(id));
-          const parsedHidden: unknown[] = Array.isArray(parsed.hidden) ? parsed.hidden : [];
-          const savedHidden: string[] = parsedHidden.filter(
-            (id): id is string => typeof id === 'string' && validIds.has(id),
-          );
-          const known = new Set([...savedActive, ...savedHidden]);
-          const missing = ALL_CARDS.map(c => c.id).filter(id => !known.has(id));
-          const newActive = [...savedActive];
-          const newHidden = [...savedHidden];
-          for (const id of missing) {
-            if (DEFAULT_ACTIVE.includes(id)) newActive.push(id);
-            else newHidden.push(id);
-          }
-          // Eski/yarım bir sürüm boş aktif liste kaydetmişse boş Analiz
-          // sayfası yerine en temel kartla güvenli biçimde onar.
-          if (newActive.length === 0) {
-            const fallbackId = DEFAULT_ACTIVE[0];
-            newActive.push(fallbackId);
-            const fallbackHiddenIndex = newHidden.indexOf(fallbackId);
-            if (fallbackHiddenIndex >= 0) newHidden.splice(fallbackHiddenIndex, 1);
-          }
-          committedCardConfigRef.current = {
-            active: [...newActive],
-            hidden: [...newHidden],
-          };
-          setCardOrder(newActive);
-          setHiddenCards(newHidden);
-          if (
-            missing.length > 0 ||
-            newActive.length !== parsed.active.length ||
-            newHidden.length !== parsedHidden.length
-          ) {
-            await saveCardConfig(newActive, newHidden);
-          }
-        }
-      }
-      configLoaded.current = true;
-    } catch { /* use defaults */ }
-  }
-
-  async function saveCardConfig(active: string[], hidden: string[]): Promise<boolean> {
-    if (!hasActiveAnalyticsCard(active)) return false;
-    try {
-      await SettingsDao.setJson(ANALYTICS_CARD_ORDER_KEY, { active, hidden });
-      return true;
-    } catch (e) {
-      logError('Error saving card config', e);
-      return false;
-    }
-  }
-
   const runAnalyticsRefresh = useCallback(() => {
     // Aylık görünümün ilk takvim-ay fallback sorgusunu, useBudget gerçek döngüyü
     // çözmeden toplu focus yenilemesine dönüştürme. Hook'ların yeni aralık effect'i
@@ -923,6 +682,12 @@ export default function AnalyticsScreen() {
     const queued = refreshQueueRef.current.then(execute, execute);
     refreshQueueRef.current = queued.catch(() => undefined);
     return queued;
+    // Bilinçli: yükleyiciler (`loadX`, `refreshX`) her render'da yeniden
+    // tanımlanır. Bağımlılığa eklenirse bu fonksiyon her render'da yenilenir ve
+    // ona bağlı odak efekti sürekli yeniden yükleme başlatır. Yükleyicilerin
+    // sonucu belirleyen girdileri (dönem, zaman aralığı, analiz anahtarı)
+    // aşağıdaki listede.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     dateRange.start,
     dateRange.end,
@@ -961,18 +726,9 @@ export default function AnalyticsScreen() {
   // kaydırması Analiz ekranını boş bırakamaz.
   useFocusEffect(
     useCallback(() => () => {
-      const restored = resolveAnalyticsCardEditExit(
-        { active: [], hidden: [] },
-        committedCardConfigRef.current,
-        'discard',
-      );
-      if (restored) {
-        setCardOrder(restored.active);
-        setHiddenCards(restored.hidden);
-      }
-      setIsEditing(false);
+      discardCardDraft();
       setNestedHorizontalGestureActive(false);
-    }, [setNestedHorizontalGestureActive])
+    }, [discardCardDraft, setNestedHorizontalGestureActive])
   );
 
   useExpenseDataRefresh(refreshAnalyticsOrBootstrap, isFocused);

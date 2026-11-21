@@ -14,12 +14,9 @@ import {
   StyleSheet,
   Pressable,
   SectionList,
-  Switch,
   ScrollView,
   RefreshControl,
-  Modal,
   Platform,
-  Linking,
   Dimensions,
 } from 'react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
@@ -34,39 +31,22 @@ import GlassDeleteModal from '../src/components/GlassDeleteModal';
 import NotificationSwipeCard from '../src/components/NotificationSwipeCard';
 import { SparkToast } from '../src/components/SparkToast';
 import { Colors } from '../src/theme/colors';
-import { useAppTheme, useThemeRevision } from '../src/theme/themeStore';
-import { Typography, FontFamily } from '../src/theme/typography';
+import { useAppTheme } from '../src/theme/themeStore';
+import { Typography, FontFamily, FontSize } from '../src/theme/typography';
 import { Spacing, ScreenPadding, BorderRadius } from '../src/theme/spacing';
 import { useLanguage } from '../src/i18n/LanguageContext';
 import { useNotifications } from '../src/context/NotificationsContext';
 import type {
   InAppNotification,
-  NotificationMuteChannel,
   NotificationSeverity,
 } from '../src/notifications/types';
 import { localizeNotificationParams } from '../src/notifications/presentation';
 import { notificationMuteChannelFromId } from '../src/notifications/channels';
-import {
-  getAndroidFutureScheduleSummary,
-  type AndroidNotificationSetupStatus,
-} from '../src/services/androidNotificationsSetup';
 import { formatDate } from '../src/utils/dateUtils';
 import { logError } from '../src/utils/logError';
 import ScreenHeader from '../src/components/ScreenHeader';
-import PrimaryButton from '../src/components/PrimaryButton';
-import { switchColors } from '../src/theme/switchColors';
-const MUTE_CHANNELS: { key: NotificationMuteChannel; labelKey: string }[] = [
-  { key: 'budget', labelKey: 'notif_mute_budget' },
-  { key: 'category_limit', labelKey: 'notif_mute_category' },
-  { key: 'goal', labelKey: 'notif_mute_goal' },
-  { key: 'receipt', labelKey: 'notif_mute_receipt' },
-  { key: 'debt', labelKey: 'notif_mute_debt' },
-  { key: 'payment_plan', labelKey: 'notif_mute_payment_plan' },
-  { key: 'subscription', labelKey: 'notif_mute_subscription' },
-  { key: 'backup', labelKey: 'notif_mute_backup' },
-  { key: 'system', labelKey: 'notif_mute_system' },
-];
-
+import NotificationPreferencesModal from '../src/components/notifications/NotificationPreferencesModal';
+import { useThemedStyles } from '../src/theme/useThemedStyles';
 type FilterKey =
   | 'all'
   | 'budget'
@@ -165,13 +145,11 @@ function groupFeedByDay(
 
 const LIST_PREVIEW_LINES = 2;
 const winH = Dimensions.get('window').height;
-const SCREEN = Dimensions.get('screen');
 
 export default function NotificationsScreen() {
   const scheme = useAppTheme();
-  const themeRevision = useThemeRevision();
   const insets = useSafeAreaInsets();
-  const styles = useMemo(() => getStyles(scheme === 'dark'), [scheme, themeRevision]);
+  const styles = useThemedStyles(getStyles, scheme === 'dark');
   const router = useRouter();
   const { t } = useLanguage();
   const {
@@ -181,24 +159,11 @@ export default function NotificationsScreen() {
     markAllRead,
     dismiss,
     dismissMany,
-    setMute,
-    mutes,
     sync,
     syncing,
-    nativeScheduleHealth,
   } = useNotifications();
   const [filter, setFilter] = useState<FilterKey>('all');
   const [muteModal, setMuteModal] = useState(false);
-  // Tercih listesi pencereye sığmadığında kaydırılabilir olduğunu belli et.
-  const [prefsViewportH, setPrefsViewportH] = useState(0);
-  const [prefsContentH, setPrefsContentH] = useState(0);
-  const prefsOverflow = prefsViewportH > 0 && prefsContentH > prefsViewportH + 1;
-  const [systemNotificationStatus, setSystemNotificationStatus] =
-    useState<AndroidNotificationSetupStatus | null>(null);
-  const [futureScheduleCount, setFutureScheduleCount] = useState(0);
-  const [futureNextTriggerAt, setFutureNextTriggerAt] = useState<number | null>(null);
-  const [alertChannelStatus, setAlertChannelStatus] =
-    useState<'ready' | 'degraded' | 'blocked' | 'unknown'>('unknown');
   const [detailNotifId, setDetailNotifId] = useState<string | null>(null);
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -206,122 +171,8 @@ export default function NotificationsScreen() {
   const [deleting, setDeleting] = useState(false);
   const openSwipeRef = useRef<SwipeableMethods | null>(null);
   const deletingRef = useRef(false);
-  const systemStatusRequestRef = useRef(0);
 
-  const refreshSystemNotificationStatus = useCallback(async () => {
-    const requestId = systemStatusRequestRef.current + 1;
-    systemStatusRequestRef.current = requestId;
-    // Önce desired-state'i yenile; ardından sayı SQLite ledger tahmini değil
-    // Expo'nun Android'de kalıcı tuttuğu scheduled-request envanteri olsun.
-    try {
-      await sync();
-      const summary = await getAndroidFutureScheduleSummary();
-      if (requestId !== systemStatusRequestRef.current) return;
-      setSystemNotificationStatus(summary.status);
-      setFutureScheduleCount(summary.count);
-      setFutureNextTriggerAt(summary.nextTriggerAt);
-      setAlertChannelStatus(summary.alertChannelStatus);
-    } catch (error) {
-      if (requestId !== systemStatusRequestRef.current) return;
-      setSystemNotificationStatus('error');
-      throw error;
-    }
-  }, [sync]);
-
-  const closeMuteModal = useCallback(() => {
-    // Kapanan modalın gecikmiş native sorgusu sonraki açılışın tanısını ezmesin.
-    systemStatusRequestRef.current += 1;
-    setMuteModal(false);
-  }, []);
-
-  useEffect(() => {
-    if (!muteModal || Platform.OS !== 'android') return;
-    void refreshSystemNotificationStatus().catch(() => undefined);
-    return () => {
-      systemStatusRequestRef.current += 1;
-    };
-  }, [muteModal, refreshSystemNotificationStatus]);
-
-  const nextScheduleLabel = useMemo(() => {
-    if (futureNextTriggerAt == null) return '';
-    const date = new Date(futureNextTriggerAt);
-    if (Number.isNaN(date.getTime())) return '';
-    const ymd = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
-    const time = `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
-    return t('notif_system_schedule_next', { date: formatDate(ymd, t), time });
-  }, [futureNextTriggerAt, t]);
-
-  const scheduleFailureCount = (nativeScheduleHealth?.failedScheduleCount ?? 0)
-    + (nativeScheduleHealth?.failedCancelCount ?? 0);
-  const nativeScheduleError = nativeScheduleHealth?.status === 'error';
-  const scheduleCoverageMissing = nativeScheduleHealth?.status === 'ready'
-    && nativeScheduleHealth.desiredCount > nativeScheduleHealth.verifiedCount;
-  const channelNeedsAttention = alertChannelStatus !== 'ready';
-  const canRepairSchedules = (systemNotificationStatus === 'ready'
-      || systemNotificationStatus === 'error')
-    && (systemNotificationStatus === 'error'
-      || nativeScheduleError
-      || scheduleFailureCount > 0
-      || scheduleCoverageMissing);
-  const systemNotificationHealthy = systemNotificationStatus === 'ready'
-    && !nativeScheduleError
-    && !channelNeedsAttention
-    && !canRepairSchedules;
-  const systemNotificationDescription = useMemo(() => {
-    if (systemNotificationStatus === 'expo_go') {
-      return t('notif_system_schedule_expo_go');
-    }
-    if (systemNotificationStatus === 'error') {
-      return t('notif_system_schedule_error');
-    }
-
-    const permissionLine = t(
-      systemNotificationStatus === 'ready'
-        ? 'notif_system_permission_ready'
-        : 'notif_system_permission_disabled',
-    );
-    if (systemNotificationStatus !== 'ready') return permissionLine;
-
-    return [
-      permissionLine,
-      nativeScheduleError
-        ? t('notif_system_schedule_error')
-        : t(
-            futureScheduleCount > 0
-              ? 'notif_system_schedule_ready'
-              : 'notif_system_schedule_none',
-            { count: String(futureScheduleCount) },
-          ),
-      nextScheduleLabel,
-      alertChannelStatus === 'blocked'
-        ? t('notif_system_alert_channel_blocked')
-        : alertChannelStatus === 'degraded'
-          ? t('notif_system_alert_channel_degraded')
-          : alertChannelStatus === 'unknown'
-            ? t('notif_system_alert_channel_unknown')
-            : '',
-      (scheduleFailureCount > 0 || scheduleCoverageMissing)
-        ? t('notif_system_schedule_incomplete', {
-            count: String(Math.max(
-              scheduleFailureCount,
-              (nativeScheduleHealth?.desiredCount ?? 0)
-                - (nativeScheduleHealth?.verifiedCount ?? 0),
-            )),
-          })
-        : '',
-    ].filter(Boolean).join('\n');
-  }, [
-    alertChannelStatus,
-    futureScheduleCount,
-    nativeScheduleError,
-    nativeScheduleHealth?.desiredCount,
-    nativeScheduleHealth?.verifiedCount,
-    nextScheduleLabel,
-    scheduleCoverageMissing,
-    scheduleFailureCount,
-    systemNotificationStatus,
-    t,
-  ]);
+  const closeMuteModal = useCallback(() => setMuteModal(false), []);
 
   const closeOpenSwipe = useCallback(() => {
     openSwipeRef.current?.close();
@@ -828,159 +679,8 @@ export default function NotificationsScreen() {
         )}
       </BottomSheetModal>
 
-      <Modal
-        visible={muteModal}
-        animationType="fade"
-        transparent
-        hardwareAccelerated
-        presentationStyle="overFullScreen"
-        statusBarTranslucent
-        navigationBarTranslucent
-        onRequestClose={closeMuteModal}
-      >
-        <View
-          style={[
-            styles.modalOverlay,
-            // statusBarTranslucent/navigationBarTranslucent: pencere sistem çubuklarının
-            // altına taşmasın diye güvenli alan kadar iç boşluk.
-            {
-              paddingTop: insets.top + Spacing.lg,
-              paddingBottom: insets.bottom + Spacing.lg,
-            },
-          ]}
-        >
-          {/* Karartı ayrı katman: pencere bir Pressable olsaydı dokunma hareketini
-              kendine alıp içteki ScrollView'in kaydırmasını takılır hale getiriyordu. */}
-          <Pressable
-            style={StyleSheet.absoluteFill}
-            onPress={closeMuteModal}
-            accessible={false}
-            testID="notifications-preferences-backdrop"
-          />
-          <View style={styles.modalSheet}>
-            <Text style={styles.modalTitle} accessibilityRole="header">
-              {t('notif_prefs_title')}
-            </Text>
-            {/* Başlık ve "Tamam" sabit; uzun içerik (sistem durumu + kanallar) ekrana
-                sığmadığında pencere taşmak yerine yalnızca bu bölüm kaydırılır. */}
-            <ScrollView
-              style={styles.modalScroll}
-              contentContainerStyle={styles.modalScrollContent}
-              showsVerticalScrollIndicator={prefsOverflow}
-              persistentScrollbar={prefsOverflow}
-              bounces={false}
-              overScrollMode="never"
-              keyboardShouldPersistTaps="handled"
-              onLayout={(e) => setPrefsViewportH(e.nativeEvent.layout.height)}
-              onContentSizeChange={(_, h) => setPrefsContentH(h)}
-              testID="notifications-preferences-scroll"
-            >
-            <Text style={styles.modalHint}>{t('notif_mute_hint')}</Text>
-            {Platform.OS === 'android' &&
-              (systemNotificationStatus === 'ready' ||
-                systemNotificationStatus === 'denied' ||
-                systemNotificationStatus === 'expo_go' ||
-                systemNotificationStatus === 'error') && (
-                <View
-                  style={styles.systemNotificationRow}
-                  testID="notifications-system-status"
-                >
-                  <View
-                    style={[
-                      styles.systemNotificationIcon,
-                      systemNotificationHealthy
-                        ? styles.systemNotificationIconReady
-                        : styles.systemNotificationIconDisabled,
-                    ]}
-                  >
-                    <MaterialCommunityIcons
-                      name={systemNotificationHealthy
-                        ? 'bell-check-outline'
-                        : 'bell-alert-outline'}
-                      size={18}
-                      color={systemNotificationHealthy
-                        ? Colors.primary
-                        : Colors.warning}
-                    />
-                  </View>
-                  <View style={styles.systemNotificationContent}>
-                    <Text style={styles.systemNotificationText}>
-                      {systemNotificationDescription}
-                    </Text>
-                    <View style={styles.systemNotificationActions}>
-                    {(systemNotificationStatus !== 'ready'
-                      || channelNeedsAttention)
-                      && systemNotificationStatus !== 'expo_go' && (
-                      <Pressable
-                      onPress={() => {
-                        void Linking.openSettings().catch(() => {
-                          SparkToast.show(t('operation_failed'), 'error');
-                        });
-                      }}
-                      style={({ pressed }) => [
-                        styles.systemNotificationSettingsBtn,
-                        pressed && styles.systemNotificationSettingsBtnPressed,
-                      ]}
-                      accessibilityRole="button"
-                      accessibilityLabel={t('notif_open_system_settings')}
-                      testID="notifications-open-system-settings"
-                    >
-                      <Text style={styles.systemNotificationSettingsText}>
-                        {t('notif_open_system_settings')}
-                      </Text>
-                      </Pressable>
-                    )}
-                    {canRepairSchedules && (
-                      <Pressable
-                        disabled={syncing}
-                        onPress={() => {
-                          void refreshSystemNotificationStatus().catch(() => {
-                            SparkToast.show(t('operation_failed'), 'error');
-                          });
-                        }}
-                        style={({ pressed }) => [
-                          styles.systemNotificationSettingsBtn,
-                          pressed && styles.systemNotificationSettingsBtnPressed,
-                        ]}
-                        accessibilityRole="button"
-                        accessibilityLabel={t('notif_system_schedule_repair')}
-                        testID="notifications-repair-schedules"
-                      >
-                        <Text style={styles.systemNotificationSettingsText}>
-                          {t('notif_system_schedule_repair')}
-                        </Text>
-                      </Pressable>
-                    )}
-                    </View>
-                  </View>
-                </View>
-              )}
-            {MUTE_CHANNELS.map(({ key, labelKey }) => (
-              <View key={key} style={styles.muteRow}>
-                <Text style={styles.muteLabel}>{t(labelKey)}</Text>
-                {/* UX-10: anahtar olumlu anlamdadır (açık = bildirim gelir). Saklanan
-                    değer hâlâ "sessize alındı" bayrağıdır; yalnız gösterim tersine döner. */}
-                <Switch
-                  value={!mutes[key]}
-                  onValueChange={(receive) => {
-                    void setMute(key, !receive).catch((error) => {
-                      logError('notifications mute update failed', error);
-                      SparkToast.show(t('operation_failed'), 'error');
-                    });
-                  }}
-                  {...switchColors(!mutes[key])}
-                  accessibilityLabel={t(labelKey)}
-                />
-              </View>
-            ))}
-            </ScrollView>
-            {prefsOverflow && (
-              <View style={styles.modalScrollDivider} testID="notifications-preferences-divider" />
-            )}
-            <PrimaryButton label={t('ok')} onPress={closeMuteModal} style={styles.modalPrimaryBtn} />
-          </View>
-        </View>
-      </Modal>
+      {/* CQ-02: tercih penceresi ve sistem bildirim tanısı ayrı bileşende. */}
+      <NotificationPreferencesModal visible={muteModal} onClose={closeMuteModal} />
     </SafeAreaView>
   );
 }
@@ -1092,7 +792,7 @@ const getStyles = (isDark: boolean) => {
       opacity: 0.76,
     },
     chipText: {
-      fontSize: 13,
+      fontSize: FontSize.md,
       lineHeight: 18,
       color: Colors.textSecondary,
       fontFamily: FontFamily.semiBold,
@@ -1133,7 +833,7 @@ const getStyles = (isDark: boolean) => {
       marginTop: Spacing.xs,
     },
     sectionHeaderText: {
-      fontSize: 12,
+      fontSize: FontSize.sm,
       lineHeight: 17,
       color: isDark ? Colors.textSecondary : Colors.textMuted,
       fontFamily: FontFamily.semiBold,
@@ -1209,7 +909,7 @@ const getStyles = (isDark: boolean) => {
       minWidth: 0,
     },
     cardTitle: {
-      fontSize: 15,
+      fontSize: FontSize.lg,
       lineHeight: 20,
       color: Colors.textPrimary,
       fontFamily: FontFamily.semiBold,
@@ -1222,7 +922,7 @@ const getStyles = (isDark: boolean) => {
       fontFamily: FontFamily.bold,
     },
     cardBodyText: {
-      fontSize: 13,
+      fontSize: FontSize.md,
       color: Colors.textSecondary,
       lineHeight: 19,
       fontFamily: FontFamily.regular,
@@ -1243,7 +943,7 @@ const getStyles = (isDark: boolean) => {
       borderRadius: 3,
     },
     cardTime: {
-      fontSize: 11,
+      fontSize: FontSize.xs,
       lineHeight: 14,
       color: isDark ? Colors.textSecondary : Colors.textMuted,
       fontFamily: FontFamily.medium,
@@ -1305,7 +1005,7 @@ const getStyles = (isDark: boolean) => {
       marginBottom: Spacing.lg,
     },
     detailTitle: {
-      fontSize: 20,
+      fontSize: FontSize.h2,
       lineHeight: 26,
       color: Colors.textPrimary,
       fontFamily: FontFamily.extraBold,
@@ -1364,130 +1064,6 @@ const getStyles = (isDark: boolean) => {
       color: Colors.textPrimary,
       fontFamily: FontFamily.semiBold,
     },
-    modalOverlay: {
-      flex: 1,
-      minHeight: SCREEN.height,
-      backgroundColor: isDark ? 'rgba(0,0,0,0.82)' : 'rgba(0,0,0,0.45)',
-      justifyContent: 'center',
-      paddingHorizontal: Spacing.xl,
-    },
-    modalSheet: {
-      backgroundColor: Colors.surface,
-      borderRadius: BorderRadius.xl,
-      padding: Spacing.xl,
-      borderWidth: 1,
-      borderColor: Colors.border,
-      // Overlay'in (güvenli alan çıkarılmış) yüksekliğini aşma; içerik kaydırılır.
-      maxHeight: '100%',
-      flexShrink: 1,
-    },
-    modalScroll: {
-      flexGrow: 0,
-      flexShrink: 1,
-      // Kaydırma çubuğu içeriğin hemen yanında değil, pencere kenarına yakın dursun:
-      // alan sağ iç boşluğa uzatılır, içerik aynı miktarda geri itilir (hizalama değişmez).
-      marginRight: -(Spacing.xl - Spacing.sm),
-    },
-    modalScrollContent: {
-      paddingBottom: Spacing.xs,
-      paddingRight: Spacing.xl - Spacing.sm,
-    },
-    // Liste taşınca kaydırılan alan ile sabit "Tamam" butonunu ayırır; satırın butonun
-    // altına sıkışmış gibi görünmesini önler.
-    modalScrollDivider: {
-      height: StyleSheet.hairlineWidth,
-      backgroundColor: Colors.border,
-      marginHorizontal: -Spacing.xl,
-    },
-    modalTitle: {
-      fontSize: 22,
-      lineHeight: 28,
-      color: Colors.textPrimary,
-      fontFamily: FontFamily.extraBold,
-      letterSpacing: -0.3,
-      marginBottom: Spacing.sm,
-    },
-    modalHint: {
-      ...Typography.bodyMedium,
-      color: Colors.textSecondary,
-      fontFamily: FontFamily.medium,
-      lineHeight: 22,
-      marginBottom: Spacing.lg,
-    },
-    muteRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-      // Switch kendi 48dp dokunma alanını taşır; ek dikey boşluk listeyi gereksiz uzatıyordu.
-      paddingVertical: Spacing.xs,
-      minHeight: 52,
-      borderBottomWidth: StyleSheet.hairlineWidth,
-      borderBottomColor: Colors.border,
-    },
-    muteLabel: {
-      fontSize: 16,
-      lineHeight: 22,
-      color: Colors.textPrimary,
-      fontFamily: FontFamily.bold,
-      flex: 1,
-      paddingRight: Spacing.md,
-    },
-    systemNotificationRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: Spacing.sm,
-      padding: Spacing.sm,
-      marginBottom: Spacing.sm,
-      borderRadius: BorderRadius.md,
-      borderWidth: 1,
-      borderColor: Colors.border,
-      backgroundColor: Colors.surfaceLight,
-    },
-    systemNotificationIcon: {
-      width: 32,
-      height: 32,
-      borderRadius: 16,
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-    systemNotificationIconReady: {
-      backgroundColor: Colors.primary + '18',
-    },
-    systemNotificationIconDisabled: {
-      backgroundColor: Colors.warning + '18',
-    },
-    systemNotificationContent: {
-      flex: 1,
-      minWidth: 0,
-      gap: Spacing.xs,
-    },
-    systemNotificationText: {
-      color: Colors.textSecondary,
-      fontFamily: FontFamily.medium,
-      fontSize: 12,
-      lineHeight: 17,
-    },
-    systemNotificationActions: {
-      flexDirection: 'row',
-      flexWrap: 'wrap',
-      gap: Spacing.xs,
-    },
-    systemNotificationSettingsBtn: {
-      minHeight: 34,
-      justifyContent: 'center',
-      paddingHorizontal: Spacing.sm,
-      borderRadius: BorderRadius.sm,
-      backgroundColor: Colors.primary + '18',
-    },
-    systemNotificationSettingsBtnPressed: {
-      opacity: 0.72,
-    },
-    systemNotificationSettingsText: {
-      color: Colors.primary,
-      fontFamily: FontFamily.semiBold,
-      fontSize: 11,
-    },
-    modalPrimaryBtn: { marginTop: Spacing.lg, width: '100%' },
 
   });
 };
