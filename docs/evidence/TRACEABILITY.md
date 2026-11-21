@@ -1,5 +1,14 @@
 # SPARK Akademik İzlenebilirlik Kaydı
 
+## 22 Kasım 2026 — Uygulama sürümü 3.4.4
+
+İnsan kararı: UI denetiminin ikinci turundan (yeni sekme çubuğu, CQ-01/CQ-03,
+UX-08/UX-12, DS-09 vb.) sonraki önizleme APK'sı `3.4.4` olsun. `package.json`,
+`package-lock.json` (kök kayıtlar), `app.json` ve gizlilik politikasındaki
+sürüm `3.4.4`; Android `versionCode` 15'ten 16'ya (önceki APK'nın üzerine
+kurulabilsin). `3.4.3` numarası ürün sahibi tercihiyle atlandı. UI denetim
+raporundaki `3.4.2` denetlenen sürümün tarihsel kaydıdır, değiştirilmedi.
+
 ## 13 Kasım 2026 — Uygulama sürümü 3.4.2
 
 İnsan kararı: denetim düzeltmelerinden sonraki önizleme APK'sı `3.4.2` olsun.
