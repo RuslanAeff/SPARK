@@ -1,17 +1,17 @@
 import React, { useMemo, useRef } from 'react';
-import { Platform, View, type ViewStyle } from 'react-native';
+import { Platform, View, useWindowDimensions, type ViewStyle } from 'react-native';
 import { withLayoutContext } from 'expo-router';
 import { createMaterialTopTabNavigator } from '@react-navigation/material-top-tabs';
 import * as Haptics from 'expo-haptics';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useThemePalette } from '../../src/theme/themeStore';
-import { FontFamily, Typography } from '../../src/theme/typography';
-import { BorderRadius, Spacing } from '../../src/theme/spacing';
 import { TAB_BAR_FLOAT_GAP, TAB_BAR_HEIGHT } from '../../src/theme/layout';
 import { useLanguage } from '../../src/i18n/LanguageContext';
 import { TabSwipeProvider, useTabSwipe } from '../../src/context/TabSwipeContext';
 import { GlassTabBar, TabBlurProvider, TabBlurScene } from '../../src/components/GlassTabBar';
+import { BAR_RADIUS, tabBarSideMargin } from '../../src/components/tabBarLayout';
+
 
 const { Navigator } = createMaterialTopTabNavigator();
 const SwipeableTabs = withLayoutContext(Navigator);
@@ -21,6 +21,7 @@ function TabNavigator() {
   const theme = useThemePalette();
   const { t } = useLanguage();
   const insets = useSafeAreaInsets();
+  const { width: windowWidth } = useWindowDimensions();
   const { swipeEnabled, navigationLocked } = useTabSwipe();
   // tabPress dinleyicisi her olayda güncel kilidi okur.
   const navigationLockedRef = useRef(navigationLocked);
@@ -29,13 +30,15 @@ function TabNavigator() {
   const tabBarInsetBottom = TAB_BAR_FLOAT_GAP + insets.bottom;
   // Yüzen konum, köşe ve gölge dış sarmalayıcıda; çubuğun kendisi saydamdır ki
   // GlassTabBar'ın bulanık cam katmanı görünsün (UI denetimi UX-01).
+  const sideMargin = tabBarSideMargin(windowWidth);
   const floatingStyle = useMemo<ViewStyle>(() => ({
     position: 'absolute',
     bottom: tabBarInsetBottom,
-    left: Spacing.xl + insets.left,
-    right: Spacing.xl + insets.right,
+    left: sideMargin + insets.left,
+    right: sideMargin + insets.right,
     height: TAB_BAR_HEIGHT,
-    borderRadius: BorderRadius.round,
+    // Seçiciyle eş merkezli köşe (tabBarLayout.ts).
+    borderRadius: BAR_RADIUS,
     // Android elevation yarı saydam yüzeyin İÇİNDE gri gölge olarak görünür;
     // gölge yalnız iOS'ta.
     ...Platform.select({
@@ -47,8 +50,7 @@ function TabNavigator() {
       },
       default: {},
     }),
-  }), [tabBarInsetBottom, insets.left, insets.right]);
-
+  }), [tabBarInsetBottom, sideMargin, insets.left, insets.right]);
   return (
     <SwipeableTabs
       tabBarPosition="bottom"
@@ -85,28 +87,8 @@ function TabNavigator() {
         swipeEnabled,
         tabBarActiveTintColor: theme.tabActive,
         tabBarInactiveTintColor: theme.tabInactive,
-        tabBarShowIcon: true,
-        tabBarIndicatorStyle: { height: 0 },
-        tabBarStyle: {
-          backgroundColor: 'transparent',
-          borderTopWidth: 0,
-          height: TAB_BAR_HEIGHT,
-          paddingBottom: 8,
-          paddingTop: 8,
-          elevation: 0,
-          shadowOpacity: 0,
-          justifyContent: 'center',
-        },
-        tabBarLabelStyle: {
-          ...Typography.labelTiny,
-          fontFamily: FontFamily.medium,
-          textTransform: 'none',
-          marginTop: 0,
-          maxWidth: 76,
-        },
-        tabBarItemStyle: {
-          padding: 0,
-        },
+        // Çubuk, hap vurgusu ve etiket ölçüsü GlassTabBar'da hesaplanır
+        // (src/components/tabBarLayout.ts).
       })}
     >
       <SwipeableTabs.Screen
