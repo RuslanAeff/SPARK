@@ -470,6 +470,7 @@
   "vendor_selected_count": "Выбрано продавцов: {count}",
   "vendor_select_all": "Выбрать всех",
   "vendor_clear_selection": "Очистить выбор",
+  "vendor_search_clear": "Очистить поиск продавцов",
   "vendor_delete_selected": "Удалить выбранных ({count})",
   "vendor_select_accessibility": "Выбрать продавца {name}",
   "vendor_selection_hint": "Выберите продавцов для удаления; до подтверждения ничего не удаляется.",

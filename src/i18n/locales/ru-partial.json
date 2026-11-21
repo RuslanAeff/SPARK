@@ -1350,5 +1350,6 @@
   "subscription_overdue": "Просрочено",
   "error_boundary_title": "Что-то пошло не так",
   "error_boundary_desc": "В приложении произошла непредвиденная ошибка. Ваши данные в безопасности. Попробуйте ещё раз.",
-  "error_boundary_retry": "Повторить"
+  "error_boundary_retry": "Повторить",
+  "vendor_search_clear": "Очистить поиск продавцов"
 }

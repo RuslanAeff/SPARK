@@ -3,6 +3,7 @@ import {
   View, Text, TextInput, ScrollView, StyleSheet, Pressable, KeyboardAvoidingView, Platform,
 } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
+import { useLatestCallback } from '../src/hooks/useLatestCallback';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -93,9 +94,10 @@ export default function EditItemsScreen() {
       : fallback;
   }
 
+  const loadItemsLatest = useLatestCallback(() => loadItems());
   useEffect(() => {
-    if (id) loadItems();
-  }, [id]);
+    if (id) void loadItemsLatest();
+  }, [id, loadItemsLatest]);
 
   async function loadItems() {
     setLoading(true);
@@ -353,10 +355,10 @@ export default function EditItemsScreen() {
                 </Text>
                 
                 <View style={styles.itemActions}>
-                  <Pressable style={styles.actionBtn} onPress={() => handleEditClick(item)}>
+                  <Pressable accessibilityRole="button" accessibilityLabel={`${t('edit')}: ${display.primary}`} style={styles.actionBtn} onPress={() => handleEditClick(item)}>
                     <MaterialCommunityIcons name="pencil-outline" size={20} color={Colors.info} />
                   </Pressable>
-                  <Pressable style={styles.actionBtn} onPress={() => confirmDelete(item.id)}>
+                  <Pressable accessibilityRole="button" accessibilityLabel={`${t('delete')}: ${display.primary}`} style={styles.actionBtn} onPress={() => confirmDelete(item.id)}>
                     <MaterialCommunityIcons name="trash-can-outline" size={20} color={Colors.danger} />
                   </Pressable>
                 </View>
@@ -376,7 +378,7 @@ export default function EditItemsScreen() {
               {editingItemId ? t('edit_item') : t('add_item_manual')}
             </Text>
             {editingItemId && (
-              <Pressable onPress={resetForm}>
+              <Pressable accessibilityRole="button" onPress={resetForm}>
                 <Text style={styles.cancelText}>{t('cancel')}</Text>
               </Pressable>
             )}
@@ -433,7 +435,7 @@ export default function EditItemsScreen() {
             value={discount}
             onChangeText={setDiscount}
           />
-          <Pressable
+          <Pressable accessibilityRole="button"
             testID="edit-items-save"
             style={({ pressed }) => [styles.saveBtn, savingItem && { opacity: 0.6 }, pressed && styles.saveBtnPressed]}
             onPress={handleSaveItem}

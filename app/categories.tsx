@@ -19,6 +19,7 @@ if (
   UIManager.setLayoutAnimationEnabledExperimental(true);
 }
 import { useFocusEffect } from 'expo-router';
+import { useLatestCallback } from '../src/hooks/useLatestCallback';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Animated, { FadeInDown, LinearTransition } from 'react-native-reanimated';
@@ -49,7 +50,8 @@ export default function CategoriesScreen() {
   const [deleteTarget, setDeleteTarget] = useState<{ id: number; name: string; usage: number } | null>(null);
   const addingRef = useRef(false);
 
-  useFocusEffect(useCallback(() => { loadTree(); }, []));
+  const loadTreeLatest = useLatestCallback(() => loadTree());
+  useFocusEffect(useCallback(() => { void loadTreeLatest(); }, [loadTreeLatest]));
 
   async function loadTree() {
     try {
@@ -161,10 +163,10 @@ export default function CategoriesScreen() {
             placeholderTextColor={Colors.textMuted}
             autoFocus
           />
-          <Pressable onPress={handleAdd} style={styles.saveBtn}>
+          <Pressable accessibilityRole="button" accessibilityLabel={t('save')} onPress={handleAdd} style={styles.saveBtn}>
             <MaterialCommunityIcons name="check" size={22} color={Colors.success} />
           </Pressable>
-          <Pressable onPress={() => { setShowAdd(false); setNewCatName(''); }} style={styles.cancelBtn}>
+          <Pressable accessibilityRole="button" accessibilityLabel={t('cancel')} onPress={() => { setShowAdd(false); setNewCatName(''); }} style={styles.cancelBtn}>
             <MaterialCommunityIcons name="close" size={22} color={Colors.textSecondary} />
           </Pressable>
         </Animated.View>
@@ -190,7 +192,7 @@ export default function CategoriesScreen() {
         {tree.map((cat, i) => (
           <Animated.View key={cat.id} entering={FadeInDown.delay(i * 40).duration(400)}>
             {/* Parent Category */}
-            <Pressable
+            <Pressable accessibilityRole="button" accessibilityState={{ expanded: expanded.has(cat.id) }}
               onPress={() => toggleExpand(cat.id)}
               style={styles.categoryItem}
             >
@@ -222,7 +224,7 @@ export default function CategoriesScreen() {
                     />
                     <Text style={styles.childName}>{tc(child.name)}</Text>
                     {child.is_system !== 1 ? (
-                      <Pressable
+                      <Pressable accessibilityRole="button" accessibilityLabel={`${t('delete')}: ${tc(child.name)}`}
                         onPress={() => handleDelete(child.id, child.name)}
                         hitSlop={{ top: 14, bottom: 14, left: 14, right: 14 }}
                       >
@@ -235,7 +237,7 @@ export default function CategoriesScreen() {
                     )}
                   </View>
                 ))}
-                <Pressable
+                <Pressable accessibilityRole="button"
                   onPress={() => { setAddingTo(cat.id); setShowAdd(true); }}
                   style={styles.addChildBtn}
                 >

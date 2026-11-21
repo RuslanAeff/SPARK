@@ -470,6 +470,7 @@
   "vendor_selected_count": "{count} vendors selected",
   "vendor_select_all": "Select all",
   "vendor_clear_selection": "Clear selection",
+  "vendor_search_clear": "Clear vendor search",
   "vendor_delete_selected": "Delete selected ({count})",
   "vendor_select_accessibility": "Select vendor {name}",
   "vendor_selection_hint": "Select the vendors to delete; nothing is removed before confirmation.",

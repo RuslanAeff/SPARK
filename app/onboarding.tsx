@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   BackHandler,
   Pressable,
@@ -16,11 +16,11 @@ import { useRouter } from 'expo-router';
 
 import { Colors } from '../src/theme/colors';
 import { BorderRadius, ScreenPadding, Spacing } from '../src/theme/spacing';
-import { FontFamily, Typography } from '../src/theme/typography';
+import { FontFamily, Typography, FontSize } from '../src/theme/typography';
 import { useLanguage } from '../src/i18n/LanguageContext';
 import { LANGUAGE_OPTIONS } from '../src/i18n/languageOptions';
 import { useCurrency, DISPLAY_CURRENCIES, DisplayCurrency } from '../src/context/CurrencyContext';
-import { useAppTheme, useThemeRevision } from '../src/theme/themeStore';
+
 import { createSusevarStyles, susevarButtonPressed } from '../src/theme/susevar';
 import { sanitizeAmount, sanitizeText } from '../src/utils/inputValidation';
 import { parseMoneyInput } from '../src/utils/moneyMath';
@@ -31,6 +31,7 @@ import { getCurrentCycle } from '../src/utils/budgetCycle';
 import { useOnboardingStatus } from '../src/hooks/useOnboardingStatus';
 import { logError } from '../src/utils/logError';
 import { toIconName } from '../src/utils/iconName';
+import { useThemedStyles } from '../src/theme/useThemedStyles';
 
 const TOTAL_PAGES = 4;
 
@@ -44,9 +45,7 @@ function suggestCurrency(): DisplayCurrency {
 }
 
 export default function OnboardingScreen() {
-  const scheme = useAppTheme();
-  const themeRevision = useThemeRevision();
-  const styles = useMemo(() => getStyles(), [scheme, themeRevision]);
+  const styles = useThemedStyles(getStyles);
   const router = useRouter();
   const scrollRef = useRef<ScrollView | null>(null);
   const { width } = useWindowDimensions();
@@ -110,7 +109,7 @@ export default function OnboardingScreen() {
     <SafeAreaView style={styles.container}>
       <View style={styles.topRow}>
         <View />
-        <Pressable onPress={skipToDashboard} hitSlop={10}>
+        <Pressable accessibilityRole="button" onPress={skipToDashboard} hitSlop={10}>
           <Text style={styles.skipText}>{t('onboarding_skip')}</Text>
         </Pressable>
       </View>
@@ -135,7 +134,7 @@ export default function OnboardingScreen() {
               {LANGUAGE_OPTIONS.map((option) => {
                 const active = selectedLanguage === option.code;
                 return (
-                  <Pressable
+                  <Pressable accessibilityRole="radio" accessibilityLabel={option.nativeLabel} accessibilityState={{ selected: active, checked: active }}
                     key={option.code}
                     style={[styles.languageCard, active && styles.languageCardActive]}
                     onPress={async () => {
@@ -196,7 +195,7 @@ export default function OnboardingScreen() {
                 {DISPLAY_CURRENCIES.map((item) => {
                   const active = item === selectedCurrency;
                   return (
-                    <Pressable
+                    <Pressable accessibilityRole="radio" accessibilityState={{ selected: active, checked: active }}
                       key={item}
                       style={[styles.currencyChip, active && styles.currencyChipActive]}
                       onPress={() => setSelectedCurrency(item)}
@@ -207,7 +206,7 @@ export default function OnboardingScreen() {
                 })}
               </View>
             </View>
-            <Pressable onPress={() => goToPage(3)}>
+            <Pressable accessibilityRole="button" onPress={() => goToPage(3)}>
               <Text style={styles.smallLink}>{t('onboarding_budget_skip_link')}</Text>
             </Pressable>
           </Animated.View>
@@ -221,10 +220,10 @@ export default function OnboardingScreen() {
             <Text style={styles.title}>{t('onboarding_done_title')}</Text>
             <Text style={styles.subtitle}>{t('onboarding_done_subtitle')}</Text>
 
-            <Pressable style={({ pressed }) => [styles.cta, pressed && susevarButtonPressed]} onPress={() => void saveAndFinish('/(tabs)/scanner')}>
+            <Pressable accessibilityRole="button" style={({ pressed }) => [styles.cta, pressed && susevarButtonPressed]} onPress={() => void saveAndFinish('/(tabs)/scanner')}>
               <Text style={styles.ctaText}>{t('onboarding_done_scan_cta')}</Text>
             </Pressable>
-            <Pressable onPress={() => void saveAndFinish('/(tabs)')}>
+            <Pressable accessibilityRole="button" onPress={() => void saveAndFinish('/(tabs)')}>
               <Text style={styles.smallLink}>{t('onboarding_done_explore_link')}</Text>
             </Pressable>
           </Animated.View>
@@ -238,7 +237,7 @@ export default function OnboardingScreen() {
           ))}
         </View>
         {page < TOTAL_PAGES - 1 && (
-          <Pressable
+          <Pressable accessibilityRole="button"
             style={({ pressed }) => [styles.cta, pressed && susevarButtonPressed]}
             onPress={() => {
               if (page === 2) {
@@ -307,7 +306,7 @@ const getStyles = () => StyleSheet.create({
     justifyContent: 'center',
   },
   languageCardActive: { borderColor: Colors.primary, backgroundColor: Colors.primaryGlow },
-  languageFlag: { fontSize: 24, marginBottom: Spacing.xs },
+  languageFlag: { fontSize: FontSize.display, marginBottom: Spacing.xs },
   languageText: { ...Typography.bodyLarge, color: Colors.textPrimary, fontFamily: FontFamily.medium },
   languageTextActive: { color: Colors.primary, fontFamily: FontFamily.bold },
   glassCard: {

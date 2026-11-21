@@ -470,6 +470,7 @@
   "vendor_selected_count": "{count} satıcı seçildi",
   "vendor_select_all": "Hamısını seç",
   "vendor_clear_selection": "Seçimi təmizlə",
+  "vendor_search_clear": "Satıcı axtarışını təmizlə",
   "vendor_delete_selected": "Seçilənləri sil ({count})",
   "vendor_select_accessibility": "{name} satıcısını seç",
   "vendor_selection_hint": "Silinəcək satıcıları seçin; təsdiqdən əvvəl heç bir qeyd silinmir.",

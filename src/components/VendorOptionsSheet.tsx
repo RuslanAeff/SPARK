@@ -15,8 +15,8 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import BottomSheetModal from './BottomSheetModal';
 import { Colors } from '../theme/colors';
-import { useAppTheme, useThemeRevision } from '../theme/themeStore';
-import { Typography, FontFamily } from '../theme/typography';
+import { useAppTheme } from '../theme/themeStore';
+import { Typography, FontFamily, FontSize } from '../theme/typography';
 import { Spacing, BorderRadius } from '../theme/spacing';
 import { useLanguage } from '../i18n/LanguageContext';
 import { CategoryDao } from '../db/categoryDao';
@@ -24,6 +24,7 @@ import { VendorDao } from '../db/vendorDao';
 import type { Category, Vendor } from '../db/schema';
 import { logError } from '../utils/logError';
 import { toIconName } from '../utils/iconName';
+import { useThemedStyles } from '../theme/useThemedStyles';
 
 interface VendorOptionsSheetProps {
   visible: boolean;
@@ -43,8 +44,7 @@ export default function VendorOptionsSheet({
   onChanged,
 }: VendorOptionsSheetProps) {
   const scheme = useAppTheme();
-  const themeRevision = useThemeRevision();
-  const styles = useMemo(() => getStyles(), [scheme, themeRevision]);
+  const styles = useThemedStyles(getStyles);
   const { t, tc } = useLanguage();
   const [categories, setCategories] = useState<Category[]>([]);
   const [picking, setPicking] = useState(false);
@@ -150,7 +150,7 @@ export default function VendorOptionsSheet({
 
       {!picking ? (
         <View style={styles.actions}>
-          <Pressable
+          <Pressable accessibilityRole="button"
             style={({ pressed }) => [styles.actionRow, pressed && styles.actionRowPressed]}
             onPress={() => {
               pendingActionRef.current = { type: 'logo', vendorId: activeVendor.id };
@@ -169,7 +169,7 @@ export default function VendorOptionsSheet({
             <MaterialCommunityIcons name="chevron-right" size={20} color={Colors.textMuted} />
           </Pressable>
 
-          <Pressable
+          <Pressable accessibilityRole="button"
             style={({ pressed }) => [styles.actionRow, pressed && styles.actionRowPressed]}
             onPress={() => setPicking(true)}
           >
@@ -187,7 +187,7 @@ export default function VendorOptionsSheet({
 
           <View style={styles.divider} />
 
-          <Pressable
+          <Pressable accessibilityRole="button"
             style={({ pressed }) => [styles.actionRow, pressed && styles.actionRowPressed]}
             onPress={() => {
               pendingActionRef.current = { type: 'delete', vendor: activeVendor };
@@ -211,14 +211,14 @@ export default function VendorOptionsSheet({
       ) : (
         <View style={styles.pickerWrap}>
           <View style={styles.pickerHeader}>
-            <Pressable onPress={() => setPicking(false)} hitSlop={10} style={styles.pickerBack}>
+            <Pressable accessibilityRole="button" accessibilityLabel={t('settings_back')} onPress={() => setPicking(false)} hitSlop={10} style={styles.pickerBack}>
               <MaterialCommunityIcons name="chevron-left" size={22} color={Colors.textPrimary} />
             </Pressable>
             <Text style={styles.pickerTitle}>{t('vendor_pick_default_title')}</Text>
             <View style={{ width: 30 }} />
           </View>
 
-          <Pressable
+          <Pressable accessibilityRole="radio" accessibilityState={{ selected: currentDefault == null, checked: currentDefault == null }}
             style={({ pressed }) => [styles.noneRow, pressed && styles.actionRowPressed]}
             onPress={() => handleSetDefault(null)}
           >
@@ -238,7 +238,7 @@ export default function VendorOptionsSheet({
           >
             {groupedCategories.map(({ root, children }) => (
               <View key={root.id} style={styles.groupBlock}>
-                <Pressable
+                <Pressable accessibilityRole="radio" accessibilityState={{ selected: currentDefault === root.id, checked: currentDefault === root.id }}
                   style={({ pressed }) => [
                     styles.catChip,
                     {
@@ -267,7 +267,7 @@ export default function VendorOptionsSheet({
                     {children.map((sub) => {
                       const active = currentDefault === sub.id;
                       return (
-                        <Pressable
+                        <Pressable accessibilityRole="radio" accessibilityState={{ selected: active, checked: active }}
                           key={sub.id}
                           onPress={() => handleSetDefault(sub.id)}
                           style={({ pressed }) => [
@@ -340,7 +340,7 @@ const getStyles = () =>
     },
     vendorName: {
       ...Typography.headlineSmall,
-      fontSize: 17,
+      fontSize: FontSize.xxl,
       color: Colors.textPrimary,
       fontFamily: FontFamily.extraBold,
     },
@@ -397,7 +397,7 @@ const getStyles = () =>
     },
     pickerTitle: {
       ...Typography.headlineSmall,
-      fontSize: 16,
+      fontSize: FontSize.xl,
       color: Colors.textPrimary,
       fontFamily: FontFamily.bold,
       flex: 1,

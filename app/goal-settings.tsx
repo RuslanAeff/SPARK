@@ -10,7 +10,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 
 import { Colors } from '../src/theme/colors';
-import { Typography, FontFamily } from '../src/theme/typography';
+import { Typography, FontFamily, FontSize } from '../src/theme/typography';
 import { Spacing, ScreenPadding, BorderRadius } from '../src/theme/spacing';
 import { GoalDao, SAVINGS_GOAL_TITLE_MAX } from '../src/db/goalDao';
 import { CategoryLimitDao, CategoryLimitRow } from '../src/db/categoryLimitDao';
@@ -280,7 +280,7 @@ export default function GoalSettingsScreen() {
           />
           <Text style={styles.hint}>{t('savings_goal_current_amount_hint')}</Text>
           <Text style={styles.fieldLbl}>{t('savings_goal_target_date')}</Text>
-          <Pressable style={styles.input} onPress={() => setDatePickerVisible(true)}>
+          <Pressable accessibilityRole="button" accessibilityLabel={`${t('savings_goal_target_date')}: ${targetDate}`} style={styles.input} onPress={() => setDatePickerVisible(true)}>
             <Text style={{ color: Colors.textPrimary, fontFamily: FontFamily.medium }}>{targetDate}</Text>
           </Pressable>
 
@@ -307,14 +307,14 @@ export default function GoalSettingsScreen() {
                     );
                   }}
                 />
-                <Pressable onPress={() => removeLimit(row)} hitSlop={8}>
+                <Pressable accessibilityRole="button" accessibilityLabel={`${t('remove')}: ${tc(cat.name)}`} onPress={() => removeLimit(row)} hitSlop={8}>
                   <MaterialCommunityIcons name="close-circle-outline" size={22} color={Colors.danger} />
                 </Pressable>
               </View>
             );
           })}
 
-          <Pressable
+          <Pressable accessibilityRole="button"
             style={styles.addBtn}
             onPress={() => {
               if (categoriesAvailableToAdd.length === 0) {
@@ -328,7 +328,7 @@ export default function GoalSettingsScreen() {
             <Text style={styles.addBtnText}>{t('goal_settings_add_limit')}</Text>
           </Pressable>
 
-          <Pressable
+          <Pressable accessibilityRole="button"
             testID="goal-settings-save"
             onPress={handleSave}
             disabled={saving || clearing || loading}
@@ -519,7 +519,7 @@ const getStyles = () => StyleSheet.create({
   clearBtnText: {
     color: '#FFFFFF',
     fontFamily: FontFamily.extraBold,
-    fontSize: 17,
+    fontSize: FontSize.xxl,
     letterSpacing: 0.8,
     textTransform: 'uppercase',
   },
