@@ -17,7 +17,7 @@ import Animated, { FadeInDown, FadeIn } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
 import { DarkTheme } from '../../src/theme/colors';
 import { useAppTheme, useThemePalette } from '../../src/theme/themeStore';
-import { Typography, FontFamily } from '../../src/theme/typography';
+import { Typography, FontFamily, FontSize } from '../../src/theme/typography';
 import { Spacing, ScreenPadding, BorderRadius } from '../../src/theme/spacing';
 import { formatCurrency } from '../../src/utils/formatCurrency';
 import { parseReceipt, ParsedReceipt, hasApiKey } from '../../src/services/geminiService';
@@ -929,8 +929,10 @@ const getStyles = (theme: typeof DarkTheme, isDark: boolean) => {
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: ScreenPadding.horizontal,
-    paddingTop: Spacing.xl,
-    paddingBottom: Spacing.sm,
+    // UX-11: Başlık diğer sekmelerle aynı hizada (üst 16). Alt boşluk 12:
+    // içerik eskisiyle aynı yerde kalır (20 + 8 = 16 + 12).
+    paddingTop: Spacing.lg,
+    paddingBottom: Spacing.md,
   },
   title: {
     ...Typography.headlineLarge,
@@ -960,7 +962,7 @@ const getStyles = (theme: typeof DarkTheme, isDark: boolean) => {
   idleTitle: {
     ...Typography.headlineMedium,
     fontFamily: FontFamily.semiBold,
-    fontSize: 20,
+    fontSize: FontSize.h2,
     lineHeight: 27,
     letterSpacing: -0.15,
     color: theme.textPrimary,
@@ -1041,7 +1043,7 @@ const getStyles = (theme: typeof DarkTheme, isDark: boolean) => {
     flex: 1,
     marginLeft: Spacing.lg,
     fontFamily: FontFamily.semiBold,
-    fontSize: 18,
+    fontSize: FontSize.h3,
     lineHeight: 23,
     letterSpacing: -0.15,
   },
@@ -1145,7 +1147,7 @@ const getStyles = (theme: typeof DarkTheme, isDark: boolean) => {
   },
   stopButtonText: {
     ...susevar.text,
-    fontSize: 17,
+    fontSize: FontSize.xxl,
     lineHeight: 22,
     includeFontPadding: false,
     textAlignVertical: 'center',
