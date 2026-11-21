@@ -21,3 +21,17 @@ it('no production style uses a font size below 10', () => {
     }));
   expect(offenders).toEqual([]);
 });
+
+// DS-09 kabulü: ürün kodunda ham sayı ile yazı boyutu yazılmaz; `Typography`
+// stili veya `FontSize` basamağı kullanılır. Logo yazısı markaya özel ölçülerle
+// çizildiği için bilinçli istisnadır.
+const RAW_SIZE_ALLOWED = new Set(['src/components/LivingSparkWordmark.tsx']);
+
+it('no production style writes a raw numeric font size', () => {
+  const offenders = [...sourceFiles(path.join(ROOT, 'app')), ...sourceFiles(path.join(ROOT, 'src'))]
+    .filter(file => !path.relative(ROOT, file).startsWith('src/theme/'))
+    .filter(file => !RAW_SIZE_ALLOWED.has(path.relative(ROOT, file)))
+    .flatMap(file => fs.readFileSync(file, 'utf8').split('\n').flatMap((line, index) =>
+      /fontSize:\s*\d/.test(line) ? [`${path.relative(ROOT, file)}:${index + 1}`] : []));
+  expect(offenders).toEqual([]);
+});
