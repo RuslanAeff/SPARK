@@ -1,6 +1,6 @@
 // S.P.A.R.K. — Para birimi meta verisi (TEK KAYNAK)
 //
-// Sembol, görüntü adı, kısa etiket ve formatlama locale'i SADECE burada tanımlanır.
+// Sembol, kısa etiket ve formatlama locale'i SADECE burada tanımlanır.
 // `formatCurrency.ts` (formatlama) ve `CurrencyContext.tsx` (görüntü para birimi seçimi)
 // bu modülü kullanır — sembol/locale ikinci bir yerde tekrar yazılmaz.
 //
@@ -17,8 +17,6 @@ export type DisplayCurrency = (typeof DISPLAY_CURRENCIES)[number];
 export interface CurrencyMeta {
   /** Tutar sonrası gösterilen sembol (ör. ₺, $, zł). */
   symbol: string;
-  /** Seçicide gösterilen tam ad (TR). */
-  label: string;
   /** Seçicide gösterilen kısa kod (ör. TRY → "TL"). */
   shortLabel: string;
   /** `Intl.NumberFormat` için locale (grup ayırıcı + ondalık kuralı). */
@@ -33,13 +31,13 @@ export interface CurrencyMeta {
  */
 export const CURRENCY_META: Record<DisplayCurrency, CurrencyMeta> &
   Record<string, CurrencyMeta> = {
-  PLN: { symbol: 'zł', label: 'Polonya Zlotisi', shortLabel: 'PLN', locale: 'pl-PL' },
-  USD: { symbol: '$', label: 'ABD Doları', shortLabel: 'USD', locale: 'en-US' },
-  EUR: { symbol: '€', label: 'Euro', shortLabel: 'EUR', locale: 'de-DE' },
-  AZN: { symbol: '₼', label: 'Azerbaycan Manatı', shortLabel: 'AZN', locale: 'az-AZ' },
-  TRY: { symbol: '₺', label: 'Türk Lirası', shortLabel: 'TL', locale: 'tr-TR' },
+  PLN: { symbol: 'zł', shortLabel: 'PLN', locale: 'pl-PL' },
+  USD: { symbol: '$', shortLabel: 'USD', locale: 'en-US' },
+  EUR: { symbol: '€', shortLabel: 'EUR', locale: 'de-DE' },
+  AZN: { symbol: '₼', shortLabel: 'AZN', locale: 'az-AZ' },
+  TRY: { symbol: '₺', shortLabel: 'TL', locale: 'tr-TR' },
   // Seçilemez ama harcamalarda görünebilir → formatlama için sembol + locale tanımlı.
-  GBP: { symbol: '£', label: 'İngiliz Sterlini', shortLabel: 'GBP', locale: 'en-GB' },
+  GBP: { symbol: '£', shortLabel: 'GBP', locale: 'en-GB' },
 };
 
 /** Bilinmeyen para birimi için formatlama locale'i. */
