@@ -1,14 +1,15 @@
 // S.P.A.R.K. — Interactive price-history chart
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, StyleSheet, Pressable } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import Svg, { Path, Circle, Line, G, Defs, LinearGradient, Stop, Text as SvgText } from 'react-native-svg';
 import { Colors } from '../theme/colors';
-import { useAppTheme, useThemeRevision } from '../theme/themeStore';
+
 import { Typography, FontFamily } from '../theme/typography';
 import { Spacing, BorderRadius } from '../theme/spacing';
 import { formatCompactAmount, formatCurrency } from '../utils/formatCurrency';
 import { useLanguage } from '../i18n/LanguageContext';
+import { useThemedStyles } from '../theme/useThemedStyles';
 
 export interface LinePoint {
   label: string;
@@ -112,9 +113,7 @@ export default function LineChart({
   currency = 'PLN',
   showDots = true,
 }: LineChartProps) {
-  const scheme = useAppTheme();
-  const themeRevision = useThemeRevision();
-  const styles = useMemo(() => getStyles(), [scheme, themeRevision]);
+  const styles = useThemedStyles(getStyles);
   const { t } = useLanguage();
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
   const [layoutWidth, setLayoutWidth] = useState(320);

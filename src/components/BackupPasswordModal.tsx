@@ -1,13 +1,13 @@
 // S.P.A.R.K. — Yedek parolası penceresi (SEC-01, ADR-018)
 // 'set': dışa aktarırken parola + tekrarı; 'enter': şifreli yedeği açarken parola.
 // Parola yalnız bu bileşenin durumunda ve çağıranın tek işleminde yaşar; saklanmaz.
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, Text, TextInput, Pressable, StyleSheet } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 
 import ConfirmModal from './ConfirmModal';
 import { Colors } from '../theme/colors';
-import { useAppTheme, useThemeRevision } from '../theme/themeStore';
+
 import { Typography, FontFamily } from '../theme/typography';
 import { Spacing, BorderRadius } from '../theme/spacing';
 import { useLanguage } from '../i18n/LanguageContext';
@@ -15,6 +15,7 @@ import {
   MAX_BACKUP_PASSWORD_LENGTH,
   MIN_BACKUP_PASSWORD_LENGTH,
 } from '../services/backupEncryption';
+import { useThemedStyles } from '../theme/useThemedStyles';
 
 export interface BackupPasswordModalProps {
   visible: boolean;
@@ -33,9 +34,7 @@ export default function BackupPasswordModal({
   onSubmit,
 }: BackupPasswordModalProps) {
   const { t } = useLanguage();
-  const scheme = useAppTheme();
-  const themeRevision = useThemeRevision();
-  const styles = useMemo(() => getStyles(), [scheme, themeRevision]);
+  const styles = useThemedStyles(getStyles);
   const [password, setPassword] = useState('');
   const [repeat, setRepeat] = useState('');
   const [reveal, setReveal] = useState(false);

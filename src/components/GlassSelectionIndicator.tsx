@@ -1,21 +1,13 @@
-import React, { useEffect, useMemo, useRef } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { StyleSheet, type LayoutRectangle } from 'react-native';
 import Animated, { Easing, ReduceMotion, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
 import { Colors } from '../theme/colors';
-import { useAppTheme, useThemeRevision } from '../theme/themeStore';
+import { useThemedStyles } from '../theme/useThemedStyles';
 
 /** Measured in the same content container as the option buttons. */
 export default function GlassSelectionIndicator({ target }: { target?: LayoutRectangle }) {
-  const scheme = useAppTheme();
-  const revision = useThemeRevision();
-  const styles = useMemo(() => StyleSheet.create({
-    capsule: {
-      position: 'absolute', left: 0, top: 0, borderRadius: 999,
-      overflow: 'hidden', borderWidth: 1, borderColor: Colors.glassBorder,
-      backgroundColor: Colors.primary + '12',
-    },
-  }), [scheme, revision]);
+  const styles = useThemedStyles(getStyles);
   const initialized = useRef(false);
   const x = useSharedValue(0);
   const y = useSharedValue(0);
@@ -58,3 +50,11 @@ export default function GlassSelectionIndicator({ target }: { target?: LayoutRec
     </Animated.View>
   );
 }
+
+const getStyles = () => StyleSheet.create({
+  capsule: {
+    position: 'absolute', left: 0, top: 0, borderRadius: 999,
+    overflow: 'hidden', borderWidth: 1, borderColor: Colors.glassBorder,
+    backgroundColor: Colors.primary + '12',
+  },
+});

@@ -4,7 +4,8 @@ import { StyleSheet, ViewStyle, Pressable, Platform, StyleProp } from 'react-nat
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { Colors } from '../theme/colors';
 import { BorderRadius, Spacing } from '../theme/spacing';
-import { useAppTheme } from '../theme/themeStore';
+
+import { useThemedStyles } from '../theme/useThemedStyles';
 
 interface AnimatedCardProps {
   children: React.ReactNode;
@@ -22,8 +23,7 @@ export default function AnimatedCard({
   elevated = false,
 }: AnimatedCardProps) {
   // Tek doğruluk kaynağı: OS ve uygulama içi tema değişimlerinde re-render.
-  const scheme = useAppTheme();
-  const styles = React.useMemo(() => getStyles(), [scheme]);
+  const styles = useThemedStyles(getStyles);
   const content = (
     <Animated.View
       entering={FadeInDown.delay(delay).duration(360)}

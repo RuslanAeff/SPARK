@@ -26,7 +26,10 @@ function SilentSpendCard({ styles, t, currency, silentSpendInfo, onSelectItem }:
   const { setNestedHorizontalGestureActive } = useTabSwipe();
   const [pageWidth, setPageWidth] = useState(0);
   const [pageIndex, setPageIndex] = useState(0);
-  const items = silentSpendInfo.available ? silentSpendInfo.items : [];
+  const items = useMemo(
+    () => (silentSpendInfo.available ? silentSpendInfo.items : []),
+    [silentSpendInfo],
+  );
   const pages = useMemo(() => {
     const result: typeof items[] = [];
     for (let index = 0; index < items.length; index += SILENT_SPEND_PAGE_SIZE) {

@@ -154,6 +154,6 @@ export function CountUpText({ value, style, prefix = '', suffix = '', duration =
     const listener = animRef.addListener(({ value: v }) => setDisplay(Math.round(v)));
     RNAnimated.timing(animRef, { toValue: value, duration, useNativeDriver: false }).start();
     return () => animRef.removeListener(listener);
-  }, [value]);
+  }, [value, duration, animRef]);
   return <Text style={style}>{prefix}{display}{suffix}</Text>;
 }

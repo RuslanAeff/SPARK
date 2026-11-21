@@ -11,7 +11,7 @@ import { useLanguage } from '../i18n/LanguageContext';
 import { Colors } from '../theme/colors';
 import { BorderRadius, Spacing } from '../theme/spacing';
 import { FontFamily, Typography } from '../theme/typography';
-import { useAppTheme, useThemeRevision } from '../theme/themeStore';
+
 import { formatCurrency, formatCompactAmount } from '../utils/formatCurrency';
 import { useTabSwipe } from '../context/TabSwipeContext';
 import {
@@ -22,6 +22,7 @@ import {
   normalizeChartViewport,
   type ChartViewportState,
 } from '../utils/barChartViewport';
+import { useThemedStyles } from '../theme/useThemedStyles';
 
 const ARect = Animated.createAnimatedComponent(Rect);
 const TOOLTIP_TOP = 4;
@@ -92,9 +93,7 @@ function ChartPage({ data, prevData, height, defaultColor, currency, progress }:
   progress: SharedValue<number>;
 }) {
   const { t } = useLanguage();
-  const scheme = useAppTheme();
-  const themeRevision = useThemeRevision();
-  const pageStyles = useMemo(() => getPageStyles(), [scheme, themeRevision]);
+  const pageStyles = useThemedStyles(getPageStyles);
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
   const width = 320;
   // Seçim balonu yatay sayfanın sınırları içinde kalmalı. Üst alanı her zaman
@@ -203,9 +202,7 @@ function ChartPage({ data, prevData, height, defaultColor, currency, progress }:
 export default function BarChart({
   data, prevData, height = 180, defaultColor = Colors.primary, currency = 'PLN', enableZoom = false,
 }: BarChartProps) {
-  const scheme = useAppTheme();
-  const themeRevision = useThemeRevision();
-  const styles = useMemo(() => getStyles(), [scheme, themeRevision]);
+  const styles = useThemedStyles(getStyles);
   const { t } = useLanguage();
   const { setNestedHorizontalGestureActive } = useTabSwipe();
   const [pageWidth, setPageWidth] = useState(0);

@@ -6,6 +6,7 @@ import CategoryPill from '../CategoryPill';
 
 jest.mock('../../theme/themeStore', () => ({
   useAppTheme: () => 'dark',
+  useThemeRevision: () => 0,
 }));
 
 jest.mock('@expo/vector-icons', () => {

@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { Keyboard, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -17,7 +17,7 @@ import type { ContainerDepositVoucher } from '../src/db/schema';
 import { useLanguage } from '../src/i18n/LanguageContext';
 import { useCurrency } from '../src/context/CurrencyContext';
 import { useRefreshActions } from '../src/context/RefreshContext';
-import { useAppTheme, useThemeRevision } from '../src/theme/themeStore';
+
 import { Colors } from '../src/theme/colors';
 import { BorderRadius, ScreenPadding, Spacing } from '../src/theme/spacing';
 import { FontFamily, Typography } from '../src/theme/typography';
@@ -30,6 +30,7 @@ import { SparkToast } from '../src/components/SparkToast';
 import GlassDeleteModal from '../src/components/GlassDeleteModal';
 import { createSusevarStyles, susevarButtonPressed } from '../src/theme/susevar';
 import ScreenHeader from '../src/components/ScreenHeader';
+import { useThemedStyles } from '../src/theme/useThemedStyles';
 
 const EMPTY_SUMMARY: ContainerDepositSummary = {
   depositPaid: 0,
@@ -38,9 +39,7 @@ const EMPTY_SUMMARY: ContainerDepositSummary = {
 };
 
 export default function DepositWalletScreen() {
-  const scheme = useAppTheme();
-  const revision = useThemeRevision();
-  const styles = useMemo(() => getStyles(), [scheme, revision]);
+  const styles = useThemedStyles(getStyles);
   const router = useRouter();
   const { t } = useLanguage();
   const { currency } = useCurrency();

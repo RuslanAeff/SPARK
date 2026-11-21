@@ -5,6 +5,7 @@
 // eylemlerinde tam-ekran ışık/kararma patlaması üretiyordu. Bu container zaten
 // root layout'ta olduğundan aynı React yüzeyinde absolute overlay olarak çizilir.
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useLatestCallback } from '../hooks/useLatestCallback';
 import {
   AppState,
   View,
@@ -112,7 +113,8 @@ export function SparkToastContainer() {
     frameRef.current = null;
   };
 
-  const stopAllAnimations = () => {
+  // Kimliği sabit: animasyon kurulumu efekti bunu bağımlılık olarak taşır.
+  const stopAllAnimations = useLatestCallback(() => {
     successY.stopAnimation();
     successOpacity.stopAnimation();
     progress.stopAnimation();
@@ -120,7 +122,7 @@ export function SparkToastContainer() {
     hudY.stopAnimation();
     hudOpacity.stopAnimation();
     hudIconScale.stopAnimation();
-  };
+  });
 
   useLayoutEffect(() => {
     const clearIfCurrent = (id: number) => {
@@ -237,6 +239,7 @@ export function SparkToastContainer() {
     hudY,
     hudOpacity,
     hudIconScale,
+    stopAllAnimations,
   ]);
 
   useEffect(() => {

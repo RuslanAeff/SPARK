@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -16,10 +16,11 @@ import { SubscriptionDao } from '../src/db/subscriptionDao';
 import type { RecurringPaymentReminder } from '../src/db/schema';
 import { useLanguage } from '../src/i18n/LanguageContext';
 import { Colors } from '../src/theme/colors';
-import { useAppTheme, useThemeRevision } from '../src/theme/themeStore';
+
 import { scheduleFromDetectedPeriod } from '../src/utils/recurringPaymentPlan';
 import { logError } from '../src/utils/logError';
 import ScreenHeader from '../src/components/ScreenHeader';
+import { useThemedStyles } from '../src/theme/useThemedStyles';
 
 type RouteParam = string | string[] | undefined;
 
@@ -54,9 +55,7 @@ function fromReminder(plan: RecurringPaymentReminder): RecurringPaymentReminderF
 }
 
 export default function RecurringPaymentScreen() {
-  const scheme = useAppTheme();
-  const themeRevision = useThemeRevision();
-  const styles = useMemo(() => getStyles(), [scheme, themeRevision]);
+  const styles = useThemedStyles(getStyles);
   const router = useRouter();
   const params = useLocalSearchParams<{ id?: string; detectedVendorId?: string }>();
   const { currency } = useCurrency();

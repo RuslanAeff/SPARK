@@ -13,7 +13,7 @@
 // UX-03: kart ekran yüksekliğini aşamaz. Uzun mesaj (AZ/RU, büyük yazı ölçeği)
 // veya ek içerik (parola alanları) yalnız gövdede kayar; simge, başlık ve
 // eylemler hep görünür.
-import React, { useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import React, { useContext, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import {
   Animated,
   Easing,
@@ -32,7 +32,8 @@ import Svg, { Defs, RadialGradient, Rect, Stop } from 'react-native-svg';
 import * as Haptics from 'expo-haptics';
 
 import { Colors } from '../theme/colors';
-import { useAppTheme, useThemeRevision } from '../theme/themeStore';
+import { useThemedStyles } from '../theme/useThemedStyles';
+
 import { Typography, FontFamily } from '../theme/typography';
 import { Spacing, BorderRadius } from '../theme/spacing';
 import { SparkToastContainer } from './SparkToast';
@@ -92,10 +93,7 @@ export default function DecisionModal({
   cardTestID,
   backdropAccessibilityLabel,
 }: DecisionModalProps) {
-  const scheme = useAppTheme();
-  const themeRevision = useThemeRevision();
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- Colors proxy tema snapshot'ını okur
-  const styles = useMemo(() => getStyles(), [scheme, themeRevision]);
+  const styles = useThemedStyles(getStyles);
   // Sağlayıcı yoksa (ör. bazı testler) sıfır inset ile güvenle çalışır.
   const insets = useContext(SafeAreaInsetsContext) ?? ZERO_INSETS;
   // UX-04: Android'de pencere klavyeyle küçülmez; ek içerik (parola alanı)

@@ -45,7 +45,8 @@ export default function BudgetPeriodRepairSection({
     } else {
       setOccupiedRanges([]);
     }
-  }, [budget?.id]);
+    // Kayıtlı tarihler değişince (ör. onarım kaydedildi) form da güncel değerlere döner.
+  }, [budget?.id, budget?.period_start, budget?.period_end]);
 
   if (!budget?.period_start || !budget.period_end) return null;
 

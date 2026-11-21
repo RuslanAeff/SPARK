@@ -10,9 +10,10 @@ import { useLanguage } from '../i18n/LanguageContext';
 import { Colors } from '../theme/colors';
 import { BorderRadius, Spacing } from '../theme/spacing';
 import { FontFamily, Typography } from '../theme/typography';
-import { useAppTheme, useThemeRevision } from '../theme/themeStore';
+
 import { formatCurrency } from '../utils/formatCurrency';
 import { getCurrencyLocale } from '../utils/currencyMeta';
+import { useThemedStyles } from '../theme/useThemedStyles';
 
 interface DashboardBudgetDonutProps {
   categories: CategorySpending[];
@@ -40,9 +41,7 @@ export default function DashboardBudgetDonut({
   currency,
   periodKey,
 }: DashboardBudgetDonutProps) {
-  const scheme = useAppTheme();
-  const themeRevision = useThemeRevision();
-  const styles = React.useMemo(() => getStyles(), [scheme, themeRevision]);
+  const styles = useThemedStyles(getStyles);
   const { t, tc } = useLanguage();
   const [selectedIndex, setSelectedIndex] = React.useState<number | null>(null);
   const [categoryFocus, setCategoryFocus] = React.useState(false);

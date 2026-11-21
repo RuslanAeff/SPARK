@@ -1,11 +1,12 @@
 import { isLocalImageUri } from '../utils/localImageUri';
 // S.P.A.R.K. — Vendor Avatar Component
-import React, { useMemo } from 'react';
+import React from 'react';
 import { View, Image, StyleSheet, Text } from 'react-native';
 import { Colors } from '../theme/colors';
 import { IconSize } from '../theme/spacing';
 import { FontFamily } from '../theme/typography';
-import { useAppTheme, useThemeRevision } from '../theme/themeStore';
+
+import { useThemedStyles } from '../theme/useThemedStyles';
 
 interface VendorAvatarProps {
   name: string;
@@ -18,9 +19,7 @@ export default function VendorAvatar({
   logoUri,
   size = IconSize.logo,
 }: VendorAvatarProps) {
-  const scheme = useAppTheme();
-  const themeRevision = useThemeRevision();
-  const styles = useMemo(() => getStyles(), [scheme, themeRevision]);
+  const styles = useThemedStyles(getStyles);
   if (isLocalImageUri(logoUri)) {
     return (
       <View style={[styles.container, { width: size, height: size, borderRadius: size / 2 }]}>

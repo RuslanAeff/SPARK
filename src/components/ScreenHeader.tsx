@@ -7,12 +7,13 @@
 //   • 44 dp yuvarlak geri düğmesi, chevron-left 28, her zaman çevrilmiş etiket;
 //   • `headlineMedium` extraBold başlık, `header` erişilebilirlik rolü;
 //   • sağda isteğe bağlı eylem; yoksa başlığı dengeleyen eşit genişlikte boşluk.
-import React, { useMemo } from 'react';
+import React from 'react';
 import { Pressable, StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { useAppTheme, useThemeRevision } from '../theme/themeStore';
+
 import { Colors } from '../theme/colors';
+import { useThemedStyles } from '../theme/useThemedStyles';
 import { Typography, FontFamily } from '../theme/typography';
 import { Spacing, ScreenPadding } from '../theme/spacing';
 import { useLanguage } from '../i18n/LanguageContext';
@@ -54,10 +55,7 @@ export default function ScreenHeader({
   style,
   testID,
 }: ScreenHeaderProps) {
-  const scheme = useAppTheme();
-  const revision = useThemeRevision();
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- Colors proxy tema snapshot'ını okur
-  const styles = useMemo(() => getStyles(), [scheme, revision]);
+  const styles = useThemedStyles(getStyles);
   const router = useRouter();
   const { t } = useLanguage();
 

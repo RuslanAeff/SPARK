@@ -1,13 +1,14 @@
 // S.P.A.R.K. — Category Pill Component
-import React, { useMemo } from 'react';
+import React from 'react';
 import { View, Text, StyleSheet, Pressable } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import Svg, { Circle } from 'react-native-svg';
 import { Colors } from '../theme/colors';
-import { useAppTheme } from '../theme/themeStore';
+
 import { Typography, FontFamily } from '../theme/typography';
 import { Spacing, BorderRadius } from '../theme/spacing';
 import { toIconName } from '../utils/iconName';
+import { useThemedStyles } from '../theme/useThemedStyles';
 
 interface CategoryPillProps {
   name: string;
@@ -34,8 +35,7 @@ export default function CategoryPill({
   onPress,
   size = 'medium',
 }: CategoryPillProps) {
-  const scheme = useAppTheme();
-  const styles = useMemo(() => getStyles(), [scheme]);
+  const styles = useThemedStyles(getStyles);
   const ringSize = size === 'large' ? 64 : size === 'medium' ? 52 : 40;
   const iconSize = size === 'large' ? 28 : size === 'medium' ? 22 : 16;
   const strokeWidth = 3;

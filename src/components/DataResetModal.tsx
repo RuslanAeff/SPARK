@@ -12,7 +12,7 @@
 //
 // Görsel dil `GlassDeleteModal` ile aynıdır (hâle deseni, danger tonu): üstten
 // sönen hâle, halkalı simge, yalın metin düğmeler.
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -28,12 +28,13 @@ import Svg, { Defs, RadialGradient, Rect, Stop } from 'react-native-svg';
 import * as Haptics from 'expo-haptics';
 
 import { Colors } from '../theme/colors';
-import { useAppTheme, useThemeRevision } from '../theme/themeStore';
+
 import { Typography, FontFamily } from '../theme/typography';
 import { Spacing, BorderRadius } from '../theme/spacing';
 import { useLanguage } from '../i18n/LanguageContext';
 import { SparkToastContainer } from './SparkToast';
 import type { UserDataSummary } from '../services/dataReset';
+import { useThemedStyles } from '../theme/useThemedStyles';
 
 interface DataResetModalProps {
   visible: boolean;
@@ -57,9 +58,7 @@ export default function DataResetModal({
   onConfirm,
 }: DataResetModalProps) {
   const { t } = useLanguage();
-  const scheme = useAppTheme();
-  const themeRevision = useThemeRevision();
-  const styles = useMemo(() => getStyles(), [scheme, themeRevision]);
+  const styles = useThemedStyles(getStyles);
   const [holding, setHolding] = useState(false);
   const progress = useRef(new Animated.Value(0)).current;
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -200,7 +199,6 @@ export default function DataResetModal({
               />
               <Text style={styles.backupText}>{t('data_reset_backup_hint')}</Text>
             </View>
-
 
             <View style={styles.actions}>
               <Pressable

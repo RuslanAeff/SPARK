@@ -1,5 +1,6 @@
 // S.P.A.R.K. — Kompakt, sabit merkezli vurgu paleti seçicisi
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { useLatestCallback } from '../hooks/useLatestCallback';
 import {
   LayoutChangeEvent,
   NativeScrollEvent,
@@ -266,6 +267,9 @@ export default function AccentPaletteCarousel({
     return index;
   }
 
+  // Hizalama ölçüleri (genişlik, adım) değişince de güncel ölçüyle çalışır.
+  const alignLatest = useLatestCallback(alignToCanonicalIndex);
+
   useEffect(() => {
     gestureFeedbackArmed.current = false;
     selectedRef.current = selectedAccent;
@@ -274,8 +278,8 @@ export default function AccentPaletteCarousel({
     if (commitInFlight.current || queuedCommitIndex.current !== null) return;
     lastDetentIndex.current = selectedIndex;
     setCenteredAccent(selectedAccent);
-    alignToCanonicalIndex(selectedIndex);
-  }, [selectedAccent, viewportWidth, metrics.itemStride]);
+    alignLatest(selectedIndex);
+  }, [selectedAccent, viewportWidth, metrics.itemStride, alignLatest]);
 
   async function drainCommitQueue() {
     if (commitInFlight.current) return;

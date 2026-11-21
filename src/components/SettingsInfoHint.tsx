@@ -1,5 +1,5 @@
 // S.P.A.R.K. — Ayarlar kartları: başlık yanında küçük (i) → ek bilgi modalı
-import React, { useMemo } from 'react';
+import React from 'react';
 import {
   Modal,
   View,
@@ -13,10 +13,11 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
 import * as Haptics from 'expo-haptics';
 import { Colors } from '../theme/colors';
-import { useAppTheme, useThemeRevision } from '../theme/themeStore';
+
 import { Typography, FontFamily } from '../theme/typography';
 import { Spacing, BorderRadius, ScreenPadding } from '../theme/spacing';
 import { useLanguage } from '../i18n/LanguageContext';
+import { useThemedStyles } from '../theme/useThemedStyles';
 
 type InfoModalProps = {
   visible: boolean;
@@ -29,9 +30,7 @@ type InfoModalProps = {
 
 export function SettingsInfoHintModal({ visible, onClose, title, paragraphs }: InfoModalProps) {
   const { t } = useLanguage();
-  const scheme = useAppTheme();
-  const themeRevision = useThemeRevision();
-  const styles = useMemo(() => getModalStyles(), [scheme, themeRevision]);
+  const styles = useThemedStyles(getModalStyles);
 
   return (
     <Modal
@@ -85,9 +84,7 @@ type IconProps = {
 };
 
 export function SettingsInfoIconButton({ onPress, accessibilityLabel }: IconProps) {
-  const scheme = useAppTheme();
-  const themeRevision = useThemeRevision();
-  const styles = useMemo(() => getIconStyles(), [scheme, themeRevision]);
+  const styles = useThemedStyles(getIconStyles);
 
   return (
     <Pressable

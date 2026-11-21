@@ -1,5 +1,5 @@
 // S.P.A.R.K. — Analiz kartı: Ana kategoriler + seçili kategorinin alt kırılımı
-import React, { useEffect, useMemo, useState, type Dispatch, type SetStateAction } from 'react';
+import React, { useEffect, useState, type Dispatch, type SetStateAction } from 'react';
 import { View, Text, ScrollView, Pressable, StyleSheet } from 'react-native';
 import Animated, { Easing, ReduceMotion, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -11,6 +11,7 @@ import { formatCurrency } from '../../utils/formatCurrency';
 import type { CategorySpending } from '../../db/schema';
 import type { BaseCardProps } from './shared';
 import { useAppTheme, useThemeRevision } from '../../theme/themeStore';
+import { useThemedStyles } from '../../theme/useThemedStyles';
 import { toIconName } from '../../utils/iconName';
 
 const selectionMotion = { duration: 180, easing: Easing.out(Easing.cubic), reduceMotion: ReduceMotion.System };
@@ -83,15 +84,7 @@ interface DisplayedBreakdown {
 function CategoriesCard({
   styles, t, tc, currency, categories, subcats, subcatsParentId, selectedCategory, setSelectedCategory,
 }: CategoriesCardProps) {
-  const scheme = useAppTheme();
-  const revision = useThemeRevision();
-  const detailStyles = useMemo(() => StyleSheet.create({
-    viewport: { overflow: 'hidden' },
-    // Measure natural height independently from the animated viewport (also on rotation/font changes).
-    content: { position: 'absolute', top: 0, left: 0, right: 0, paddingTop: Spacing.md },
-    divider: { height: 1, backgroundColor: Colors.border, marginBottom: Spacing.md },
-    empty: { ...Typography.bodyMedium, color: Colors.textMuted, textAlign: 'center', paddingVertical: Spacing.lg },
-  }), [scheme, revision]);
+  const detailStyles = useThemedStyles(getDetailStyles);
 
   // Panel yalnızca seçili kategoriye ait sonuç geldiğinde içerik değiştirir. Böylece
   // önce boş/eski satırlarla açılıp veri gelince ikinci kez boy değiştirmez.
@@ -182,3 +175,11 @@ function CategoriesCard({
 }
 
 export default React.memo(CategoriesCard);
+
+const getDetailStyles = () => StyleSheet.create({
+  viewport: { overflow: 'hidden' },
+  // Measure natural height independently from the animated viewport (also on rotation/font changes).
+  content: { position: 'absolute', top: 0, left: 0, right: 0, paddingTop: Spacing.md },
+  divider: { height: 1, backgroundColor: Colors.border, marginBottom: Spacing.md },
+  empty: { ...Typography.bodyMedium, color: Colors.textMuted, textAlign: 'center', paddingVertical: Spacing.lg },
+});

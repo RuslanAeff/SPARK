@@ -1,6 +1,6 @@
 // S.P.A.R.K. — Kullanıcı tarafından onaylanan düzenli ödeme planı formu
 // Form tercihi kalıcılaştırır; scheduler kayıttan sonra uygulama kökünde uzlaştırılır.
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   KeyboardAvoidingView,
   Platform,
@@ -24,11 +24,12 @@ import type {
 import { useLanguage } from '../i18n/LanguageContext';
 import { BorderRadius, ScreenPadding, Spacing } from '../theme/spacing';
 import { Colors } from '../theme/colors';
-import { useAppTheme, useThemeRevision } from '../theme/themeStore';
+
 import { FontFamily, Typography } from '../theme/typography';
 import { createSusevarStyles, susevarButtonPressed } from '../theme/susevar';
 import { formatDateFull, getToday } from '../utils/dateUtils';
 import { logError } from '../utils/logError';
+import { useThemedStyles } from '../theme/useThemedStyles';
 
 export interface RecurringPaymentReminderFormValue {
   id?: number;
@@ -71,9 +72,7 @@ export default function RecurringPaymentReminderForm({
   onClose,
   onSaved,
 }: Props) {
-  const scheme = useAppTheme();
-  const themeRevision = useThemeRevision();
-  const styles = useMemo(() => getStyles(), [scheme, themeRevision]);
+  const styles = useThemedStyles(getStyles);
   const { t } = useLanguage();
   const savingRef = useRef(false);
   const [saving, setSaving] = useState(false);

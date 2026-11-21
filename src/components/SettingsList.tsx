@@ -1,5 +1,5 @@
 // S.P.A.R.K. — Ayarlar alt sayfaları için kart-dışı bölüm ve gezinme satırları.
-import React, { type ComponentProps, type ReactNode, useMemo } from 'react';
+import React, { type ComponentProps, type ReactNode } from 'react';
 import {
   Pressable,
   StyleSheet,
@@ -11,9 +11,10 @@ import {
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 
 import { Colors } from '../theme/colors';
-import { useAppTheme } from '../theme/themeStore';
+
 import { BorderRadius, Spacing } from '../theme/spacing';
 import { FontFamily, Typography } from '../theme/typography';
+import { useThemedStyles } from '../theme/useThemedStyles';
 
 type SettingsSectionProps = {
   children: ReactNode;
@@ -28,8 +29,7 @@ export function SettingsSection({
   style,
   testID,
 }: SettingsSectionProps) {
-  const scheme = useAppTheme();
-  const styles = useMemo(() => getStyles(), [scheme]);
+  const styles = useThemedStyles(getStyles);
 
   return (
     <View
@@ -77,8 +77,7 @@ export function SettingsNavigationRow(props: SettingsNavigationRowProps) {
     accessibilityLabel,
     accessibilityHint,
   } = props;
-  const scheme = useAppTheme();
-  const styles = useMemo(() => getStyles(), [scheme]);
+  const styles = useThemedStyles(getStyles);
   const accent = props.tone === 'accent' ? props : null;
 
   return (

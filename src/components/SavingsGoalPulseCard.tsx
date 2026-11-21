@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 
@@ -8,10 +8,11 @@ import { useLanguage } from '../i18n/LanguageContext';
 import { formatCurrency } from '../utils/formatCurrency';
 import { getSavingsGoalProgress } from '../utils/savingsGoalProgress';
 import { Colors } from '../theme/colors';
-import { useAppTheme, useThemeRevision } from '../theme/themeStore';
+
 import { Typography, FontFamily } from '../theme/typography';
 import { Spacing, BorderRadius } from '../theme/spacing';
 import AnimatedCard from './AnimatedCard';
+import { useThemedStyles } from '../theme/useThemedStyles';
 
 type Props = {
   goal: SavingsGoalRow;
@@ -21,9 +22,7 @@ type Props = {
 };
 
 export default function SavingsGoalPulseCard({ goal, onOpen, onContribute, now }: Props) {
-  const scheme = useAppTheme();
-  const themeRevision = useThemeRevision();
-  const styles = useMemo(() => getStyles(), [scheme, themeRevision]);
+  const styles = useThemedStyles(getStyles);
   const { t } = useLanguage();
   const { currency } = useCurrency();
   const progress = getSavingsGoalProgress(goal, now);

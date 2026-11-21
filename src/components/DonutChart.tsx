@@ -13,8 +13,9 @@ import Animated, {
 import { Pressable, GestureResponderEvent } from 'react-native';
 import { Colors } from '../theme/colors';
 import { ChartColorArray } from '../theme/colors';
-import { useAppTheme } from '../theme/themeStore';
+
 import { buildDonutGeometry } from '../utils/donutGeometry';
+import { useThemedStyles } from '../theme/useThemedStyles';
 
 const AnimatedCircle = Animated.createAnimatedComponent(Circle);
 interface DonutSegment {
@@ -50,8 +51,7 @@ export default function DonutChart({
   selectedIndex = null,
   onSelect,
 }: DonutChartProps) {
-  const scheme = useAppTheme();
-  const styles = useMemo(() => getStyles(), [scheme]);
+  const styles = useThemedStyles(getStyles);
   // Kaydırma (Clipping) ve kesilme hatasını çözmek için:
   // Seçilen dilim 12 birim dışa doğru kalınlaşacağı için, çemberin asıl yarıçapını
   // o genişliğin sığabileceği maksimun "Güvenli Bölge (Safe Zone)"ye göre hesaplıyoruz.
@@ -225,12 +225,12 @@ function AnimatedSegment({
       duration: 800 + index * 150,
       easing: Easing.out(Easing.cubic),
     });
-  }, [dashArray, dashOffset]);
+  }, [dashArray, dashOffset, index, progress]);
 
   // Karartma/Aydınlatma animasyonu (Transparan veya tam renkli olma durumu)
   useEffect(() => {
     activeProgress.value = withTiming(isActive ? 1 : 0, { duration: 300, easing: Easing.out(Easing.ease) });
-  }, [isActive]);
+  }, [isActive, activeProgress]);
 
   // "Hafif Dürtülmüş Animasyonumsu Hareket" - Dürtme (Bump) Efekti
   // Kullanıcı bunu seçtiğinde veya seçimi kaldırdığında (hepsi resetlendiğinde) zıplar
@@ -241,7 +241,7 @@ function AnimatedSegment({
         withSpring(0, { damping: 12, stiffness: 220 }) // Yaylanarak yörüngeye (orijinal yerine) geri otur
       );
     }
-  }, [isSelected, selectedIndex]);
+  }, [isSelected, selectedIndex, bumpProgress]);
 
   const animatedProps = useAnimatedProps(() => {
     return {

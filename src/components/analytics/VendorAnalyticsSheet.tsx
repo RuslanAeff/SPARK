@@ -15,7 +15,7 @@ import BottomSheetModal from '../BottomSheetModal';
 import DonutChart from '../DonutChart';
 import VendorAvatar from '../VendorAvatar';
 import { ChartColorArray, Colors } from '../../theme/colors';
-import { useAppTheme, useThemeRevision } from '../../theme/themeStore';
+
 import { BorderRadius, ScreenPadding, Spacing } from '../../theme/spacing';
 import { FontFamily, Typography } from '../../theme/typography';
 import { formatCurrency } from '../../utils/formatCurrency';
@@ -23,6 +23,7 @@ import { itemDisplayName } from '../../utils/itemDisplayName';
 import type { VendorSpending } from '../../db/schema';
 import type { BaseCardProps } from './shared';
 import { useTabSwipe } from '../../context/TabSwipeContext';
+import { useThemedStyles } from '../../theme/useThemedStyles';
 
 type VendorItemSort = 'frequency' | 'spending';
 const PRODUCT_PAGE_SIZE = 5;
@@ -65,10 +66,8 @@ export default function VendorAnalyticsSheet({
   currency,
   styles: analyticsStyles,
 }: VendorAnalyticsSheetProps) {
-  const scheme = useAppTheme();
-  const themeRevision = useThemeRevision();
   const { height: windowHeight } = useWindowDimensions();
-  const styles = useMemo(() => getStyles(windowHeight), [scheme, themeRevision, windowHeight]);
+  const styles = useThemedStyles(getStyles, windowHeight);
   const { setNestedHorizontalGestureActive } = useTabSwipe();
   const [displayVendor, setDisplayVendor] = useState<VendorSpending | null>(vendor);
   const [displayItems, setDisplayItems] = useState<VendorItem[]>(items);
@@ -96,6 +95,9 @@ export default function VendorAnalyticsSheet({
     setSelectedDonutIndex(null);
     setSort('frequency');
     setPageIndex(0);
+    // Bilinçli: yalnız FARKLI bir satıcı açılınca görünüm sıfırlanır; aynı
+    // satıcının verisi yenilenince (yeni nesne) kullanıcının seçimi korunur.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [vendor?.vendor_id]);
 
   useEffect(() => {

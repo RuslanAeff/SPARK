@@ -6,14 +6,15 @@
 // sekmeleriyle aynı cam vurguyu (`GlassSelectionIndicator`) kaydırır;
 // `SegmentedContent` yeni içeriği sekme yönünden yumuşak solma ile getirir.
 // Sistem "hareketi azalt" tercihi açıksa ikisi de anında geçer.
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, View, type LayoutRectangle, type StyleProp, type ViewStyle } from 'react-native';
 import Animated, { FadeInLeft, FadeInRight, ReduceMotion } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
 
 import GlassSelectionIndicator from './GlassSelectionIndicator';
 import { Colors } from '../theme/colors';
-import { useAppTheme, useThemeRevision } from '../theme/themeStore';
+import { useThemedStyles } from '../theme/useThemedStyles';
+
 import { Typography, FontFamily } from '../theme/typography';
 import { Spacing, BorderRadius } from '../theme/spacing';
 
@@ -34,10 +35,7 @@ export function SegmentedTabs<K extends string>({
   onChange: (key: K) => void;
   style?: StyleProp<ViewStyle>;
 }) {
-  const scheme = useAppTheme();
-  const revision = useThemeRevision();
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- Colors proxy tema snapshot'ını okur
-  const styles = useMemo(() => getStyles(), [scheme, revision]);
+  const styles = useThemedStyles(getStyles);
   const [layouts, setLayouts] = useState<Partial<Record<K, LayoutRectangle>>>({});
 
   return (

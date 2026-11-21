@@ -17,7 +17,7 @@ import {
   PanResponder,
   type ListRenderItemInfo,
 } from 'react-native';
-import { useAppTheme, useThemeRevision } from '../../src/theme/themeStore';
+
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useIsFocused } from '@react-navigation/native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -43,6 +43,7 @@ import { ExpenseDao } from '../../src/db/expenseDao';
 import { logError } from '../../src/utils/logError';
 import { useBottomClearance } from '../../src/hooks/useBottomClearance';
 import { useTabNavigationLock } from '../../src/context/TabSwipeContext';
+import { useThemedStyles } from '../../src/theme/useThemedStyles';
 
 type Row =
   | { kind: 'header'; date: string; key: string }
@@ -51,10 +52,8 @@ type Row =
 export default function TransactionsScreen() {
   // UX-06: yüzen sekme çubuğu + sistem gezinme alanı kadar alt boşluk.
   const bottomClearance = useBottomClearance('tab');
-  const scheme = useAppTheme();
-  const themeRevision = useThemeRevision();
   // P10: StyleSheet sadece tema değiştiğinde yeniden oluşur.
-  const styles = useMemo(() => getStyles(), [scheme, themeRevision]);
+  const styles = useThemedStyles(getStyles);
   const router = useRouter();
   const { t, tc } = useLanguage();
   const paged = usePaginatedExpenses(60);
@@ -372,7 +371,10 @@ export default function TransactionsScreen() {
       cum += len;
     }
     return arr;
-    // metricsVersion: ölçüm kilitlenince gerçek yüksekliklerle yeniden hesapla.
+    // Bilinçli: `metricsVersion` hesapta okunmaz; satır yükseklikleri
+    // `metricsRef`'te kilitlenince listeyi gerçek ölçülerle yeniden hesaplatan
+    // tetikleyicidir (ref değişimi render başlatmaz).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rows, selectionMode, metricsVersion]);
 
   const offsetsRef = useRef(itemOffsets);

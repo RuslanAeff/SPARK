@@ -240,6 +240,10 @@ function AppShell({ onboardingLoading, onboardingCompleted }: AppShellProps) {
       cancelAnimationFrame(frameOne);
       cancelAnimationFrame(frameTwo);
       curtainOpacity.stopAnimation();
+      // Bilinçli: temizlik anındaki GÜNCEL nesil okunur; yalnız bu açılış hâlâ
+      // en sonuncuysa bayrak geri alınır (eski bir açılışın temizliği yenisini
+      // bozmasın). Kuralın uyardığı "değişmiş olabilir" durumu tam da istenen.
+      // eslint-disable-next-line react-hooks/exhaustive-deps
       if (!completed && revealGenerationRef.current === generation) {
         revealStartedRef.current = false;
       }

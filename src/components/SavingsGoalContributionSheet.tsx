@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
@@ -8,7 +8,7 @@ import { useNotifications } from '../context/NotificationsContext';
 import { useRefreshActions } from '../context/RefreshContext';
 import { useLanguage } from '../i18n/LanguageContext';
 import { Colors } from '../theme/colors';
-import { useAppTheme, useThemeRevision } from '../theme/themeStore';
+
 import { Typography, FontFamily } from '../theme/typography';
 import { Spacing, BorderRadius } from '../theme/spacing';
 import BottomSheetModal from './BottomSheetModal';
@@ -16,6 +16,7 @@ import { SparkToast } from './SparkToast';
 import { parseMoneyInput } from '../utils/moneyMath';
 import { logError } from '../utils/logError';
 import PrimaryButton from './PrimaryButton';
+import { useThemedStyles } from '../theme/useThemedStyles';
 
 type Props = {
   visible: boolean;
@@ -23,9 +24,7 @@ type Props = {
 };
 
 export default function SavingsGoalContributionSheet({ visible, onClose }: Props) {
-  const scheme = useAppTheme();
-  const themeRevision = useThemeRevision();
-  const styles = useMemo(() => getStyles(), [scheme, themeRevision]);
+  const styles = useThemedStyles(getStyles);
   const { t } = useLanguage();
   const { triggerRefresh } = useRefreshActions();
   const { sync: syncNotifications } = useNotifications();

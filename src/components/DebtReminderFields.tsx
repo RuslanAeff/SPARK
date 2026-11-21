@@ -3,18 +3,19 @@
 // Yeni borç ve mevcut borç düzenleme akışları aynı sunum sözleşmesini kullanır.
 // Kalıcılık/validasyon DebtSheet + DebtDao sınırındadır; bu bileşen yalnız
 // kontrollü alanları ve erişilebilir etkileşimleri sunar.
-import React, { useMemo } from 'react';
+import React from 'react';
 import { Pressable, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 
 import { Colors } from '../theme/colors';
-import { useAppTheme, useThemeRevision } from '../theme/themeStore';
+
 import { BorderRadius, Spacing } from '../theme/spacing';
 import { FontFamily, Typography } from '../theme/typography';
 import { useLanguage } from '../i18n/LanguageContext';
 import { formatDateFull } from '../utils/dateUtils';
 import { DEBT_REMINDER_PRESET_DAYS } from '../utils/debtReminder';
 import { switchColors } from '../theme/switchColors';
+import { useThemedStyles } from '../theme/useThemedStyles';
 
 interface DebtReminderFieldsProps {
   dueDate: string | null;
@@ -48,9 +49,7 @@ export default function DebtReminderFields({
   onReminderDaysBeforeChange,
   onReminderTimeChange,
 }: DebtReminderFieldsProps) {
-  const scheme = useAppTheme();
-  const themeRevision = useThemeRevision();
-  const styles = useMemo(() => getStyles(), [scheme, themeRevision]);
+  const styles = useThemedStyles(getStyles);
   const { t } = useLanguage();
   const numericDays = /^\d+$/.test(reminderDaysBefore) ? Number(reminderDaysBefore) : null;
   const isPreset = numericDays != null
