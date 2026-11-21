@@ -10,6 +10,7 @@ import {
   Text,
   TextInput,
   View,
+  useWindowDimensions,
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -124,7 +125,8 @@ const EMPTY_ALIASES: ProductAliasSummary[] = [];
 export default function ProductMatchingScreen() {
   const scheme = useAppTheme();
   const theme = useThemePalette();
-  const styles = useMemo(() => getStyles(theme), [theme]);
+  const { height: windowHeight } = useWindowDimensions();
+  const styles = useMemo(() => getStyles(theme, windowHeight), [theme, windowHeight]);
   const susevar = useMemo(() => createSusevarStyles(theme), [theme]);
   const { t } = useLanguage();
 
@@ -1037,7 +1039,7 @@ export default function ProductMatchingScreen() {
             {suggesting ? (
               <ActivityIndicator size="small" color={theme.primary} />
             ) : (
-              <MaterialCommunityIcons name="robot-outline" size={18} color={theme.primary} />
+              <MaterialCommunityIcons name="chip" size={18} color={theme.primary} />
             )}
             <Text style={styles.aiButtonText}>
               {suggesting ? t('product_match_ai_loading') : t('product_match_ai_cta')}
@@ -1268,7 +1270,7 @@ export default function ProductMatchingScreen() {
   );
 }
 
-const getStyles = (theme: ThemePalette) => StyleSheet.create({
+const getStyles = (theme: ThemePalette, windowHeight: number) => StyleSheet.create({
   container: { flex: 1, backgroundColor: theme.background },
   content: {
     flexGrow: 1,
@@ -1436,7 +1438,8 @@ const getStyles = (theme: ThemePalette) => StyleSheet.create({
     paddingHorizontal: ScreenPadding.horizontal,
     paddingTop: Spacing.sm,
   },
-  mergeSheetScroll: { maxHeight: 620 },
+  // UX-07: Büyük ekranda eski 620 px, kısa ekranda pencerenin %70'i.
+  mergeSheetScroll: { maxHeight: Math.min(620, windowHeight * 0.7) },
   mergePanelTitle: { ...Typography.bodyLarge, color: theme.textPrimary, fontFamily: FontFamily.bold },
   mergePanelHint: { ...Typography.bodySmall, color: theme.textSecondary, marginTop: -Spacing.sm },
   keepChoices: { gap: Spacing.sm },
@@ -1687,7 +1690,7 @@ const getStyles = (theme: ThemePalette) => StyleSheet.create({
     justifyContent: 'space-between',
     gap: Spacing.md,
   },
-  filterScroll: { maxHeight: 520 },
+  filterScroll: { maxHeight: Math.min(520, windowHeight * 0.58) },
   filterGroupTitle: {
     ...Typography.labelMedium,
     color: theme.textSecondary,

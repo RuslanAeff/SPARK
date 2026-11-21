@@ -10,22 +10,22 @@ import {
   Text,
   StyleSheet,
   ScrollView,
-  Dimensions,
+  useWindowDimensions,
   Platform,
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 
 import BottomSheetModal from './BottomSheetModal';
 import { Colors } from '../theme/colors';
-import { useAppTheme, useThemeRevision } from '../theme/themeStore';
-import { Typography, FontFamily } from '../theme/typography';
+import { useAppTheme } from '../theme/themeStore';
+import { Typography, FontFamily, FontSize } from '../theme/typography';
 import { Spacing, ScreenPadding, BorderRadius } from '../theme/spacing';
 import { formatCurrency } from '../utils/formatCurrency';
 import type { Language } from '../i18n/translations';
 import { intlLocaleForLanguage } from '../i18n/languageOptions';
 import { parseLocalYmdAtNoon as parseYmd } from '../utils/dateUtils';
+import { useThemedStyles } from '../theme/useThemedStyles';
 
-const SCREEN_H = Dimensions.get('window').height;
 
 export type StreakVariant = 'zero' | 'streak' | 'under';
 
@@ -102,8 +102,9 @@ export default function StreakDetailsSheet({
   t,
 }: StreakDetailsSheetProps) {
   const scheme = useAppTheme();
-  const themeRevision = useThemeRevision();
-  const styles = useMemo(() => getStyles(), [scheme, themeRevision]);
+  // UX-07: pencere boyu modül yüklenirken bir kez değil, her boyut değişiminde okunur.
+  const { height: windowHeight } = useWindowDimensions();
+  const styles = useThemedStyles(getStyles, windowHeight);
   const locale = intlLocaleForLanguage(language);
   const { color, icon } = variantTheme(variant);
 
@@ -272,12 +273,12 @@ export default function StreakDetailsSheet({
   );
 }
 
-const getStyles = () => StyleSheet.create({
+const getStyles = (windowHeight: number) => StyleSheet.create({
   sheet: {
     backgroundColor: Colors.background,
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
-    maxHeight: SCREEN_H * 0.82,
+    maxHeight: windowHeight * 0.82,
     paddingTop: Spacing.sm,
   },
   header: {
@@ -306,7 +307,7 @@ const getStyles = () => StyleSheet.create({
   },
   subtitleAccent: {
     fontFamily: FontFamily.extraBold,
-    fontSize: 16,
+    fontSize: FontSize.xl,
   },
   subtitleMuted: {
     ...Typography.bodySmall,

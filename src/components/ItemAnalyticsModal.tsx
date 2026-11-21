@@ -1,15 +1,16 @@
 // S.P.A.R.K. — Item Analytics Modal
 // Sheet lifecycle stays in BottomSheetModal; the selection capsule uses Reanimated.
 import React, { useEffect, useState, useRef, useMemo } from 'react';
+import { useLatestCallback } from '../hooks/useLatestCallback';
 import {
   View, Text, Pressable, ScrollView, StyleSheet,
-  ActivityIndicator, Dimensions, type LayoutRectangle,
+  ActivityIndicator, useWindowDimensions, type LayoutRectangle,
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import BottomSheetModal from './BottomSheetModal';
 import GlassSelectionIndicator from './GlassSelectionIndicator';
 import { Colors } from '../theme/colors';
-import { Typography, FontFamily } from '../theme/typography';
+import { Typography, FontFamily, FontSize } from '../theme/typography';
 import { Spacing, BorderRadius, ScreenPadding } from '../theme/spacing';
 import { formatCurrency } from '../utils/formatCurrency';
 import { ExpenseDao } from '../db/expenseDao';
@@ -17,7 +18,7 @@ import LineChart from './LineChart';
 import { buildAdaptivePriceHistorySeries } from '../utils/priceHistorySeries';
 import { useLanguage } from '../i18n/LanguageContext';
 import { useCurrency } from '../context/CurrencyContext';
-import { useAppTheme, useThemeRevision } from '../theme/themeStore';
+
 import {
   formatMeasurementQuantity,
   measurementUnitSuffix,
@@ -28,6 +29,7 @@ import { filterItemHistory, summarizeItemHistory, type ItemHistoryPeriod } from 
 import { fromMinorUnits, toMinorUnits } from '../utils/moneyMath';
 import { useTabSwipe } from '../context/TabSwipeContext';
 import { logError } from '../utils/logError';
+import { useThemedStyles } from '../theme/useThemedStyles';
 
 const HISTORY_PAGE_SIZE = 6;
 
@@ -102,9 +104,9 @@ export default function ItemAnalyticsModal({
   onClose,
   onDismiss,
 }: ItemAnalyticsModalProps) {
-  const scheme = useAppTheme();
-  const themeRevision = useThemeRevision();
-  const styles = useMemo(() => getStyles(), [scheme, themeRevision]);
+  // UX-07: pencere boyu modül yüklenirken bir kez değil, her boyut değişiminde okunur.
+  const { height: windowHeight, width: windowWidth } = useWindowDimensions();
+  const styles = useThemedStyles(getStyles, windowHeight, windowWidth);
   const { t } = useLanguage();
   const { currency } = useCurrency();
   const { setNestedHorizontalGestureActive } = useTabSwipe();
@@ -126,6 +128,9 @@ export default function ItemAnalyticsModal({
     setNestedHorizontalGestureActive(false);
   }, [setNestedHorizontalGestureActive]);
 
+  // Kimliği sabit yükleyici: açılış efekti yalnız ürün/görünürlük değişince çalışır.
+  const loadLatest = useLatestCallback(loadData);
+
   useEffect(() => {
     if (visible && itemName) {
       const sequence = ++requestSequenceRef.current;
@@ -134,7 +139,7 @@ export default function ItemAnalyticsModal({
       setStats(null);
       setHistory([]);
       setHistoryPageIndex(0);
-      void loadData(itemName, sequence);
+      void loadLatest(itemName, sequence);
     } else {
       requestSequenceRef.current += 1;
       setHistoryPageIndex(0);
@@ -143,7 +148,7 @@ export default function ItemAnalyticsModal({
     return () => {
       requestSequenceRef.current += 1;
     };
-  }, [visible, itemName, measurementUnit, canonicalProductId]);
+  }, [visible, itemName, measurementUnit, canonicalProductId, loadLatest, setNestedHorizontalGestureActive]);
 
   async function loadData(targetItemName: string, sequence: number) {
     setLoading(true);
@@ -470,14 +475,12 @@ export default function ItemAnalyticsModal({
   );
 }
 
-const { height: SCREEN_H, width: SCREEN_W } = Dimensions.get('window');
-
-const getStyles = () => StyleSheet.create({
+const getStyles = (windowHeight: number, windowWidth: number) => StyleSheet.create({
   sheet: {
     backgroundColor: Colors.background,
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
-    maxHeight: SCREEN_H * 0.85,
+    maxHeight: windowHeight * 0.85,
     paddingTop: Spacing.sm,
   },
   scrollContent: {
@@ -586,7 +589,7 @@ const getStyles = () => StyleSheet.create({
     ...Typography.bodyLarge,
     fontFamily: FontFamily.extraBold,
     color: Colors.textPrimary,
-    fontSize: 17,
+    fontSize: FontSize.xxl,
     lineHeight: 22,
     letterSpacing: -0.2,
     flexShrink: 1,
@@ -732,7 +735,7 @@ const getStyles = () => StyleSheet.create({
     overflow: 'hidden',
   },
   historyPage: {
-    width: SCREEN_W - ScreenPadding.horizontal * 2,
+    width: windowWidth - ScreenPadding.horizontal * 2,
   },
   historyPageDots: {
     flexDirection: 'row',

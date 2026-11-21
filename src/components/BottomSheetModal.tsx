@@ -60,9 +60,13 @@ interface BottomSheetModalProps {
   accentColor?: string;
   /** Karartıya dokunmanın ekran okuyucu etiketi (ör. çevrilmiş "Kapat"). */
   backdropAccessibilityLabel?: string;
+  /** Karartının test kimliği. */
+  backdropTestID?: string;
 }
 
 const SCREEN_H = Dimensions.get('screen').height;
+/** Kendi `maxHeight` değeri olmayan sayfanın pencere oranı sınırı (UX-07). */
+export const DEFAULT_MAX_HEIGHT_RATIO = 0.9;
 
 // Sürükle-kapat eşiği: tutamak bu kadar piksel aşağı çekilirse panel kapanır.
 const DRAG_CLOSE_THRESHOLD = 90;
@@ -90,6 +94,7 @@ interface ModalContentProps {
   interactive: boolean;
   accentColor?: string;
   backdropAccessibilityLabel?: string;
+  backdropTestID?: string;
 }
 
 function ModalContent({
@@ -103,6 +108,7 @@ function ModalContent({
   interactive,
   accentColor,
   backdropAccessibilityLabel,
+  backdropTestID,
 }: ModalContentProps) {
   const { bottom, top } = useSafeAreaInsets();
   const { height: windowHeight } = useWindowDimensions();
@@ -179,7 +185,10 @@ function ModalContent({
     const screenCap = windowHeight - top - 12;
     // Yüzde verilen yükseklik ('85%') sayfanın kendi kararıdır; dokunulmaz.
     if (typeof flat.maxHeight === 'string') return { ...flat, paddingBottom: basePB + lift };
-    const ownMax = typeof flat.maxHeight === 'number' ? flat.maxHeight : Number.POSITIVE_INFINITY;
+    // UX-07: Sınır vermeyen sayfa varsayılan olarak pencerenin %90'ını aşmaz.
+    const ownMax = typeof flat.maxHeight === 'number'
+      ? flat.maxHeight
+      : windowHeight * DEFAULT_MAX_HEIGHT_RATIO;
     return {
       ...flat,
       paddingBottom: basePB + lift,
@@ -208,6 +217,7 @@ function ModalContent({
           onPress={onClose}
           accessibilityRole={backdropAccessibilityLabel ? 'button' : undefined}
           accessibilityLabel={backdropAccessibilityLabel}
+          testID={backdropTestID}
         />
       </Animated.View>
       {/* Sheet */}
@@ -283,6 +293,7 @@ export default function BottomSheetModal({
   showHandle = false,
   accentColor,
   backdropAccessibilityLabel,
+  backdropTestID,
 }: BottomSheetModalProps) {
   const [mounted, setMounted] = useState(visible);
   const mountedRef = useRef(visible);
@@ -410,6 +421,7 @@ export default function BottomSheetModal({
           showHandle={showHandle}
           accentColor={accentColor}
           backdropAccessibilityLabel={backdropAccessibilityLabel}
+          backdropTestID={backdropTestID}
           interactive={visible}
         >
           {children}
