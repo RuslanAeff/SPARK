@@ -15,6 +15,7 @@ import {
 } from '../utils/inputValidation';
 import { fromMinorUnits, toMinorUnits } from '../utils/moneyMath';
 import { getToday } from '../utils/dateUtils';
+import { HH_MM_PATTERN } from '../utils/reminderValidation';
 
 export type DebtDirection = 'borrowed' | 'lent';
 
@@ -39,7 +40,6 @@ export interface DebtReminderSettingsInput {
   reminderTime?: string;
 }
 
-const HH_MM_PATTERN = /^(?:[01]\d|2[0-3]):[0-5]\d$/;
 
 function normalizeDueDate(value: string | null | undefined): string | null {
   if (value == null || value === '') return null;

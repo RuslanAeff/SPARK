@@ -14,8 +14,8 @@ import {
   sanitizeText,
 } from '../utils/inputValidation';
 import { getNextOccurrence, isRecurringOccurrence } from '../utils/recurringSchedule';
+import { HH_MM_PATTERN } from '../utils/reminderValidation';
 
-const HH_MM_PATTERN = /^(?:[01]\d|2[0-3]):[0-5]\d$/;
 const RECURRENCE_UNITS = new Set<ReminderRecurrenceUnit>(['day', 'week', 'month', 'year']);
 const STATUSES = new Set<RecurringPaymentReminderStatus>(['active', 'paused']);
 const SOURCES = new Set<RecurringPaymentReminderSource>(['manual', 'detected']);

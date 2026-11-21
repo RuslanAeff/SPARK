@@ -8,29 +8,31 @@
 // Harcama/fiş tablolarına dokunulmaz → tüketim analizi gelirden etkilenmez.
 // Tema kalıbı: useAppTheme + useMemo(getStyles) (P12). Birincil CTA = şüşevar.
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { View, Text, TextInput, StyleSheet, Pressable, ScrollView, Dimensions } from 'react-native';
+import { View, Text, TextInput, StyleSheet, Pressable, ScrollView, FlatList, useWindowDimensions } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 
 import BottomSheetModal from './BottomSheetModal';
+import { getFinanceSheetBaseStyles } from './financeSheetStyles';
 import CustomDatePicker from './CustomDatePicker';
 import GlassDeleteModal from './GlassDeleteModal';
 import { SparkToast } from './SparkToast';
 import { Colors } from '../theme/colors';
-import { useAppTheme, useThemeRevision } from '../theme/themeStore';
+import { useAppTheme } from '../theme/themeStore';
 import { Typography, FontFamily } from '../theme/typography';
-import { Spacing, ScreenPadding, BorderRadius } from '../theme/spacing';
+import { Spacing, BorderRadius } from '../theme/spacing';
 import { createSusevarStyles, susevarButtonPressed } from '../theme/susevar';
 import { formatCurrency } from '../utils/formatCurrency';
-import { parseMoneyInput } from '../utils/moneyMath';
+import { parseAmountInputOrZero as parseAmountInput } from '../utils/moneyMath';
 import { formatDayMonth, getToday } from '../utils/dateUtils';
 import { IncomeDao } from '../db/incomeDao';
 import { ExtraIncome } from '../db/schema';
 import { useLanguage } from '../i18n/LanguageContext';
 import { useKeepFocusedInputVisible } from '../hooks/useKeyboard';
 import { SegmentedContent, SegmentedTabs } from './SegmentedTabs';
+import { FINANCE_LIST_VIRTUALIZATION, FinanceListGap } from './financeSheetList';
+import { useThemedStyles } from '../theme/useThemedStyles';
 
-const SCREEN_H = Dimensions.get('window').height;
 
 interface IncomeSheetProps {
   visible: boolean;
@@ -45,11 +47,6 @@ interface IncomeSheetProps {
 
 type IncomeView = 'list' | 'add';
 
-/** Geçersiz veya belirsiz giriş 0 döner; çağıran `<= 0` ile `invalid_amount` gösterir. */
-function parseAmountInput(s: string): number {
-  return parseMoneyInput(s) ?? 0;
-}
-
 const INCOME_TABS = ['cycle', 'all'] as const;
 
 export default function IncomeSheet({
@@ -59,8 +56,9 @@ export default function IncomeSheet({
   const formScrollRef = useRef<ScrollView | null>(null);
   useKeepFocusedInputVisible(formScrollRef);
   const scheme = useAppTheme();
-  const themeRevision = useThemeRevision();
-  const styles = useMemo(() => getStyles(), [scheme, themeRevision]);
+  // UX-07: pencere boyu modül yüklenirken bir kez değil, her boyut değişiminde okunur.
+  const { height: windowHeight } = useWindowDimensions();
+  const styles = useThemedStyles(getStyles, windowHeight);
   const { t } = useLanguage();
 
   const [view, setView] = useState<IncomeView>('list');
@@ -177,12 +175,20 @@ export default function IncomeSheet({
         <Text style={styles.emptyDesc}>{t('income_empty_desc')}</Text>
       </View>
     ) : (
-      <ScrollView style={[styles.listScroll, scrollStyle]} contentContainerStyle={styles.listContent}>
-        {rows.map((inc) => {
+      // UX-12: yalnız görünen satırlar çizilir.
+      <FlatList
+        data={rows}
+        keyExtractor={inc => String(inc.id)}
+        extraData={expandedId}
+        style={[styles.listScroll, scrollStyle]}
+        contentContainerStyle={styles.listContentVirtual}
+        ItemSeparatorComponent={FinanceListGap}
+        {...FINANCE_LIST_VIRTUALIZATION}
+        renderItem={({ item: inc }) => {
           const expanded = expandedId === inc.id;
           return (
             <View key={inc.id}>
-              <Pressable
+              <Pressable accessibilityRole="button" accessibilityState={{ expanded }}
                 onPress={() => setExpandedId(expanded ? null : inc.id)}
                 style={({ pressed }) => [styles.incomeRow, pressed && { opacity: 0.85 }]}
               >
@@ -209,7 +215,7 @@ export default function IncomeSheet({
                       <Text style={styles.noteText}>{inc.note}</Text>
                     </View>
                   ) : null}
-                  <Pressable style={styles.histDeleteBtn} onPress={() => setDeleteId(inc.id)}>
+                  <Pressable accessibilityRole="button" style={styles.histDeleteBtn} onPress={() => setDeleteId(inc.id)}>
                     <MaterialCommunityIcons name="trash-can-outline" size={14} color={Colors.danger} />
                     <Text style={styles.histDeleteText}>{t('delete')}</Text>
                   </Pressable>
@@ -217,8 +223,8 @@ export default function IncomeSheet({
               ) : null}
             </View>
           );
-        })}
-      </ScrollView>
+        }}
+      />
     );
 
   const renderList = () => (
@@ -256,7 +262,7 @@ export default function IncomeSheet({
 
       {/* Ekleme CTA'sı yalnız "Bu dönem"de — "Tümü" salt görüntüleme bağlamı. */}
       {listTab === 'cycle' ? (
-        <Pressable
+        <Pressable accessibilityRole="button"
           onPress={openAdd}
           style={({ pressed }) => [styles.primaryBtn, pressed && susevarButtonPressed]}
         >
@@ -272,7 +278,7 @@ export default function IncomeSheet({
   const renderAdd = () => (
     <>
       <View style={styles.formHeader}>
-        <Pressable onPress={() => setView('list')} hitSlop={10} style={styles.backBtn}>
+        <Pressable accessibilityRole="button" accessibilityLabel={t('settings_back')} onPress={() => setView('list')} hitSlop={10} style={styles.backBtn}>
           <MaterialCommunityIcons name="arrow-left" size={22} color={Colors.textPrimary} />
         </Pressable>
         <Text style={styles.formTitle}>{t('income_add_title')}</Text>
@@ -299,7 +305,7 @@ export default function IncomeSheet({
         />
 
         <Text style={styles.fieldLabel}>{t('date')}</Text>
-        <Pressable style={[styles.input, styles.inputAsButton]} onPress={() => setDatePickerVisible(true)}>
+        <Pressable accessibilityRole="button" accessibilityLabel={`${t('date')}: ${date || t('select_date')}`} style={[styles.input, styles.inputAsButton]} onPress={() => setDatePickerVisible(true)}>
           <Text style={styles.inputButtonText}>{date || t('select_date')}</Text>
           <MaterialCommunityIcons name="calendar-outline" size={18} color={Colors.textSecondary} />
         </Pressable>
@@ -320,7 +326,7 @@ export default function IncomeSheet({
           <Text style={styles.hintText}>{t('income_cycle_hint')}</Text>
         </View>
 
-        <Pressable
+        <Pressable accessibilityRole="button"
           onPress={handleAdd}
           disabled={saving}
           style={({ pressed }) => [styles.primaryBtn, { marginTop: Spacing.lg }, saving && { opacity: 0.6 }, pressed && susevarButtonPressed]}
@@ -359,57 +365,17 @@ export default function IncomeSheet({
   );
 }
 
-const getStyles = () => StyleSheet.create({
-  sheet: {
-    backgroundColor: Colors.background,
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    maxHeight: SCREEN_H * 0.85,
-    paddingTop: Spacing.sm,
-    paddingHorizontal: ScreenPadding.horizontal,
-    paddingBottom: Spacing.lg,
-    borderTopWidth: 1,
-    borderColor: Colors.cardBorder,
-  },
-  sheetDark: {
-    borderTopWidth: 0,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.md,
-    paddingTop: Spacing.sm,
-    marginBottom: Spacing.lg,
-  },
-  headerIcon: {
-    width: 46,
-    height: 46,
-    borderRadius: 23,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  title: {
-    ...Typography.headlineSmall,
-    color: Colors.textPrimary,
-    fontFamily: FontFamily.bold,
-  },
+const getStyles = (windowHeight: number) => StyleSheet.create({
+  ...getFinanceSheetBaseStyles(windowHeight),
   subtitle: {
     ...Typography.bodyMedium,
     color: Colors.success,
     fontFamily: FontFamily.semiBold,
     marginTop: 2,
   },
-  listScroll: {
-    flexShrink: 1,
-    maxHeight: SCREEN_H * 0.46,
-  },
   // "Tümü" sekmesinde ekleme butonu olmadığından liste daha uzun olabilir.
   listScrollAll: {
-    maxHeight: SCREEN_H * 0.6,
-  },
-  listContent: {
-    gap: Spacing.sm,
-    paddingBottom: Spacing.sm,
+    maxHeight: windowHeight * 0.6,
   },
   incomeRow: {
     flexDirection: 'row',
@@ -456,28 +422,12 @@ const getStyles = () => StyleSheet.create({
     alignItems: 'flex-start',
     gap: 6,
   },
-  noteText: {
-    ...Typography.bodySmall,
-    color: Colors.textSecondary,
-    flex: 1,
-    fontStyle: 'italic',
-  },
   histDeleteBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
     alignSelf: 'flex-start',
     marginTop: Spacing.xs,
-  },
-  histDeleteText: {
-    ...Typography.labelSmall,
-    color: Colors.danger,
-    fontFamily: FontFamily.semiBold,
-  },
-  emptyWrap: {
-    alignItems: 'center',
-    paddingVertical: Spacing.xxl,
-    gap: Spacing.sm,
   },
   emptyIcon: {
     width: 64,
@@ -487,63 +437,6 @@ const getStyles = () => StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: Spacing.xs,
-  },
-  emptyTitle: {
-    ...Typography.headlineSmall,
-    color: Colors.textPrimary,
-  },
-  emptyDesc: {
-    ...Typography.bodyMedium,
-    color: Colors.textSecondary,
-    textAlign: 'center',
-  },
-  formHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.sm,
-    paddingTop: Spacing.sm,
-    marginBottom: Spacing.lg,
-  },
-  backBtn: {
-    padding: Spacing.xs,
-  },
-  formTitle: {
-    ...Typography.headlineSmall,
-    color: Colors.textPrimary,
-    fontFamily: FontFamily.bold,
-  },
-  formScroll: {
-    flexShrink: 1,
-    maxHeight: SCREEN_H * 0.66,
-  },
-  formContent: {
-    paddingBottom: Spacing.sm,
-  },
-  fieldLabel: {
-    ...Typography.labelLarge,
-    color: Colors.textSecondary,
-    marginBottom: Spacing.sm,
-    marginTop: Spacing.md,
-  },
-  input: {
-    ...Typography.bodyLarge,
-    color: Colors.textPrimary,
-    backgroundColor: Colors.surface,
-    borderRadius: BorderRadius.md,
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.md,
-    borderWidth: 1,
-    borderColor: Colors.border,
-  },
-  inputAsButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  inputButtonText: {
-    ...Typography.bodyLarge,
-    color: Colors.textPrimary,
-    fontFamily: FontFamily.medium,
   },
   hintRow: {
     flexDirection: 'row',
@@ -555,16 +448,6 @@ const getStyles = () => StyleSheet.create({
     ...Typography.labelSmall,
     color: Colors.textMuted,
     flex: 1,
-  },
-  primaryBtn: {
-    ...createSusevarStyles(Colors).button,
-    marginTop: Spacing.lg,
-  },
-  primaryBtnRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: Spacing.sm,
   },
   primaryBtnText: createSusevarStyles(Colors).text,
 });

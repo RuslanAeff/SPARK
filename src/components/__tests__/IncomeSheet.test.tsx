@@ -75,3 +75,25 @@ describe('IncomeSheet save guard (BUG-30)', () => {
     await waitFor(() => expect(IncomeDao.create).toHaveBeenCalledTimes(1));
   });
 });
+
+describe('IncomeSheet history list (UX-12)', () => {
+  it('draws only the first rows of a long list and keeps expansion working', async () => {
+    const incomes = Array.from({ length: 60 }, (_, index) => ({
+      id: index + 1,
+      source: `Kaynak ${index + 1}`,
+      amount: 10,
+      date: '2026-11-10',
+      note: index === 0 ? 'ilk not' : null,
+    }));
+    (IncomeDao.listByDateRange as jest.Mock).mockResolvedValue(incomes);
+    const screen = await render(
+      <IncomeSheet visible onClose={jest.fn()} currency="PLN" cycleStart="2026-11-01" cycleEnd="2026-11-30" />,
+    );
+
+    expect(await screen.findByText('Kaynak 1')).toBeTruthy();
+    expect(screen.queryByText('Kaynak 60')).toBeNull();
+
+    await fireEvent.press(screen.getByText('Kaynak 1'));
+    expect(screen.getByText('ilk not')).toBeTruthy();
+  });
+});

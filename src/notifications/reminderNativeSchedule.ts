@@ -13,10 +13,15 @@ import {
   shiftCalendarDate,
   type RecurringSchedule,
 } from '../utils/recurringSchedule';
+import {
+  HH_MM_PATTERN,
+  SUPPORTED_RECURRENCE_UNITS,
+  isValidCurrency,
+  isValidLeadDays,
+  isValidReminderTime,
+} from '../utils/reminderValidation';
 import { localYmdFromEpoch as localYmdAt } from '../utils/dateUtils';
 
-const HH_MM_PATTERN = /^(?:[01]\d|2[0-3]):[0-5]\d$/;
-const SUPPORTED_UNITS = new Set(['day', 'week', 'month', 'year']);
 
 export const MAX_NATIVE_REMINDER_SCHEDULES = 512;
 export const RECURRING_REMINDER_HORIZON_DAYS = 400;
@@ -131,21 +136,6 @@ export function localReminderDateTimeToEpoch(
   return epoch;
 }
 
-function isValidLeadDays(value: unknown): value is number {
-  return Number.isInteger(value) && Number(value) >= 0 && Number(value) <= 365;
-}
-
-function isValidReminderTime(value: unknown): value is string {
-  return typeof value === 'string' && HH_MM_PATTERN.test(value);
-}
-
-function isValidCurrency(value: unknown): value is string {
-  return typeof value === 'string'
-    && value.length > 0
-    && value.length <= 10
-    && value.trim() === value;
-}
-
 function timeId(value: string): string {
   return value.replace(':', '');
 }
@@ -247,7 +237,7 @@ function isValidRecurringPayment(
     && isValidYmd(reminder.anchor_date)
     && isValidYmd(reminder.next_due_date)
     && reminder.next_due_date >= reminder.anchor_date
-    && SUPPORTED_UNITS.has(reminder.recurrence_unit)
+    && SUPPORTED_RECURRENCE_UNITS.has(reminder.recurrence_unit)
     && Number.isInteger(reminder.recurrence_interval)
     && reminder.recurrence_interval >= 1
     && reminder.recurrence_interval <= 999

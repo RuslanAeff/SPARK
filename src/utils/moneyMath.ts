@@ -55,6 +55,15 @@ export function parseMoneyInput(text: string): number | null {
   return Number.isFinite(value) ? roundMoney(value) : null;
 }
 
+/**
+ * Form doğrulaması için: geçersiz veya belirsiz giriş 0 döner; çağıran `<= 0`
+ * ile "geçersiz tutar" gösterir. Borç ve gelir sayfalarındaki iki kopyanın
+ * yerine (UI denetimi CQ-07).
+ */
+export function parseAmountInputOrZero(text: string): number {
+  return parseMoneyInput(text) ?? 0;
+}
+
 export function parseUnitRateInput(text: string): number | null {
   const normalized = text.trim().replace(/\s/g, '').replace(',', '.');
   if (!/^[+-]?\d+(?:\.\d*)?$/.test(normalized)) return null;

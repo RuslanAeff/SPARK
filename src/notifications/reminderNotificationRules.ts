@@ -12,9 +12,14 @@ import {
   isRecurringOccurrence,
   isValidYmd,
 } from '../utils/recurringSchedule';
+import {
+  HH_MM_PATTERN,
+  SUPPORTED_RECURRENCE_UNITS,
+  isValidCurrency,
+  isValidLeadDays,
+  isValidReminderTime,
+} from '../utils/reminderValidation';
 
-const HH_MM_PATTERN = /^(?:[01]\d|2[0-3]):[0-5]\d$/;
-const SUPPORTED_UNITS = new Set(['day', 'week', 'month', 'year']);
 
 export type ReminderNotificationStage = 'upcoming' | 'today' | 'overdue';
 export type ReminderNotificationKind = 'debt' | 'recurring_payment';
@@ -86,21 +91,6 @@ function isValidClock(clock: ReminderRuleClock): boolean {
     && isValidYmd(clock.today)
     && typeof clock.localTime === 'string'
     && HH_MM_PATTERN.test(clock.localTime);
-}
-
-function isValidLeadDays(value: unknown): value is number {
-  return Number.isInteger(value) && Number(value) >= 0 && Number(value) <= 365;
-}
-
-function isValidReminderTime(value: unknown): value is string {
-  return typeof value === 'string' && HH_MM_PATTERN.test(value);
-}
-
-function isValidCurrency(value: unknown): value is string {
-  return typeof value === 'string'
-    && value.length > 0
-    && value.length <= 10
-    && value.trim() === value;
 }
 
 function resolveStage(
@@ -215,7 +205,7 @@ function buildRecurringCandidate(
     || !isValidYmd(reminder.anchor_date)
     || !isValidYmd(reminder.next_due_date)
     || reminder.next_due_date < reminder.anchor_date
-    || !SUPPORTED_UNITS.has(reminder.recurrence_unit)
+    || !SUPPORTED_RECURRENCE_UNITS.has(reminder.recurrence_unit)
     || !Number.isInteger(reminder.recurrence_interval)
     || reminder.recurrence_interval < 1 || reminder.recurrence_interval > 999
     || !isRecurringOccurrence(

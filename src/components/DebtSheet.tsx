@@ -6,23 +6,24 @@
 // tüketim sayılmaz; nakit-akışı etkisi useBudget/debtMath üzerinden işlenir.
 // Tema kalıbı: useAppTheme + useMemo(getStyles) (P12). Birincil CTA = şüşevar.
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { View, Text, TextInput, StyleSheet, Pressable, ScrollView, Dimensions } from 'react-native';
+import { View, Text, TextInput, StyleSheet, Pressable, ScrollView, FlatList, useWindowDimensions } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
 import * as Haptics from 'expo-haptics';
 
 import BottomSheetModal from './BottomSheetModal';
+import { getFinanceSheetBaseStyles } from './financeSheetStyles';
 import CustomDatePicker from './CustomDatePicker';
 import DebtReminderFields from './DebtReminderFields';
 import GlassDeleteModal from './GlassDeleteModal';
 import { SparkToast } from './SparkToast';
 import { Colors } from '../theme/colors';
-import { useAppTheme, useThemeRevision } from '../theme/themeStore';
+import { useAppTheme } from '../theme/themeStore';
 import { Typography, FontFamily } from '../theme/typography';
-import { Spacing, ScreenPadding, BorderRadius } from '../theme/spacing';
+import { Spacing, BorderRadius } from '../theme/spacing';
 import { createSusevarStyles, susevarButtonPressed } from '../theme/susevar';
 import { formatCurrency } from '../utils/formatCurrency';
-import { parseMoneyInput } from '../utils/moneyMath';
+import { parseAmountInputOrZero as parseAmountInput } from '../utils/moneyMath';
 import { formatDateFull, formatDayMonth, getToday } from '../utils/dateUtils';
 import {
   getDebtDueState,
@@ -38,8 +39,9 @@ import { useRefreshActions } from '../context/RefreshContext';
 import { syncNotificationsBestEffort } from '../notifications/syncNotificationsBestEffort';
 import { useKeepFocusedInputVisible } from '../hooks/useKeyboard';
 import { SegmentedContent, SegmentedTabs } from './SegmentedTabs';
+import { FINANCE_LIST_VIRTUALIZATION, FinanceListGap } from './financeSheetList';
+import { useThemedStyles } from '../theme/useThemedStyles';
 
-const SCREEN_H = Dimensions.get('window').height;
 
 interface DebtSheetProps {
   visible: boolean;
@@ -51,11 +53,6 @@ interface DebtSheetProps {
 
 type DebtView = 'list' | 'add' | 'repay' | 'reminder';
 type DatePickerTarget = 'debt-date' | 'repay-date' | 'due-date' | null;
-
-/** Geçersiz veya belirsiz giriş 0 döner; çağıran `<= 0` ile `invalid_amount` gösterir. */
-function parseAmountInput(s: string): number {
-  return parseMoneyInput(s) ?? 0;
-}
 
 function playSuccessHaptic(): void {
   void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success)
@@ -69,8 +66,9 @@ export default function DebtSheet({ visible, onClose, currency, onChanged }: Deb
   const formScrollRef = useRef<ScrollView | null>(null);
   useKeepFocusedInputVisible(formScrollRef);
   const scheme = useAppTheme();
-  const themeRevision = useThemeRevision();
-  const styles = useMemo(() => getStyles(), [scheme, themeRevision]);
+  // UX-07: pencere boyu modül yüklenirken bir kez değil, her boyut değişiminde okunur.
+  const { height: windowHeight } = useWindowDimensions();
+  const styles = useThemedStyles(getStyles, windowHeight);
   const { t } = useLanguage();
   const { triggerRefresh } = useRefreshActions();
   const { sync: syncNotifications } = useNotifications();
@@ -358,6 +356,11 @@ export default function DebtSheet({ visible, onClose, currency, onChanged }: Deb
     }
   }
 
+  const historyExtraData = useMemo(
+    () => ({ expandedDebtId, paymentsByDebt }),
+    [expandedDebtId, paymentsByDebt],
+  );
+
   // ── Görünümler ────────────────────────────────────────────────
   const renderOpenList = () =>
     debts.length === 0 ? (
@@ -369,8 +372,16 @@ export default function DebtSheet({ visible, onClose, currency, onChanged }: Deb
         <Text style={styles.emptyDesc}>{t('debt_empty_desc')}</Text>
       </View>
     ) : (
-      <ScrollView style={styles.listScroll} contentContainerStyle={styles.listContent}>
-        {debts.map((d) => {
+      // UX-12: yalnız görünen satırlar çizilir.
+      <FlatList
+        data={debts}
+        keyExtractor={d => String(d.id)}
+        extraData={today}
+        style={styles.listScroll}
+        contentContainerStyle={styles.listContentVirtual}
+        ItemSeparatorComponent={FinanceListGap}
+        {...FINANCE_LIST_VIRTUALIZATION}
+        renderItem={({ item: d }) => {
           const dueState = getDebtDueState(d.due_date, today);
           const dueDateLabel = d.due_date ? formatDateFull(d.due_date, t) : '';
           const dueLabel = dueState === 'today'
@@ -436,8 +447,8 @@ export default function DebtSheet({ visible, onClose, currency, onChanged }: Deb
               </View>
             </Pressable>
           );
-        })}
-      </ScrollView>
+        }}
+      />
     );
 
   const renderHistoryList = () =>
@@ -449,14 +460,23 @@ export default function DebtSheet({ visible, onClose, currency, onChanged }: Deb
         <Text style={styles.emptyTitle}>{t('empty')}</Text>
       </View>
     ) : (
-      <ScrollView style={[styles.listScroll, styles.listScrollHistory]} contentContainerStyle={styles.listContent}>
-        {allDebts.map((d) => {
+      // UX-12: yalnız görünen satırlar çizilir; açılan satır ve ödemeleri
+      // değişince yalnız ilgili satır yeniden çizilir.
+      <FlatList
+        data={allDebts}
+        keyExtractor={d => String(d.id)}
+        extraData={historyExtraData}
+        style={[styles.listScroll, styles.listScrollHistory]}
+        contentContainerStyle={styles.listContentVirtual}
+        ItemSeparatorComponent={FinanceListGap}
+        {...FINANCE_LIST_VIRTUALIZATION}
+        renderItem={({ item: d }) => {
           const settled = d.status === 'settled';
           const expanded = expandedDebtId === d.id;
           const pays = paymentsByDebt[d.id];
           return (
             <View key={d.id}>
-              <Pressable
+              <Pressable accessibilityRole="button" accessibilityState={{ expanded }}
                 onPress={() => void toggleExpand(d.id)}
                 style={({ pressed }) => [styles.debtRow, pressed && { opacity: 0.85 }]}
               >
@@ -501,7 +521,7 @@ export default function DebtSheet({ visible, onClose, currency, onChanged }: Deb
                       </View>
                     ))
                   )}
-                  <Pressable onPress={() => setDeleteId(d.id)} style={styles.histDeleteBtn} hitSlop={8}>
+                  <Pressable accessibilityRole="button" onPress={() => setDeleteId(d.id)} style={styles.histDeleteBtn} hitSlop={8}>
                     <MaterialCommunityIcons name="trash-can-outline" size={15} color={Colors.danger} />
                     <Text style={styles.histDeleteText}>{t('delete')}</Text>
                   </Pressable>
@@ -509,8 +529,8 @@ export default function DebtSheet({ visible, onClose, currency, onChanged }: Deb
               ) : null}
             </View>
           );
-        })}
-      </ScrollView>
+        }}
+      />
     );
 
   const renderList = () => (
@@ -546,7 +566,7 @@ export default function DebtSheet({ visible, onClose, currency, onChanged }: Deb
 
       {/* "Borç Aldım" yalnız Açık sekmesinde — geçmiş salt görüntüleme bağlamı. */}
       {listTab === 'open' ? (
-        <Pressable
+        <Pressable accessibilityRole="button"
           testID="debt-open-add"
           onPress={openAdd}
           style={({ pressed }) => [styles.primaryBtn, pressed && susevarButtonPressed]}
@@ -563,7 +583,7 @@ export default function DebtSheet({ visible, onClose, currency, onChanged }: Deb
   const renderAdd = () => (
     <>
       <View style={styles.formHeader}>
-        <Pressable onPress={() => setView('list')} hitSlop={10} style={styles.backBtn}>
+        <Pressable accessibilityRole="button" accessibilityLabel={t('settings_back')} onPress={() => setView('list')} hitSlop={10} style={styles.backBtn}>
           <MaterialCommunityIcons name="arrow-left" size={22} color={Colors.textPrimary} />
         </Pressable>
         <Text style={styles.formTitle}>{t('debt_add_title')}</Text>
@@ -629,7 +649,7 @@ export default function DebtSheet({ visible, onClose, currency, onChanged }: Deb
         />
 
         {/* Opsiyonel: borcu bir fişe (harcamaya) bağla */}
-        <Pressable style={styles.linkToggle} onPress={() => setLinkExpanded((v) => !v)}>
+        <Pressable accessibilityRole="button" accessibilityState={{ expanded: linkExpanded }} style={styles.linkToggle} onPress={() => setLinkExpanded((v) => !v)}>
           <MaterialCommunityIcons name="link-variant" size={16} color={Colors.textSecondary} />
           <Text style={styles.linkToggleText}>{t('debt_link_receipt')}</Text>
           <MaterialCommunityIcons
@@ -647,7 +667,7 @@ export default function DebtSheet({ visible, onClose, currency, onChanged }: Deb
               recentExpenses.map((e) => {
                 const selected = linkedExpenseId === e.id;
                 return (
-                  <Pressable
+                  <Pressable accessibilityRole="checkbox" accessibilityState={{ checked: selected }}
                     key={e.id}
                     onPress={() => setLinkedExpenseId(selected ? null : e.id)}
                     style={[styles.linkRow, selected && styles.linkRowSelected]}
@@ -668,7 +688,7 @@ export default function DebtSheet({ visible, onClose, currency, onChanged }: Deb
           </View>
         ) : null}
 
-        <Pressable
+        <Pressable accessibilityRole="button"
           testID="debt-add-save"
           onPress={handleAdd}
           disabled={saving}
@@ -684,7 +704,7 @@ export default function DebtSheet({ visible, onClose, currency, onChanged }: Deb
   const renderRepay = () => (
     <>
       <View style={styles.formHeader}>
-        <Pressable onPress={() => setView('list')} hitSlop={10} style={styles.backBtn}>
+        <Pressable accessibilityRole="button" accessibilityLabel={t('settings_back')} onPress={() => setView('list')} hitSlop={10} style={styles.backBtn}>
           <MaterialCommunityIcons name="arrow-left" size={22} color={Colors.textPrimary} />
         </Pressable>
         <Text style={styles.formTitle}>{t('debt_repay_title')}</Text>
@@ -766,7 +786,7 @@ export default function DebtSheet({ visible, onClose, currency, onChanged }: Deb
           placeholderTextColor={Colors.textMuted}
         />
         {activeDebt ? (
-          <Pressable style={styles.fullChip} onPress={() => setRepayAmount(String(activeDebt.remaining))}>
+          <Pressable accessibilityRole="button" style={styles.fullChip} onPress={() => setRepayAmount(String(activeDebt.remaining))}>
             <Text style={styles.fullChipText}>{t('debt_repay_full')}</Text>
           </Pressable>
         ) : null}
@@ -782,7 +802,7 @@ export default function DebtSheet({ visible, onClose, currency, onChanged }: Deb
           <MaterialCommunityIcons name="calendar-outline" size={18} color={Colors.textSecondary} />
         </Pressable>
 
-        <Pressable
+        <Pressable accessibilityRole="button"
           testID="debt-repay-save"
           onPress={handleRepay}
           disabled={saving}
@@ -905,42 +925,10 @@ export default function DebtSheet({ visible, onClose, currency, onChanged }: Deb
   );
 }
 
-const getStyles = () => StyleSheet.create({
-  sheet: {
-    backgroundColor: Colors.background,
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    maxHeight: SCREEN_H * 0.85,
-    paddingTop: Spacing.sm,
-    paddingHorizontal: ScreenPadding.horizontal,
-    paddingBottom: Spacing.lg,
-    borderTopWidth: 1,
-    borderColor: Colors.cardBorder,
-  },
+const getStyles = (windowHeight: number) => StyleSheet.create({
+  ...getFinanceSheetBaseStyles(windowHeight),
   /** Karanlık modda cardBorder (#505060) üstte parlak beyazımsı çizgi yapıyordu;
       koyu sheet zaten dimmed backdrop + kulpla ayrışıyor → üst kenarlığı kaldır. */
-  sheetDark: {
-    borderTopWidth: 0,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.md,
-    paddingTop: Spacing.sm,
-    marginBottom: Spacing.lg,
-  },
-  headerIcon: {
-    width: 46,
-    height: 46,
-    borderRadius: 23,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  title: {
-    ...Typography.headlineSmall,
-    color: Colors.textPrimary,
-    fontFamily: FontFamily.bold,
-  },
   subtitle: {
     ...Typography.bodyMedium,
     color: Colors.danger,
@@ -987,12 +975,6 @@ const getStyles = () => StyleSheet.create({
     gap: 6,
     marginBottom: Spacing.sm,
   },
-  noteText: {
-    ...Typography.bodySmall,
-    color: Colors.textSecondary,
-    flex: 1,
-    fontStyle: 'italic',
-  },
   paymentEmpty: {
     ...Typography.bodySmall,
     color: Colors.textMuted,
@@ -1019,23 +1001,9 @@ const getStyles = () => StyleSheet.create({
     alignSelf: 'flex-start',
     marginTop: Spacing.md,
   },
-  histDeleteText: {
-    ...Typography.labelSmall,
-    color: Colors.danger,
-    fontFamily: FontFamily.semiBold,
-  },
-  // Liste
-  listScroll: {
-    flexShrink: 1,
-    maxHeight: SCREEN_H * 0.46,
-  },
   // Geçmiş sekmesinde "Borç Aldım" butonu olmadığından liste daha uzun olabilir.
   listScrollHistory: {
-    maxHeight: SCREEN_H * 0.6,
-  },
-  listContent: {
-    gap: Spacing.sm,
-    paddingBottom: Spacing.sm,
+    maxHeight: windowHeight * 0.6,
   },
   debtRow: {
     flexDirection: 'row',
@@ -1103,12 +1071,6 @@ const getStyles = () => StyleSheet.create({
     color: Colors.primary,
     fontFamily: FontFamily.bold,
   },
-  // Boş durum
-  emptyWrap: {
-    alignItems: 'center',
-    paddingVertical: Spacing.xxl,
-    gap: Spacing.sm,
-  },
   emptyIcon: {
     width: 64,
     height: 64,
@@ -1117,26 +1079,6 @@ const getStyles = () => StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: Spacing.xs,
-  },
-  emptyTitle: {
-    ...Typography.headlineSmall,
-    color: Colors.textPrimary,
-  },
-  emptyDesc: {
-    ...Typography.bodyMedium,
-    color: Colors.textSecondary,
-    textAlign: 'center',
-  },
-  // Form ortak
-  formHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.sm,
-    paddingTop: Spacing.sm,
-    marginBottom: Spacing.lg,
-  },
-  backBtn: {
-    padding: Spacing.xs,
   },
   headerDeleteBtn: {
     marginLeft: 'auto',
@@ -1154,44 +1096,6 @@ const getStyles = () => StyleSheet.create({
   headerDeletePressed: {
     backgroundColor: Colors.danger + '26',
     transform: [{ scale: 0.96 }],
-  },
-  formTitle: {
-    ...Typography.headlineSmall,
-    color: Colors.textPrimary,
-    fontFamily: FontFamily.bold,
-  },
-  formScroll: {
-    flexShrink: 1,
-    maxHeight: SCREEN_H * 0.66,
-  },
-  formContent: {
-    paddingBottom: Spacing.sm,
-  },
-  fieldLabel: {
-    ...Typography.labelLarge,
-    color: Colors.textSecondary,
-    marginBottom: Spacing.sm,
-    marginTop: Spacing.md,
-  },
-  input: {
-    ...Typography.bodyLarge,
-    color: Colors.textPrimary,
-    backgroundColor: Colors.surface,
-    borderRadius: BorderRadius.md,
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.md,
-    borderWidth: 1,
-    borderColor: Colors.border,
-  },
-  inputAsButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  inputButtonText: {
-    ...Typography.bodyLarge,
-    color: Colors.textPrimary,
-    fontFamily: FontFamily.medium,
   },
   linkToggle: {
     flexDirection: 'row',
@@ -1344,17 +1248,6 @@ const getStyles = () => StyleSheet.create({
     ...Typography.labelSmall,
     color: Colors.primary,
     fontFamily: FontFamily.bold,
-  },
-  // Şüşevar birincil CTA
-  primaryBtn: {
-    ...createSusevarStyles(Colors).button,
-    marginTop: Spacing.lg,
-  },
-  primaryBtnRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: Spacing.sm,
   },
   primaryBtnText: createSusevarStyles(Colors).text,
 });
