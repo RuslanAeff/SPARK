@@ -1,7 +1,7 @@
 // S.P.A.R.K. — Settings Screen (group menu)
-import React, { useMemo } from 'react';
+import React from 'react';
 import { View, Text, ScrollView, StyleSheet, Pressable, Linking } from 'react-native';
-import { useAppTheme, useThemeRevision } from '../../src/theme/themeStore';
+import { useAppTheme } from '../../src/theme/themeStore';
 import { useRouter } from 'expo-router';
 import { useIsFocused } from '@react-navigation/native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -10,12 +10,13 @@ import Animated, { FadeInDown } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
 
 import { Colors } from '../../src/theme/colors';
-import { Typography, FontFamily } from '../../src/theme/typography';
+import { Typography, FontFamily, FontSize } from '../../src/theme/typography';
 import { Spacing, ScreenPadding } from '../../src/theme/spacing';
 import { useLanguage } from '../../src/i18n/LanguageContext';
 import LivingSparkWordmark from '../../src/components/LivingSparkWordmark';
 import { SettingsNavigationRow } from '../../src/components/SettingsList';
 import { useBottomClearance } from '../../src/hooks/useBottomClearance';
+import { useThemedStyles } from '../../src/theme/useThemedStyles';
 
 interface SettingsGroup {
   key: 'general' | 'budget' | 'data' | 'ai';
@@ -27,57 +28,56 @@ interface SettingsGroup {
   route: string;
 }
 
+const getGroups = (): SettingsGroup[] => [
+  {
+    key: 'general',
+    icon: 'tune-variant',
+    iconColor: Colors.primary,
+    iconBg: Colors.primaryGlow,
+    titleKey: 'settings_group_general',
+    descKey: 'settings_group_general_desc',
+    route: '/settings-general',
+  },
+  {
+    key: 'budget',
+    icon: 'wallet-outline',
+    iconColor: Colors.chartOrange,
+    iconBg: Colors.chartOrange + '22',
+    titleKey: 'settings_group_budget',
+    descKey: 'settings_group_budget_desc',
+    route: '/settings-budget',
+  },
+  {
+    key: 'data',
+    icon: 'database-outline',
+    iconColor: Colors.chartGreen,
+    iconBg: Colors.chartGreen + '22',
+    titleKey: 'settings_group_data',
+    descKey: 'settings_group_data_desc',
+    route: '/settings-data',
+  },
+  {
+    key: 'ai',
+    icon: 'chip',
+    iconColor: Colors.chartPurple,
+    iconBg: Colors.chartPurple + '22',
+    titleKey: 'settings_group_ai',
+    descKey: 'settings_group_ai_desc',
+    route: '/settings-ai',
+  },
+  ];
+
 export default function SettingsScreen() {
   // UX-06: yüzen sekme çubuğu + sistem gezinme alanı kadar alt boşluk.
   const bottomClearance = useBottomClearance('tab');
   const colorScheme = useAppTheme();
-  const themeRevision = useThemeRevision();
-  const styles = useMemo(() => getStyles(), [colorScheme, themeRevision]);
+  const styles = useThemedStyles(getStyles);
   const router = useRouter();
   const isFocused = useIsFocused();
   const { t } = useLanguage();
 
-  const groups: SettingsGroup[] = useMemo(
-    () => [
-      {
-        key: 'general',
-        icon: 'tune-variant',
-        iconColor: Colors.primary,
-        iconBg: Colors.primaryGlow,
-        titleKey: 'settings_group_general',
-        descKey: 'settings_group_general_desc',
-        route: '/settings-general',
-      },
-      {
-        key: 'budget',
-        icon: 'wallet-outline',
-        iconColor: Colors.chartOrange,
-        iconBg: Colors.chartOrange + '22',
-        titleKey: 'settings_group_budget',
-        descKey: 'settings_group_budget_desc',
-        route: '/settings-budget',
-      },
-      {
-        key: 'data',
-        icon: 'database-outline',
-        iconColor: Colors.chartGreen,
-        iconBg: Colors.chartGreen + '22',
-        titleKey: 'settings_group_data',
-        descKey: 'settings_group_data_desc',
-        route: '/settings-data',
-      },
-      {
-        key: 'ai',
-        icon: 'robot-outline',
-        iconColor: Colors.chartPurple,
-        iconBg: Colors.chartPurple + '22',
-        titleKey: 'settings_group_ai',
-        descKey: 'settings_group_ai_desc',
-        route: '/settings-ai',
-      },
-    ],
-    [colorScheme, themeRevision],
-  );
+  // Renkler tema ve vurguyla değişir; liste ortak tema hook'uyla yeniden üretilir.
+  const groups = useThemedStyles(getGroups);
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -182,7 +182,7 @@ const getStyles = () => StyleSheet.create({
   },
   aboutSigText: {
     fontFamily: FontFamily.extraBold,
-    fontSize: 17,
+    fontSize: FontSize.xxl,
     letterSpacing: 2.5,
     textTransform: 'uppercase',
     textShadowColor: '#00e5ff',
