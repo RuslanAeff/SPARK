@@ -11,7 +11,7 @@ import * as Haptics from 'expo-haptics';
 import BottomSheetModal from './BottomSheetModal';
 import { useThemePalette } from '../theme/themeStore';
 import type { ThemePalette } from '../theme/colors';
-import { FontFamily } from '../theme/typography';
+import { FontFamily, FontSize } from '../theme/typography';
 import { Spacing, BorderRadius } from '../theme/spacing';
 import type { Language } from '../i18n/translations';
 import { LANGUAGE_OPTIONS } from '../i18n/languageOptions';
@@ -93,7 +93,7 @@ const getStyles = (theme: ThemePalette) => StyleSheet.create({
   },
   sheetTitle: {
     fontFamily: FontFamily.extraBold,
-    fontSize: 20,
+    fontSize: FontSize.h2,
     color: theme.textPrimary,
     marginBottom: Spacing.md,
   },
@@ -109,7 +109,7 @@ const getStyles = (theme: ThemePalette) => StyleSheet.create({
   rowPressed: { opacity: 0.88 },
   rowLabel: {
     fontFamily: FontFamily.medium,
-    fontSize: 17,
+    fontSize: FontSize.xxl,
     color: theme.textPrimary,
     flex: 1,
   },

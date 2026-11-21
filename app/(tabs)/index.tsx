@@ -1,7 +1,7 @@
 // S.P.A.R.K. — Dashboard Screen (Home)
 import React, { useCallback } from 'react';
 import { View, Text, ScrollView, StyleSheet, RefreshControl, Pressable } from 'react-native';
-import { useAppTheme, useThemeRevision } from '../../src/theme/themeStore';
+
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useIsFocused } from '@react-navigation/native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -10,7 +10,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 
 import { Colors } from '../../src/theme/colors';
-import { Typography, FontFamily } from '../../src/theme/typography';
+import { Typography, FontFamily, FontSize } from '../../src/theme/typography';
 import { Spacing, ScreenPadding, BorderRadius } from '../../src/theme/spacing';
 import { formatCurrency } from '../../src/utils/formatCurrency';
 import { formatPeriodRange } from '../../src/utils/dateUtils';
@@ -42,6 +42,7 @@ import { getDashboardGoalPresentation } from '../../src/utils/dashboardGoalPrese
 import PrimaryButton from '../../src/components/PrimaryButton';
 import { useBottomClearance } from '../../src/hooks/useBottomClearance';
 import { useDashboardRefresh } from '../../src/hooks/useDashboardRefresh';
+import { useThemedStyles } from '../../src/theme/useThemedStyles';
 
 /** Veri hook'ları yalnız useDashboardRefresh üzerinden yüklenir (FN-03). */
 const MANUAL_LOAD = { autoLoad: false } as const;
@@ -50,9 +51,7 @@ export default function DashboardScreen() {
   // UX-06: yüzen sekme çubuğu + sistem gezinme alanı kadar alt boşluk.
   const bottomClearance = useBottomClearance('tab');
   // İlk açılışta DB teması gelince tüm kartlar aynı React store'undan senkronlensin.
-  const scheme = useAppTheme();
-  const themeRevision = useThemeRevision();
-  const styles = React.useMemo(() => getStyles(), [scheme, themeRevision]);
+  const styles = useThemedStyles(getStyles);
   const router = useRouter();
   const { t, tc } = useLanguage();
 
@@ -559,7 +558,7 @@ const getStyles = () => StyleSheet.create({
   },
   goalPlaceholderTitle: {
     ...Typography.labelLarge,
-    fontSize: 16,
+    fontSize: FontSize.xl,
     color: Colors.textPrimary,
     fontFamily: FontFamily.black,
     letterSpacing: 1.65,
@@ -615,7 +614,7 @@ const getStyles = () => StyleSheet.create({
   },
   sectionTitle: {
     ...Typography.labelLarge,
-    fontSize: 15,
+    fontSize: FontSize.lg,
     color: Colors.textPrimary,
     letterSpacing: 1.75,
     textTransform: 'uppercase',

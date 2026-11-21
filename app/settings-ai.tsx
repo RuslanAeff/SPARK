@@ -1,14 +1,14 @@
 // S.P.A.R.K. — Settings: AI (Gemini API key)
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, ScrollView, StyleSheet, Pressable, TextInput, Linking } from 'react-native';
-import { useAppTheme } from '../src/theme/themeStore';
+
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
 
 import { Colors } from '../src/theme/colors';
-import { Typography, FontFamily } from '../src/theme/typography';
+import { Typography, FontFamily, FontSize } from '../src/theme/typography';
 import { Spacing, ScreenPadding, BorderRadius } from '../src/theme/spacing';
 import { useLanguage } from '../src/i18n/LanguageContext';
 import { saveApiKey, hasApiKey, deleteApiKey } from '../src/services/geminiService';
@@ -18,14 +18,14 @@ import { SparkToast } from '../src/components/SparkToast';
 import { SettingsSection } from '../src/components/SettingsList';
 import ScreenHeader from '../src/components/ScreenHeader';
 import { useBottomClearance } from '../src/hooks/useBottomClearance';
+import { useThemedStyles } from '../src/theme/useThemedStyles';
 
 const API_KEY_CONSOLE_URL = 'https://aistudio.google.com/app/apikey';
 
 export default function SettingsAiScreen() {
   // UX-06: sistem gezinme alanı (jest/üç düğme) kadar ek alt boşluk.
   const bottomClearance = useBottomClearance('screen', 40);
-  const colorScheme = useAppTheme();
-  const styles = useMemo(() => getStyles(), [colorScheme]);
+  const styles = useThemedStyles(getStyles);
   const { t } = useLanguage();
 
   const [apiKey, setApiKey] = useState('');
@@ -163,7 +163,7 @@ const getStyles = () => StyleSheet.create({
   sectionTitle: {
     ...Typography.headlineSmall,
     color: Colors.textPrimary,
-    fontSize: 16,
+    fontSize: FontSize.xl,
     flex: 1,
   },
   keyStatus: {

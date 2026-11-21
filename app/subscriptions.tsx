@@ -2,7 +2,7 @@
 // Yerel veriden tespit edilen düzenli ödemeleri listeler. Kullanıcı "abonelik
 // değil" diyerek bir kalemi gizleyebilir veya gizlediği bir kalemi geri
 // alabilir.
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -19,8 +19,8 @@ import Animated, { FadeInDown } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
 
 import { Colors } from '../src/theme/colors';
-import { useAppTheme, useThemeRevision } from '../src/theme/themeStore';
-import { Typography, FontFamily } from '../src/theme/typography';
+
+import { Typography, FontFamily, FontSize } from '../src/theme/typography';
 import { Spacing, ScreenPadding, BorderRadius } from '../src/theme/spacing';
 import { useLanguage } from '../src/i18n/LanguageContext';
 import { useCurrency } from '../src/context/CurrencyContext';
@@ -46,13 +46,12 @@ import { logError } from '../src/utils/logError';
 import ScreenHeader from '../src/components/ScreenHeader';
 import { useBottomClearance } from '../src/hooks/useBottomClearance';
 import { toIconName } from '../src/utils/iconName';
+import { useThemedStyles } from '../src/theme/useThemedStyles';
 
 export default function SubscriptionsScreen() {
   // UX-06: sistem gezinme alanı (jest/üç düğme) kadar ek alt boşluk.
   const bottomClearance = useBottomClearance('screen', Spacing.xxl);
-  const scheme = useAppTheme();
-  const themeRevision = useThemeRevision();
-  const styles = useMemo(() => getStyles(), [scheme, themeRevision]);
+  const styles = useThemedStyles(getStyles);
   const router = useRouter();
   const { t, language } = useLanguage();
   const { currency } = useCurrency();
@@ -685,7 +684,7 @@ const getStyles = () =>
       ...Typography.headlineSmall,
       color: Colors.textPrimary,
       fontFamily: FontFamily.extraBold,
-      fontSize: 17,
+      fontSize: FontSize.xxl,
     },
     equivalent: {
       ...Typography.labelSmall,

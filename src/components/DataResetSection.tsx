@@ -17,8 +17,8 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 
 import { Colors } from '../theme/colors';
-import { useAppTheme, useThemeRevision } from '../theme/themeStore';
-import { Typography, FontFamily } from '../theme/typography';
+
+import { Typography, FontFamily, FontSize } from '../theme/typography';
 import { Spacing, BorderRadius } from '../theme/spacing';
 import { useLanguage } from '../i18n/LanguageContext';
 import { useNotifications } from '../context/NotificationsContext';
@@ -31,12 +31,11 @@ import {
   summarizeUserData,
   type UserDataSummary,
 } from '../services/dataReset';
+import { useThemedStyles } from '../theme/useThemedStyles';
 
 export default function DataResetSection() {
   const { t } = useLanguage();
-  const scheme = useAppTheme();
-  const themeRevision = useThemeRevision();
-  const styles = React.useMemo(() => getStyles(), [scheme, themeRevision]);
+  const styles = useThemedStyles(getStyles);
   const { sync } = useNotifications();
   const { triggerRefresh } = useRefreshActions();
 
@@ -142,7 +141,7 @@ const getStyles = () => StyleSheet.create({
   sectionTitle: {
     ...Typography.headlineSmall,
     color: Colors.textPrimary,
-    fontSize: 16,
+    fontSize: FontSize.xl,
     flex: 1,
   },
   card: {

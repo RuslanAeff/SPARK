@@ -11,6 +11,7 @@ import { getDict } from "../i18n/translations";
 import { suggestLanguageFromDevice } from "../i18n/languageOptions";
 import { useOptionalLanguage } from "../i18n/LanguageContext";
 import PrimaryButton from "./PrimaryButton";
+import { FontSize } from '../theme/typography';
 
 function ThemeAwareErrorSurface({ children }: { children: () => ReactNode }) {
   useThemeRevision();
@@ -108,20 +109,20 @@ export class ErrorBoundary extends Component<Props, State> {
           <ThemeAwareErrorSurface>{() => (
           <SafeAreaView style={{ flex: 1, backgroundColor: Colors.background }}>
             <ScrollView style={{ flex: 1, padding: 20 }}>
-              <Text style={{ color: Colors.danger, fontSize: 24, fontWeight: 'bold', marginBottom: 10 }}>🚨 Crash Detected</Text>
+              <Text style={{ color: Colors.danger, fontSize: FontSize.display, fontWeight: 'bold', marginBottom: 10 }}>🚨 Crash Detected</Text>
 
-              <Text style={{ color: Colors.textPrimary, fontSize: 16, fontWeight: 'bold' }}>Error Message:</Text>
+              <Text style={{ color: Colors.textPrimary, fontSize: FontSize.xl, fontWeight: 'bold' }}>Error Message:</Text>
               <Text style={{ color: Colors.danger, marginBottom: 20, fontFamily: 'monospace' }}>
                 {this.state.error?.message || 'Unknown Error'}
               </Text>
 
-              <Text style={{ color: Colors.textPrimary, fontSize: 16, fontWeight: 'bold' }}>Component Stack:</Text>
-              <Text style={{ color: Colors.textSecondary, fontSize: 10, fontFamily: 'monospace', marginBottom: 20 }}>
+              <Text style={{ color: Colors.textPrimary, fontSize: FontSize.xl, fontWeight: 'bold' }}>Component Stack:</Text>
+              <Text style={{ color: Colors.textSecondary, fontSize: FontSize.xxs, fontFamily: 'monospace', marginBottom: 20 }}>
                 {this.state.errorInfo?.componentStack}
               </Text>
 
-              <Text style={{ color: Colors.textPrimary, fontSize: 16, fontWeight: 'bold' }}>JS Stack Trace:</Text>
-              <Text style={{ color: Colors.textSecondary, fontSize: 10, fontFamily: 'monospace', marginBottom: 24 }}>
+              <Text style={{ color: Colors.textPrimary, fontSize: FontSize.xl, fontWeight: 'bold' }}>JS Stack Trace:</Text>
+              <Text style={{ color: Colors.textSecondary, fontSize: FontSize.xxs, fontFamily: 'monospace', marginBottom: 24 }}>
                 {this.state.error?.stack}
               </Text>
 

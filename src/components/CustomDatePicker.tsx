@@ -1,5 +1,5 @@
 // S.P.A.R.K. — Custom Modern Date Picker
-import React, { useState, useLayoutEffect, useMemo } from 'react';
+import React, { useState, useLayoutEffect } from 'react';
 import {
   View,
   Text,
@@ -9,10 +9,11 @@ import {
   ScrollView,
   Platform,
 } from 'react-native';
-import { useAppTheme, useThemeRevision } from '../theme/themeStore';
+
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { useThemedStyles } from '../theme/useThemedStyles';
 import { Colors } from '../theme/colors';
-import { Typography, FontFamily } from '../theme/typography';
+import { Typography, FontFamily, FontSize } from '../theme/typography';
 import { Spacing, BorderRadius } from '../theme/spacing';
 import { useLanguage } from '../i18n/LanguageContext';
 import { parseLocalYYYYMMDD } from '../utils/dateUtils';
@@ -55,8 +56,6 @@ export default function CustomDatePicker({
   disabledDateHint,
 }: CustomDatePickerProps) {
   const { t } = useLanguage();
-  const scheme = useAppTheme();
-  const themeRevision = useThemeRevision();
   const [currentDate, setCurrentDate] = useState(() => getPickerInitialDate(initialDate, maximumDate));
   const [showYearPicker, setShowYearPicker] = useState(false);
 
@@ -150,180 +149,7 @@ export default function CustomDatePicker({
   const modalBg = Colors.cardSurface;
   const dayHoverBg = Colors.surfaceLight;
 
-  const styles = useMemo(
-    () =>
-      StyleSheet.create({
-        overlay: {
-          flex: 1,
-          backgroundColor: 'rgba(0, 0, 0, 0.55)',
-          justifyContent: 'center',
-          alignItems: 'center',
-          padding: Spacing.xxl,
-        },
-        modal: {
-          width: '100%',
-          borderRadius: BorderRadius.xxl,
-          padding: Spacing.xl,
-          ...Platform.select({
-            ios: { shadowColor: '#000', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.18, shadowRadius: 24 },
-            android: { elevation: 12 },
-          }),
-        },
-        header: {
-          flexDirection: 'row',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          marginBottom: Spacing.lg,
-        },
-        monthBtn: {
-          flexDirection: 'row',
-          alignItems: 'center',
-          gap: Spacing.xs,
-        },
-        monthText: {
-          ...Typography.headlineSmall,
-          color: Colors.textPrimary,
-        },
-        arrowBtn: {
-          width: 40,
-          height: 40,
-          borderRadius: 20,
-          alignItems: 'center',
-          justifyContent: 'center',
-        },
-        weekRow: {
-          flexDirection: 'row',
-          marginBottom: Spacing.sm,
-          paddingBottom: Spacing.sm,
-          borderBottomWidth: StyleSheet.hairlineWidth,
-          borderBottomColor: Colors.divider,
-        },
-        weekDayText: {
-          flex: 1,
-          textAlign: 'center',
-          ...Typography.labelSmall,
-          color: Colors.textMuted,
-          fontFamily: FontFamily.medium,
-          textTransform: 'uppercase',
-          letterSpacing: 0.5,
-        },
-        daysGrid: {
-          flexDirection: 'row',
-          flexWrap: 'wrap',
-          paddingTop: Spacing.xs,
-        },
-        dayBox: {
-          width: '14.28%',
-          aspectRatio: 1,
-          alignItems: 'center',
-          justifyContent: 'center',
-        },
-        /** Seçim / bugün vurgusu — sabit daire, rakam tam ortada */
-        dayMark: {
-          width: 40,
-          height: 40,
-          borderRadius: 20,
-          alignItems: 'center',
-          justifyContent: 'center',
-        },
-        dayMarkSelected: {
-          backgroundColor: Colors.primaryAction,
-        },
-        dayMarkToday: {
-          borderWidth: 2,
-          borderColor: Colors.primary,
-          backgroundColor: 'transparent',
-        },
-        dayMarkDisabled: {
-          backgroundColor: Colors.surfaceLight,
-          borderWidth: 1,
-          borderColor: Colors.border,
-        },
-        dayText: {
-          fontSize: 15,
-          lineHeight: Platform.OS === 'android' ? 18 : 17,
-          fontFamily: FontFamily.semiBold,
-          textAlign: 'center',
-          color: Colors.textPrimary,
-          ...Platform.select({
-            android: { includeFontPadding: false, textAlignVertical: 'center' as const },
-            ios: {},
-          }),
-        },
-        dayTextSelected: {
-          color: Colors.onPrimary,
-          fontFamily: FontFamily.bold,
-        },
-        dayTextToday: {
-          color: Colors.primary,
-          fontFamily: FontFamily.bold,
-        },
-        dayTextDisabled: {
-          color: Colors.textMuted,
-          opacity: 0.4,
-        },
-        disabledHint: {
-          ...Typography.labelSmall,
-          color: Colors.textMuted,
-          textAlign: 'center',
-          marginTop: Spacing.sm,
-        },
-        footer: {
-          flexDirection: 'row',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          marginTop: Spacing.lg,
-          paddingTop: Spacing.md,
-          borderTopWidth: StyleSheet.hairlineWidth,
-          borderTopColor: Colors.divider,
-        },
-        todayBtn: {
-          flexDirection: 'row',
-          alignItems: 'center',
-          gap: Spacing.xs,
-          paddingVertical: Spacing.sm,
-          paddingHorizontal: Spacing.md,
-          backgroundColor: Colors.primary + '12',
-          borderRadius: BorderRadius.lg,
-        },
-        todayText: {
-          ...Typography.labelMedium,
-          color: Colors.primary,
-          fontFamily: FontFamily.medium,
-        },
-        closeBtn: {
-          flexDirection: 'row',
-          alignItems: 'center',
-          justifyContent: 'center',
-          paddingVertical: Spacing.sm,
-          paddingHorizontal: Spacing.lg,
-          minWidth: 120,
-          backgroundColor: Colors.surfaceLight,
-          borderRadius: BorderRadius.xl,
-          borderWidth: 1,
-          borderColor: Colors.border,
-        },
-        closeText: {
-          ...Typography.labelMedium,
-          color: Colors.textPrimary,
-          fontFamily: FontFamily.semiBold,
-        },
-        yearContainer: {
-          height: 260,
-        },
-        yearItem: {
-          paddingVertical: Spacing.md,
-          alignItems: 'center',
-          borderRadius: BorderRadius.md,
-          marginVertical: 1,
-        },
-        yearText: {
-          ...Typography.bodyLarge,
-          color: Colors.textPrimary,
-        },
-      }),
-    [scheme, themeRevision]
-  );
+  const styles = useThemedStyles(getPickerStyles);
 
   return (
     <Modal
@@ -484,3 +310,175 @@ export default function CustomDatePicker({
     </Modal>
   );
 }
+
+const getPickerStyles = () =>
+  StyleSheet.create({
+    overlay: {
+      flex: 1,
+      backgroundColor: 'rgba(0, 0, 0, 0.55)',
+      justifyContent: 'center',
+      alignItems: 'center',
+      padding: Spacing.xxl,
+    },
+    modal: {
+      width: '100%',
+      borderRadius: BorderRadius.xxl,
+      padding: Spacing.xl,
+      ...Platform.select({
+        ios: { shadowColor: '#000', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.18, shadowRadius: 24 },
+        android: { elevation: 12 },
+      }),
+    },
+    header: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: Spacing.lg,
+    },
+    monthBtn: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: Spacing.xs,
+    },
+    monthText: {
+      ...Typography.headlineSmall,
+      color: Colors.textPrimary,
+    },
+    arrowBtn: {
+      width: 40,
+      height: 40,
+      borderRadius: 20,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    weekRow: {
+      flexDirection: 'row',
+      marginBottom: Spacing.sm,
+      paddingBottom: Spacing.sm,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: Colors.divider,
+    },
+    weekDayText: {
+      flex: 1,
+      textAlign: 'center',
+      ...Typography.labelSmall,
+      color: Colors.textMuted,
+      fontFamily: FontFamily.medium,
+      textTransform: 'uppercase',
+      letterSpacing: 0.5,
+    },
+    daysGrid: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      paddingTop: Spacing.xs,
+    },
+    dayBox: {
+      width: '14.28%',
+      aspectRatio: 1,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    /** Seçim / bugün vurgusu — sabit daire, rakam tam ortada */
+    dayMark: {
+      width: 40,
+      height: 40,
+      borderRadius: 20,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    dayMarkSelected: {
+      backgroundColor: Colors.primaryAction,
+    },
+    dayMarkToday: {
+      borderWidth: 2,
+      borderColor: Colors.primary,
+      backgroundColor: 'transparent',
+    },
+    dayMarkDisabled: {
+      backgroundColor: Colors.surfaceLight,
+      borderWidth: 1,
+      borderColor: Colors.border,
+    },
+    dayText: {
+      fontSize: FontSize.lg,
+      lineHeight: Platform.OS === 'android' ? 18 : 17,
+      fontFamily: FontFamily.semiBold,
+      textAlign: 'center',
+      color: Colors.textPrimary,
+      ...Platform.select({
+        android: { includeFontPadding: false, textAlignVertical: 'center' as const },
+        ios: {},
+      }),
+    },
+    dayTextSelected: {
+      color: Colors.onPrimary,
+      fontFamily: FontFamily.bold,
+    },
+    dayTextToday: {
+      color: Colors.primary,
+      fontFamily: FontFamily.bold,
+    },
+    dayTextDisabled: {
+      color: Colors.textMuted,
+      opacity: 0.4,
+    },
+    disabledHint: {
+      ...Typography.labelSmall,
+      color: Colors.textMuted,
+      textAlign: 'center',
+      marginTop: Spacing.sm,
+    },
+    footer: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginTop: Spacing.lg,
+      paddingTop: Spacing.md,
+      borderTopWidth: StyleSheet.hairlineWidth,
+      borderTopColor: Colors.divider,
+    },
+    todayBtn: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: Spacing.xs,
+      paddingVertical: Spacing.sm,
+      paddingHorizontal: Spacing.md,
+      backgroundColor: Colors.primary + '12',
+      borderRadius: BorderRadius.lg,
+    },
+    todayText: {
+      ...Typography.labelMedium,
+      color: Colors.primary,
+      fontFamily: FontFamily.medium,
+    },
+    closeBtn: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingVertical: Spacing.sm,
+      paddingHorizontal: Spacing.lg,
+      minWidth: 120,
+      backgroundColor: Colors.surfaceLight,
+      borderRadius: BorderRadius.xl,
+      borderWidth: 1,
+      borderColor: Colors.border,
+    },
+    closeText: {
+      ...Typography.labelMedium,
+      color: Colors.textPrimary,
+      fontFamily: FontFamily.semiBold,
+    },
+    yearContainer: {
+      height: 260,
+    },
+    yearItem: {
+      paddingVertical: Spacing.md,
+      alignItems: 'center',
+      borderRadius: BorderRadius.md,
+      marginVertical: 1,
+    },
+    yearText: {
+      ...Typography.bodyLarge,
+      color: Colors.textPrimary,
+    },
+  });

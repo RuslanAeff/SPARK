@@ -3,7 +3,7 @@
 // üretip kart bileşenlerine `styles` prop'u olarak geçer (tek örnek, P10/P12).
 import { StyleSheet, Platform } from 'react-native';
 import { Colors } from '../../theme/colors';
-import { Typography, FontFamily } from '../../theme/typography';
+import { Typography, FontFamily, FontSize } from '../../theme/typography';
 import { Spacing, ScreenPadding, BorderRadius } from '../../theme/spacing';
 
 // Önceki görünümle aynı boyut: 20px ikon + 2×Spacing.sm iç boşluk + 2×1px kenarlık.
@@ -649,7 +649,7 @@ export const getAnalyticsStyles = () => StyleSheet.create({
     color: Colors.textPrimary,
   },
   vendorDonutPct: {
-    fontSize: 22,
+    fontSize: FontSize.h1,
     fontFamily: FontFamily.bold,
     color: Colors.textPrimary,
   },
@@ -730,7 +730,7 @@ export const getAnalyticsStyles = () => StyleSheet.create({
     ...Typography.headlineSmall,
     fontFamily: FontFamily.bold,
     color: Colors.textPrimary,
-    fontSize: 18,
+    fontSize: FontSize.h3,
   },
   compareRangeLabel: {
     ...Typography.labelTiny,
@@ -811,7 +811,7 @@ export const getAnalyticsStyles = () => StyleSheet.create({
   priceStatChipText: {
     ...Typography.labelSmall,
     fontFamily: FontFamily.extraBold,
-    fontSize: 11,
+    fontSize: FontSize.xs,
   },
   priceGrid: {
     flexDirection: 'row',
@@ -874,7 +874,7 @@ export const getAnalyticsStyles = () => StyleSheet.create({
   pricePageJumpText: {
     ...Typography.labelSmall,
     color: Colors.textSecondary,
-    fontSize: 11,
+    fontSize: FontSize.xs,
   },
   pricePageJumpTextActive: {
     color: Colors.onPrimary,
@@ -913,7 +913,7 @@ export const getAnalyticsStyles = () => StyleSheet.create({
   priceTilePct: {
     ...Typography.labelMedium,
     fontFamily: FontFamily.extraBold,
-    fontSize: 12,
+    fontSize: FontSize.sm,
   },
   priceTileCount: {
     flexDirection: 'row',
@@ -934,7 +934,7 @@ export const getAnalyticsStyles = () => StyleSheet.create({
     ...Typography.labelSmall,
     fontFamily: FontFamily.semiBold,
     color: Colors.textSecondary,
-    fontSize: 11,
+    fontSize: FontSize.xs,
     fontVariant: ['tabular-nums'],
   },
   priceTileName: {
@@ -988,7 +988,7 @@ export const getAnalyticsStyles = () => StyleSheet.create({
     ...Typography.headlineMedium,
     fontFamily: FontFamily.bold,
     color: Colors.textPrimary,
-    fontSize: 24,
+    fontSize: FontSize.display,
   },
   streakLabel: {
     ...Typography.labelSmall,
@@ -1019,7 +1019,7 @@ export const getAnalyticsStyles = () => StyleSheet.create({
   },
   streakMsgText: {
     fontFamily: FontFamily.extraBold,
-    fontSize: 16,
+    fontSize: FontSize.xl,
     letterSpacing: 0.5,
     color: Colors.textPrimary,
     flex: 1,
@@ -1028,7 +1028,7 @@ export const getAnalyticsStyles = () => StyleSheet.create({
   // Marquee kapsayıcısı içindeki metin (flex YOK — doğal genişlik ölçülebilsin)
   streakMsgTextInner: {
     fontFamily: FontFamily.extraBold,
-    fontSize: 16,
+    fontSize: FontSize.xl,
     letterSpacing: 0.5,
     color: Colors.textPrimary,
   },
@@ -1052,7 +1052,7 @@ export const getAnalyticsStyles = () => StyleSheet.create({
   projDaysChipText: { ...Typography.bodySmall, color: Colors.textSecondary },
   projHeroLabel: { ...Typography.bodySmall, color: Colors.textSecondary, marginBottom: Spacing.xs },
   projHeroValue: {
-    fontSize: 32, lineHeight: 40, fontFamily: FontFamily.semiBold,
+    fontSize: FontSize.heroLg, lineHeight: 40, fontFamily: FontFamily.semiBold,
     letterSpacing: -0.5, color: Colors.textPrimary, fontVariant: ['tabular-nums'],
   },
   projPaceHint: { ...Typography.bodySmall, color: Colors.textSecondary, marginTop: Spacing.xs },
@@ -1115,7 +1115,7 @@ export const getAnalyticsStyles = () => StyleSheet.create({
     ...Typography.labelSmall,
     fontFamily: FontFamily.bold,
     color: Colors.textPrimary,
-    fontSize: 11,
+    fontSize: FontSize.xs,
   },
   subsHeroBlock: {
     marginBottom: Spacing.lg,
@@ -1128,7 +1128,7 @@ export const getAnalyticsStyles = () => StyleSheet.create({
     marginBottom: 4,
   },
   subsHeroValue: {
-    fontSize: 30,
+    fontSize: FontSize.hero,
     lineHeight: 36,
     fontFamily: FontFamily.bold,
     color: Colors.textPrimary,
@@ -1186,7 +1186,7 @@ export const getAnalyticsStyles = () => StyleSheet.create({
   subsRowDays: {
     ...Typography.labelSmall,
     fontFamily: FontFamily.medium,
-    fontSize: 11,
+    fontSize: FontSize.xs,
   },
   subsRowAmount: {
     ...Typography.bodyMedium,
@@ -1237,7 +1237,7 @@ export const getAnalyticsStyles = () => StyleSheet.create({
   limitsStatChipText: {
     ...Typography.labelSmall,
     fontFamily: FontFamily.extraBold,
-    fontSize: 11,
+    fontSize: FontSize.xs,
   },
   limitsList: {
     gap: Spacing.md,
@@ -1267,7 +1267,7 @@ export const getAnalyticsStyles = () => StyleSheet.create({
   limitPct: {
     ...Typography.labelMedium,
     fontFamily: FontFamily.bold,
-    fontSize: 13,
+    fontSize: FontSize.md,
   },
   limitTrack: {
     height: 6,
@@ -1303,7 +1303,7 @@ export const getAnalyticsStyles = () => StyleSheet.create({
     ...Typography.labelSmall,
     color: Colors.textSecondary,
     fontFamily: FontFamily.medium,
-    fontSize: 11,
+    fontSize: FontSize.xs,
   },
   // ── A11: Savings Goal ──
   goalHeader: {
@@ -1338,7 +1338,7 @@ export const getAnalyticsStyles = () => StyleSheet.create({
     ...Typography.labelSmall,
     color: Colors.textSecondary,
     fontFamily: FontFamily.semiBold,
-    fontSize: 11,
+    fontSize: FontSize.xs,
   },
   goalTitle: {
     ...Typography.bodyLarge,
@@ -1362,7 +1362,7 @@ export const getAnalyticsStyles = () => StyleSheet.create({
     gap: 2,
   },
   goalDonutPct: {
-    fontSize: 26,
+    fontSize: FontSize.displayLg,
     fontFamily: FontFamily.bold,
     letterSpacing: -0.5,
   },
@@ -1455,7 +1455,7 @@ export const getAnalyticsStyles = () => StyleSheet.create({
     marginBottom: 4,
   },
   silentHeroValue: {
-    fontSize: 30,
+    fontSize: FontSize.hero,
     lineHeight: 36,
     fontFamily: FontFamily.bold,
     color: Colors.textPrimary,
@@ -1545,7 +1545,7 @@ export const getAnalyticsStyles = () => StyleSheet.create({
     ...Typography.labelSmall,
     color: Colors.textSecondary,
     fontFamily: FontFamily.medium,
-    fontSize: 11,
+    fontSize: FontSize.xs,
   },
   silentRowMetaDot: {
     width: 3,
@@ -1556,7 +1556,7 @@ export const getAnalyticsStyles = () => StyleSheet.create({
   silentRowAvg: {
     ...Typography.labelSmall,
     color: Colors.textMuted,
-    fontSize: 11,
+    fontSize: FontSize.xs,
   },
   silentRowTotal: {
     ...Typography.bodyMedium,

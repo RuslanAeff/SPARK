@@ -11,6 +11,33 @@ export const FontFamily = {
   black: 'Inter_800ExtraBold',
 };
 
+/**
+ * Yazı boyutu basamakları (UI denetimi DS-09). Ekranlar `fontSize` için ham
+ * sayı yazmaz; ya bir `Typography` stilini ya da buradaki bir basamağı
+ * kullanır. Böylece "tüm başlıkları 1 px büyüt" gibi bir karar tek yerden
+ * uygulanır. Değerler, taşıma anında ekranlarda kullanılan boyutların
+ * birebir aynısıdır (görünüm değişmedi).
+ */
+export const FontSize = {
+  xxs: 10,
+  xs: 11,
+  sm: 12,
+  md: 13,
+  base: 14,
+  lg: 15,
+  xl: 16,
+  xxl: 17,
+  h3: 18,
+  h2: 20,
+  h1: 22,
+  display: 24,
+  displayLg: 26,
+  hero: 30,
+  heroLg: 32,
+  /** Tutar girişindeki büyük rakam. */
+  amountInput: 48,
+} as const;
+
 // `satisfies`: anahtarlar sabit tiptir; var olmayan `Typography.x` derlemede hata verir
 // (UI denetimi DS-05: `titleSmall`/`titleMedium` sessizce boş stil üretiyordu).
 export const Typography = {

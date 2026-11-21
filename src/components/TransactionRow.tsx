@@ -1,10 +1,10 @@
 // S.P.A.R.K. — Transaction Row Component
-import React, { useMemo } from 'react';
+import React from 'react';
 import { View, Text, StyleSheet, Pressable } from 'react-native';
-import { useAppTheme, useThemeRevision } from '../theme/themeStore';
+
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Colors } from '../theme/colors';
-import { Typography, FontFamily } from '../theme/typography';
+import { Typography, FontFamily, FontSize } from '../theme/typography';
 import { Spacing, BorderRadius, ScreenPadding } from '../theme/spacing';
 import { formatCurrency } from '../utils/formatCurrency';
 import { ExpenseWithDetails } from '../db/schema';
@@ -13,6 +13,7 @@ import VendorAvatar from './VendorAvatar';
 import { useLanguage } from '../i18n/LanguageContext';
 import { useCurrency } from '../context/CurrencyContext';
 import { toIconName } from '../utils/iconName';
+import { useThemedStyles } from '../theme/useThemedStyles';
 
 interface TransactionRowProps {
   expense: ExpenseWithDetails;
@@ -30,9 +31,7 @@ function TransactionRow({
   selectionMode = false,
   selected = false,
 }: TransactionRowProps) {
-  const scheme = useAppTheme();
-  const themeRevision = useThemeRevision();
-  const styles = useMemo(() => getStyles(), [scheme, themeRevision]);
+  const styles = useThemedStyles(getStyles);
   const { t, tc } = useLanguage();
   const { currency } = useCurrency();
   const paymentCurrency = expense.currency || currency;
@@ -193,7 +192,7 @@ const getStyles = () => StyleSheet.create({
   amount: {
     ...Typography.amountSmall,
     color: Colors.textPrimary,
-    fontSize: 16,
+    fontSize: FontSize.xl,
     textAlign: 'right',
   },
 });

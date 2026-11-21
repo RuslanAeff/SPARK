@@ -1,13 +1,14 @@
-import React, { useMemo } from 'react';
+import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 
 import { useLanguage } from '../i18n/LanguageContext';
 import { Colors } from '../theme/colors';
-import { useAppTheme, useThemeRevision } from '../theme/themeStore';
+
 import { BorderRadius, Spacing } from '../theme/spacing';
-import { FontFamily, Typography } from '../theme/typography';
+import { FontFamily, Typography, FontSize } from '../theme/typography';
 import { formatCurrency } from '../utils/formatCurrency';
+import { useThemedStyles } from '../theme/useThemedStyles';
 
 interface DashboardCashEntryTilesProps {
   outstandingDebt: number;
@@ -28,9 +29,7 @@ function DashboardCashEntryTiles({
   onDebtPress,
   onIncomePress,
 }: DashboardCashEntryTilesProps) {
-  const scheme = useAppTheme();
-  const themeRevision = useThemeRevision();
-  const styles = useMemo(() => getStyles(), [scheme, themeRevision]);
+  const styles = useThemedStyles(getStyles);
   const { t } = useLanguage();
   const debtAmount = outstandingDebt > 0
     ? formatCurrency(outstandingDebt, currency, false)
@@ -142,7 +141,7 @@ const getStyles = () => StyleSheet.create({
     letterSpacing: 0,
   },
   value: {
-    fontSize: 17,
+    fontSize: FontSize.xxl,
     lineHeight: 24,
     fontFamily: FontFamily.semiBold,
     fontVariant: ['tabular-nums'],

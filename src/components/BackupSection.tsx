@@ -1,7 +1,7 @@
 // S.P.A.R.K. — Yedek al / geri yükle bölümü (Ayarlar)
 // Tarih aralığı seçimi + preset kısayollar + onay modali + son yedek bilgisi
 // + opsiyonel haftalık/aylık hatırlatıcı.
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -15,8 +15,8 @@ import {
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { Colors } from '../theme/colors';
-import { useAppTheme, useThemeRevision } from '../theme/themeStore';
-import { Typography, FontFamily } from '../theme/typography';
+
+import { Typography, FontFamily, FontSize } from '../theme/typography';
 import { Spacing, BorderRadius } from '../theme/spacing';
 import { useLanguage } from '../i18n/LanguageContext';
 import { useNotifications } from '../context/NotificationsContext';
@@ -48,6 +48,7 @@ import { createSusevarStyles } from '../theme/susevar';
 import { intlLocaleForLanguage } from '../i18n/languageOptions';
 import { logError } from '../utils/logError';
 import { switchColors } from '../theme/switchColors';
+import { useThemedStyles } from '../theme/useThemedStyles';
 
 function ymd(d: Date): string {
   const y = d.getFullYear();
@@ -78,9 +79,7 @@ type PresetId = 'all_data' | 'this_month' | 'last_month' | 'last_3_months' | 'th
 
 export default function BackupSection() {
   const { t, language } = useLanguage();
-  const scheme = useAppTheme();
-  const themeRevision = useThemeRevision();
-  const styles = useMemo(() => getStyles(), [scheme, themeRevision]);
+  const styles = useThemedStyles(getStyles);
   const { triggerRefresh } = useRefreshActions();
   const { sync: syncNotifications } = useNotifications();
 
@@ -676,7 +675,7 @@ const getStyles = () => {
     sectionTitle: {
       ...Typography.headlineSmall,
       color: Colors.textPrimary,
-      fontSize: 16,
+      fontSize: FontSize.xl,
       flex: 1,
       flexShrink: 1,
     },

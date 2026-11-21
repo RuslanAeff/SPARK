@@ -2,8 +2,8 @@ import React, { useMemo } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useLanguage } from '../i18n/LanguageContext';
-import { useAppTheme, useThemePalette } from '../theme/themeStore';
-import { FontFamily } from '../theme/typography';
+import { useThemePalette } from '../theme/themeStore';
+import { FontFamily, FontSize } from '../theme/typography';
 import { createSusevarStyles, susevarButtonPressed } from '../theme/susevar';
 
 interface Props {
@@ -15,7 +15,6 @@ interface Props {
 
 /** Recovery stays in the scrollable scanner; no modal or automatic API retry. */
 export default function ScanRecoveryCard({ message, settings, onPrimary, onManual }: Props) {
-  const scheme = useAppTheme();
   const theme = useThemePalette();
   const { t } = useLanguage();
   const styles = useMemo(() => {
@@ -25,18 +24,18 @@ export default function ScanRecoveryCard({ message, settings, onPrimary, onManua
       card: { backgroundColor: theme.cardSurface, borderColor: theme.border, borderWidth: 1, borderRadius: 28, padding: 24, gap: 24 },
       header: { flexDirection: 'row', alignItems: 'center', gap: 12 },
       mark: { width: 48, height: 48, borderRadius: 16, backgroundColor: theme.surfaceLight, alignItems: 'center', justifyContent: 'center' },
-      eyebrow: { flex: 1, color: theme.textSecondary, fontFamily: FontFamily.semiBold, fontSize: 13, lineHeight: 19 },
+      eyebrow: { flex: 1, color: theme.textSecondary, fontFamily: FontFamily.semiBold, fontSize: FontSize.md, lineHeight: 19 },
       copy: { gap: 12 },
-      title: { color: theme.textPrimary, fontFamily: FontFamily.bold, fontSize: 26, lineHeight: 33, letterSpacing: -0.6 },
-      message: { color: theme.textSecondary, fontFamily: FontFamily.regular, fontSize: 15, lineHeight: 24 },
+      title: { color: theme.textPrimary, fontFamily: FontFamily.bold, fontSize: FontSize.displayLg, lineHeight: 33, letterSpacing: -0.6 },
+      message: { color: theme.textSecondary, fontFamily: FontFamily.regular, fontSize: FontSize.lg, lineHeight: 24 },
       actions: { gap: 12, borderTopWidth: 1, borderTopColor: theme.border, paddingTop: 24 },
       primary: { ...primary.button, minHeight: 56, flexDirection: 'row', gap: 10 },
       primaryText: { ...primary.text, flexShrink: 1, textAlign: 'center' },
       secondary: { minHeight: 56, paddingVertical: 15, paddingHorizontal: 18, borderRadius: 28, borderWidth: 1, borderColor: theme.border, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10 },
-      secondaryText: { color: theme.textPrimary, fontFamily: FontFamily.semiBold, fontSize: 15, lineHeight: 22, flexShrink: 1, textAlign: 'center' },
-      hint: { color: theme.textSecondary, fontFamily: FontFamily.regular, fontSize: 13, lineHeight: 20, textAlign: 'center', paddingHorizontal: 16, marginTop: 18 },
+      secondaryText: { color: theme.textPrimary, fontFamily: FontFamily.semiBold, fontSize: FontSize.lg, lineHeight: 22, flexShrink: 1, textAlign: 'center' },
+      hint: { color: theme.textSecondary, fontFamily: FontFamily.regular, fontSize: FontSize.md, lineHeight: 20, textAlign: 'center', paddingHorizontal: 16, marginTop: 18 },
     });
-  }, [scheme, theme]);
+  }, [theme]);
 
   return (
     <View style={styles.shell}>

@@ -1,13 +1,13 @@
 // S.P.A.R.K. — Ana ekran birikim hedefi kartı (ilerleme + aylık gereklilik)
-import React, { useMemo, useState } from 'react';
+import React, { useState } from 'react';
 import { View, Text, StyleSheet, Pressable } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 
 import { Colors } from '../theme/colors';
-import { useAppTheme, useThemeRevision } from '../theme/themeStore';
-import { Typography, FontFamily } from '../theme/typography';
+
+import { Typography, FontFamily, FontSize } from '../theme/typography';
 import { Spacing, BorderRadius } from '../theme/spacing';
 import { formatCurrency } from '../utils/formatCurrency';
 import { SavingsGoalRow } from '../db/goalDao';
@@ -17,15 +17,14 @@ import { formatDateFull } from '../utils/dateUtils';
 import { getSavingsGoalProgress } from '../utils/savingsGoalProgress';
 import AnimatedCard from './AnimatedCard';
 import SavingsGoalContributionSheet from './SavingsGoalContributionSheet';
+import { useThemedStyles } from '../theme/useThemedStyles';
 
 type Props = {
   goal: SavingsGoalRow;
 };
 
 export default function SavingsGoalCard({ goal }: Props) {
-  const scheme = useAppTheme();
-  const themeRevision = useThemeRevision();
-  const styles = useMemo(() => getStyles(), [scheme, themeRevision]);
+  const styles = useThemedStyles(getStyles);
   const router = useRouter();
   const { t } = useLanguage();
   const { currency } = useCurrency();
@@ -195,7 +194,7 @@ const getStyles = () => StyleSheet.create({
   },
   kicker: {
     ...Typography.labelMedium,
-    fontSize: 14,
+    fontSize: FontSize.base,
     color: Colors.primary,
     letterSpacing: 1.85,
     textTransform: 'uppercase',
@@ -252,7 +251,7 @@ const getStyles = () => StyleSheet.create({
     ...Typography.labelMedium,
     color: Colors.primary,
     fontFamily: FontFamily.extraBold,
-    fontSize: 12,
+    fontSize: FontSize.sm,
   },
   percentTextReached: {
     color: Colors.warning,

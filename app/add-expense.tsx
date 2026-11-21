@@ -1,9 +1,10 @@
 // S.P.A.R.K. — Add / Edit Expense Screen
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View, Text, TextInput, ScrollView, StyleSheet, Pressable, KeyboardAvoidingView, Platform,
 } from 'react-native';
 import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
+import { useLatestCallback } from '../src/hooks/useLatestCallback';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useCallback } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -12,7 +13,7 @@ import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
 
 import * as Haptics from 'expo-haptics';
 import { Colors } from '../src/theme/colors';
-import { Typography, FontFamily } from '../src/theme/typography';
+import { Typography, FontFamily, FontSize } from '../src/theme/typography';
 import { Spacing, ScreenPadding, BorderRadius } from '../src/theme/spacing';
 import { ExpenseDao } from '../src/db/expenseDao';
 import { CategoryDao } from '../src/db/categoryDao';
@@ -35,20 +36,20 @@ import {
   susevarButtonMarginTop,
   susevarButtonPressed,
 } from '../src/theme/susevar';
-import { useAppTheme, useThemeRevision } from '../src/theme/themeStore';
+import { useAppTheme } from '../src/theme/themeStore';
 import { saveManualExpense } from '../src/services/manualExpenseService';
 import { ContainerDepositDao } from '../src/db/containerDepositDao';
 import { logError } from '../src/utils/logError';
 import ScreenHeader from '../src/components/ScreenHeader';
 import { useBottomClearance } from '../src/hooks/useBottomClearance';
 import { toIconName } from '../src/utils/iconName';
+import { useThemedStyles } from '../src/theme/useThemedStyles';
 
 export default function AddExpenseScreen() {
   // UX-06: sistem gezinme alanı (jest/üç düğme) kadar ek alt boşluk.
   const bottomClearance = useBottomClearance('screen', 60);
   const scheme = useAppTheme();
-  const revision = useThemeRevision();
-  const styles = useMemo(() => getStyles(), [scheme, revision]);
+  const styles = useThemedStyles(getStyles);
   const router = useRouter();
   const { t, tc } = useLanguage();
   const { currency: displayCurrency } = useCurrency();
@@ -112,7 +113,7 @@ export default function AddExpenseScreen() {
       setDepositExpanded(true);
     }).catch(() => { if (active) SparkToast.show(t('operation_failed'), 'error'); });
     return () => { active = false; };
-  }, [voucherId, isEditing]);
+  }, [voucherId, isEditing, router, t]);
 
   /**
    * Satıcı adı yazılırken (250ms debounce) bu satıcı için kayıtlı bir
@@ -154,10 +155,15 @@ export default function AddExpenseScreen() {
     }, 250);
   }, [vendorName, categories, isEditing, subCategoryId]);
 
+  // Kimliği sabit yükleyici; odaklanınca güncel durumla çalışır (CQ-01).
+  const loadLatest = useLatestCallback(() => loadData());
   useFocusEffect(
     useCallback(() => {
-      loadData();
-    }, [id])
+      void loadLatest();
+      // Bilinçli: `id` hesapta okunmaz; başka bir kayda geçildiğinde odak
+      // efektini yeniden çalıştıran tetikleyicidir.
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [id, loadLatest])
   );
 
   async function loadData() {
@@ -770,7 +776,7 @@ const getStyles = () => StyleSheet.create({
     color: Colors.textPrimary,
     minWidth: 120,
     textAlign: 'center',
-    fontSize: 48,
+    fontSize: FontSize.amountInput,
   },
   field: {
     marginBottom: Spacing.xl,

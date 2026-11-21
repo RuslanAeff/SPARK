@@ -7,7 +7,7 @@
 //   • `size="compact"`: aynı renk, kenar, gölge ve yazı ailesi; yan yana iki
 //     düğme veya satır içi eylem için daha kısa iç boşluk ve 14 px yazı.
 // Metin her zaman `onPrimary`; dolgu `primaryAction` (beş vurguda ≥ 5,4:1).
-import React, { useMemo } from 'react';
+import React from 'react';
 import {
   ActivityIndicator,
   Pressable,
@@ -19,9 +19,11 @@ import {
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Colors } from '../theme/colors';
-import { useAppTheme, useThemeRevision } from '../theme/themeStore';
+import { useThemedStyles } from '../theme/useThemedStyles';
+
 import { createSusevarStyles, susevarButtonPressed } from '../theme/susevar';
 import { Spacing } from '../theme/spacing';
+import { FontSize } from '../theme/typography';
 
 export interface PrimaryButtonProps {
   label: string;
@@ -49,10 +51,7 @@ export default function PrimaryButton({
   testID,
   style,
 }: PrimaryButtonProps) {
-  const scheme = useAppTheme();
-  const revision = useThemeRevision();
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- Colors proxy tema snapshot'ını okur
-  const styles = useMemo(() => getStyles(), [scheme, revision]);
+  const styles = useThemedStyles(getStyles);
   const inactive = disabled || loading;
   const compact = size === 'compact';
 
@@ -101,6 +100,6 @@ const getStyles = () => {
     disabled: { opacity: 0.55 },
     row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: Spacing.sm },
     text: { ...susevar.text },
-    textCompact: { fontSize: 14, letterSpacing: 0.6 },
+    textCompact: { fontSize: FontSize.base, letterSpacing: 0.6 },
   });
 };

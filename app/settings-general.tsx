@@ -12,7 +12,7 @@ import Animated, { FadeInDown } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
 
 import { type ThemeAccent, type ThemePalette } from '../src/theme/colors';
-import { Typography, FontFamily } from '../src/theme/typography';
+import { Typography, FontFamily, FontSize } from '../src/theme/typography';
 import { Spacing, ScreenPadding, BorderRadius } from '../src/theme/spacing';
 import { useLanguage } from '../src/i18n/LanguageContext';
 import { languageNativeLabel } from '../src/i18n/languageOptions';
@@ -421,7 +421,7 @@ const getStyles = (colors: ThemePalette) => StyleSheet.create({
   sectionTitle: {
     ...Typography.headlineSmall,
     color: colors.textPrimary,
-    fontSize: 16,
+    fontSize: FontSize.xl,
   },
   sectionTitleWithInfo: { flex: 1, flexShrink: 1, minWidth: 0 },
   // Currency row
@@ -449,7 +449,7 @@ const getStyles = (colors: ThemePalette) => StyleSheet.create({
     borderWidth: 2,
   },
   currencyChipSymbol: {
-    fontSize: 22,
+    fontSize: FontSize.h1,
     marginBottom: 4,
     color: colors.textPrimary,
   },
@@ -486,7 +486,7 @@ const getStyles = (colors: ThemePalette) => StyleSheet.create({
   themeBtnText: {
     color: colors.textPrimary,
     fontFamily: FontFamily.semiBold,
-    fontSize: 15,
+    fontSize: FontSize.lg,
     letterSpacing: 0.2,
   },
   themeBtnTextActive: { color: colors.onPrimary },

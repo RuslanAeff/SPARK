@@ -1,10 +1,10 @@
 // S.P.A.R.K. — Seçili kategoriler için aylık limit vs harcama
-import React, { useMemo } from 'react';
+import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Colors } from '../theme/colors';
-import { useAppTheme } from '../theme/themeStore';
-import { Typography, FontFamily } from '../theme/typography';
+
+import { Typography, FontFamily, FontSize } from '../theme/typography';
 import { Spacing } from '../theme/spacing';
 import { formatCurrency } from '../utils/formatCurrency';
 import { CategoryLimitProgress } from '../hooks/useSavingsGoalData';
@@ -12,14 +12,14 @@ import { useLanguage } from '../i18n/LanguageContext';
 import { useCurrency } from '../context/CurrencyContext';
 import AnimatedCard from './AnimatedCard';
 import { toIconName } from '../utils/iconName';
+import { useThemedStyles } from '../theme/useThemedStyles';
 
 type Props = {
   rows: CategoryLimitProgress[];
 };
 
 export default function CategoryLimitsSection({ rows }: Props) {
-  const scheme = useAppTheme();
-  const styles = useMemo(() => getStyles(), [scheme]);
+  const styles = useThemedStyles(getStyles);
   const { t, tc } = useLanguage();
   const { currency } = useCurrency();
 
@@ -81,7 +81,7 @@ const getStyles = () => StyleSheet.create({
   },
   sectionTitle: {
     ...Typography.labelLarge,
-    fontSize: 15,
+    fontSize: FontSize.lg,
     color: Colors.textPrimary,
     letterSpacing: 1.75,
     textTransform: 'uppercase',

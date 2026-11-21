@@ -1,13 +1,14 @@
 import React, { useMemo } from 'react';
 import { View, Text, StyleSheet, Pressable } from 'react-native';
 import { Colors } from '../theme/colors';
-import { Typography, FontFamily } from '../theme/typography';
+import { Typography, FontFamily, FontSize } from '../theme/typography';
 import { Spacing, BorderRadius } from '../theme/spacing';
 import { formatCurrency } from '../utils/formatCurrency';
 import { useLanguage } from '../i18n/LanguageContext';
 import { useCurrency } from '../context/CurrencyContext';
-import { useAppTheme, useThemeRevision } from '../theme/themeStore';
+
 import { parseLocalYmdAtNoon as parseLocalYmd, toLocalYmd } from '../utils/dateUtils';
+import { useThemedStyles } from '../theme/useThemedStyles';
 
 interface HeatmapProps {
   data: { date: string; total: number }[];
@@ -18,9 +19,7 @@ interface HeatmapProps {
 export default function SpendingHeatmap({ data, startDate, endDate }: HeatmapProps) {
   const { t } = useLanguage();
   const { currency } = useCurrency();
-  const scheme = useAppTheme();
-  const themeRevision = useThemeRevision();
-  const styles = useMemo(() => getStyles(), [scheme, themeRevision]);
+  const styles = useThemedStyles(getStyles);
 
   const { rows, maxTotal, spendingMap, todayStr } = useMemo(() => {
     const firstDay = parseLocalYmd(startDate);
@@ -181,7 +180,7 @@ const getStyles = () => StyleSheet.create({
     borderColor: Colors.secondary,
   },
   cellDay: {
-    fontSize: 11,
+    fontSize: FontSize.xs,
     fontFamily: FontFamily.regular,
     color: Colors.textSecondary,
   },

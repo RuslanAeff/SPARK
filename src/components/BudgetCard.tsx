@@ -3,8 +3,8 @@ import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Colors } from '../theme/colors';
-import { useAppTheme, useThemeRevision } from '../theme/themeStore';
-import { Typography, FontFamily } from '../theme/typography';
+
+import { Typography, FontFamily, FontSize } from '../theme/typography';
 import { Spacing, BorderRadius } from '../theme/spacing';
 import { formatCurrency } from '../utils/formatCurrency';
 import { formatDayMonth } from '../utils/dateUtils';
@@ -13,6 +13,7 @@ import AnimatedCard from './AnimatedCard';
 import { useLanguage } from '../i18n/LanguageContext';
 import { useCurrency } from '../context/CurrencyContext';
 import { subtractMoney } from '../utils/moneyMath';
+import { useThemedStyles } from '../theme/useThemedStyles';
 
 interface BudgetCardProps {
   budget: BudgetInfo;
@@ -21,9 +22,7 @@ interface BudgetCardProps {
 function BudgetCard({ budget }: BudgetCardProps) {
   // React.memo + üst sekme yeniden çizilmeyince tema takılı kalmasın + Android'de
   // OS ve uygulama içi tema için merkezi store.
-  const scheme = useAppTheme();
-  const themeRevision = useThemeRevision();
-  const styles = React.useMemo(() => getStyles(), [scheme, themeRevision]);
+  const styles = useThemedStyles(getStyles);
   const { t } = useLanguage();
   const { currency } = useCurrency();
   const percentage = Math.round(budget.percentage);
@@ -218,7 +217,7 @@ const getStyles = () => StyleSheet.create({
   },
   title: {
     ...Typography.labelLarge,
-    fontSize: 16,
+    fontSize: FontSize.xl,
     color: Colors.textPrimary,
     letterSpacing: 1.65,
     textTransform: 'uppercase',
@@ -249,7 +248,7 @@ const getStyles = () => StyleSheet.create({
   value: {
     ...Typography.amountSmall,
     color: Colors.textPrimary,
-    fontSize: 20,
+    fontSize: FontSize.h2,
     letterSpacing: -0.5,
   },
   progressContainer: {

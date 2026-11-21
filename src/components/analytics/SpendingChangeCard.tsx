@@ -6,7 +6,7 @@ import AnimatedCard from '../AnimatedCard';
 import { SettingsInfoHintModal, SettingsInfoIconButton } from '../SettingsInfoHint';
 import { Colors } from '../../theme/colors';
 import { useAppTheme, useThemeRevision } from '../../theme/themeStore';
-import { Typography, FontFamily } from '../../theme/typography';
+import { Typography, FontFamily, FontSize } from '../../theme/typography';
 import { Spacing, BorderRadius } from '../../theme/spacing';
 import { formatCurrency } from '../../utils/formatCurrency';
 import { buildSpendingChange } from '../../utils/spendingChange';
@@ -119,6 +119,6 @@ const getStyles = () => StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth, borderColor: 'transparent',
   },
   pageIndicatorActive: { backgroundColor: Colors.primary + '0D', borderColor: Colors.glassBorder },
-  pageNumber: { fontSize: 12, lineHeight: 16, fontFamily: FontFamily.medium, color: Colors.textMuted, fontVariant: ['tabular-nums'] },
+  pageNumber: { fontSize: FontSize.sm, lineHeight: 16, fontFamily: FontFamily.medium, color: Colors.textMuted, fontVariant: ['tabular-nums'] },
   pageNumberActive: { color: Colors.primary },
 });

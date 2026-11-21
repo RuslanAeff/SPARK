@@ -1,9 +1,9 @@
 // S.P.A.R.K. — Budget History Card (Compact Horizontal Design)
-import React, { useEffect, useState, useRef, useMemo } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { View, Text, StyleSheet, ActivityIndicator, ScrollView, Pressable, useWindowDimensions } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Colors } from '../theme/colors';
-import { Typography, FontFamily } from '../theme/typography';
+import { Typography, FontFamily, FontSize } from '../theme/typography';
 import { Spacing, BorderRadius } from '../theme/spacing';
 import { formatCurrency } from '../utils/formatCurrency';
 import { formatDayMonth, getToday } from '../utils/dateUtils';
@@ -26,8 +26,9 @@ import {
 import { useLanguage } from '../i18n/LanguageContext';
 import { useCurrency } from '../context/CurrencyContext';
 import { useRefresh } from '../context/RefreshContext';
-import { useAppTheme, useThemeRevision } from '../theme/themeStore';
+
 import { logError } from '../utils/logError';
+import { useThemedStyles } from '../theme/useThemedStyles';
 
 export interface BudgetHistorySelection {
   key: string;
@@ -60,9 +61,7 @@ export default function BudgetHistoryCard({
   selectedPeriodStart,
   onSelectPeriod,
 }: BudgetHistoryCardProps = {}) {
-  const scheme = useAppTheme();
-  const themeRevision = useThemeRevision();
-  const styles = useMemo(() => getStyles(), [scheme, themeRevision]);
+  const styles = useThemedStyles(getStyles);
   const { t } = useLanguage();
   const { currency } = useCurrency();
   const { refreshKey } = useRefresh();
@@ -289,7 +288,7 @@ const getStyles = () => StyleSheet.create({
   badgeText: { ...Typography.labelSmall, color: Colors.textSecondary },
   summary: { paddingVertical: Spacing.md, gap: 4 },
   label: { ...Typography.labelSmall, color: Colors.textSecondary, flexShrink: 1 },
-  amount: { ...Typography.amountSmall, fontSize: 24, color: Colors.textPrimary },
+  amount: { ...Typography.amountSmall, fontSize: FontSize.display, color: Colors.textPrimary },
   details: { marginTop: 'auto', borderTopWidth: 1, borderTopColor: Colors.border, paddingTop: Spacing.sm, gap: Spacing.sm },
   row: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'baseline', justifyContent: 'space-between', gap: 4 },
   value: { ...Typography.labelMedium, color: Colors.textPrimary, fontFamily: FontFamily.medium },

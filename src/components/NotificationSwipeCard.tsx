@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef } from 'react';
+import React, { useCallback, useEffect, useRef } from 'react';
 import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import ReanimatedSwipeable, {
@@ -7,9 +7,10 @@ import ReanimatedSwipeable, {
 import * as Haptics from 'expo-haptics';
 
 import { Colors } from '../theme/colors';
-import { useAppTheme, useThemeRevision } from '../theme/themeStore';
+import { useAppTheme } from '../theme/themeStore';
 import { BorderRadius, Spacing } from '../theme/spacing';
-import { FontFamily } from '../theme/typography';
+import { FontFamily, FontSize } from '../theme/typography';
+import { useThemedStyles } from '../theme/useThemedStyles';
 
 interface NotificationSwipeCardProps {
   children: React.ReactNode;
@@ -36,8 +37,7 @@ export default function NotificationSwipeCard({
   testID,
 }: NotificationSwipeCardProps) {
   const scheme = useAppTheme();
-  const themeRevision = useThemeRevision();
-  const styles = useMemo(() => getStyles(scheme === 'dark'), [scheme, themeRevision]);
+  const styles = useThemedStyles(getStyles, scheme === 'dark');
   const swipeableRef = useRef<SwipeableMethods>(null);
   const registeredMethodsRef = useRef<SwipeableMethods | null>(null);
   const deletingRef = useRef(false);
@@ -175,7 +175,7 @@ const getStyles = (isDark: boolean) =>
     },
     deleteText: {
       color: '#FFFFFF',
-      fontSize: 12,
+      fontSize: FontSize.sm,
       lineHeight: 15,
       fontFamily: FontFamily.semiBold,
       letterSpacing: 0.15,

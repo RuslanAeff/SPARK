@@ -1,15 +1,16 @@
 // S.P.A.R.K. — Settings: Budget & goals
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { View, Text, ScrollView, StyleSheet, Pressable, TextInput, Switch } from 'react-native';
-import { useAppTheme, useThemeRevision } from '../src/theme/themeStore';
+
 import { useRouter } from 'expo-router';
+import { useLatestCallback } from '../src/hooks/useLatestCallback';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
 
 import { Colors } from '../src/theme/colors';
-import { Typography, FontFamily } from '../src/theme/typography';
+import { Typography, FontFamily, FontSize } from '../src/theme/typography';
 import { Spacing, ScreenPadding, BorderRadius } from '../src/theme/spacing';
 import { useLanguage } from '../src/i18n/LanguageContext';
 import { useCurrency } from '../src/context/CurrencyContext';
@@ -60,6 +61,7 @@ import { useBottomClearance } from '../src/hooks/useBottomClearance';
 import { formatAmountNumber } from '../src/utils/formatCurrency';
 import { switchColors } from '../src/theme/switchColors';
 import { useKeepFocusedInputVisible, useKeyboardHeight } from '../src/hooks/useKeyboard';
+import { useThemedStyles } from '../src/theme/useThemedStyles';
 
 /** Kilitli dönem uyarısı kullanıcıya özel; diğer yazma hataları genel mesajda kalır. */
 function budgetWriteErrorKey(error: unknown): string {
@@ -76,9 +78,7 @@ export default function SettingsBudgetScreen() {
   const keyboardHeight = useKeyboardHeight();
   const scrollRef = useRef<ScrollView | null>(null);
   useKeepFocusedInputVisible(scrollRef);
-  const colorScheme = useAppTheme();
-  const themeRevision = useThemeRevision();
-  const styles = useMemo(() => getStyles(), [colorScheme, themeRevision]);
+  const styles = useThemedStyles(getStyles);
   const router = useRouter();
   const { t } = useLanguage();
   const { currency } = useCurrency();
@@ -109,6 +109,8 @@ export default function SettingsBudgetScreen() {
   const [calendarInfoOpen, setCalendarInfoOpen] = useState(false);
   const [goalInfoOpen, setGoalInfoOpen] = useState(false);
   const loadSequence = useRef(0);
+  // Kimliği sabit, çağrıldığında güncel durumu okuyan yükleyici (CQ-01).
+  const openBudgetById = useLatestCallback((budgetId: number) => loadBudgetById(budgetId));
 
   useEffect(() => {
     let alive = true;
@@ -127,7 +129,7 @@ export default function SettingsBudgetScreen() {
       if (!alive) return;
       if (exact?.period_start) {
         setCurrentPeriodKey(exact.period_start.slice(0, 7));
-        void loadBudgetById(exact.id);
+        void openBudgetById(exact.id);
       } else {
         const current = getCurrentCycle(day);
         setCurrentPeriodKey(current.key);
@@ -139,7 +141,7 @@ export default function SettingsBudgetScreen() {
     return () => {
       alive = false;
     };
-  }, []);
+  }, [openBudgetById]);
 
   const canGoBack = selectedMonth > '2000-01';
   const canGoForward = selectedMonth < currentPeriodKey;
@@ -174,11 +176,16 @@ export default function SettingsBudgetScreen() {
     return () => { alive = false; };
   }, [cycleDay, persistedCycleDay]);
 
-  useEffect(() => {
-    if (refreshKey === 0) return;
+  // Global yenilemede o an seçili dönemi yeniden okur; seçim değişimi kendi
+  // akışında yüklenir, burada yalnız `refreshKey` tetikler.
+  const reloadSelection = useLatestCallback(() => {
     if (selectedBudget) void loadBudgetById(selectedBudget.id);
     else void loadBudgetForMonth(selectedMonth, persistedCycleDay);
-  }, [refreshKey]);
+  });
+  useEffect(() => {
+    if (refreshKey === 0) return;
+    reloadSelection();
+  }, [refreshKey, reloadSelection]);
 
   async function loadBudgetForMonth(monthStr: string, anchorDay: number = persistedCycleDay) {
     const sequence = ++loadSequence.current;
@@ -685,7 +692,7 @@ const getStyles = () => StyleSheet.create({
   sectionTitle: {
     ...Typography.headlineSmall,
     color: Colors.textPrimary,
-    fontSize: 16,
+    fontSize: FontSize.xl,
   },
   sectionTitleWithInfo: { flex: 1, flexShrink: 1, minWidth: 0 },
   monthSelector: {

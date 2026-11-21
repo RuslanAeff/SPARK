@@ -7,7 +7,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 
 import { getDict, loadLocale, type Language } from '../i18n/translations';
 import { suggestLanguageFromDevice } from '../i18n/languageOptions';
-import { FontFamily } from '../theme/typography';
+import { FontFamily, FontSize } from '../theme/typography';
 
 type Palette = {
   background: string;
@@ -81,12 +81,12 @@ const styles = StyleSheet.create({
   },
   title: {
     fontFamily: FontFamily.extraBold,
-    fontSize: 20,
+    fontSize: FontSize.h2,
     textAlign: 'center',
   },
   desc: {
     fontFamily: FontFamily.medium,
-    fontSize: 14,
+    fontSize: FontSize.base,
     lineHeight: 20,
     textAlign: 'center',
   },
@@ -101,6 +101,6 @@ const styles = StyleSheet.create({
   },
   buttonText: {
     fontFamily: FontFamily.bold,
-    fontSize: 16,
+    fontSize: FontSize.xl,
   },
 });
