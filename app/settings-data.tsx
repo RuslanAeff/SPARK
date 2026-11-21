@@ -12,7 +12,7 @@ import {
   Platform,
   TextInput,
 } from 'react-native';
-import { useAppTheme, useThemeRevision } from '../src/theme/themeStore';
+
 import { useRouter } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -21,7 +21,7 @@ import * as Haptics from 'expo-haptics';
 import * as ImagePicker from 'expo-image-picker';
 
 import { Colors } from '../src/theme/colors';
-import { Typography, FontFamily } from '../src/theme/typography';
+import { Typography, FontFamily, FontSize } from '../src/theme/typography';
 import { Spacing, ScreenPadding, BorderRadius } from '../src/theme/spacing';
 import { useLanguage } from '../src/i18n/LanguageContext';
 import { useRefresh } from '../src/context/RefreshContext';
@@ -44,6 +44,7 @@ import { logError } from '../src/utils/logError';
 import { setVendorLogo, sweepOrphanVendorLogos } from '../src/services/vendorLogoStore';
 import ScreenHeader from '../src/components/ScreenHeader';
 import { useBottomClearance } from '../src/hooks/useBottomClearance';
+import { useThemedStyles } from '../src/theme/useThemedStyles';
 
 type BulkVendorDeletePrompt = {
   vendorIds: number[];
@@ -54,9 +55,7 @@ type BulkVendorDeletePrompt = {
 export default function SettingsDataScreen() {
   // UX-06: sistem gezinme alanı (jest/üç düğme) kadar ek alt boşluk.
   const bottomClearance = useBottomClearance('screen', 40);
-  const colorScheme = useAppTheme();
-  const themeRevision = useThemeRevision();
-  const styles = useMemo(() => getStyles(), [colorScheme, themeRevision]);
+  const styles = useThemedStyles(getStyles);
   const router = useRouter();
   const { t } = useLanguage();
   const { refreshKey, triggerRefresh } = useRefresh();
@@ -280,27 +279,7 @@ export default function SettingsDataScreen() {
 
               {vendors.length > 0 ? (
                 <>
-                  {!vendorSelectionMode ? (
-                    <Pressable
-                      testID="vendor-multi-select-enter"
-                      onPress={enterVendorSelection}
-                      style={({ pressed }) => [
-                        styles.vendorMultiSelectEntry,
-                        pressed && styles.vendorActionPressed,
-                      ]}
-                      accessibilityRole="button"
-                      accessibilityLabel={t('vendor_multi_select')}
-                    >
-                      <MaterialCommunityIcons
-                        name="checkbox-multiple-outline"
-                        size={17}
-                        color={Colors.primary}
-                      />
-                      <Text style={styles.vendorMultiSelectEntryText}>
-                        {t('vendor_multi_select')}
-                      </Text>
-                    </Pressable>
-                  ) : (
+                  {vendorSelectionMode && (
                     <View testID="vendor-selection-panel" style={styles.vendorSelectionPanel}>
                       <View style={styles.vendorSelectionSummary}>
                         <Text style={styles.vendorSelectionCount}>
@@ -390,26 +369,61 @@ export default function SettingsDataScreen() {
                     </View>
                   )}
 
-                  {vendors.length >= 6 && (
-                    <View style={styles.vendorSearchWrap}>
-                      <MaterialCommunityIcons name="magnify" size={16} color={Colors.textMuted} />
-                      <TextInput
-                        style={styles.vendorSearchInput}
-                        value={vendorSearch}
-                        onChangeText={setVendorSearch}
-                        placeholder={t('vendor_search_placeholder')}
-                        placeholderTextColor={Colors.textMuted}
-                        returnKeyType="search"
-                        autoCorrect={false}
-                        autoCapitalize="none"
-                      />
-                      {vendorSearch.length > 0 && (
-                        <Pressable onPress={() => setVendorSearch('')} hitSlop={8}>
-                          <MaterialCommunityIcons name="close-circle" size={14} color={Colors.textMuted} />
-                        </Pressable>
-                      )}
-                    </View>
-                  )}
+                  {/* Araç satırı: arama ve çoklu seçim tek hizada; ayrı bir
+                      satırda tek başına duran düğme kalmaz. */}
+                  <View style={styles.vendorToolbar}>
+                    {vendors.length >= 6 && (
+                      <View style={styles.vendorSearchWrap}>
+                        <MaterialCommunityIcons name="magnify" size={16} color={Colors.textMuted} />
+                        <TextInput
+                          style={styles.vendorSearchInput}
+                          value={vendorSearch}
+                          onChangeText={setVendorSearch}
+                          placeholder={t('vendor_search_placeholder')}
+                          placeholderTextColor={Colors.textMuted}
+                          returnKeyType="search"
+                          autoCorrect={false}
+                          autoCapitalize="none"
+                        />
+                        {vendorSearch.length > 0 && (
+                          <Pressable
+                            onPress={() => setVendorSearch('')}
+                            // A11Y-02: 14 px ikon + 15 px her yöne = 44 dp dokunma alanı.
+                            hitSlop={15}
+                            accessibilityRole="button"
+                            accessibilityLabel={t('vendor_search_clear')}
+                          >
+                            <MaterialCommunityIcons name="close-circle" size={14} color={Colors.textMuted} />
+                          </Pressable>
+                        )}
+                      </View>
+                    )}
+                    {!vendorSelectionMode && (
+                      <Pressable
+                        testID="vendor-multi-select-enter"
+                        onPress={enterVendorSelection}
+                        style={({ pressed }) => [
+                          vendors.length >= 6
+                            ? styles.vendorSelectIconButton
+                            : styles.vendorMultiSelectEntry,
+                          pressed && styles.vendorActionPressed,
+                        ]}
+                        accessibilityRole="button"
+                        accessibilityLabel={t('vendor_multi_select')}
+                      >
+                        <MaterialCommunityIcons
+                          name="checkbox-multiple-outline"
+                          size={vendors.length >= 6 ? 20 : 17}
+                          color={Colors.primary}
+                        />
+                        {vendors.length < 6 && (
+                          <Text style={styles.vendorMultiSelectEntryText}>
+                            {t('vendor_multi_select')}
+                          </Text>
+                        )}
+                      </Pressable>
+                    )}
+                  </View>
 
                   {filteredVendors.length > 0 ? (
                     // UX-12: yatay sanallaştırılmış liste; yüzlerce satıcı ve logo
@@ -554,11 +568,6 @@ export default function SettingsDataScreen() {
                   )}
 
                   <View style={styles.vendorHintRow}>
-                    <MaterialCommunityIcons
-                      name="gesture-tap"
-                      size={12}
-                      color={Colors.textMuted}
-                    />
                     <Text style={styles.vendorHintText}>
                       {t(
                         vendorSelectionMode
@@ -585,31 +594,35 @@ export default function SettingsDataScreen() {
 
           {/* Persistent product identity review */}
           <Animated.View entering={FadeInDown.delay(160).duration(400)}>
-            <SettingsNavigationRow
-              testID="manage-product-matching"
-              title={t('product_match_entry_title')}
-              description={t('product_match_entry_hint')}
-              icon="tag-multiple-outline"
-              onPress={() => {
-                Haptics.selectionAsync();
-                router.push('/product-matching');
-              }}
-              accessibilityLabel={t('product_match_entry_title')}
-              accessibilityHint={t('product_match_entry_hint')}
-            />
-            {/* Yerel, onaylı paylaşılan teknik hata raporu (ADR-016) */}
-            <SettingsNavigationRow
-              testID="manage-error-journal"
-              title={t('error_journal_entry_title')}
-              description={t('error_journal_entry_hint')}
-              icon="bug-outline"
-              onPress={() => {
-                Haptics.selectionAsync();
-                router.push('/error-journal');
-              }}
-              accessibilityLabel={t('error_journal_entry_title')}
-              accessibilityHint={t('error_journal_entry_hint')}
-            />
+            {/* İki araç kapısı tek bölüm: bölücüler bölüm hattıyla hizalı. */}
+            <SettingsSection style={styles.toolsSection}>
+              <SettingsNavigationRow
+                testID="manage-product-matching"
+                title={t('product_match_entry_title')}
+                description={t('product_match_entry_hint')}
+                icon="tag-multiple-outline"
+                onPress={() => {
+                  Haptics.selectionAsync();
+                  router.push('/product-matching');
+                }}
+                accessibilityLabel={t('product_match_entry_title')}
+                accessibilityHint={t('product_match_entry_hint')}
+              />
+              {/* Yerel, onaylı paylaşılan teknik hata raporu (ADR-016) */}
+              <SettingsNavigationRow
+                testID="manage-error-journal"
+                title={t('error_journal_entry_title')}
+                description={t('error_journal_entry_hint')}
+                icon="bug-outline"
+                onPress={() => {
+                  Haptics.selectionAsync();
+                  router.push('/error-journal');
+                }}
+                accessibilityLabel={t('error_journal_entry_title')}
+                accessibilityHint={t('error_journal_entry_hint')}
+                last
+              />
+            </SettingsSection>
           </Animated.View>
 
           {/* Backup */}
@@ -699,8 +712,9 @@ const getStyles = () => StyleSheet.create({
   sectionTitle: {
     ...Typography.headlineSmall,
     color: Colors.textPrimary,
-    fontSize: 16,
+    fontSize: FontSize.xl,
   },
+  toolsSection: { paddingVertical: Spacing.sm },
   sectionTitleWithInfo: { flex: 1, flexShrink: 1, minWidth: 0 },
   // Vendor list
   vendorBadge: {
@@ -714,9 +728,24 @@ const getStyles = () => StyleSheet.create({
     color: Colors.primary,
     fontFamily: FontFamily.bold,
   },
+  vendorToolbar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    gap: Spacing.sm,
+  },
+  vendorSelectIconButton: {
+    width: 44,
+    height: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: BorderRadius.lg,
+    backgroundColor: Colors.inputBackground,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: Colors.inputBorder,
+  },
   vendorMultiSelectEntry: {
     minHeight: 36,
-    alignSelf: 'flex-end',
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.xs,
@@ -729,12 +758,13 @@ const getStyles = () => StyleSheet.create({
     color: Colors.primary,
     fontFamily: FontFamily.semiBold,
   },
+  // Seçim paneli üst/alt çizgiler yerine tek parça dolgulu yüzey.
   vendorSelectionPanel: {
     gap: Spacing.sm,
-    paddingVertical: Spacing.sm,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderColor: Colors.divider,
+    padding: Spacing.md,
+    marginBottom: Spacing.sm,
+    borderRadius: BorderRadius.lg,
+    backgroundColor: Colors.surfaceLight,
   },
   vendorSelectionSummary: {
     minHeight: 28,
@@ -861,6 +891,8 @@ const getStyles = () => StyleSheet.create({
   },
   vendorTileNameSelected: { color: Colors.primary },
   vendorSearchWrap: {
+    flex: 1,
+    minHeight: 44,
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.sm,
@@ -869,8 +901,7 @@ const getStyles = () => StyleSheet.create({
     borderColor: Colors.inputBorder,
     borderRadius: BorderRadius.lg,
     paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
-    marginTop: Spacing.sm,
+    paddingVertical: Spacing.xs,
   },
   vendorSearchInput: {
     flex: 1,
@@ -884,16 +915,9 @@ const getStyles = () => StyleSheet.create({
     paddingVertical: Spacing.xl,
     gap: Spacing.xs,
   },
-  vendorHintRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 4,
-    marginTop: Spacing.md,
-    paddingTop: Spacing.sm,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: Colors.divider,
-  },
+  // Bölümün alt notu: ayrı çizgiyle bölünmüş bir şerit değil, kartın son
+  // satırı gibi sol hizalı kısa bir açıklama.
+  vendorHintRow: { marginTop: Spacing.sm },
   vendorHintText: { ...Typography.labelSmall, color: Colors.textMuted },
   vendorEmptyState: {
     alignItems: 'center',
