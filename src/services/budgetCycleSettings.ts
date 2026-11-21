@@ -3,20 +3,17 @@
 // Kullanıcının bütçe döngüsünü hangi günden başlatacağı (1–31) `settings`
 // tablosunda saklanır. Varsayılan 1 → döngü takvim ayına eşittir (eski davranış).
 // Saf matematik src/utils/budgetCycle.ts'de; bu dosya yalnızca kalıcılık katmanı.
-import { getDatabase } from '../db/database';
+import { SettingsDao } from '../db/settingsDao';
+import { SETTINGS_KEYS } from '../db/settingsKeys';
 import { DEFAULT_CYCLE_START_DAY, normalizeCycleStartDay } from '../utils/budgetCycle';
 import { logError } from '../utils/logError';
 
-const KEY = 'budget_cycle_start_day';
+const KEY = SETTINGS_KEYS.budgetCycleStartDay;
 
 export async function getCycleStartDay(): Promise<number> {
   try {
-    const db = await getDatabase();
-    const row = await db.getFirstAsync<{ value: string }>(
-      'SELECT value FROM settings WHERE key = ?',
-      [KEY],
-    );
-    if (row?.value) return normalizeCycleStartDay(row.value);
+    const value = await SettingsDao.get(KEY);
+    if (value) return normalizeCycleStartDay(value);
     return DEFAULT_CYCLE_START_DAY;
   } catch (e) {
     logError('budgetCycle load failed', e);

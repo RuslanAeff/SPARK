@@ -3,20 +3,21 @@
 // gibi bilgileri tutar. Bildirim motoru ve BackupSection bu helper'ı kullanır.
 import { getDatabase } from '../db/database';
 import { SettingsDao } from '../db/settingsDao';
+import { SETTINGS_KEYS, type SettingKey } from '../db/settingsKeys';
 
-const K_LAST_AT = 'backup_last_at';
-const K_LAST_COUNT = 'backup_last_count';
-const K_LAST_ITEM_COUNT = 'backup_last_item_count';
-const K_LAST_RANGE_START = 'backup_last_range_start';
-const K_LAST_RANGE_END = 'backup_last_range_end';
-const K_REMIND_INTERVAL = 'backup_reminder_interval';
+const K_LAST_AT = SETTINGS_KEYS.backupLastAt;
+const K_LAST_COUNT = SETTINGS_KEYS.backupLastCount;
+const K_LAST_ITEM_COUNT = SETTINGS_KEYS.backupLastItemCount;
+const K_LAST_RANGE_START = SETTINGS_KEYS.backupLastRangeStart;
+const K_LAST_RANGE_END = SETTINGS_KEYS.backupLastRangeEnd;
+const K_REMIND_INTERVAL = SETTINGS_KEYS.backupReminderInterval;
 /**
  * Son TAM yedeğin zamanı (BUG-31): yalnız bütün verileri kapsayan dışa aktarım
  * yedek hatırlatıcısını sıfırlar; tek aylık bir dosya tam yedek sayılmaz.
  * Anahtar hiç yazılmamışsa (güncelleme öncesi yedekler) `backup_last_at` geçerli;
  * '' değeri "henüz tam yedek yok" demektir.
  */
-const K_LAST_FULL_AT = 'backup_last_full_at';
+const K_LAST_FULL_AT = SETTINGS_KEYS.backupLastFullAt;
 
 /** "off" → hatırlatma yok. Sayısal değerler gün cinsindendir. */
 export type BackupReminderInterval = 'off' | 'weekly' | 'monthly';
@@ -39,8 +40,8 @@ export interface BackupMeta {
 }
 
 // CQ-03: ortak ayar DAO'su (eskiden bu dosyada kopyası vardı).
-const getSetting = (key: string) => SettingsDao.get(key);
-const setSetting = (key: string, value: string) => SettingsDao.set(key, value);
+const getSetting = (key: SettingKey) => SettingsDao.get(key);
+const setSetting = (key: SettingKey, value: string) => SettingsDao.set(key, value);
 
 function parseIntSafe(raw: string | null): number | null {
   if (raw == null) return null;
@@ -80,7 +81,7 @@ export async function recordBackupSuccess(args: {
   fullRange: boolean;
 }): Promise<void> {
   const now = Date.now();
-  const entries: Array<[string, string]> = [
+  const entries: Array<[SettingKey, string]> = [
     [K_LAST_AT, String(now)],
     [K_LAST_COUNT, String(args.expenseCount)],
     [K_LAST_ITEM_COUNT, String(args.itemCount)],
@@ -95,18 +96,15 @@ export async function recordBackupSuccess(args: {
     } else {
       // Güncelleme öncesi son yedek, ilk kısmi yedekte "tam" zamanı olarak
       // dondurulur; kısmi yedek hatırlatıcıyı ileri itmez.
-      const existingFull = await db.getFirstAsync<{ value: string }>(
-        'SELECT value FROM settings WHERE key = ?', [K_LAST_FULL_AT],
-      );
-      if (!existingFull) {
-        const previous = await db.getFirstAsync<{ value: string }>(
-          'SELECT value FROM settings WHERE key = ?', [K_LAST_AT],
-        );
-        entries.push([K_LAST_FULL_AT, previous?.value ?? '']);
+      const existingFull = await SettingsDao.get(K_LAST_FULL_AT, db);
+      // Satır yokluğu ile '' ("henüz tam yedek yok") ayrı anlamlar taşır.
+      if (existingFull === null) {
+        const previous = await SettingsDao.get(K_LAST_AT, db);
+        entries.push([K_LAST_FULL_AT, previous ?? '']);
       }
     }
     for (const [key, value] of entries) {
-      await db.runAsync('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)', [key, value]);
+      await SettingsDao.set(key, value, db);
     }
   });
 }

@@ -1,11 +1,12 @@
 // S.P.A.R.K. — Secure API Key Storage (OS Keychain via expo-secure-store)
 // Güvenlik: API anahtarı artık SQLite düz metni yerine OS anahtar zincirinde saklanır.
 import * as SecureStore from 'expo-secure-store';
-import { getDatabase } from '../db/database';
+import { SettingsDao } from '../db/settingsDao';
+import { SETTINGS_KEYS } from '../db/settingsKeys';
 import { logError } from '../utils/logError';
 
 const SECURE_KEY = 'spark_gemini_api_key';
-const SQLITE_SETTINGS_KEY = 'gemini_api_key';
+const SQLITE_SETTINGS_KEY = SETTINGS_KEYS.legacyGeminiApiKey;
 
 /** Migrasyon bayrağı — uygulama ömründe bir kez çalışır */
 let _migrationDone = false;
@@ -26,25 +27,18 @@ async function migrateKeyFromSqlite(): Promise<void> {
   _migrationDone = true;
 
   try {
-    const db = await getDatabase();
-    const row = await db.getFirstAsync<{ value: string }>(
-      `SELECT value FROM settings WHERE key = ?`,
-      [SQLITE_SETTINGS_KEY]
-    );
+    const legacyKey = await SettingsDao.get(SQLITE_SETTINGS_KEY);
 
-    if (!row?.value) return; // SQLite'da key yok — taşınacak bir şey yok
+    if (!legacyKey) return; // SQLite'da key yok — taşınacak bir şey yok
 
     // SecureStore'da zaten varsa üzerine yazma
     const existing = await SecureStore.getItemAsync(SECURE_KEY);
     if (!existing) {
-      await SecureStore.setItemAsync(SECURE_KEY, row.value);
+      await SecureStore.setItemAsync(SECURE_KEY, legacyKey);
     }
 
     // SQLite'dan hassas veriyi temizle
-    await db.runAsync(
-      `DELETE FROM settings WHERE key = ?`,
-      [SQLITE_SETTINGS_KEY]
-    );
+    await SettingsDao.delete(SQLITE_SETTINGS_KEY);
   } catch (e) {
     // Migration başarısız olursa sessizce devam et — bir sonraki uygulama açılışında tekrar dener
     _migrationDone = false;
@@ -84,11 +78,7 @@ async function writeSecureApiKey(apiKey: string): Promise<void> {
 
   // Eski SQLite kaydını temizle (varsa)
   try {
-    const db = await getDatabase();
-    await db.runAsync(
-      `DELETE FROM settings WHERE key = ?`,
-      [SQLITE_SETTINGS_KEY]
-    );
+    await SettingsDao.delete(SQLITE_SETTINGS_KEY);
   } catch {
     // Preserve the secure write, but never report incomplete cleanup as success.
     _migrationDone = false;
@@ -110,8 +100,7 @@ export async function hasSecureApiKey(): Promise<boolean> {
  */
 export function deleteSecureApiKey(): Promise<void> {
   return serialized(async () => {
-    const db = await getDatabase();
-    await db.runAsync('DELETE FROM settings WHERE key = ?', [SQLITE_SETTINGS_KEY]);
+    await SettingsDao.delete(SQLITE_SETTINGS_KEY);
     await SecureStore.deleteItemAsync(SECURE_KEY);
     _migrationDone = true;
   });

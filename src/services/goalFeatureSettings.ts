@@ -1,8 +1,9 @@
 // S.P.A.R.K. — Ana ekranda birikim hedefi görünürlüğü ve odak tercihi
-import { getDatabase } from '../db/database';
+import { SettingsDao } from '../db/settingsDao';
+import { SETTINGS_KEYS } from '../db/settingsKeys';
 
-const FEATURE_KEY = 'goal_feature_enabled';
-const DASHBOARD_FOCUS_KEY = 'goal_dashboard_focus_enabled';
+const FEATURE_KEY = SETTINGS_KEYS.goalFeatureEnabled;
+const DASHBOARD_FOCUS_KEY = SETTINGS_KEYS.goalDashboardFocusEnabled;
 
 export interface GoalFeaturePreferences {
   enabled: boolean;
@@ -17,12 +18,7 @@ const DEFAULT_PREFERENCES: GoalFeaturePreferences = {
 /** İki ilişkili tercihi aynı SQLite sorgusunda ve güvenli varsayılanlarla okur. */
 export async function getGoalFeaturePreferences(): Promise<GoalFeaturePreferences> {
   try {
-    const db = await getDatabase();
-    const rows = await db.getAllAsync<{ key: string; value: string }>(
-      'SELECT key, value FROM settings WHERE key IN (?, ?)',
-      [FEATURE_KEY, DASHBOARD_FOCUS_KEY],
-    );
-    const values = new Map(rows.map(row => [row.key, row.value]));
+    const values = await SettingsDao.getMany([FEATURE_KEY, DASHBOARD_FOCUS_KEY]);
     return {
       enabled: values.get(FEATURE_KEY) !== '0',
       dashboardFocusEnabled: values.get(DASHBOARD_FOCUS_KEY) === '1',
@@ -33,17 +29,9 @@ export async function getGoalFeaturePreferences(): Promise<GoalFeaturePreference
 }
 
 export async function setGoalFeatureEnabled(enabled: boolean): Promise<void> {
-  const db = await getDatabase();
-  await db.runAsync(`INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)`, [
-    FEATURE_KEY,
-    enabled ? '1' : '0',
-  ]);
+  await SettingsDao.set(FEATURE_KEY, enabled ? '1' : '0');
 }
 
 export async function setGoalDashboardFocusEnabled(enabled: boolean): Promise<void> {
-  const db = await getDatabase();
-  await db.runAsync(`INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)`, [
-    DASHBOARD_FOCUS_KEY,
-    enabled ? '1' : '0',
-  ]);
+  await SettingsDao.set(DASHBOARD_FOCUS_KEY, enabled ? '1' : '0');
 }

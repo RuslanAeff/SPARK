@@ -5,6 +5,8 @@ import { applyBusyTimeout } from './busyTimeout';
 import { addRecordUidColumns, ensureRecordUids } from './recordUid';
 import { ensureVendorNameKeys } from './vendorIdentity';
 import { addColumnIfMissing } from './schemaColumns';
+import { SettingsDao } from './settingsDao';
+import { SETTINGS_KEYS } from './settingsKeys';
 import {
   CREATE_TABLES_SQL,
   CONTAINER_DEPOSIT_SCHEMA_SQL,
@@ -22,16 +24,18 @@ import { logError } from '../utils/logError';
 
 let db: SQLite.SQLiteDatabase | null = null;
 let initPromise: Promise<SQLite.SQLiteDatabase> | null = null;
-const RECEIPT_MONEY_PRECISION_MIGRATION = 'migration_receipt_money_precision_v1';
-export const ITEM_MEASUREMENT_UNIT_MIGRATION = 'migration_item_measurement_unit_v1';
-export const BUDGET_PERIOD_SNAPSHOT_MIGRATION = 'migration_budget_period_snapshot_v1';
-export const PAYMENT_REMINDERS_MIGRATION = 'migration_payment_reminders_v1';
+// Göç işaretlerinin metinleri tek anahtar listesinde (CQ-03); mevcut adlar
+// testler ve geriye uyum için korunur.
+const RECEIPT_MONEY_PRECISION_MIGRATION = SETTINGS_KEYS.migrationReceiptMoneyPrecision;
+export const ITEM_MEASUREMENT_UNIT_MIGRATION = SETTINGS_KEYS.migrationItemMeasurementUnit;
+export const BUDGET_PERIOD_SNAPSHOT_MIGRATION = SETTINGS_KEYS.migrationBudgetPeriodSnapshot;
+export const PAYMENT_REMINDERS_MIGRATION = SETTINGS_KEYS.migrationPaymentReminders;
 export const PAYMENT_REMINDER_VENDOR_DETACH_MIGRATION =
-  'migration_payment_reminder_vendor_detach_v2';
-export const PRODUCT_IDENTITY_MIGRATION = 'migration_product_identity_v1';
-export const CONTAINER_DEPOSIT_MIGRATION = 'migration_container_deposit_v1';
-export const VOUCHER_EXPIRY_REPAIR_MIGRATION = 'migration_voucher_expiry_repair_v1';
-export const CATEGORY_LIMIT_CYCLE_MIGRATION = 'migration_category_limit_cycle_v1';
+  SETTINGS_KEYS.migrationPaymentReminderVendorDetach;
+export const PRODUCT_IDENTITY_MIGRATION = SETTINGS_KEYS.migrationProductIdentity;
+export const CONTAINER_DEPOSIT_MIGRATION = SETTINGS_KEYS.migrationContainerDeposit;
+export const VOUCHER_EXPIRY_REPAIR_MIGRATION = SETTINGS_KEYS.migrationVoucherExpiryRepair;
+export const CATEGORY_LIMIT_CYCLE_MIGRATION = SETTINGS_KEYS.migrationCategoryLimitCycle;
 
 interface SqliteTableInfoRow {
   name: string;
@@ -59,11 +63,8 @@ interface ProductIdentityMigrationAliasRow {
 export async function migrateContainerDepositsOnce(
   database: SQLite.SQLiteDatabase,
 ): Promise<void> {
-  const applied = await database.getFirstAsync<{ value: string }>(
-    'SELECT value FROM settings WHERE key = ?',
-    [CONTAINER_DEPOSIT_MIGRATION],
-  );
-  if (applied?.value === '1') return;
+  const applied = await SettingsDao.get(CONTAINER_DEPOSIT_MIGRATION, database);
+  if (applied === '1') return;
 
   const expenseColumns = await database.getAllAsync<SqliteTableInfoRow>('PRAGMA table_info(expenses);');
   const itemColumns = await database.getAllAsync<SqliteTableInfoRow>('PRAGMA table_info(expense_items);');
@@ -87,10 +88,7 @@ export async function migrateContainerDepositsOnce(
       );
     }
     await database.execAsync(CONTAINER_DEPOSIT_SCHEMA_SQL);
-    await database.runAsync(
-      'INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)',
-      [CONTAINER_DEPOSIT_MIGRATION, '1'],
-    );
+    await SettingsDao.set(CONTAINER_DEPOSIT_MIGRATION, '1', database);
   });
 }
 
@@ -104,11 +102,8 @@ export async function migrateContainerDepositsOnce(
 export async function repairVoucherExpiryOnce(
   database: SQLite.SQLiteDatabase,
 ): Promise<void> {
-  const applied = await database.getFirstAsync<{ value: string }>(
-    'SELECT value FROM settings WHERE key = ?',
-    [VOUCHER_EXPIRY_REPAIR_MIGRATION],
-  );
-  if (applied?.value === '1') return;
+  const applied = await SettingsDao.get(VOUCHER_EXPIRY_REPAIR_MIGRATION, database);
+  if (applied === '1') return;
 
   await database.withTransactionAsync(async () => {
     await database.runAsync(`
@@ -121,10 +116,7 @@ export async function repairVoucherExpiryOnce(
               OR CAST(substr(expires_on, 1, 4) AS INTEGER) NOT BETWEEN 2000 AND 2100
               OR expires_on < issued_date)
     `);
-    await database.runAsync(
-      'INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)',
-      [VOUCHER_EXPIRY_REPAIR_MIGRATION, '1'],
-    );
+    await SettingsDao.set(VOUCHER_EXPIRY_REPAIR_MIGRATION, '1', database);
   });
 }
 
@@ -140,15 +132,10 @@ export async function migrateCategoryLimitsToCycleOnce(
   database: SQLite.SQLiteDatabase,
   today: string = getToday(),
 ): Promise<void> {
-  const applied = await database.getFirstAsync<{ value: string }>(
-    'SELECT value FROM settings WHERE key = ?',
-    [CATEGORY_LIMIT_CYCLE_MIGRATION],
-  );
-  if (applied?.value === '1') return;
+  const applied = await SettingsDao.get(CATEGORY_LIMIT_CYCLE_MIGRATION, database);
+  if (applied === '1') return;
 
-  const anchorRow = await database.getFirstAsync<{ value: string }>(
-    "SELECT value FROM settings WHERE key = 'budget_cycle_start_day'",
-  );
+  const anchor = await SettingsDao.get(SETTINGS_KEYS.budgetCycleStartDay, database);
   const budget = await database.getFirstAsync<{
     period_start: string | null;
     period_end: string | null;
@@ -159,7 +146,7 @@ export async function migrateCategoryLimitsToCycleOnce(
       ORDER BY id DESC LIMIT 1`,
     [today, today],
   );
-  const cycleKey = cycleForDate(normalizeCycleStartDay(anchorRow?.value), today, budget).key;
+  const cycleKey = cycleForDate(normalizeCycleStartDay(anchor ?? undefined), today, budget).key;
   const calendarKey = today.slice(0, 7);
 
   await database.withTransactionAsync(async () => {
@@ -175,10 +162,7 @@ export async function migrateCategoryLimitsToCycleOnce(
         );
       }
     }
-    await database.runAsync(
-      'INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)',
-      [CATEGORY_LIMIT_CYCLE_MIGRATION, '1'],
-    );
+    await SettingsDao.set(CATEGORY_LIMIT_CYCLE_MIGRATION, '1', database);
   });
 }
 
@@ -191,11 +175,8 @@ export async function migrateCategoryLimitsToCycleOnce(
 export async function migrateProductIdentityOnce(
   database: SQLite.SQLiteDatabase,
 ): Promise<void> {
-  const applied = await database.getFirstAsync<{ value: string }>(
-    'SELECT value FROM settings WHERE key = ?',
-    [PRODUCT_IDENTITY_MIGRATION],
-  );
-  if (applied?.value === '1') return;
+  const applied = await SettingsDao.get(PRODUCT_IDENTITY_MIGRATION, database);
+  if (applied === '1') return;
 
   const columns = await database.getAllAsync<SqliteTableInfoRow>(
     'PRAGMA table_info(expense_items);',
@@ -298,10 +279,7 @@ export async function migrateProductIdentityOnce(
       );
     }
 
-    await database.runAsync(
-      'INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)',
-      [PRODUCT_IDENTITY_MIGRATION, '1'],
-    );
+    await SettingsDao.set(PRODUCT_IDENTITY_MIGRATION, '1', database);
   });
 }
 
@@ -313,11 +291,8 @@ export async function migrateProductIdentityOnce(
 export async function migrateItemMeasurementUnitsOnce(
   database: SQLite.SQLiteDatabase,
 ): Promise<void> {
-  const applied = await database.getFirstAsync<{ value: string }>(
-    'SELECT value FROM settings WHERE key = ?',
-    [ITEM_MEASUREMENT_UNIT_MIGRATION],
-  );
-  if (applied?.value === '1') return;
+  const applied = await SettingsDao.get(ITEM_MEASUREMENT_UNIT_MIGRATION, database);
+  if (applied === '1') return;
 
   const columns = await database.getAllAsync<SqliteTableInfoRow>(
     'PRAGMA table_info(expense_items);',
@@ -339,10 +314,7 @@ export async function migrateItemMeasurementUnitsOnce(
            OR (quantity > 0 AND quantity < 50 AND ABS(quantity - ROUND(quantity)) > 0.000001)
          )
     `);
-    await database.runAsync(
-      'INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)',
-      [ITEM_MEASUREMENT_UNIT_MIGRATION, '1'],
-    );
+    await SettingsDao.set(ITEM_MEASUREMENT_UNIT_MIGRATION, '1', database);
   });
 }
 
@@ -350,19 +322,14 @@ export async function migrateItemMeasurementUnitsOnce(
 export async function migrateBudgetPeriodSnapshotsOnce(
   database: SQLite.SQLiteDatabase,
 ): Promise<void> {
-  const applied = await database.getFirstAsync<{ value: string }>(
-    'SELECT value FROM settings WHERE key = ?',
-    [BUDGET_PERIOD_SNAPSHOT_MIGRATION],
-  );
-  if (applied?.value === '1') return;
+  const applied = await SettingsDao.get(BUDGET_PERIOD_SNAPSHOT_MIGRATION, database);
+  if (applied === '1') return;
 
   const columns = await database.getAllAsync<SqliteTableInfoRow>('PRAGMA table_info(budgets);');
   const existing = new Set(columns.map((column) => column.name));
-  const anchorRow = await database.getFirstAsync<{ value: string }>(
-    'SELECT value FROM settings WHERE key = ?',
-    ['budget_cycle_start_day'],
+  const anchor = normalizeCycleStartDay(
+    (await SettingsDao.get(SETTINGS_KEYS.budgetCycleStartDay, database)) ?? 1,
   );
-  const anchor = normalizeCycleStartDay(anchorRow?.value ?? 1);
 
   await database.withTransactionAsync(async () => {
     if (!existing.has('period_start')) {
@@ -386,10 +353,7 @@ export async function migrateBudgetPeriodSnapshotsOnce(
         [cycle.start, cycle.end, anchor, row.id],
       );
     }
-    await database.runAsync(
-      'INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)',
-      [BUDGET_PERIOD_SNAPSHOT_MIGRATION, '1'],
-    );
+    await SettingsDao.set(BUDGET_PERIOD_SNAPSHOT_MIGRATION, '1', database);
   });
 }
 
@@ -401,17 +365,11 @@ export async function migrateBudgetPeriodSnapshotsOnce(
 export async function migratePaymentRemindersOnce(
   database: SQLite.SQLiteDatabase,
 ): Promise<void> {
-  const applied = await database.getFirstAsync<{ value: string }>(
-    'SELECT value FROM settings WHERE key = ?',
-    [PAYMENT_REMINDERS_MIGRATION],
-  );
-  const detachApplied = await database.getFirstAsync<{ value: string }>(
-    'SELECT value FROM settings WHERE key = ?',
-    [PAYMENT_REMINDER_VENDOR_DETACH_MIGRATION],
-  );
-  if (applied?.value === '1' && detachApplied?.value === '1') return;
+  const applied = await SettingsDao.get(PAYMENT_REMINDERS_MIGRATION, database);
+  const detachApplied = await SettingsDao.get(PAYMENT_REMINDER_VENDOR_DETACH_MIGRATION, database);
+  if (applied === '1' && detachApplied === '1') return;
 
-  const columns = applied?.value === '1'
+  const columns = applied === '1'
     ? []
     : await database.getAllAsync<SqliteTableInfoRow>('PRAGMA table_info(debts);');
   const existingColumns = new Set(columns.map((column) => column.name));
@@ -441,7 +399,7 @@ export async function migratePaymentRemindersOnce(
   ];
 
   await database.withTransactionAsync(async () => {
-    if (applied?.value !== '1') {
+    if (applied !== '1') {
       for (const [columnName, sql] of missingColumnSql) {
         if (!existingColumns.has(columnName)) {
           await database.execAsync(sql);
@@ -449,16 +407,10 @@ export async function migratePaymentRemindersOnce(
       }
     }
     await database.execAsync(PAYMENT_REMINDERS_SCHEMA_SQL);
-    if (applied?.value !== '1') {
-      await database.runAsync(
-        'INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)',
-        [PAYMENT_REMINDERS_MIGRATION, '1'],
-      );
+    if (applied !== '1') {
+      await SettingsDao.set(PAYMENT_REMINDERS_MIGRATION, '1', database);
     }
-    await database.runAsync(
-      'INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)',
-      [PAYMENT_REMINDER_VENDOR_DETACH_MIGRATION, '1'],
-    );
+    await SettingsDao.set(PAYMENT_REMINDER_VENDOR_DETACH_MIGRATION, '1', database);
   });
 }
 
@@ -470,11 +422,8 @@ export async function migratePaymentRemindersOnce(
 export async function normalizeReceiptMoneyPrecisionOnce(
   database: SQLite.SQLiteDatabase,
 ): Promise<void> {
-  const applied = await database.getFirstAsync<{ value: string }>(
-    'SELECT value FROM settings WHERE key = ?',
-    [RECEIPT_MONEY_PRECISION_MIGRATION],
-  );
-  if (applied?.value === '1') return;
+  const applied = await SettingsDao.get(RECEIPT_MONEY_PRECISION_MIGRATION, database);
+  if (applied === '1') return;
 
   await database.withTransactionAsync(async () => {
     await database.runAsync('UPDATE expenses SET total_amount = ROUND(total_amount, 2)');
@@ -491,10 +440,7 @@ export async function normalizeReceiptMoneyPrecisionOnce(
             ELSE ROUND(list_line_total_before_discount, 2)
           END
     `);
-    await database.runAsync(
-      'INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)',
-      [RECEIPT_MONEY_PRECISION_MIGRATION, '1'],
-    );
+    await SettingsDao.set(RECEIPT_MONEY_PRECISION_MIGRATION, '1', database);
   });
 }
 

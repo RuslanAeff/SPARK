@@ -1,7 +1,8 @@
 import { BudgetDao } from '../db/budgetDao';
 import { BudgetRolloverDao } from '../db/budgetRolloverDao';
 import { ExpenseDao } from '../db/expenseDao';
-import { getDatabase } from '../db/database';
+import { SettingsDao } from '../db/settingsDao';
+import { SETTINGS_KEYS } from '../db/settingsKeys';
 import { formatCurrency } from '../utils/formatCurrency';
 import { GoalDao } from '../db/goalDao';
 import { CategoryLimitDao } from '../db/categoryLimitDao';
@@ -105,11 +106,7 @@ function push(
  *  tutarları uygulamanın geri kalanıyla aynı sembolle gösterilsin diye. */
 async function getDisplayCurrencySetting(): Promise<string> {
   try {
-    const db = await getDatabase();
-    const row = await db.getFirstAsync<{ value: string }>(
-      "SELECT value FROM settings WHERE key = 'display_currency'",
-    );
-    return row?.value || 'PLN';
+    return (await SettingsDao.get(SETTINGS_KEYS.displayCurrency)) || 'PLN';
   } catch {
     return 'PLN';
   }

@@ -2,7 +2,7 @@
 jest.mock('../database', () => ({ getDatabase: jest.fn() }));
 
 import { getDatabase } from '../database';
-import { SettingsDao } from '../settingsDao';
+import { SettingsDao, type SettingsDb } from '../settingsDao';
 import { CREATE_TABLES_SQL } from '../schema';
 import { sqliteTestDatabase } from './helpers/sqliteTestDatabase';
 
@@ -34,10 +34,20 @@ it('round-trips JSON and returns null for corrupt JSON', async () => {
 it('uses the given connection inside a transaction', async () => {
   (getDatabase as jest.Mock).mockClear();
   // Test yardımcısı gerçek bağlantı tipinin alt kümesidir.
-  const conn = db as unknown as NonNullable<Parameters<typeof SettingsDao.set>[2]>;
+  const conn = db as unknown as SettingsDb;
   await db.withTransactionAsync(async () => {
     await SettingsDao.set('backup_last_at', '1', conn);
   });
   expect(getDatabase).not.toHaveBeenCalled();
   expect(await SettingsDao.get('backup_last_at', conn)).toBe('1');
+});
+
+it('reads several keys in one query and skips missing ones', async () => {
+  await SettingsDao.set('theme_manual', 'light');
+  await SettingsDao.set('theme_accent', 'green');
+  const values = await SettingsDao.getMany(['auto_theme_schedule', 'theme_manual', 'theme_accent']);
+  expect(values.get('theme_manual')).toBe('light');
+  expect(values.get('theme_accent')).toBe('green');
+  expect(values.has('auto_theme_schedule')).toBe(false);
+  expect((await SettingsDao.getMany([])).size).toBe(0);
 });

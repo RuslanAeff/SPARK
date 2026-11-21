@@ -17,8 +17,9 @@ import {
 import { logError } from '../utils/logError';
 import { setAppCurrency } from '../db/appCurrencyDao';
 import { SettingsDao } from '../db/settingsDao';
+import { SETTINGS_KEYS } from '../db/settingsKeys';
 
-const SETTINGS_KEY = 'display_currency';
+const SETTINGS_KEY = SETTINGS_KEYS.displayCurrency;
 
 // Tek kaynak: src/utils/currencyMeta.ts. Geriye dönük uyumluluk için buradan yeniden
 // export edilir — mevcut tüketiciler ('../context/CurrencyContext'): add-expense,

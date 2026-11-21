@@ -3,12 +3,13 @@ import { getDatabase } from '../db/database';
 import { applyBusyTimeout } from '../db/busyTimeout';
 import type { InAppNotification, RulesState, NotificationMuteChannel } from './types';
 import { SettingsDao } from '../db/settingsDao';
+import { SETTINGS_KEYS, type SettingKey } from '../db/settingsKeys';
 
-const K_FEED = 'notif_feed_v1';
-const K_RULES = 'notif_rules_state_v1';
-const K_MUTES = 'notif_mutes_v1';
-const K_ANDROID_DELIVERY = 'notif_android_delivery_v1';
-const K_ANDROID_REMINDER_SCHEDULE = 'notif_android_reminder_schedule_v1';
+const K_FEED = SETTINGS_KEYS.notificationFeed;
+const K_RULES = SETTINGS_KEYS.notificationRules;
+const K_MUTES = SETTINGS_KEYS.notificationMutes;
+const K_ANDROID_DELIVERY = SETTINGS_KEYS.notificationAndroidDelivery;
+const K_ANDROID_REMINDER_SCHEDULE = SETTINGS_KEYS.notificationAndroidReminderSchedule;
 
 const MAX_FEED = 40;
 // Rolling reminder horizon'ındaki feed kimlikleri de anlık Android köprüsünde
@@ -76,8 +77,8 @@ export function enqueueNotificationMutation<T>(task: () => Promise<T>): Promise<
 }
 
 // CQ-03: ortak ayar DAO'su (eskiden bu dosyada kopyası vardı).
-const getSetting = (key: string) => SettingsDao.get(key);
-const setSetting = (key: string, value: string) => SettingsDao.set(key, value);
+const getSetting = (key: SettingKey) => SettingsDao.get(key);
+const setSetting = (key: SettingKey, value: string) => SettingsDao.set(key, value);
 
 /** Kaldırılan geliştirme “test bildirimleri ekle” kayıtları — senkron sırasında süzülür */
 function isLegacyDevDemoNotificationId(id: string): boolean {
@@ -306,11 +307,8 @@ export async function saveAndroidReminderScheduleSnapshot(
   const scheduleRecords = Object.fromEntries([...liveRecords, ...firedCleanupRecords]);
   const db = await getDatabase();
   const task = async (txn: Pick<typeof db, 'getFirstAsync' | 'runAsync'>) => {
-    const deliveryRow = await txn.getFirstAsync<{ value: string }>(
-      'SELECT value FROM settings WHERE key = ?',
-      [K_ANDROID_DELIVERY],
-    );
-    const delivery = parseAndroidDeliveryState(deliveryRow?.value ?? null) ?? {
+    const deliveryRow = await SettingsDao.get(K_ANDROID_DELIVERY, txn);
+    const delivery = parseAndroidDeliveryState(deliveryRow) ?? {
       version: 1,
       initializedAt: state.updatedAt,
       records: {},
@@ -344,24 +342,12 @@ export async function saveAndroidReminderScheduleSnapshot(
         .slice(0, MAX_ANDROID_DELIVERY_RECORDS),
     );
 
-    await txn.runAsync(
-      'INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)',
-      [
-        K_ANDROID_REMINDER_SCHEDULE,
-        JSON.stringify({
+    await SettingsDao.set(K_ANDROID_REMINDER_SCHEDULE, JSON.stringify({
           version: 1,
           updatedAt: state.updatedAt,
           records: scheduleRecords,
-        } satisfies AndroidReminderScheduleState),
-      ],
-    );
-    await txn.runAsync(
-      'INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)',
-      [
-        K_ANDROID_DELIVERY,
-        JSON.stringify({ ...delivery, records: deliveryRecords } satisfies AndroidDeliveryState),
-      ],
-    );
+        } satisfies AndroidReminderScheduleState), txn);
+    await SettingsDao.set(K_ANDROID_DELIVERY, JSON.stringify({ ...delivery, records: deliveryRecords } satisfies AndroidDeliveryState), txn);
   };
   if (Platform.OS === 'web') {
     await db.withTransactionAsync(async () => task(db));
@@ -430,14 +416,8 @@ export async function saveNotificationSnapshot(
 ): Promise<void> {
   const db = await getDatabase();
   const task = async (txn: Pick<typeof db, 'runAsync'>) => {
-    await txn.runAsync(
-      'INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)',
-      [K_FEED, JSON.stringify(feed.slice(0, MAX_FEED))],
-    );
-    await txn.runAsync(
-      'INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)',
-      [K_RULES, JSON.stringify(rules)],
-    );
+    await SettingsDao.set(K_FEED, JSON.stringify(feed.slice(0, MAX_FEED)), txn);
+    await SettingsDao.set(K_RULES, JSON.stringify(rules), txn);
   };
 
   if (Platform.OS === 'web') {
@@ -472,12 +452,9 @@ export async function dismissFeedItems(
   let result: DismissNotificationsResult | null = null;
 
   const task = async (txn: Pick<typeof db, 'getFirstAsync' | 'runAsync'>) => {
-    const feedRow = await txn.getFirstAsync<{ value: string }>(
-      'SELECT value FROM settings WHERE key = ?',
-      [K_FEED],
-    );
+    const feedRow = await SettingsDao.get(K_FEED, txn);
 
-    const feed = parseStoredFeed(feedRow?.value ?? null);
+    const feed = parseStoredFeed(feedRow);
     const removedIds = feed
       .filter((item) => requested.has(item.id))
       .map((item) => item.id);
@@ -495,11 +472,8 @@ export async function dismissFeedItems(
         || removed.has('sys-scan-err')
         || reminderDismissals.length > 0
       ) {
-        const rulesRow = await txn.getFirstAsync<{ value: string }>(
-          'SELECT value FROM settings WHERE key = ?',
-          [K_RULES],
-        );
-        rules = parseStoredRules(rulesRow?.value ?? null);
+        const rulesRow = await SettingsDao.get(K_RULES, txn);
+        rules = parseStoredRules(rulesRow);
         if (removed.has('sys-no-api-key') && !rules.apiDismissed) {
           rules.apiDismissed = true;
           rulesChanged = true;
@@ -519,15 +493,9 @@ export async function dismissFeedItems(
         }
       }
 
-      await txn.runAsync(
-        'INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)',
-        [K_FEED, JSON.stringify(nextFeed.slice(0, MAX_FEED))],
-      );
+      await SettingsDao.set(K_FEED, JSON.stringify(nextFeed.slice(0, MAX_FEED)), txn);
       if (rulesChanged && rules) {
-        await txn.runAsync(
-          'INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)',
-          [K_RULES, JSON.stringify(rules)],
-        );
+        await SettingsDao.set(K_RULES, JSON.stringify(rules), txn);
       }
     }
 

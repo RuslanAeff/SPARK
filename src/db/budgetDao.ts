@@ -1,5 +1,7 @@
 // S.P.A.R.K. — Budget Data Access Object
 import { getDatabase } from './database';
+import { SettingsDao } from './settingsDao';
+import { SETTINGS_KEYS } from './settingsKeys';
 import { Budget } from './schema';
 import {
   getCycleForYmd,
@@ -202,11 +204,8 @@ export const BudgetDao = {
     const db = await getDatabase();
     let bridgeId: number | null = null;
     await db.withTransactionAsync(async () => {
-      const setting = await db.getFirstAsync<{ value: string }>(
-        'SELECT value FROM settings WHERE key = ?',
-        ['budget_cycle_start_day'],
-      );
-      const previousStartDay = normalizeCycleStartDay(setting?.value ?? 1);
+      const setting = await SettingsDao.get(SETTINGS_KEYS.budgetCycleStartDay, db);
+      const previousStartDay = normalizeCycleStartDay(setting ?? 1);
       if (previousStartDay === nextStartDay) return;
       const exact = await db.getFirstAsync<Budget>(
         `SELECT * FROM budgets WHERE active = 1 AND period_start <= ? AND period_end >= ?
@@ -259,10 +258,7 @@ export const BudgetDao = {
         );
         bridgeId = Number(inserted.lastInsertRowId);
       }
-      await db.runAsync('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)', [
-        'budget_cycle_start_day',
-        String(nextStartDay),
-      ]);
+      await SettingsDao.set(SETTINGS_KEYS.budgetCycleStartDay, String(nextStartDay), db);
     });
     return { bridgeId };
   },

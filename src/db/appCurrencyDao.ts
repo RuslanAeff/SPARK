@@ -5,8 +5,10 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
 
 import { getDatabase } from './database';
+import { SettingsDao } from './settingsDao';
+import { SETTINGS_KEYS } from './settingsKeys';
 
-export const DISPLAY_CURRENCY_SETTING = 'display_currency';
+export const DISPLAY_CURRENCY_SETTING = SETTINGS_KEYS.displayCurrency;
 
 /** Para birimi kolonu taşıyan bütün tablolar (src/db/schema.ts). */
 export const CURRENCY_TABLES = [
@@ -62,9 +64,6 @@ export async function setAppCurrency(code: string): Promise<void> {
   const db = await getDatabase();
   await db.withTransactionAsync(async () => {
     await relabelCurrencyRows(db, code);
-    await db.runAsync(
-      'INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)',
-      [DISPLAY_CURRENCY_SETTING, code],
-    );
+    await SettingsDao.set(DISPLAY_CURRENCY_SETTING, code, db);
   });
 }

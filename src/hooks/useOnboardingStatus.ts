@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
 import { SettingsDao } from '../db/settingsDao';
+import { SETTINGS_KEYS } from '../db/settingsKeys';
 
-const ONBOARDING_KEY = 'onboarding_completed';
+const ONBOARDING_KEY = SETTINGS_KEYS.onboardingCompleted;
 let sharedCompleted: boolean | null = null;
 const listeners = new Set<(value: boolean) => void>();
 

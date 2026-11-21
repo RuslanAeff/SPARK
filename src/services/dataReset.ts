@@ -21,6 +21,8 @@ import { sweepOrphanVendorLogos } from './vendorLogoStore';
 // bildirim senkronunu tetikler → istenen durum boş olduğu için uzlaştırıcı
 // alarmların hepsini iptal eder.
 import { getDatabase } from '../db/database';
+import { SettingsDao } from '../db/settingsDao';
+import { NOTIFICATION_STATE_KEYS } from '../db/settingsKeys';
 import { clearErrorJournal } from './errorJournal';
 import { logError } from '../utils/logError';
 
@@ -67,15 +69,7 @@ const WIPE_ORDER: readonly string[] = [
   'budgets',
 ];
 
-/**
- * Silinen borç/plan kayıtlarına atıfta bulunan bildirim durumu. Feed ve kural
- * durumu temizlenir (yoksa artık var olmayan bir borcun uyarısı listede kalır);
- * sessize alma tercihleri KULLANICI TERCİHİDİR, korunur.
- */
-const NOTIFICATION_STATE_KEYS: readonly string[] = [
-  'notif_feed_v1',
-  'notif_rules_state_v1',
-];
+// Silinecek bildirim durumu anahtarları tek listede: `settingsKeys.ts`.
 
 /** Onay ekranında gösterilecek sayımlar. Hiçbir şey yazmaz. */
 export async function summarizeUserData(): Promise<UserDataSummary> {
@@ -152,7 +146,7 @@ export async function resetAllUserData(): Promise<void> {
     // Kullanıcının eklediği kategoriler gider, sistem ağacı kalır.
     await db.runAsync('DELETE FROM categories WHERE COALESCE(is_system, 0) = 0');
     for (const key of NOTIFICATION_STATE_KEYS) {
-      await db.runAsync('DELETE FROM settings WHERE key = ?', [key]);
+      await SettingsDao.delete(key, db);
     }
   });
   await scrubFreedPages(db);

@@ -11,8 +11,9 @@ import { Language, loadLocale, getDict } from './translations';
 import { suggestLanguageFromDevice } from './languageOptions';
 import { logError } from '../utils/logError';
 import { SettingsDao } from '../db/settingsDao';
+import { SETTINGS_KEYS } from '../db/settingsKeys';
 
-const LANGUAGE_SETTING_KEY = 'app_language';
+const LANGUAGE_SETTING_KEY = SETTINGS_KEYS.language;
 
 const VALID_LANGS: Language[] = ['tr', 'en', 'az', 'ru'];
 

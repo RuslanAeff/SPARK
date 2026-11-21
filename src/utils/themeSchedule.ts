@@ -1,5 +1,6 @@
 // S.P.A.R.K. — Saate göre aydınlık / karanlık (sabit pencere)
-import { getDatabase } from '../db/database';
+import { SettingsDao } from '../db/settingsDao';
+import { SETTINGS_KEYS } from '../db/settingsKeys';
 import {
   setAppThemeAccent,
   setAppThemeScheme,
@@ -16,9 +17,10 @@ import { logError } from './logError';
 export const LIGHT_START_HOUR = 6; // 06:00
 export const LIGHT_END_HOUR = 18; // 18:00 → 06:00’a kadar karanlık
 
-const KEY_AUTO = 'auto_theme_schedule';
-const KEY_MANUAL = 'theme_manual';
-export const KEY_THEME_ACCENT = 'theme_accent';
+const KEY_AUTO = SETTINGS_KEYS.themeAutoSchedule;
+const KEY_MANUAL = SETTINGS_KEYS.themeManual;
+export const KEY_THEME_ACCENT = SETTINGS_KEYS.themeAccent;
+const THEME_KEYS = [KEY_AUTO, KEY_MANUAL, KEY_THEME_ACCENT] as const;
 let applyGeneration = 0;
 let accentGeneration = 0;
 let accentWriteQueue: Promise<void> = Promise.resolve();
@@ -33,14 +35,9 @@ export function getScheduledColorScheme(): 'light' | 'dark' {
 export async function applyThemeFromDatabase(): Promise<void> {
   const generation = ++applyGeneration;
   try {
-    const db = await getDatabase();
-    const rows = await db.getAllAsync<{ key: string; value: string }>(
-      `SELECT key, value FROM settings WHERE key IN (?, ?, ?)`,
-      [KEY_AUTO, KEY_MANUAL, KEY_THEME_ACCENT],
-    );
+    const values = await SettingsDao.getMany(THEME_KEYS);
     if (generation !== applyGeneration) return;
 
-    const values = new Map(rows.map((row) => [row.key, row.value]));
     const manual = values.get(KEY_MANUAL);
     const next =
       values.get(KEY_AUTO) === '1'
@@ -60,11 +57,7 @@ export async function applyThemeFromDatabase(): Promise<void> {
 export async function setAutoThemeSchedule(enabled: boolean): Promise<void> {
   // Başlamış eski scheduler okumalarını yazma tamamlanmadan geçersiz kıl.
   const generation = ++applyGeneration;
-  const db = await getDatabase();
-  await db.runAsync(
-    `INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)`,
-    [KEY_AUTO, enabled ? '1' : '0']
-  );
+  await SettingsDao.set(KEY_AUTO, enabled ? '1' : '0');
   if (generation !== applyGeneration) return;
   if (enabled) {
     setAppThemeScheme(getScheduledColorScheme());
@@ -75,11 +68,7 @@ export async function setAutoThemeSchedule(enabled: boolean): Promise<void> {
 
 export async function setManualTheme(mode: 'light' | 'dark'): Promise<void> {
   ++applyGeneration;
-  const db = await getDatabase();
-  await db.runAsync(
-    `INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)`,
-    [KEY_MANUAL, mode]
-  );
+  await SettingsDao.set(KEY_MANUAL, mode);
   await applyThemeFromDatabase();
 }
 
@@ -95,11 +84,7 @@ export async function setThemeAccent(accent: ThemeAccent): Promise<void> {
   const generation = ++accentGeneration;
 
   const operation = accentWriteQueue.then(async () => {
-    const db = await getDatabase();
-    await db.runAsync(
-      `INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)`,
-      [KEY_THEME_ACCENT, normalized],
-    );
+    await SettingsDao.set(KEY_THEME_ACCENT, normalized);
   });
   accentWriteQueue = operation.catch(() => undefined);
 
@@ -114,12 +99,7 @@ export async function loadThemeSettings(): Promise<{
   accent: ThemeAccent;
 }> {
   try {
-    const db = await getDatabase();
-    const rows = await db.getAllAsync<{ key: string; value: string }>(
-      `SELECT key, value FROM settings WHERE key IN (?, ?, ?)`,
-      [KEY_AUTO, KEY_MANUAL, KEY_THEME_ACCENT],
-    );
-    const values = new Map(rows.map((row) => [row.key, row.value]));
+    const values = await SettingsDao.getMany(THEME_KEYS);
     const manual = values.get(KEY_MANUAL);
     return {
       autoEnabled: values.get(KEY_AUTO) === '1',

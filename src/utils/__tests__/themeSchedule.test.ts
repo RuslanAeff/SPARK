@@ -122,7 +122,8 @@ describe('themeSchedule atomik tema uygulaması', () => {
     const first = setThemeAccent('blue');
     await Promise.resolve();
     const last = setThemeAccent('red');
-    await Promise.resolve();
+    // Bekleyen mikro görevleri boşalt: ilk yazma bitmeden ikincisi başlamamalı.
+    for (let i = 0; i < 10; i += 1) await Promise.resolve();
 
     expect(db.runAsync).toHaveBeenCalledTimes(1);
     firstWrite.resolve(undefined);
