@@ -59,7 +59,8 @@ const getStyles = () => StyleSheet.create({
     borderRadius: BorderRadius.xl,
     padding: Spacing.lg,
     borderWidth: 1,
-    borderColor: Colors.cardBorder,
+    // Vurgu tonunda, düşük doygunluklu kart kenarı (colors.ts `cardOutline`).
+    borderColor: Colors.cardOutline,
     ...Platform.select({
       ios: {
         shadowColor: '#000',
@@ -74,6 +75,6 @@ const getStyles = () => StyleSheet.create({
   },
   elevated: {
     backgroundColor: Colors.surfaceLight,
-    borderColor: Colors.borderLight,
+    borderColor: Colors.cardOutline,
   },
 });

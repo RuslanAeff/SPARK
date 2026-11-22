@@ -117,7 +117,7 @@ const getStyles = () => StyleSheet.create({
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.md,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: Colors.cardOutline,
   },
   tilePressed: {
     opacity: 0.88,

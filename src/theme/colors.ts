@@ -25,6 +25,13 @@ type AccentTokens = {
   primarySoft: string;
   primaryGlow: string;
   glassBorder: string;
+  /**
+   * İçerik kartlarının kenar çizgisi (ürün sahibi kararı, 22 Kasım 2026): vurgu
+   * renginin tonu, düşük doygunlukla (%22). Zemine karşı parlaklık farkı eski
+   * nötr `cardBorder` ile aynıdır (koyu 2,15:1, açık 1,52:1); kenar renk alır
+   * ama göze batmaz. Düğme, çip ve giriş alanları nötr `cardBorder`'da kalır.
+   */
+  cardOutline: string;
   shadowColor: string;
   tabActive: string;
 };
@@ -154,6 +161,7 @@ export const AccentPalettes: Record<ThemeAccent, AccentDefinition> = {
       primarySoft: 'rgba(0, 168, 79, 0.11)',
       primaryGlow: 'rgba(0, 168, 79, 0.14)',
       glassBorder: 'rgba(0, 168, 79, 0.28)',
+      cardOutline: '#C0D7CB',
       shadowColor: '#00A84F',
       tabActive: '#00A84F',
     },
@@ -166,6 +174,7 @@ export const AccentPalettes: Record<ThemeAccent, AccentDefinition> = {
       primarySoft: 'rgba(46, 232, 140, 0.13)',
       primaryGlow: 'rgba(46, 232, 140, 0.16)',
       glassBorder: 'rgba(46, 232, 140, 0.30)',
+      cardOutline: '#385848',
       shadowColor: '#2EE88C',
       tabActive: '#2EE88C',
     },
@@ -180,6 +189,7 @@ export const AccentPalettes: Record<ThemeAccent, AccentDefinition> = {
       primarySoft: 'rgba(0, 122, 255, 0.10)',
       primaryGlow: 'rgba(0, 122, 255, 0.14)',
       glassBorder: 'rgba(0, 122, 255, 0.28)',
+      cardOutline: '#C9D3DD',
       shadowColor: '#007AFF',
       tabActive: '#007AFF',
     },
@@ -192,6 +202,7 @@ export const AccentPalettes: Record<ThemeAccent, AccentDefinition> = {
       primarySoft: 'rgba(90, 200, 250, 0.13)',
       primaryGlow: 'rgba(90, 200, 250, 0.16)',
       glassBorder: 'rgba(90, 200, 250, 0.30)',
+      cardOutline: '#3D5560',
       shadowColor: '#5AC8FA',
       tabActive: '#5AC8FA',
     },
@@ -206,6 +217,7 @@ export const AccentPalettes: Record<ThemeAccent, AccentDefinition> = {
       primarySoft: 'rgba(232, 104, 0, 0.10)',
       primaryGlow: 'rgba(232, 104, 0, 0.14)',
       glassBorder: 'rgba(232, 104, 0, 0.28)',
+      cardOutline: '#DBD0C6',
       shadowColor: '#E86800',
       tabActive: '#E86800',
     },
@@ -218,6 +230,7 @@ export const AccentPalettes: Record<ThemeAccent, AccentDefinition> = {
       primarySoft: 'rgba(255, 176, 74, 0.13)',
       primaryGlow: 'rgba(255, 176, 74, 0.16)',
       glassBorder: 'rgba(255, 176, 74, 0.30)',
+      cardOutline: '#5E4F3C',
       shadowColor: '#FFB04A',
       tabActive: '#FFB04A',
     },
@@ -232,6 +245,7 @@ export const AccentPalettes: Record<ThemeAccent, AccentDefinition> = {
       primarySoft: 'rgba(109, 63, 192, 0.10)',
       primaryGlow: 'rgba(109, 63, 192, 0.12)',
       glassBorder: 'rgba(109, 63, 192, 0.24)',
+      cardOutline: '#D5CFE0',
       shadowColor: '#6D3FC0',
       tabActive: '#6D3FC0',
     },
@@ -244,6 +258,7 @@ export const AccentPalettes: Record<ThemeAccent, AccentDefinition> = {
       primarySoft: 'rgba(195, 155, 255, 0.13)',
       primaryGlow: 'rgba(195, 155, 255, 0.16)',
       glassBorder: 'rgba(195, 155, 255, 0.30)',
+      cardOutline: '#5A4A73',
       shadowColor: '#C39BFF',
       tabActive: '#C39BFF',
     },
@@ -258,6 +273,7 @@ export const AccentPalettes: Record<ThemeAccent, AccentDefinition> = {
       primarySoft: 'rgba(226, 54, 69, 0.10)',
       primaryGlow: 'rgba(226, 54, 69, 0.14)',
       glassBorder: 'rgba(226, 54, 69, 0.28)',
+      cardOutline: '#DFCDCF',
       shadowColor: '#E23645',
       tabActive: '#E23645',
     },
@@ -270,6 +286,7 @@ export const AccentPalettes: Record<ThemeAccent, AccentDefinition> = {
       primarySoft: 'rgba(255, 114, 123, 0.13)',
       primaryGlow: 'rgba(255, 114, 123, 0.16)',
       glassBorder: 'rgba(255, 114, 123, 0.30)',
+      cardOutline: '#6E4749',
       shadowColor: '#FF727B',
       tabActive: '#FF727B',
     },

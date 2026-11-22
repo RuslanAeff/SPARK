@@ -549,7 +549,7 @@ const getStyles = () =>
     planCard: {
       borderRadius: BorderRadius.xl,
       borderWidth: 1,
-      borderColor: Colors.cardBorder,
+      borderColor: Colors.cardOutline,
       backgroundColor: Colors.cardSurface,
       padding: Spacing.md,
     },
@@ -611,7 +611,7 @@ const getStyles = () =>
       padding: Spacing.lg,
       marginBottom: Spacing.lg,
       borderWidth: 1,
-      borderColor: Colors.cardBorder,
+      borderColor: Colors.cardOutline,
       alignItems: 'center',
     },
     summaryLabel: {
@@ -655,7 +655,7 @@ const getStyles = () =>
       borderRadius: BorderRadius.xl,
       padding: Spacing.lg,
       borderWidth: 1,
-      borderColor: Colors.cardBorder,
+      borderColor: Colors.cardOutline,
     },
     cardMuted: { opacity: 0.7 },
     cardHeader: {

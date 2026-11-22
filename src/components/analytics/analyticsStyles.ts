@@ -52,7 +52,7 @@ export const getAnalyticsStyles = () => StyleSheet.create({
     padding: 4,
     marginBottom: Spacing.md,
     borderWidth: 1,
-    borderColor: Colors.cardBorder,
+    borderColor: Colors.cardOutline,
   },
   tab: {
     flex: 1,
@@ -702,7 +702,7 @@ export const getAnalyticsStyles = () => StyleSheet.create({
     flexShrink: 0,
   },
   primaryCard: {
-    borderColor: Colors.cardBorder,
+    borderColor: Colors.cardOutline,
     borderWidth: 1,
   },
   // ── A1: Monthly Comparison ──

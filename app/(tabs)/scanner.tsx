@@ -993,7 +993,7 @@ const getStyles = (theme: typeof DarkTheme, isDark: boolean) => {
   },
   actionRailPrimary: {
     backgroundColor: theme.cardSurface,
-    borderColor: !isDark ? `${theme.primary}33` : theme.cardBorder,
+    borderColor: theme.cardOutline,
     ...Platform.select({
       ios: {
         shadowColor: '#000000',
@@ -1006,7 +1006,7 @@ const getStyles = (theme: typeof DarkTheme, isDark: boolean) => {
   },
   actionRailSecondary: {
     backgroundColor: theme.cardSurface,
-    borderColor: theme.cardBorder,
+    borderColor: theme.cardOutline,
     ...Platform.select({
       ios: {
         shadowColor: '#000000',
