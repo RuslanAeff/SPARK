@@ -24,6 +24,7 @@ import React, {
 } from 'react';
 import {
   Animated,
+  Easing,
   Platform,
   Pressable,
   StyleSheet,
@@ -39,6 +40,7 @@ import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
 import { BlurTargetView, BlurView } from 'expo-blur';
 import type { MaterialTopTabBarProps } from '@react-navigation/material-top-tabs';
 import { useAppTheme, useThemePalette } from '../theme/themeStore';
+import { useLatestCallback } from '../hooks/useLatestCallback';
 import { FontFamily, Typography } from '../theme/typography';
 import {
   BAR_RADIUS,
@@ -119,9 +121,11 @@ const LABEL_MAX_FONT_MULTIPLIER = 1.3;
 interface GlassTabBarProps extends MaterialTopTabBarProps {
   /** Çubuğun yüzen konumu, boyutu, köşe ve kenarlığı. */
   containerStyle: StyleProp<ViewStyle>;
+  /** Parmak sayfayı sürüklüyor mu (gezginin swipeStart/swipeEnd olayları). */
+  swiping?: boolean;
 }
 
-export function GlassTabBar({ containerStyle, ...barProps }: GlassTabBarProps) {
+export function GlassTabBar({ containerStyle, swiping = false, ...barProps }: GlassTabBarProps) {
   const scheme = useAppTheme();
   const theme = useThemePalette();
   const registry = useContext(TabBlurContext);
@@ -148,7 +152,7 @@ export function GlassTabBar({ containerStyle, ...barProps }: GlassTabBarProps) {
         style={[StyleSheet.absoluteFill, { backgroundColor: isDark ? 'rgba(10,10,12,0.55)' : 'rgba(255,255,255,0.62)' }]}
       />
       <View pointerEvents="none" style={[StyleSheet.absoluteFill, styles.rim, { borderColor: theme.border }]} />
-      <GlassTabItems {...barProps} />
+      <GlassTabItems {...barProps} swiping={swiping} />
     </View>
   );
 }
@@ -158,7 +162,13 @@ export function GlassTabBar({ containerStyle, ...barProps }: GlassTabBarProps) {
  * etiket boyutunu bizim hesabımıza bırakmadığı için kendi düzenimiz: hücre,
  * hap ve ortak etiket ölçeği `computeTabBarGeometry` ile hesaplanır.
  */
-function GlassTabItems({ state, navigation, descriptors, position }: MaterialTopTabBarProps) {
+function GlassTabItems({
+  state,
+  navigation,
+  descriptors,
+  position,
+  swiping,
+}: MaterialTopTabBarProps & { swiping: boolean }) {
   const theme = useThemePalette();
   const [barWidth, setBarWidth] = useState(0);
   const [naturalWidths, setNaturalWidths] = useState<Record<string, number>>({});
@@ -216,7 +226,13 @@ function GlassTabItems({ state, navigation, descriptors, position }: MaterialTop
       </View>
 
       {geometry.cellWidth > 0 ? (
-        <GlassTabIndicator position={position} routeCount={routes.length} geometry={geometry} />
+        <GlassTabIndicator
+          position={position}
+          index={state.index}
+          swiping={swiping}
+          routeCount={routes.length}
+          geometry={geometry}
+        />
       ) : null}
 
       {routes.map((route, index) => {
@@ -271,22 +287,89 @@ function GlassTabItems({ state, navigation, descriptors, position }: MaterialTop
 interface GlassTabIndicatorProps {
   /** Sekme gezgininin sayfa konumu (0…n-1); kaydırırken ara değer alır. */
   position: Animated.AnimatedInterpolation<number>;
+  /** Seçili sekme (gezginin "sayfa seçildi" bilgisi; her zaman tam sayı). */
+  index: number;
+  /** Parmak sayfayı sürüklerken yerine oturtma beklenir. */
+  swiping?: boolean;
   routeCount: number;
   geometry: TabBarGeometry;
 }
 
 /**
- * Seçili sekmenin ikonunu ve yazısını birlikte saran, yumuşak köşeli cam
- * dikdörtgen (borç/ek gelir sekmeleriyle aynı cam dili). Konum sayfa gezgininin kendi animasyonlu
- * değerinden okunur: dokununca sayfa geçişiyle birlikte kayar, parmakla
- * kaydırırken parmağı izler; sayfa ile vurgu hiç ayrışmaz.
+ * Parmak ekranda değilken kaydırma sinyali bu kadar süre susarsa seçici,
+ * seçili sekmeye oturtulur.
+ * Android sayfa kaydırıcısı hızlı/yarıda kesilen kaydırmada son kareyi
+ * (ilerleme = tam sayı) bazen hiç göndermez; seçici ara bir konumda kalırdı.
  */
-export function GlassTabIndicator({ position, routeCount, geometry }: GlassTabIndicatorProps) {
+export const INDICATOR_SETTLE_MS = 120;
+const SETTLE_DURATION_MS = 180;
+
+/**
+ * Seçili sekmenin ikonunu ve yazısını birlikte saran, yumuşak köşeli cam
+ * dikdörtgen (borç/ek gelir sekmeleriyle aynı cam dili).
+ *
+ * Konum kendi animasyon değerinde tutulur:
+ *   • kaydırma sürerken sayfa gezgininin ilerlemesini birebir izler;
+ *   • kaydırma bitince (gezginin swipeEnd olayı), parmak ekranda değilken
+ *     ilerleme sinyali `INDICATOR_SETTLE_MS` susunca veya seçili sekme
+ *     değişince kısa bir animasyonla seçili sekmenin TAM konumuna oturur;
+ *   • parmak yarı yolda beklerken oturtulmaz (seçici sıçramaz).
+ * Böylece son kare kaybolsa bile seçici iki sekme arasında asılı kalmaz.
+ */
+export function GlassTabIndicator({
+  position,
+  index,
+  swiping = false,
+  routeCount,
+  geometry,
+}: GlassTabIndicatorProps) {
   const theme = useThemePalette();
+  const progress = useRef(new Animated.Value(index)).current;
+  const indexRef = useRef(index);
+  indexRef.current = index;
+  const swipingRef = useRef(swiping);
+  swipingRef.current = swiping;
+  const settleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const settle = useLatestCallback(() => {
+    settleTimer.current = null;
+    Animated.timing(progress, {
+      toValue: indexRef.current,
+      duration: SETTLE_DURATION_MS,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: true,
+    }).start();
+  });
+
+  useEffect(() => {
+    const subscription = position.addListener(({ value }) => {
+      progress.stopAnimation();
+      progress.setValue(value);
+      if (settleTimer.current) clearTimeout(settleTimer.current);
+      settleTimer.current = swipingRef.current ? null : setTimeout(settle, INDICATOR_SETTLE_MS);
+    });
+    return () => {
+      position.removeListener(subscription);
+      if (settleTimer.current) clearTimeout(settleTimer.current);
+      settleTimer.current = null;
+    };
+  }, [position, progress, settle]);
+
+  // Sekme değişti veya kaydırma bitti: hedef her zaman tam sayı. Parmak
+  // ekrandayken beklenir; bırakılınca (swipeEnd) oturtulur.
+  useEffect(() => {
+    if (swiping) {
+      if (settleTimer.current) clearTimeout(settleTimer.current);
+      settleTimer.current = null;
+      return;
+    }
+    settle();
+  }, [index, swiping, settle]);
+
   if (geometry.selectorWidth <= 0 || routeCount < 1) return null;
   const indices = Array.from({ length: routeCount }, (_, i) => i);
   const translateX = routeCount > 1
-    ? position.interpolate({
+    ? progress.interpolate({
       inputRange: indices,
       outputRange: indices.map(i => selectorOffset(i, geometry)),
       extrapolate: 'clamp',

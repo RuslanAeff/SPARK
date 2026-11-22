@@ -1,10 +1,14 @@
 import React from 'react';
 import { Animated, Platform, StyleSheet, Text } from 'react-native';
-import { render } from '@testing-library/react-native';
+import { fireEvent, render } from '@testing-library/react-native';
 
-import { fireEvent } from '@testing-library/react-native';
-
-import { GlassTabBar, GlassTabIndicator, TabBlurProvider, TabBlurScene } from '../GlassTabBar';
+import {
+  GlassTabBar,
+  GlassTabIndicator,
+  INDICATOR_SETTLE_MS,
+  TabBlurProvider,
+  TabBlurScene,
+} from '../GlassTabBar';
 import { SELECTOR_HEIGHT, SELECTOR_RADIUS, computeTabBarGeometry, selectorOffset } from '../tabBarLayout';
 
 jest.mock('expo-blur', () => {
@@ -113,7 +117,7 @@ describe('GlassTabIndicator', () => {
 
   it('draws a soft-cornered rectangle wrapping icon and label', async () => {
     const geometry = computeTabBarGeometry(353, 5, []);
-    const screen = await render(<GlassTabIndicator position={position} routeCount={5} geometry={geometry} />);
+    const screen = await render(<GlassTabIndicator position={position} index={0} routeCount={5} geometry={geometry} />);
     const flat = StyleSheet.flatten(screen.getByTestId('glass-tab-indicator').props.style);
     expect(flat.width).toBe(geometry.selectorWidth);
     expect(flat.height).toBe(SELECTOR_HEIGHT);
@@ -124,7 +128,100 @@ describe('GlassTabIndicator', () => {
 
   it('renders nothing before the bar is measured', async () => {
     const geometry = computeTabBarGeometry(0, 5, []);
-    const screen = await render(<GlassTabIndicator position={position} routeCount={5} geometry={geometry} />);
+    const screen = await render(<GlassTabIndicator position={position} index={0} routeCount={5} geometry={geometry} />);
     expect(screen.queryByTestId('glass-tab-indicator')).toBeNull();
+  });
+});
+
+describe('GlassTabIndicator settling', () => {
+  const geometry = computeTabBarGeometry(369, 5, []);
+  // Animasyonlu stil testte yalnız çizim anında okunur: değeri okumadan önce yeniden çiz.
+  async function translateXAfter(
+    screen: Awaited<ReturnType<typeof render>>,
+    element: React.ReactElement,
+  ): Promise<number> {
+    await screen.rerender(element);
+    const flat = StyleSheet.flatten(screen.getByTestId('glass-tab-indicator').props.style);
+    return flat.transform[0].translateX;
+  }
+
+  beforeEach(() => {
+    jest.useFakeTimers();
+    // Yerine oturma animasyonu native sürücüde çalışır; testte hedefe anında
+    // ulaşan taklit, hedefin (toValue) tam sekme olduğunu doğrular.
+    jest.spyOn(Animated, 'timing').mockImplementation(((value: Animated.Value, config: { toValue: number }) => ({
+      start: (done?: (result: { finished: boolean }) => void) => {
+        value.setValue(config.toValue);
+        done?.({ finished: true });
+      },
+      stop: () => {},
+      reset: () => {},
+    })) as unknown as typeof Animated.timing);
+  });
+  afterEach(() => {
+    jest.restoreAllMocks();
+    jest.useRealTimers();
+  });
+
+  it('follows the swipe, then snaps to the selected tab when the last scroll frame is lost', async () => {
+    const pager = new Animated.Value(0);
+    const at = (index: number) => (
+      <GlassTabIndicator position={pager as any} index={index} routeCount={5} geometry={geometry} />
+    );
+    const screen = await render(at(0));
+    jest.advanceTimersByTime(1000);
+    // Kaydırma sürüyor: seçici parmağı izler.
+    pager.setValue(0.23);
+    expect(await translateXAfter(screen, at(0)))
+      .toBeCloseTo(selectorOffset(0, geometry) + 0.23 * geometry.cellWidth, 1);
+    // Sayfa 1 seçildi ama son kare (1,0) hiç gelmedi.
+    await screen.rerender(at(1));
+    jest.advanceTimersByTime(INDICATOR_SETTLE_MS + 1000);
+    expect(await translateXAfter(screen, at(1))).toBeCloseTo(selectorOffset(1, geometry), 1);
+  });
+
+  it('returns to the current tab when a cancelled swipe leaves a fractional value', async () => {
+    const pager = new Animated.Value(2);
+    const at = (index: number) => (
+      <GlassTabIndicator position={pager as any} index={index} routeCount={5} geometry={geometry} />
+    );
+    const screen = await render(at(2));
+    jest.advanceTimersByTime(1000);
+    pager.setValue(2.4); // sayfa geri döndü ama son kare gelmedi
+    jest.advanceTimersByTime(INDICATOR_SETTLE_MS + 1000);
+    expect(await translateXAfter(screen, at(2))).toBeCloseTo(selectorOffset(2, geometry), 1);
+  });
+});
+
+describe('GlassTabIndicator while the finger holds the page', () => {
+  const geometry = computeTabBarGeometry(369, 5, []);
+  beforeEach(() => {
+    jest.useFakeTimers();
+    jest.spyOn(Animated, 'timing').mockImplementation(((value: Animated.Value, config: { toValue: number }) => ({
+      start: () => value.setValue(config.toValue),
+      stop: () => {},
+      reset: () => {},
+    })) as unknown as typeof Animated.timing);
+  });
+  afterEach(() => {
+    jest.restoreAllMocks();
+    jest.useRealTimers();
+  });
+
+  it('does not snap mid-drag and settles once the swipe ends', async () => {
+    const pager = new Animated.Value(0);
+    const at = (swiping: boolean) => (
+      <GlassTabIndicator position={pager as any} index={0} swiping={swiping} routeCount={5} geometry={geometry} />
+    );
+    const read = async (element: React.ReactElement) => {
+      await screen.rerender(element);
+      return StyleSheet.flatten(screen.getByTestId('glass-tab-indicator').props.style).transform[0].translateX;
+    };
+    const screen = await render(at(true));
+    pager.setValue(0.4); // parmak yarı yolda bekliyor
+    jest.advanceTimersByTime(INDICATOR_SETTLE_MS * 5);
+    expect(await read(at(true))).toBeCloseTo(selectorOffset(0, geometry) + 0.4 * geometry.cellWidth, 1);
+    // Parmak bırakıldı, sayfa geri döndü ama son kare gelmedi.
+    expect(await read(at(false))).toBeCloseTo(selectorOffset(0, geometry), 1);
   });
 });

@@ -1,4 +1,4 @@
-import React, { useMemo, useRef } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import { Platform, View, useWindowDimensions, type ViewStyle } from 'react-native';
 import { withLayoutContext } from 'expo-router';
 import { createMaterialTopTabNavigator } from '@react-navigation/material-top-tabs';
@@ -24,6 +24,7 @@ function TabNavigator() {
   const { width: windowWidth } = useWindowDimensions();
   const { swipeEnabled, navigationLocked } = useTabSwipe();
   // tabPress dinleyicisi her olayda güncel kilidi okur.
+  const [swiping, setSwiping] = useState(false);
   const navigationLockedRef = useRef(navigationLocked);
   navigationLockedRef.current = navigationLocked;
   /** Sistem jest çubuğu / home indicator üstünde kalsın (Android gesture bar, iPhone çentik vb.) */
@@ -54,11 +55,16 @@ function TabNavigator() {
   return (
     <SwipeableTabs
       tabBarPosition="bottom"
-      tabBar={(props: any) => <GlassTabBar {...props} containerStyle={floatingStyle} />}
+      tabBar={(props: any) => (
+        <GlassTabBar {...props} containerStyle={floatingStyle} swiping={swiping} />
+      )}
       screenLayout={({ children, route }: { children: React.ReactNode; route: { key: string } }) => (
         <TabBlurScene routeKey={route.key}>{children}</TabBlurScene>
       )}
       screenListeners={{
+        // Parmak sayfayı sürüklerken seçici yerine oturtulmaz (GlassTabIndicator).
+        swipeStart: () => setSwiping(true),
+        swipeEnd: () => setSwiping(false),
         state: () => {
           Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
         },
